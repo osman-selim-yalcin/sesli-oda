@@ -14,6 +14,7 @@ let gateNode = null;
 let screenStream = null;      // kendi ekran paylaşımımız
 let sharerId = null;          // odada ekranını paylaşan kişi
 let micOn = true;
+let myName = '';
 let selfId = null;
 let audioCtx = null;
 let voiceBus = null;          // tüm konuşmaların geçtiği kompresör
@@ -124,26 +125,43 @@ function watchLevel(source, row, state) {
     if (peak > SPEAK_THRESHOLD) lastLoud = Date.now();
     state.speaking = Date.now() - lastLoud < SPEAK_HOLD;
     row.classList.toggle('speaking', state.speaking);
+    row.mini?.classList.toggle('speaking', state.speaking);
   }, 100);
 }
 
 // ---------- Katılımcı listesi ----------
 
 function renderPeopleCount() {
-  $('people-count').textContent = `(${peers.size + 1}/6)`;
+  $('people-count').textContent = `${peers.size + 1}/6`;
+}
+
+// İsimden sabit bir renk: herkes her yerde (liste, sohbet) aynı renkte görünür.
+const AVATAR_COLORS = ['#c2413b', '#d9822b', '#b59a1f', '#3f9b4f', '#1f9a8a', '#2f7fc1', '#5b5fd6', '#8f4fc9', '#c2448f', '#6b7280'];
+
+function makeAvatar(name) {
+  let hash = 2166136261; // FNV-1a: benzer isimler de farklı renge düşsün
+  for (const ch of name) hash = Math.imul(hash ^ ch.codePointAt(0), 16777619);
+  const el = document.createElement('div');
+  el.className = 'avatar';
+  el.textContent = [...name][0]?.toLocaleUpperCase('tr-TR') || '?';
+  el.style.background = AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
+  el.title = name;
+  return el;
 }
 
 function personRow(name, isSelf) {
   const li = document.createElement('li');
   li.innerHTML = `
-    <div class="avatar"></div>
     <div class="p-info">
       <div class="p-name"><span class="p-label"></span> <span class="p-badge" hidden title="Videosu yükleniyor">⏳</span></div>
       <div class="p-status"></div>
     </div>`;
-  li.querySelector('.avatar').textContent = name.slice(0, 1).toUpperCase();
+  li.prepend(makeAvatar(name));
   li.querySelector('.p-label').textContent = isSelf ? `${name} (sen)` : name;
   $('people').append(li);
+  // Araç çubuğundaki küçük ikon; kimin konuştuğu liste kapalıyken de görünsün.
+  li.mini = makeAvatar(name);
+  $('avatar-strip').append(li.mini);
   return li;
 }
 
@@ -205,6 +223,7 @@ function removePeer(id) {
   peer.gain.disconnect();
   peer.audio.srcObject = null;
   peer.row.remove();
+  peer.row.mini.remove();
   peers.delete(id);
   renderPeopleCount();
 }
@@ -365,7 +384,8 @@ socket.io.on('reconnect', () => location.reload());
 
 function renderMic() {
   const btn = $('mic-toggle');
-  btn.textContent = micOn ? '🎙 Mikrofon açık' : '🔇 Mikrofon kapalı';
+  btn.textContent = micOn ? '🎙' : '🔇';
+  btn.title = micOn ? 'Mikrofonu kapat' : 'Mikrofonu aç';
   btn.classList.toggle('off', !micOn);
 }
 
@@ -418,7 +438,7 @@ async function setupMic() {
   } catch (err) {
     console.warn('ses eşiği kullanılamıyor', err);
     sendStream = localStream;
-    $('mic-settings').hidden = true;
+    $('gate-btn').hidden = true;
   }
 }
 
@@ -469,7 +489,8 @@ function renderScreen() {
     ? 'Ekranını paylaşıyorsun'
     : sharer ? `${sharer.name} ekranını paylaşıyor` : '';
   $('screen-stop').hidden = !screenStream;
-  $('screen-toggle').textContent = screenStream ? '🖥 Paylaşımı durdur' : '🖥 Ekran paylaş';
+  $('screen-toggle').classList.toggle('on', Boolean(screenStream));
+  $('screen-toggle').title = screenStream ? 'Paylaşımı durdur' : 'Ekran paylaş';
 }
 
 socket.on('screen', (id) => {
@@ -484,6 +505,19 @@ $('screen-toggle').hidden = !navigator.mediaDevices?.getDisplayMedia;
 $('screen-toggle').onclick = () => (screenStream ? stopScreen() : startScreen());
 $('screen-stop').onclick = stopScreen;
 $('screen-full').onclick = () => $('screen-video').requestFullscreen?.();
+
+// ---------- Açılır pencereler ----------
+// Tarayıcının popover özelliği pencereyi ortalar; biz açan düğmenin altına hizalarız.
+
+for (const pop of document.querySelectorAll('.pop')) {
+  pop.addEventListener('toggle', (e) => {
+    if (e.newState !== 'open') return;
+    const btn = document.querySelector(`[popovertarget="${pop.id}"]`).getBoundingClientRect();
+    const width = pop.offsetWidth;
+    pop.style.top = `${btn.bottom + 6}px`;
+    pop.style.left = `${Math.max(16, Math.min(btn.left, innerWidth - width - 16))}px`;
+  });
+}
 
 // ---------- Geçici sohbet ----------
 // Mesajlar sadece sunucunun hafızasında tutulur (son 50); herkes çıkınca silinir.
@@ -509,6 +543,7 @@ function renderChatMessage({ from, name, text, ts }) {
 
   const li = document.createElement('li');
   li.className = 'chat-msg' + (from === selfId ? ' mine' : '');
+  const content = document.createElement('div');
   const who = document.createElement('span');
   who.className = 'who';
   who.textContent = name;
@@ -518,7 +553,8 @@ function renderChatMessage({ from, name, text, ts }) {
   const body = document.createElement('div');
   body.className = 'text';
   appendLinkified(body, text);
-  li.append(who, when, body);
+  content.append(who, when, body);
+  li.append(makeAvatar(name), content);
 
   // Mesajda YouTube linki varsa tek tıkla sıraya eklenebilsin.
   const videoId = (text.match(URL_RE) || []).map(parseVideoId).find(Boolean);
@@ -530,7 +566,7 @@ function renderChatMessage({ from, name, text, ts }) {
       socket.emit('media:add', videoId);
       add.disabled = true;
     };
-    li.append(add);
+    content.append(add);
   }
 
   list.append(li);
@@ -538,7 +574,10 @@ function renderChatMessage({ from, name, text, ts }) {
   if (nearBottom || from === selfId) list.scrollTop = list.scrollHeight;
 }
 
-socket.on('chat', renderChatMessage);
+socket.on('chat', (msg) => {
+  renderChatMessage(msg);
+  if (msg.from !== selfId && audioCtx) Sfx.ping(audioCtx, sfxBus);
+});
 
 $('chat-form').onsubmit = (e) => {
   e.preventDefault();
@@ -805,7 +844,47 @@ function applyMedia() {
   }
 }
 
+// ---------- Şarkı tepkileri ----------
+// 👍/👎 ve emoji; herkes her şarkıya bir kez basar, tekrar basınca geri alır.
+
+const REACTIONS = ['🔥', '😂', '😍', '👏', '💀', '😴'];
+
+function reactButton(label, who, onClick) {
+  const btn = document.createElement('button');
+  btn.className = 'react' + (who.includes(myName) ? ' mine' : '');
+  btn.textContent = who.length ? `${label} ${who.length}` : label;
+  if (who.length) btn.title = who.join(', ');
+  btn.onclick = onClick;
+  return btn;
+}
+
+function fillReactions(container, item) {
+  container.replaceChildren();
+  if (!item) return;
+  const vote = (v) => () => socket.emit('media:vote', { itemId: item.id, vote: v });
+  const react = (emoji) => () => socket.emit('media:react', { itemId: item.id, emoji });
+  container.append(reactButton('👍', item.likes, vote(1)), reactButton('👎', item.dislikes, vote(-1)));
+  for (const [emoji, who] of Object.entries(item.reactions)) container.append(reactButton(emoji, who, react(emoji)));
+
+  const picker = document.createElement('span');
+  picker.className = 'react-picker';
+  picker.hidden = true;
+  for (const emoji of REACTIONS) {
+    const b = document.createElement('button');
+    b.textContent = emoji;
+    b.onclick = react(emoji);
+    picker.append(b);
+  }
+  const more = document.createElement('button');
+  more.className = 'react';
+  more.textContent = '😊＋';
+  more.title = 'Emoji ekle';
+  more.onclick = () => (picker.hidden = !picker.hidden);
+  container.append(more, picker);
+}
+
 function renderQueue() {
+  fillReactions($('now-reactions'), media.current);
   const list = $('queue');
   list.innerHTML = '';
   media.queue.forEach((item, i) => {
@@ -814,11 +893,13 @@ function renderQueue() {
       <div class="q-text">
         <div class="q-title"></div>
         <div class="muted small"></div>
+        <div class="reactions"></div>
       </div>
       <button data-act="play">Şimdi oynat</button>
       <button data-act="remove" title="Sıradan çıkar">✕</button>`;
     li.querySelector('.q-title').textContent = item.title;
     li.querySelector('.small').textContent = `${item.by} ekledi`;
+    fillReactions(li.querySelector('.reactions'), item);
     li.querySelector('[data-act=play]').onclick = () => socket.emit('media:playNow', i);
     li.querySelector('[data-act=remove]').onclick = () => socket.emit('media:remove', i);
     list.append(li);
@@ -981,6 +1062,7 @@ fetch('/status')
 $('join-form').onsubmit = async (e) => {
   e.preventDefault();
   const name = $('name').value.trim();
+  myName = name;
   const btn = e.submitter;
   btn.disabled = true;
   $('join-error').hidden = true;
@@ -1002,7 +1084,7 @@ $('join-form').onsubmit = async (e) => {
     $('mic-note').textContent = 'Mikrofona erişilemedi; sadece dinleyebilirsin.';
     $('mic-note').hidden = false;
     $('mic-toggle').disabled = true;
-    $('mic-settings').hidden = true;
+    $('gate-btn').hidden = true;
   }
   if (localStream) await setupMic();
 

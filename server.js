@@ -8,6 +8,7 @@ const MAX_USERS = 6;
 const VIDEO_ID = /^[\w-]{11}$/;
 const SFX_IDS = new Set(['clap', 'rimshot', 'ding', 'sad', 'tada', 'boom']);
 const SFX_COOLDOWN = 600; // ms; efekt spam'ini engeller
+const REACTIONS = ['🔥', '😂', '😍', '👏', '💀', '😴'];
 const CHAT_HISTORY = 50;  // odaya yeni girene gösterilen son mesaj sayısı
 const CHAT_MAX_LENGTH = 500;
 const CHAT_COOLDOWN = 300; // ms
@@ -70,10 +71,35 @@ function setPlayback(room, playing, position) {
   room.updatedAt = Date.now();
 }
 
+// Beğeni ve tepkiler kişi başı tutulur (anahtar: sekme kimliği); istemciye isim listesi olarak gider.
+const names = (map) => [...map.values()];
+
+function itemView(item) {
+  if (!item) return null;
+  const reactions = {};
+  for (const [emoji, who] of item.reactions) if (who.size) reactions[emoji] = names(who);
+  return {
+    id: item.id,
+    videoId: item.videoId,
+    title: item.title,
+    by: item.by,
+    likes: names(item.likes),
+    dislikes: names(item.dislikes),
+    reactions,
+  };
+}
+
+function findItem(room, id) {
+  if (room.current?.id === id) return room.current;
+  return room.queue.find((item) => item.id === id);
+}
+
+let nextItemId = 1;
+
 function mediaState(room) {
   return {
-    current: room.current,
-    queue: room.queue,
+    current: itemView(room.current),
+    queue: room.queue.map(itemView),
     playing: room.playing,
     position: room.position,
     updatedAt: room.updatedAt,
@@ -203,7 +229,7 @@ io.on('connection', (socket) => {
     const title = (await fetchTitle(videoId)) || videoId;
     if (!rooms.has(roomCode)) return;
     const room = getRoom(roomCode);
-    const item = { videoId, title, by };
+    const item = { id: nextItemId++, videoId, title, by, likes: new Map(), dislikes: new Map(), reactions: new Map() };
     if (room.current) {
       room.queue.push(item);
     } else {
@@ -212,6 +238,36 @@ io.on('connection', (socket) => {
     }
     io.to(roomCode).emit('notice', `${by} ekledi: ${title}`);
     broadcastMedia(roomCode);
+  });
+
+  const voter = () => {
+    const user = getRoom(code).users.get(socket.id);
+    return { key: user.clientId || socket.id, name: user.name };
+  };
+
+  // vote: 1 beğen, -1 beğenme; aynı oya tekrar basmak geri alır.
+  socket.on('media:vote', ({ itemId, vote } = {}) => {
+    if (!code || (vote !== 1 && vote !== -1)) return;
+    const item = findItem(getRoom(code), itemId);
+    if (!item) return;
+    const { key, name } = voter();
+    const [mine, other] = vote === 1 ? [item.likes, item.dislikes] : [item.dislikes, item.likes];
+    other.delete(key);
+    if (mine.has(key)) mine.delete(key);
+    else mine.set(key, name);
+    broadcastMedia(code);
+  });
+
+  socket.on('media:react', ({ itemId, emoji } = {}) => {
+    if (!code || !REACTIONS.includes(emoji)) return;
+    const item = findItem(getRoom(code), itemId);
+    if (!item) return;
+    const { key, name } = voter();
+    if (!item.reactions.has(emoji)) item.reactions.set(emoji, new Map());
+    const who = item.reactions.get(emoji);
+    if (who.has(key)) who.delete(key);
+    else who.set(key, name);
+    broadcastMedia(code);
   });
 
   socket.on('media:play', (position) => {

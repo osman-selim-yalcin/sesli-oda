@@ -169,6 +169,7 @@ button.off { background: var(--danger); border-color: var(--danger); }
   border-radius: 8px;
 }
 .queue .q-text { flex: 1; min-width: 0; }
+.queue .reactions { margin-top: 4px; }
 .queue .q-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .queue button { padding: 4px 8px; font-size: 13px; }
 
@@ -293,8 +294,79 @@ button.off { background: var(--danger); border-color: var(--danger); }
 }
 @keyframes fade { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
 
+/* Sağ panel: araç çubuğu + ekranı dolduran sohbet */
+.side {
+  position: sticky;
+  top: 16px;
+  height: calc(100vh - 100px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+}
+.toolbar { display: flex; gap: 6px; align-items: center; }
+.toolbar .tool { flex-shrink: 0; }
+.tool.on { background: var(--accent); border-color: var(--accent); }
+.people-btn {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+.avatar-strip { display: flex; min-width: 0; overflow: hidden; }
+.avatar-strip .avatar { width: 26px; height: 26px; font-size: 12px; margin-right: -6px; border: 2px solid var(--panel-2); }
+.avatar-strip .avatar.speaking { box-shadow: 0 0 0 2px var(--speak); position: relative; z-index: 1; }
+
+.pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(320px, calc(100vw - 32px));
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
+}
+.pop h2 { margin: 0 0 10px; }
+.pop .people-list { margin: 0; }
+.pop .mic-settings { margin: 0; border: none; padding: 0; background: none; }
+
+.side .chat { flex: 1; min-height: 0; grid-template-rows: 1fr auto; }
+.side .chat-list { max-height: none; align-content: start; }
+.chat-msg { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; }
+.chat-msg .avatar { width: 28px; height: 28px; font-size: 13px; }
+.chat-msg .queue-add { justify-self: start; }
+
+details.usage summary { cursor: pointer; list-style: none; }
+details.usage summary::-webkit-details-marker { display: none; }
+details.usage summary span::after { content: ' ▸'; color: var(--muted); }
+details.usage[open] summary span::after { content: ' ▾'; }
+
+/* Şarkı tepkileri */
+.reactions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; align-items: center; }
+.react {
+  padding: 2px 8px;
+  font-size: 13px;
+  border-radius: 999px;
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.react.mine { border-color: var(--accent); background: rgba(91, 140, 255, .18); }
+.react-picker { display: inline-flex; gap: 2px; }
+.react-picker button { padding: 2px 6px; font-size: 15px; border-radius: 999px; }
+
 @media (max-width: 800px) {
   .layout { grid-template-columns: 1fr; }
+  .side { position: static; height: auto; }
+  .side .chat { height: 420px; flex: none; }
   .topbar { flex-wrap: wrap; }
   .vol input { width: 60px; }
 }

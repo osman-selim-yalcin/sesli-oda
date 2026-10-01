@@ -62,6 +62,7 @@
         <div class="now-playing">
           <div id="now-title" class="now-title">—</div>
           <div id="now-by" class="muted small"></div>
+          <div id="now-reactions" class="reactions"></div>
         </div>
 
         <div class="controls">
@@ -105,22 +106,33 @@
         <p id="queue-empty" class="muted small">Sıra boş.</p>
       </section>
 
-      <aside class="people">
-        <h2>Odadakiler <span id="people-count" class="muted"></span></h2>
-        <ul id="people" class="people-list"></ul>
-        <button id="mic-toggle" class="primary wide">🎙 Mikrofon açık</button>
+      <aside class="side">
+        <!-- Araç çubuğu: kişiler ve ses eşiği açılır pencerede, sohbete yer kalsın -->
+        <div class="toolbar">
+          <button id="people-btn" class="people-btn" popovertarget="people-pop" title="Odadakiler">
+            <span id="avatar-strip" class="avatar-strip"></span>
+            <span id="people-count" class="muted small"></span>
+          </button>
+          <button id="mic-toggle" class="icon tool" title="Mikrofonu kapat">🎙</button>
+          <button id="gate-btn" class="icon tool" popovertarget="gate-pop" title="Ses eşiği">🎚</button>
+          <button id="screen-toggle" class="icon tool" title="Ekran paylaş">🖥</button>
+        </div>
         <p id="mic-note" class="muted small" hidden></p>
 
-        <div id="mic-settings" class="mic-settings">
-          <div class="mic-label"><span>Ses eşiği</span><span id="gate-value" class="muted small"></span></div>
-          <div class="meter"><div id="meter-fill" class="meter-fill"></div><div id="meter-mark" class="meter-mark"></div></div>
-          <input id="gate" type="range" min="-80" max="-10" step="1" value="-50" aria-label="Ses eşiği">
-          <p class="muted small">Çubuk çizgiyi geçince sesin gider. Çok ses yakalıyorsa sağa çek.</p>
+        <div id="people-pop" class="pop" popover>
+          <h2>Odadakiler</h2>
+          <ul id="people" class="people-list"></ul>
         </div>
 
-        <button id="screen-toggle" class="wide">🖥 Ekran paylaş</button>
+        <div id="gate-pop" class="pop" popover>
+          <div id="mic-settings" class="mic-settings">
+            <div class="mic-label"><span>Ses eşiği</span><span id="gate-value" class="muted small"></span></div>
+            <div class="meter"><div id="meter-fill" class="meter-fill"></div><div id="meter-mark" class="meter-mark"></div></div>
+            <input id="gate" type="range" min="-80" max="-10" step="1" value="-50" aria-label="Ses eşiği">
+            <p class="muted small">Çubuk çizgiyi geçince sesin gider. Çok ses yakalıyorsa sağa çek.</p>
+          </div>
+        </div>
 
-        <h2>Sohbet</h2>
         <div class="chat">
           <ol id="chat-list" class="chat-list"></ol>
           <p id="chat-empty" class="muted small chat-empty">Sohbet kaydedilmez; herkes çıkınca silinir.</p>
@@ -130,15 +142,14 @@
           </form>
         </div>
 
-        <h2>İnternet kullanımı</h2>
-        <div class="usage">
+        <details class="usage">
+          <summary class="usage-row"><span>İnternet</span><strong id="use-total">—</strong></summary>
           <div class="usage-row"><span>Anlık</span><strong id="use-rate">—</strong></div>
-          <div class="usage-row"><span>Bu oturum</span><strong id="use-total">—</strong></div>
           <div class="usage-row sub"><span>Sesli sohbet</span><span id="use-voice">—</span></div>
           <div class="usage-row sub"><span>Senkron (sunucu)</span><span id="use-sync">—</span></div>
           <div class="usage-row sub"><span>YouTube (tahmini)</span><span id="use-yt">—</span></div>
           <p class="muted small">↓ indirilen · ↑ gönderilen. YouTube'un harcadığı veri tarayıcı tarafından sayfaya gösterilmez; indirilen video süresi ve kaliteden tahmin edilir (±%30).</p>
-        </div>
+        </details>
       </aside>
     </div>
   </div>
