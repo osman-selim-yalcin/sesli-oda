@@ -42,7 +42,7 @@ app.get('/config', (req, res) => {
       credential: process.env.TURN_CREDENTIAL,
     });
   }
-  res.json({ iceServers });
+  res.json({ iceServers, search: Boolean(process.env.YT_API_KEY) });
 });
 
 // Sohbet fotoğrafları: sadece hafızada; mesaj sohbet geçmişinden düşünce ya da oda boşalınca silinir.

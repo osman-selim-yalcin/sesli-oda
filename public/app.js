@@ -1525,8 +1525,18 @@ $('add-form').onsubmit = (e) => {
     $('yt-url').value = '';
     return;
   }
+  if (!searchEnabled) return toast('Geçerli bir YouTube linki değil.');
   searchYouTube(value);
 };
+
+// Sunucuda API anahtarı yoksa kutu sadece link kabul eder.
+let searchEnabled = false;
+
+function setSearchEnabled(on) {
+  searchEnabled = on;
+  $('yt-url').placeholder = on ? 'Şarkı ara ya da YouTube linki yapıştır…' : 'YouTube linki yapıştır…';
+  $('add-form').querySelector('button').textContent = on ? 'Ara / Ekle' : 'Ekle';
+}
 
 async function searchYouTube(q) {
   $('search-box').hidden = false;
@@ -1616,7 +1626,9 @@ $('join-form').onsubmit = async (e) => {
   }
   if (localStream) await setupMic();
 
-  ({ iceServers } = await fetch('/config').then((r) => r.json()));
+  const config = await fetch('/config').then((r) => r.json());
+  iceServers = config.iceServers;
+  setSearchEnabled(config.search);
   socket.connect();
   const res = await new Promise((r) => socket.emit('join', { room: ROOM, name, clientId }, r));
 
