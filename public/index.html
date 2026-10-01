@@ -36,6 +36,17 @@
 
     <div class="layout">
       <section class="media">
+        <div id="screen-wrap" class="screen-wrap" hidden>
+          <div class="screen-head">
+            <span id="screen-label"></span>
+            <div class="screen-actions">
+              <button id="screen-full" class="ghost">Tam ekran</button>
+              <button id="screen-stop" class="ghost danger" hidden>Durdur</button>
+            </div>
+          </div>
+          <video id="screen-video" autoplay playsinline muted></video>
+        </div>
+
         <div id="player-wrap" class="player-wrap">
           <div id="player"></div>
           <!-- YouTube'un kendi tıklamalarını engeller; kontrol bizim butonlarda -->
@@ -99,6 +110,15 @@
         <ul id="people" class="people-list"></ul>
         <button id="mic-toggle" class="primary wide">🎙 Mikrofon açık</button>
         <p id="mic-note" class="muted small" hidden></p>
+
+        <div id="mic-settings" class="mic-settings">
+          <div class="mic-label"><span>Ses eşiği</span><span id="gate-value" class="muted small"></span></div>
+          <div class="meter"><div id="meter-fill" class="meter-fill"></div><div id="meter-mark" class="meter-mark"></div></div>
+          <input id="gate" type="range" min="-80" max="-10" step="1" value="-50" aria-label="Ses eşiği">
+          <p class="muted small">Çubuk çizgiyi geçince sesin gider. Çok ses yakalıyorsa sağa çek.</p>
+        </div>
+
+        <button id="screen-toggle" class="wide">🖥 Ekran paylaş</button>
 
         <h2>İnternet kullanımı</h2>
         <div class="usage">

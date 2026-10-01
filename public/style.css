@@ -202,6 +202,37 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .p-vol:disabled { opacity: .35; }
 .p-mute { flex-shrink: 0; width: 34px; height: 34px; font-size: 14px; }
 
+.mic-settings {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 12px 0;
+  display: grid;
+  gap: 8px;
+}
+.mic-settings p { margin: 0; }
+.mic-label { display: flex; justify-content: space-between; font-size: 14px; }
+.meter { position: relative; height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; }
+.meter-fill { height: 100%; width: 0; background: #4a5162; transition: width .05s linear; }
+.meter-fill.open { background: var(--speak); }
+.meter-mark { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text); }
+#gate { padding: 0; accent-color: var(--accent); }
+
+.screen-wrap { margin-bottom: 16px; background: #000; border-radius: var(--radius); overflow: hidden; }
+.screen-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel);
+  font-size: 14px;
+}
+.screen-actions { display: flex; gap: 6px; }
+.screen-actions button { padding: 4px 10px; font-size: 13px; }
+#screen-video { display: block; width: 100%; max-height: 70vh; background: #000; }
+
 .usage {
   background: var(--panel);
   border: 1px solid var(--line);

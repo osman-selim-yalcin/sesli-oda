@@ -44,6 +44,7 @@ function getRoom(code) {
     rooms.set(code, {
       users: new Map(),
       current: null,
+      sharer: null, // ekranını paylaşan kişinin soket kimliği
       queue: [],
       playing: false,
       position: 0,
@@ -90,6 +91,12 @@ async function fetchTitle(videoId) {
   }
 }
 
+function stopSharing(room, code, id) {
+  if (room.sharer !== id) return;
+  room.sharer = null;
+  io.to(code).emit('screen', null);
+}
+
 function playNext(room) {
   room.current = room.queue.shift() || null;
   setPlayback(room, Boolean(room.current), 0);
@@ -113,6 +120,7 @@ io.on('connection', (socket) => {
     for (const [id, user] of room.users) {
       if (!clientId || user.clientId !== clientId) continue;
       room.users.delete(id);
+      stopSharing(room, roomCode, id);
       io.to(roomCode).emit('user-left', id);
       io.sockets.sockets.get(id)?.disconnect(true);
     }
@@ -126,7 +134,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room) });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer });
   });
 
   // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir.
@@ -140,6 +148,22 @@ io.on('connection', (socket) => {
     const user = getRoom(code).users.get(socket.id);
     user.muted = Boolean(muted);
     socket.to(code).emit('user-muted', { id: socket.id, muted: user.muted });
+  });
+
+  socket.on('screen:start', (ack) => {
+    if (!code || typeof ack !== 'function') return;
+    const room = getRoom(code);
+    if (room.sharer && room.sharer !== socket.id) {
+      return ack({ error: `${room.users.get(room.sharer)?.name || 'Biri'} zaten ekran paylaşıyor.` });
+    }
+    room.sharer = socket.id;
+    socket.to(code).emit('screen', socket.id);
+    ack({});
+  });
+
+  socket.on('screen:stop', () => {
+    if (!code) return;
+    stopSharing(getRoom(code), code, socket.id);
   });
 
   // Kişinin videosu donuyor mu; diğerlerinin listesinde ⏳ olarak görünür.
@@ -229,6 +253,7 @@ io.on('connection', (socket) => {
     const room = getRoom(code);
     // Yenileme sırasında zaten silinmiş olabilir.
     if (!room.users.delete(socket.id)) return;
+    stopSharing(room, code, socket.id);
     socket.to(code).emit('user-left', socket.id);
     if (room.users.size === 0) rooms.delete(code);
   });

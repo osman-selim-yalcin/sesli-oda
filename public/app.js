@@ -3,11 +3,16 @@
 const $ = (id) => document.getElementById(id);
 const DRIFT_LIMIT = 1.5;      // saniye; bundan fazla kayınca yeniden hizalanır
 const VOICE_BITRATE = 32000;  // bps; Opus için konuşma kalitesi yeterli
+const SCREEN_BITRATE = 1000000; // bps; 720p/15fps ekran paylaşımı için yeterli
 
 const socket = io({ autoConnect: false });
 const peers = new Map();      // id -> { name, muted, pc, audio, gain, pendingIce, row, speaking }
 let iceServers = [];
-let localStream = null;
+let localStream = null;       // ham mikrofon
+let sendStream = null;        // ses eşiğinden geçmiş, karşıya giden ses
+let gateNode = null;
+let screenStream = null;      // kendi ekran paylaşımımız
+let sharerId = null;          // odada ekranını paylaşan kişi
 let micOn = true;
 let selfId = null;
 let audioCtx = null;
@@ -222,22 +227,50 @@ function sendDescription(to, desc) {
   socket.emit('signal', { to, data: { type: desc.type, sdp: tuneOpus(desc.sdp) } });
 }
 
+// Gönderilen ses ve görüntüye bitrate sınırı koyar (sınırlar anlaşmadan sonra uygulanabilir).
+function applyLimits(pc) {
+  for (const sender of pc.getSenders()) {
+    if (!sender.track) continue;
+    const params = sender.getParameters();
+    if (!params.encodings?.length) continue;
+    params.encodings[0].maxBitrate = sender.track.kind === 'video' ? SCREEN_BITRATE : VOICE_BITRATE;
+    sender.setParameters(params).catch(() => {});
+  }
+}
+
+function addScreenTrack(peer) {
+  const track = screenStream.getVideoTracks()[0];
+  peer.screenSender = peer.pc.addTrack(track, screenStream);
+}
+
+// Bağlantılar sonradan değişebilir (ekran paylaşımı açılıp kapanınca), bu yüzden
+// iki taraf da teklif gönderebilir. Çakışmada "kibar" taraf geri çekilir (perfect negotiation).
 function createPc(id) {
   const peer = peers.get(id);
   const pc = new RTCPeerConnection({ iceServers });
   peer.pc = pc;
+  peer.polite = selfId < id;
+  peer.makingOffer = false;
 
-  if (localStream) {
-    for (const track of localStream.getAudioTracks()) {
-      const sender = pc.addTrack(track, localStream);
-      const params = sender.getParameters();
-      params.encodings = params.encodings?.length ? params.encodings : [{}];
-      params.encodings[0].maxBitrate = VOICE_BITRATE;
-      sender.setParameters(params).catch(() => {});
-    }
+  if (sendStream) {
+    for (const track of sendStream.getAudioTracks()) pc.addTrack(track, sendStream);
   } else {
     pc.addTransceiver('audio', { direction: 'recvonly' });
   }
+  if (screenStream) addScreenTrack(peer);
+
+  pc.onnegotiationneeded = async () => {
+    try {
+      peer.makingOffer = true;
+      await pc.setLocalDescription();
+      sendDescription(id, pc.localDescription);
+      applyLimits(pc);
+    } catch (err) {
+      console.warn('negotiation', err);
+    } finally {
+      peer.makingOffer = false;
+    }
+  };
 
   pc.onicecandidate = (e) => {
     if (e.candidate) socket.emit('signal', { to: id, data: { candidate: e.candidate } });
@@ -245,6 +278,11 @@ function createPc(id) {
 
   pc.ontrack = (e) => {
     const stream = e.streams[0] || new MediaStream([e.track]);
+    if (e.track.kind === 'video') {
+      peer.screen = stream;
+      renderScreen();
+      return;
+    }
     peer.audio.srcObject = stream;
     peer.audio.play().catch(() => {});
     peer.source?.disconnect();
@@ -263,13 +301,6 @@ function createPc(id) {
   return pc;
 }
 
-async function callPeer(id) {
-  const pc = createPc(id);
-  const offer = await pc.createOffer();
-  await pc.setLocalDescription(offer);
-  sendDescription(id, pc.localDescription);
-}
-
 async function flushIce(peer) {
   for (const c of peer.pendingIce.splice(0)) {
     await peer.pc.addIceCandidate(c).catch(() => {});
@@ -278,26 +309,32 @@ async function flushIce(peer) {
 
 socket.on('signal', async ({ from, data }) => {
   const peer = peers.get(from);
-  if (!peer) return;
+  const pc = peer?.pc;
+  if (!pc) return;
 
-  if (data.type === 'offer') {
-    const pc = peer.pc || createPc(from);
-    await pc.setRemoteDescription(data);
-    const answer = await pc.createAnswer();
-    await pc.setLocalDescription(answer);
-    sendDescription(from, pc.localDescription);
-    await flushIce(peer);
-  } else if (data.type === 'answer') {
-    await peer.pc.setRemoteDescription(data);
-    await flushIce(peer);
-  } else if (data.candidate) {
-    if (peer.pc?.remoteDescription) await peer.pc.addIceCandidate(data.candidate).catch(() => {});
-    else peer.pendingIce.push(data.candidate);
+  try {
+    if (data.type) {
+      const collision = data.type === 'offer' && (peer.makingOffer || pc.signalingState !== 'stable');
+      if (collision && !peer.polite) return;
+      await pc.setRemoteDescription(data);
+      if (data.type === 'offer') {
+        await pc.setLocalDescription();
+        sendDescription(from, pc.localDescription);
+      }
+      applyLimits(pc);
+      await flushIce(peer);
+    } else if (data.candidate) {
+      if (pc.remoteDescription) await pc.addIceCandidate(data.candidate).catch(() => {});
+      else peer.pendingIce.push(data.candidate);
+    }
+  } catch (err) {
+    console.warn('signal', err);
   }
 });
 
 socket.on('user-joined', ({ id, name, muted }) => {
   addPeer(id, name, muted);
+  createPc(id);
   toast(`${name} odaya katıldı`);
 });
 
@@ -332,12 +369,120 @@ function renderMic() {
 }
 
 $('mic-toggle').onclick = () => {
-  if (!localStream) return;
+  if (!sendStream) return;
   micOn = !micOn;
-  localStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
+  sendStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
   socket.emit('mute', !micOn);
   renderMic();
 };
+
+// ---------- Ses eşiği (gürültü kapısı) ----------
+// Eşiğin altındaki sesler (klavye, fan, uzaktaki konuşmalar) karşıya gitmez.
+
+const GATE_MIN = -80;
+const GATE_MAX = -10;
+const meterPct = (db) => Math.max(0, Math.min(100, ((db - GATE_MIN) / (GATE_MAX - GATE_MIN)) * 100));
+
+try {
+  $('gate').value = localStorage.getItem('gate') ?? -50;
+} catch {}
+
+function renderGate() {
+  const db = Number($('gate').value);
+  $('gate-value').textContent = `${db} dB`;
+  $('meter-mark').style.left = `${meterPct(db)}%`;
+  gateNode?.parameters.get('threshold').setValueAtTime(db, audioCtx.currentTime);
+}
+
+$('gate').oninput = () => {
+  renderGate();
+  try {
+    localStorage.setItem('gate', $('gate').value);
+  } catch {}
+};
+
+// Mikrofonu eşikten geçirip karşıya gidecek akışı hazırlar; olmazsa ham mikrofonu kullanır.
+async function setupMic() {
+  try {
+    await audioCtx.audioWorklet.addModule('gate-worklet.js');
+    gateNode = new AudioWorkletNode(audioCtx, 'noise-gate', { outputChannelCount: [1] });
+    const dest = audioCtx.createMediaStreamDestination();
+    audioCtx.createMediaStreamSource(localStream).connect(gateNode).connect(dest);
+    gateNode.port.onmessage = ({ data }) => {
+      $('meter-fill').style.width = `${meterPct(data.db)}%`;
+      $('meter-fill').classList.toggle('open', data.open);
+    };
+    sendStream = dest.stream;
+    renderGate();
+  } catch (err) {
+    console.warn('ses eşiği kullanılamıyor', err);
+    sendStream = localStream;
+    $('mic-settings').hidden = true;
+  }
+}
+
+// ---------- Ekran paylaşımı ----------
+// Tek seferde bir kişi paylaşabilir. Görüntü 720p/15fps ve kişi başı ~1 Mbps ile sınırlı;
+// paylaşan kişi bunu odadaki herkese ayrı ayrı gönderir.
+
+async function startScreen() {
+  try {
+    screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { width: { max: 1280 }, height: { max: 720 }, frameRate: { max: 15 } },
+      audio: false,
+    });
+  } catch {
+    return; // kullanıcı vazgeçti
+  }
+  const res = await new Promise((r) => socket.emit('screen:start', r));
+  if (res.error) {
+    screenStream.getTracks().forEach((t) => t.stop());
+    screenStream = null;
+    return toast(res.error);
+  }
+  const track = screenStream.getVideoTracks()[0];
+  track.contentHint = 'detail';
+  track.onended = stopScreen; // tarayıcının "Paylaşımı durdur" düğmesi
+  for (const peer of peers.values()) if (peer.pc) addScreenTrack(peer);
+  renderScreen();
+}
+
+function stopScreen() {
+  if (!screenStream) return;
+  screenStream.getTracks().forEach((t) => t.stop());
+  screenStream = null;
+  for (const peer of peers.values()) {
+    if (peer.screenSender) peer.pc.removeTrack(peer.screenSender);
+    peer.screenSender = null;
+  }
+  socket.emit('screen:stop');
+  renderScreen();
+}
+
+function renderScreen() {
+  const sharer = peers.get(sharerId);
+  const stream = screenStream || (sharer?.screen ?? null);
+  $('screen-wrap').hidden = !stream;
+  if ($('screen-video').srcObject !== stream) $('screen-video').srcObject = stream;
+  $('screen-label').textContent = screenStream
+    ? 'Ekranını paylaşıyorsun'
+    : sharer ? `${sharer.name} ekranını paylaşıyor` : '';
+  $('screen-stop').hidden = !screenStream;
+  $('screen-toggle').textContent = screenStream ? '🖥 Paylaşımı durdur' : '🖥 Ekran paylaş';
+}
+
+socket.on('screen', (id) => {
+  sharerId = id;
+  // Biten paylaşımın donmuş son karesi sonraki paylaşımda bir an görünmesin.
+  if (!id) for (const peer of peers.values()) peer.screen = null;
+  if (id && peers.has(id)) toast(`${peers.get(id).name} ekranını paylaşıyor`);
+  renderScreen();
+});
+
+$('screen-toggle').hidden = !navigator.mediaDevices?.getDisplayMedia;
+$('screen-toggle').onclick = () => (screenStream ? stopScreen() : startScreen());
+$('screen-stop').onclick = stopScreen;
+$('screen-full').onclick = () => $('screen-video').requestFullscreen?.();
 
 // ---------- İnternet kullanımı ----------
 // Sesli sohbet WebRTC istatistiklerinden, senkron ise Socket.IO mesajlarından ölçülür.
@@ -793,7 +938,9 @@ $('join-form').onsubmit = async (e) => {
     $('mic-note').textContent = 'Mikrofona erişilemedi; sadece dinleyebilirsin.';
     $('mic-note').hidden = false;
     $('mic-toggle').disabled = true;
+    $('mic-settings').hidden = true;
   }
+  if (localStream) await setupMic();
 
   ({ iceServers } = await fetch('/config').then((r) => r.json()));
   socket.connect();
@@ -814,17 +961,20 @@ $('join-form').onsubmit = async (e) => {
 
   const selfRow = personRow(name, true);
   setStatus(selfRow, localStream ? 'Sen' : 'Sadece dinleyici');
-  if (localStream) watchLevel(audioCtx.createMediaStreamSource(localStream), selfRow, {});
+  if (gateNode) watchLevel(gateNode, selfRow, {});
+  else if (localStream) watchLevel(audioCtx.createMediaStreamSource(localStream), selfRow, {});
   renderMic();
   renderPeopleCount();
   startUsageMeter();
 
-  await Promise.all([syncClock(), createPlayer()]);
-
+  // Bağlantıları hemen kur: odadakiler de bize teklif gönderiyor, gecikirsek kaybolur.
   for (const p of res.peers) {
     addPeer(p.id, p.name, p.muted);
-    callPeer(p.id);
+    createPc(p.id);
   }
+  sharerId = res.sharer;
+
+  await Promise.all([syncClock(), createPlayer()]);
 
   media ||= res.media;
   renderQueue();
