@@ -121,9 +121,16 @@
 
           <div id="queue-view">
             <form id="add-form" class="add">
-              <input id="yt-url" placeholder="YouTube linki yapıştır…" autocomplete="off">
-              <button type="submit" class="primary">Ekle</button>
+              <input id="yt-url" placeholder="Şarkı ara ya da YouTube linki yapıştır…" autocomplete="off">
+              <button type="submit" class="primary">Ara / Ekle</button>
             </form>
+            <div id="search-box" class="search-box" hidden>
+              <div class="search-head">
+                <span id="search-label" class="muted small"></span>
+                <button id="search-close" class="ghost">Kapat</button>
+              </div>
+              <ol id="search-results" class="queue"></ol>
+            </div>
             <ol id="queue" class="queue"></ol>
             <p id="queue-empty" class="muted small empty">Sıra boş. Yukarıya bir YouTube linki yapıştır.</p>
           </div>

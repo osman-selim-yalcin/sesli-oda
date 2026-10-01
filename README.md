@@ -33,3 +33,9 @@ Bazı mobil ağlarda doğrudan bağlantı kurulamayabilir ("Bağlanamadı"). O z
 
 Kayıtlı efektler `public/sfx/` içinde (toplam ~124 KB, AAC). Kaynaklar ve lisanslar: `public/sfx/KAYNAKLAR.txt`.
 CC BY 3.0 olanlar için atıf uygulamadaki "Ses kaynakları" linkinde görünür; bu dosyayı silmeyin.
+
+## Site içi YouTube araması
+
+Arama için YouTube Data API v3 anahtarı gerekir (ücretsiz, günlük ~100 arama). Anahtar koda yazılmaz;
+Render'da **Environment → `YT_API_KEY`** olarak eklenir. Anahtar yoksa arama kapalıdır, link yapıştırma çalışmaya devam eder.
+Aynı arama 1 saat önbellekte tutulur, kotadan tekrar yemez.

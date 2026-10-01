@@ -66,6 +66,71 @@ function deleteRoomImages(code) {
   for (const [id, img] of images) if (img.code === code) images.delete(id);
 }
 
+// YouTube araması (YouTube Data API v3). Anahtar Render'da YT_API_KEY ortam değişkeninde durur.
+// Arama 100, süre bilgisi 1 kota birimi harcar (günlük ücretsiz kota 10.000 ≈ 100 arama);
+// aynı arama 1 saat önbellekte tutulur.
+const YT_API = process.env.YT_API_BASE || 'https://www.googleapis.com/youtube/v3';
+const SEARCH_CACHE_MS = 60 * 60 * 1000;
+const SEARCH_CACHE_MAX = 200;
+const searchCache = new Map(); // sorgu -> { at, results }
+
+const decodeEntities = (s) =>
+  s.replace(/&(amp|lt|gt|quot|#39);/g, (_, e) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" })[e]);
+
+// ISO 8601 süre (PT1H2M3S) -> saniye
+function isoSeconds(iso = '') {
+  const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/) || [];
+  return (Number(m[1]) || 0) * 3600 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0);
+}
+
+async function youtubeSearch(q) {
+  const key = process.env.YT_API_KEY;
+  const search = new URL(`${YT_API}/search`);
+  search.search = new URLSearchParams({
+    part: 'snippet', type: 'video', videoEmbeddable: 'true', maxResults: '10',
+    regionCode: 'TR', relevanceLanguage: 'tr', q, key,
+  });
+  const res = await fetch(search, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`YouTube ${res.status}`);
+  const items = (await res.json()).items || [];
+  const ids = items.map((it) => it.id.videoId).filter(Boolean);
+  if (!ids.length) return [];
+
+  const details = new URL(`${YT_API}/videos`);
+  details.search = new URLSearchParams({ part: 'contentDetails', id: ids.join(','), key });
+  const durations = {};
+  try {
+    const d = await (await fetch(details, { signal: AbortSignal.timeout(8000) })).json();
+    for (const v of d.items || []) durations[v.id] = isoSeconds(v.contentDetails?.duration);
+  } catch {}
+
+  return items.filter((it) => it.id.videoId).map((it) => ({
+    videoId: it.id.videoId,
+    title: decodeEntities(it.snippet.title),
+    channel: decodeEntities(it.snippet.channelTitle),
+    duration: durations[it.id.videoId] ?? null,
+  }));
+}
+
+app.get('/search', async (req, res) => {
+  if (!process.env.YT_API_KEY) return res.status(503).json({ error: 'Arama kapalı: sunucuda YouTube API anahtarı yok.' });
+  const q = String(req.query.q || '').trim().slice(0, 100);
+  if (!q) return res.json({ results: [] });
+
+  const cacheKey = q.toLocaleLowerCase('tr-TR');
+  const hit = searchCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < SEARCH_CACHE_MS) return res.json({ results: hit.results });
+  try {
+    const results = await youtubeSearch(q);
+    searchCache.set(cacheKey, { at: Date.now(), results });
+    if (searchCache.size > SEARCH_CACHE_MAX) searchCache.delete(searchCache.keys().next().value);
+    res.json({ results });
+  } catch (err) {
+    console.warn('arama', err.message);
+    res.status(502).json({ error: 'YouTube araması şu an yapılamıyor (günlük kota dolmuş olabilir).' });
+  }
+});
+
 // Giriş ekranı için: tek odada kimler var.
 app.get('/status', (req, res) => {
   const room = rooms.get('genel');
@@ -167,6 +232,15 @@ async function fetchTitle(videoId) {
 
 const customSfxList = (room) => [...room.customSfx].map(([id, fx]) => ({ id, label: fx.label, by: fx.by }));
 
+// Giriş/çıkış sohbete yazılır. Sayfayı yenileyen kişi için iki mesaj da yazılmasın diye
+// çıkış mesajı biraz bekletilir; o sürede aynı sekme geri dönerse ikisi de atlanır.
+const REJOIN_GRACE = 5000; // ms
+const pendingLeaves = new Map(); // `${oda}:${sekme}` -> zamanlayıcı
+
+function postSystem(room, text) {
+  postChat(room, { system: true, text, ts: Date.now() });
+}
+
 function postChat(room, msg) {
   room.chat.push(msg);
   if (room.chat.length > CHAT_HISTORY) {
@@ -212,8 +286,14 @@ io.on('connection', (socket) => {
     const room = getRoom(roomCode);
 
     // Sayfa yenilenince eski bağlantı hemen kapanmayabilir; aynı sekmenin eski kaydını sileriz.
+    const leaveKey = `${roomCode}:${clientId}`;
+    let rejoined = pendingLeaves.has(leaveKey);
+    clearTimeout(pendingLeaves.get(leaveKey));
+    pendingLeaves.delete(leaveKey);
+
     for (const [id, user] of room.users) {
       if (!clientId || user.clientId !== clientId) continue;
+      rejoined = true;
       room.users.delete(id);
       stopSharing(room, roomCode, id);
       io.to(roomCode).emit('user-left', id);
@@ -230,6 +310,8 @@ io.on('connection', (socket) => {
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
     ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room) });
+    // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
+    if (!rejoined) postSystem(room, `${name} odaya katıldı`);
   });
 
   // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir.
@@ -447,9 +529,18 @@ io.on('connection', (socket) => {
     if (!code) return;
     const room = getRoom(code);
     // Yenileme sırasında zaten silinmiş olabilir.
+    const user = room.users.get(socket.id);
     if (!room.users.delete(socket.id)) return;
     stopSharing(room, code, socket.id);
     socket.to(code).emit('user-left', socket.id);
+
+    const roomCode = code;
+    const leaveKey = `${roomCode}:${user.clientId}`;
+    pendingLeaves.set(leaveKey, setTimeout(() => {
+      pendingLeaves.delete(leaveKey);
+      const current = rooms.get(roomCode);
+      if (current) postSystem(current, `${user.name} ayrıldı`);
+    }, REJOIN_GRACE));
     if (room.users.size === 0) {
       rooms.delete(code);
       deleteRoomImages(code);

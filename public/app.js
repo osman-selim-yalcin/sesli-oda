@@ -367,12 +367,9 @@ socket.on('user-joined', ({ id, name, muted }) => {
   addPeer(id, name, muted);
   createPc(id);
   renderRecBanner();
-  toast(`${name} odaya katıldı`);
 });
 
 socket.on('user-left', (id) => {
-  const peer = peers.get(id);
-  if (peer) toast(`${peer.name} ayrıldı`);
   removePeer(id);
   renderRecBanner();
 });
@@ -647,9 +644,20 @@ function appendLinkified(el, text) {
   });
 }
 
-function renderChatMessage({ from, name, text, image, ts }) {
+function renderChatMessage({ from, name, text, image, ts, system }) {
   const list = $('chat-list');
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+
+  if (system) {
+    const li = document.createElement('li');
+    li.className = 'chat-system';
+    const time = new Date(ts).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    li.textContent = `${text} · ${time}`;
+    list.append(li);
+    $('chat-empty').hidden = true;
+    if (nearBottom) list.scrollTop = list.scrollHeight;
+    return;
+  }
 
   const li = document.createElement('li');
   li.className = 'chat-msg' + (from === selfId ? ' mine' : '');
@@ -764,7 +772,7 @@ chatBox.addEventListener('drop', (e) => {
 
 socket.on('chat', (msg) => {
   renderChatMessage(msg);
-  if (msg.from !== selfId && audioCtx) Sfx.ping(audioCtx, sfxBus);
+  if (!msg.system && msg.from !== selfId && audioCtx) Sfx.ping(audioCtx, sfxBus);
 });
 
 // Emoji seçici: tıklanan emoji imlecin olduğu yere eklenir, pencere açık kalır (birkaç tane seçilebilsin).
@@ -1506,11 +1514,58 @@ $('sfx-upload').onsubmit = (e) => {
 
 $('sfx-vol').oninput = () => sfxBus && (sfxBus.gain.value = Number($('sfx-vol').value) / 100);
 
+// Kutuya link yapıştırılırsa doğrudan eklenir; yazı yazılırsa site içinde YouTube'da aranır.
 $('add-form').onsubmit = (e) => {
   e.preventDefault();
-  const id = parseVideoId($('yt-url').value);
-  if (!id) return toast('Geçerli bir YouTube linki değil.');
-  socket.emit('media:add', id);
+  const value = $('yt-url').value.trim();
+  if (!value) return;
+  const id = parseVideoId(value);
+  if (id) {
+    socket.emit('media:add', id);
+    $('yt-url').value = '';
+    return;
+  }
+  searchYouTube(value);
+};
+
+async function searchYouTube(q) {
+  $('search-box').hidden = false;
+  $('search-label').textContent = `"${q}" aranıyor…`;
+  $('search-results').replaceChildren();
+  let data;
+  try {
+    const res = await fetch(`search?q=${encodeURIComponent(q)}`);
+    data = await res.json();
+  } catch {
+    data = { error: 'Arama yapılamadı.' };
+  }
+  if (data.error) {
+    $('search-label').textContent = data.error;
+    return;
+  }
+  $('search-label').textContent = data.results.length ? `"${q}" için sonuçlar` : `"${q}" için sonuç yok`;
+  for (const r of data.results) {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="q-text">
+        <div class="q-title"></div>
+        <div class="muted small"></div>
+      </div>
+      <button class="primary">Ekle</button>`;
+    li.prepend(thumb(r.videoId));
+    li.querySelector('.q-title').textContent = r.title;
+    li.querySelector('.small').textContent = r.duration ? `${r.channel} · ${fmtTime(r.duration)}` : r.channel;
+    li.querySelector('button').onclick = (ev) => {
+      socket.emit('media:add', r.videoId);
+      ev.target.textContent = 'Eklendi ✓';
+      ev.target.disabled = true;
+    };
+    $('search-results').append(li);
+  }
+}
+
+$('search-close').onclick = () => {
+  $('search-box').hidden = true;
   $('yt-url').value = '';
 };
 
