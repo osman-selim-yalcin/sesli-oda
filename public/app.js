@@ -224,6 +224,7 @@ function removePeer(id) {
   peer.source?.disconnect();
   peer.gain.disconnect();
   peer.audio.srcObject = null;
+  if (peer.screenAudio) peer.screenAudio.srcObject = null;
   peer.row.remove();
   peer.row.mini.remove();
   peers.delete(id);
@@ -260,9 +261,9 @@ function applyLimits(pc) {
   }
 }
 
+// Ekran görüntüsü ve (varsa) sekme sesi birlikte gider.
 function addScreenTrack(peer) {
-  const track = screenStream.getVideoTracks()[0];
-  peer.screenSender = peer.pc.addTrack(track, screenStream);
+  peer.screenSenders = screenStream.getTracks().map((track) => peer.pc.addTrack(track, screenStream));
 }
 
 // Bağlantılar sonradan değişebilir (ekran paylaşımı açılıp kapanınca), bu yüzden
@@ -303,6 +304,14 @@ function createPc(id) {
     if (e.track.kind === 'video') {
       peer.screen = stream;
       renderScreen();
+      return;
+    }
+    // İlk gelen ses kişinin mikrofonudur; başka akıştan gelen ses ekran paylaşımının sesidir.
+    peer.voiceStreamId ??= stream.id;
+    if (stream.id !== peer.voiceStreamId) {
+      peer.screenAudio ||= new Audio();
+      peer.screenAudio.srcObject = new MediaStream([e.track]);
+      peer.screenAudio.play().catch(() => {});
       return;
     }
     peer.audio.srcObject = stream;
@@ -450,11 +459,18 @@ async function setupMic() {
 // Tek seferde bir kişi paylaşabilir. Görüntü 720p/15fps ve kişi başı ~1 Mbps ile sınırlı;
 // paylaşan kişi bunu odadaki herkese ayrı ayrı gönderir.
 
+// Sekme/ekran sesini sadece Chromium tabanlı tarayıcılar (Chrome, Edge, Brave, Opera) verir;
+// Firefox ve Safari ekran paylaşımında yalnızca görüntü verir.
+const TAB_AUDIO = Boolean(navigator.userAgentData?.brands?.some((b) => b.brand === 'Chromium'));
+
 async function startScreen() {
   try {
     screenStream = await navigator.mediaDevices.getDisplayMedia({
       video: { width: { max: 1280 }, height: { max: 720 }, frameRate: { max: 15 } },
-      audio: false,
+      audio: TAB_AUDIO && { suppressLocalAudioPlayback: false },
+      systemAudio: 'include',
+      // Bu sekme paylaşılırsa herkesin sesi geri döner (yankı); seçeneklerde gösterilmez.
+      selfBrowserSurface: 'exclude',
     });
   } catch {
     return; // kullanıcı vazgeçti
@@ -468,8 +484,12 @@ async function startScreen() {
   const track = screenStream.getVideoTracks()[0];
   track.contentHint = 'detail';
   track.onended = stopScreen; // tarayıcının "Paylaşımı durdur" düğmesi
+  screenStream.getAudioTracks().forEach((t) => (t.contentHint = 'music'));
   for (const peer of peers.values()) if (peer.pc) addScreenTrack(peer);
   renderScreen();
+
+  if (!TAB_AUDIO) toast('Bu tarayıcı ekran sesini paylaşamıyor; sadece görüntü gidiyor. Ses için Chrome veya Edge kullan.');
+  else if (!screenStream.getAudioTracks().length) toast('Ses paylaşılmıyor. Ses için bir sekme seçip "Sekme sesini de paylaş"ı aç.');
 }
 
 function stopScreen() {
@@ -477,8 +497,8 @@ function stopScreen() {
   screenStream.getTracks().forEach((t) => t.stop());
   screenStream = null;
   for (const peer of peers.values()) {
-    if (peer.screenSender) peer.pc.removeTrack(peer.screenSender);
-    peer.screenSender = null;
+    peer.screenSenders?.forEach((sender) => peer.pc.removeTrack(sender));
+    peer.screenSenders = null;
   }
   socket.emit('screen:stop');
   renderScreen();
@@ -500,7 +520,12 @@ function renderScreen() {
 socket.on('screen', (id) => {
   sharerId = id;
   // Biten paylaşımın donmuş son karesi sonraki paylaşımda bir an görünmesin.
-  if (!id) for (const peer of peers.values()) peer.screen = null;
+  if (!id) {
+    for (const peer of peers.values()) {
+      peer.screen = null;
+      if (peer.screenAudio) peer.screenAudio.srcObject = null;
+    }
+  }
   if (id && peers.has(id)) toast(`${peers.get(id).name} ekranını paylaşıyor`);
   renderScreen();
 });
@@ -877,8 +902,11 @@ $('rec-btn').addEventListener('click', (e) => {
 });
 $('rec-all').onclick = () => startRecording(true);
 $('rec-voice').onclick = () => startRecording(false);
-$('rec-all').hidden = !navigator.mediaDevices?.getDisplayMedia;
-$('rec-all').nextElementSibling.hidden = $('rec-all').hidden;
+if (!TAB_AUDIO) {
+  $('rec-all').hidden = true;
+  $('rec-all').nextElementSibling.textContent =
+    'Müziği de kaydetmek için Chrome veya Edge kullan; bu tarayıcı sekme sesini vermiyor.';
+}
 
 // Kayıt sürerken sayfa kapanırsa kayıt kaybolur; tarayıcı uyarsın.
 addEventListener('beforeunload', (e) => {
