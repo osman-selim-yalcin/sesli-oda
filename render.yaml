@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: sesli-oda
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start

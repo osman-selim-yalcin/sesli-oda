@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sesli Oda</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Giriş ekranı -->
+  <main id="join-screen" class="join">
+    <form id="join-form" class="card">
+      <h1>Sesli Oda</h1>
+      <p class="muted">Arkadaşlarınla konuş, aynı anda YouTube izle/dinle.</p>
+      <label>İsmin
+        <input id="name" maxlength="24" autocomplete="nickname" required>
+      </label>
+      <label>Oda kodu
+        <input id="room" maxlength="32" required>
+      </label>
+      <button type="submit" class="primary">Odaya katıl</button>
+      <p id="join-error" class="error" hidden></p>
+      <p class="hint">İpucu: Müzik mikrofona geri kaçmasın diye kulaklık kullanın.</p>
+    </form>
+  </main>
+
+  <!-- Oda ekranı -->
+  <div id="room-screen" class="room" hidden>
+    <header class="topbar">
+      <div class="room-name">Oda: <strong id="room-label"></strong></div>
+      <div class="topbar-actions">
+        <button id="copy-link" class="ghost">Davet linkini kopyala</button>
+        <button id="leave" class="ghost danger">Çık</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="media">
+        <div class="player-wrap">
+          <div id="player"></div>
+          <!-- YouTube'un kendi tıklamalarını engeller; kontrol bizim butonlarda -->
+          <div class="player-shield"></div>
+          <div id="player-empty" class="player-empty">Henüz bir şey çalmıyor. Aşağıya YouTube linki yapıştır.</div>
+          <button id="unlock" class="unlock" hidden>▶ Senkronize başlatmak için tıkla</button>
+        </div>
+
+        <div class="now-playing">
+          <div id="now-title" class="now-title">—</div>
+          <div id="now-by" class="muted small"></div>
+        </div>
+
+        <div class="controls">
+          <button id="play-toggle" class="icon" title="Oynat / Duraklat">▶</button>
+          <button id="next" class="icon" title="Sonraki">⏭</button>
+          <span id="time-cur" class="time">0:00</span>
+          <input id="seek" type="range" min="0" max="0" step="0.1" value="0">
+          <span id="time-dur" class="time">0:00</span>
+          <label class="vol" title="Müzik sesi (sadece sende)">🔊
+            <input id="music-vol" type="range" min="0" max="100" value="70">
+          </label>
+        </div>
+
+        <form id="add-form" class="add">
+          <input id="yt-url" placeholder="YouTube linki yapıştır…" autocomplete="off">
+          <button type="submit" class="primary">Ekle</button>
+        </form>
+
+        <h2>Sıradakiler</h2>
+        <ol id="queue" class="queue"></ol>
+        <p id="queue-empty" class="muted small">Sıra boş.</p>
+      </section>
+
+      <aside class="people">
+        <h2>Odadakiler <span id="people-count" class="muted"></span></h2>
+        <ul id="people" class="people-list"></ul>
+        <button id="mic-toggle" class="primary wide">🎙 Mikrofon açık</button>
+        <p id="mic-note" class="muted small" hidden></p>
+      </aside>
+    </div>
+  </div>
+
+  <div id="toasts" class="toasts"></div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="app.js"></script>
+</body>
+</html>
