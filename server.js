@@ -8,6 +8,9 @@ const MAX_USERS = 6;
 const VIDEO_ID = /^[\w-]{11}$/;
 const SFX_IDS = new Set(['clap', 'rimshot', 'ding', 'sad', 'tada', 'boom']);
 const SFX_COOLDOWN = 600; // ms; efekt spam'ini engeller
+const CHAT_HISTORY = 50;  // odaya yeni girene gösterilen son mesaj sayısı
+const CHAT_MAX_LENGTH = 500;
+const CHAT_COOLDOWN = 300; // ms
 
 const app = express();
 // Efekt kayıtları değişmez; tarayıcı bir kez indirip saklasın.
@@ -45,6 +48,7 @@ function getRoom(code) {
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
+      chat: [],     // geçici: sadece hafızada, herkes çıkınca oda ile birlikte silinir
       queue: [],
       playing: false,
       position: 0,
@@ -134,7 +138,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat });
   });
 
   // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir.
@@ -170,6 +174,19 @@ io.on('connection', (socket) => {
   socket.on('video-state', (state) => {
     if (!code || (state !== 'buffering' && state !== 'ok')) return;
     socket.to(code).emit('video-state', { id: socket.id, state });
+  });
+
+  let lastChat = 0;
+  socket.on('chat', (text) => {
+    if (!code || typeof text !== 'string' || Date.now() - lastChat < CHAT_COOLDOWN) return;
+    text = text.trim().slice(0, CHAT_MAX_LENGTH);
+    if (!text) return;
+    lastChat = Date.now();
+    const room = getRoom(code);
+    const msg = { from: socket.id, name: room.users.get(socket.id).name, text, ts: Date.now() };
+    room.chat.push(msg);
+    if (room.chat.length > CHAT_HISTORY) room.chat.shift();
+    io.to(code).emit('chat', msg);
   });
 
   let lastSfx = 0;

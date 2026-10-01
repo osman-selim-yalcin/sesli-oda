@@ -202,6 +202,34 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .p-vol:disabled { opacity: .35; }
 .p-mute { flex-shrink: 0; width: 34px; height: 34px; font-size: 14px; }
 
+.chat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+}
+.chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+}
+.chat-list:empty { display: none; }
+.chat-empty { margin: 0; padding: 10px; }
+.chat-msg { font-size: 14px; overflow-wrap: anywhere; }
+.chat-msg .who { font-weight: 600; margin-right: 6px; }
+.chat-msg.mine .who { color: var(--accent); }
+.chat-msg .when { font-size: 11px; color: var(--muted); }
+.chat-msg .text { margin-top: 2px; white-space: pre-wrap; }
+.chat-msg a { color: var(--accent); }
+.chat-msg .queue-add { margin-top: 4px; padding: 2px 8px; font-size: 12px; }
+.chat-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
+.chat-form input { padding: 8px 10px; }
+.chat-form button { padding: 8px 12px; }
+
 .mic-settings {
   background: var(--panel);
   border: 1px solid var(--line);

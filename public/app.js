@@ -53,11 +53,12 @@ function parseVideoId(input) {
   if (/^[\w-]{11}$/.test(input)) return input;
   try {
     const url = new URL(input);
-    if (url.hostname.endsWith('youtu.be')) return url.pathname.slice(1, 12);
-    const v = url.searchParams.get('v');
-    if (v) return v;
-    const m = url.pathname.match(/\/(?:shorts|embed|live|v)\/([\w-]{11})/);
-    return m ? m[1] : null;
+    const id = /(^|\.)youtu\.be$/.test(url.hostname)
+      ? url.pathname.slice(1, 12)
+      : /(^|\.)youtube\.com$/.test(url.hostname)
+        ? url.searchParams.get('v') || url.pathname.match(/\/(?:shorts|embed|live|v)\/([\w-]{11})/)?.[1]
+        : null;
+    return /^[\w-]{11}$/.test(id || '') ? id : null;
   } catch {
     return null;
   }
@@ -483,6 +484,69 @@ $('screen-toggle').hidden = !navigator.mediaDevices?.getDisplayMedia;
 $('screen-toggle').onclick = () => (screenStream ? stopScreen() : startScreen());
 $('screen-stop').onclick = stopScreen;
 $('screen-full').onclick = () => $('screen-video').requestFullscreen?.();
+
+// ---------- Geçici sohbet ----------
+// Mesajlar sadece sunucunun hafızasında tutulur (son 50); herkes çıkınca silinir.
+
+const URL_RE = /(https?:\/\/[^\s]+)/g;
+
+// Metni güvenli şekilde ekler; linkleri tıklanabilir yapar.
+function appendLinkified(el, text) {
+  text.split(URL_RE).forEach((part, i) => {
+    if (i % 2 === 0) return part && el.append(part);
+    const a = document.createElement('a');
+    a.href = part;
+    a.textContent = part;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    el.append(a);
+  });
+}
+
+function renderChatMessage({ from, name, text, ts }) {
+  const list = $('chat-list');
+  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+
+  const li = document.createElement('li');
+  li.className = 'chat-msg' + (from === selfId ? ' mine' : '');
+  const who = document.createElement('span');
+  who.className = 'who';
+  who.textContent = name;
+  const when = document.createElement('span');
+  when.className = 'when';
+  when.textContent = new Date(ts).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  const body = document.createElement('div');
+  body.className = 'text';
+  appendLinkified(body, text);
+  li.append(who, when, body);
+
+  // Mesajda YouTube linki varsa tek tıkla sıraya eklenebilsin.
+  const videoId = (text.match(URL_RE) || []).map(parseVideoId).find(Boolean);
+  if (videoId) {
+    const add = document.createElement('button');
+    add.className = 'queue-add';
+    add.textContent = '＋ Sıraya ekle';
+    add.onclick = () => {
+      socket.emit('media:add', videoId);
+      add.disabled = true;
+    };
+    li.append(add);
+  }
+
+  list.append(li);
+  $('chat-empty').hidden = true;
+  if (nearBottom || from === selfId) list.scrollTop = list.scrollHeight;
+}
+
+socket.on('chat', renderChatMessage);
+
+$('chat-form').onsubmit = (e) => {
+  e.preventDefault();
+  const text = $('chat-input').value.trim();
+  if (!text) return;
+  socket.emit('chat', text);
+  $('chat-input').value = '';
+};
 
 // ---------- İnternet kullanımı ----------
 // Sesli sohbet WebRTC istatistiklerinden, senkron ise Socket.IO mesajlarından ölçülür.
@@ -973,6 +1037,7 @@ $('join-form').onsubmit = async (e) => {
     createPc(p.id);
   }
   sharerId = res.sharer;
+  res.chat.forEach(renderChatMessage);
 
   await Promise.all([syncClock(), createPlayer()]);
 
