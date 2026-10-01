@@ -19,6 +19,7 @@ let selfId = null;
 let audioCtx = null;
 let voiceBus = null;          // tüm konuşmaların geçtiği kompresör
 let sfxBus = null;
+let voiceOut = null;          // kompresörden sonraki konuşma sesi (kayıt buradan alır)
 
 // Her sekmenin kalıcı kimliği: yenileyince sunucu eski kaydı silebilsin.
 const clientId = (() => {
@@ -100,6 +101,7 @@ function setupAudio() {
   const makeup = audioCtx.createGain();
   makeup.gain.value = 1.4;
   voiceBus.connect(makeup).connect(audioCtx.destination);
+  voiceOut = makeup;
 
   sfxBus = audioCtx.createGain();
   sfxBus.gain.value = Number($('sfx-vol').value) / 100;
@@ -355,6 +357,7 @@ socket.on('signal', async ({ from, data }) => {
 socket.on('user-joined', ({ id, name, muted }) => {
   addPeer(id, name, muted);
   createPc(id);
+  renderRecBanner();
   toast(`${name} odaya katıldı`);
 });
 
@@ -362,6 +365,7 @@ socket.on('user-left', (id) => {
   const peer = peers.get(id);
   if (peer) toast(`${peer.name} ayrıldı`);
   removePeer(id);
+  renderRecBanner();
 });
 
 socket.on('user-muted', ({ id, muted }) => {
@@ -586,6 +590,145 @@ $('chat-form').onsubmit = (e) => {
   socket.emit('chat', text);
   $('chat-input').value = '';
 };
+
+// ---------- Ses kaydı ----------
+// Kayıt tarayıcıda yapılır ve dosya olarak iner. "Müzik dahil" sekmenin sesini yakalar
+// (YouTube dahil); "sadece konuşmalar" uygulamanın kendi ses karışımını kaydeder.
+// İki durumda da kendi mikrofonun ayrıca eklenir, çünkü o sekmede çalınmaz.
+
+const REC_MIME = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus']
+  .find((m) => window.MediaRecorder?.isTypeSupported(m));
+let recorder = null;
+let recCleanup = [];
+let recTimer = null;
+
+function recFileName() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const ext = REC_MIME.includes('mp4') ? 'm4a' : REC_MIME.includes('ogg') ? 'ogg' : 'webm';
+  return `sesli-oda-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.${ext}`;
+}
+
+async function startRecording(withMusic) {
+  $('rec-pop').hidePopover();
+  const dest = audioCtx.createMediaStreamDestination();
+  // Kayda giren her şey önce sınırlayıcıdan geçer: sesler üst üste binince dosyada patlama olmasın.
+  const limiter = audioCtx.createDynamicsCompressor();
+  limiter.threshold.value = -3;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.002;
+  limiter.release.value = 0.1;
+  limiter.connect(dest);
+  recCleanup.push(() => limiter.disconnect());
+
+  if (withMusic) {
+    let tab;
+    try {
+      tab = await navigator.mediaDevices.getDisplayMedia({
+        video: true, // Chrome sekme sesini görüntüsüz vermiyor; görüntüyü hemen kapatırız
+        audio: { suppressLocalAudioPlayback: false },
+        preferCurrentTab: true,
+        selfBrowserSurface: 'include',
+      });
+    } catch {
+      return; // vazgeçildi
+    }
+    tab.getVideoTracks().forEach((t) => t.stop());
+    const [track] = tab.getAudioTracks();
+    if (!track) return toast('Sekme sesi paylaşılmadı. "Sekme sesini de paylaş" açık olmalı.');
+    const src = audioCtx.createMediaStreamSource(new MediaStream([track]));
+    src.connect(limiter);
+    track.onended = stopRecording; // tarayıcının "Paylaşımı durdur" düğmesi
+    recCleanup.push(() => {
+      src.disconnect();
+      track.onended = null;
+      track.stop();
+    });
+  } else {
+    voiceOut.connect(limiter);
+    sfxBus.connect(limiter);
+    recCleanup.push(() => {
+      voiceOut.disconnect(limiter);
+      sfxBus.disconnect(limiter);
+    });
+  }
+
+  if (sendStream) {
+    // Gönderilen akıştan alınır: mikrofon kapalıyken kayda da ses girmez.
+    const mine = audioCtx.createMediaStreamSource(sendStream);
+    mine.connect(limiter);
+    recCleanup.push(() => mine.disconnect());
+  }
+
+  const chunks = [];
+  recorder = new MediaRecorder(dest.stream, { mimeType: REC_MIME, audioBitsPerSecond: 96000 });
+  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  recorder.onstop = () => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(chunks, { type: REC_MIME }));
+    a.download = recFileName();
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    toast('Kayıt indirildi.');
+  };
+  recorder.start(10000);
+
+  const started = Date.now();
+  recTimer = setInterval(() => ($('rec-btn').textContent = `⏹ ${fmtTime((Date.now() - started) / 1000)}`), 1000);
+  socket.emit('rec', true);
+  renderRec();
+}
+
+function stopRecording() {
+  if (!recorder) return;
+  recorder.stop();
+  recorder = null;
+  recCleanup.splice(0).forEach((fn) => fn());
+  clearInterval(recTimer);
+  socket.emit('rec', false);
+  renderRec();
+}
+
+function renderRec() {
+  const btn = $('rec-btn');
+  btn.classList.toggle('rec', Boolean(recorder));
+  btn.title = recorder ? 'Kaydı durdur ve indir' : 'Kaydet';
+  btn.textContent = recorder ? '⏹ 0:00' : '⏺';
+  renderRecBanner();
+}
+
+function renderRecBanner() {
+  const names = [...peers.values()].filter((p) => p.recording).map((p) => p.name);
+  if (recorder) names.unshift('sen');
+  $('rec-banner').hidden = !names.length;
+  $('rec-banner').textContent = `🔴 Kayıt yapılıyor: ${names.join(', ')}`;
+}
+
+socket.on('rec', ({ id, on }) => {
+  const peer = peers.get(id);
+  if (!peer) return;
+  peer.recording = on;
+  toast(on ? `🔴 ${peer.name} kayda başladı` : `${peer.name} kaydı durdurdu`);
+  renderRecBanner();
+});
+
+$('rec-btn').hidden = !REC_MIME;
+// Kayıt sürerken düğme menüyü açmaz, kaydı durdurur (preventDefault popover'ı engeller).
+$('rec-btn').addEventListener('click', (e) => {
+  if (!recorder) return;
+  e.preventDefault();
+  stopRecording();
+});
+$('rec-all').onclick = () => startRecording(true);
+$('rec-voice').onclick = () => startRecording(false);
+$('rec-all').hidden = !navigator.mediaDevices?.getDisplayMedia;
+$('rec-all').nextElementSibling.hidden = $('rec-all').hidden;
+
+// Kayıt sürerken sayfa kapanırsa kayıt kaybolur; tarayıcı uyarsın.
+addEventListener('beforeunload', (e) => {
+  if (recorder) e.preventDefault();
+});
 
 // ---------- İnternet kullanımı ----------
 // Sesli sohbet WebRTC istatistiklerinden, senkron ise Socket.IO mesajlarından ölçülür.
@@ -1115,10 +1258,11 @@ $('join-form').onsubmit = async (e) => {
 
   // Bağlantıları hemen kur: odadakiler de bize teklif gönderiyor, gecikirsek kaybolur.
   for (const p of res.peers) {
-    addPeer(p.id, p.name, p.muted);
+    addPeer(p.id, p.name, p.muted).recording = p.recording;
     createPc(p.id);
   }
   sharerId = res.sharer;
+  renderRecBanner();
   res.chat.forEach(renderChatMessage);
 
   await Promise.all([syncClock(), createPlayer()]);

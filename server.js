@@ -159,9 +159,9 @@ io.on('connection', (socket) => {
       return ack({ error: `Oda dolu (en fazla ${MAX_USERS} kişi).` });
     }
 
-    const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted }));
+    const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
     code = roomCode;
-    room.users.set(socket.id, { name, muted: false, clientId });
+    room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
     ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat });
@@ -171,6 +171,14 @@ io.on('connection', (socket) => {
   socket.on('signal', ({ to, data } = {}) => {
     if (!code || !getRoom(code).users.has(to)) return;
     io.to(to).emit('signal', { from: socket.id, data });
+  });
+
+  // Kayıt yapan herkes odadakilere bildirilir; kimse habersiz kaydedilmesin.
+  socket.on('rec', (on) => {
+    if (!code) return;
+    const user = getRoom(code).users.get(socket.id);
+    user.recording = Boolean(on);
+    socket.to(code).emit('rec', { id: socket.id, on: user.recording });
   });
 
   socket.on('mute', (muted) => {

@@ -116,12 +116,22 @@
           <button id="mic-toggle" class="icon tool" title="Mikrofonu kapat">🎙</button>
           <button id="gate-btn" class="icon tool" popovertarget="gate-pop" title="Ses eşiği">🎚</button>
           <button id="screen-toggle" class="icon tool" title="Ekran paylaş">🖥</button>
+          <button id="rec-btn" class="icon tool" popovertarget="rec-pop" title="Kaydet">⏺</button>
         </div>
+        <div id="rec-banner" class="rec-banner" hidden></div>
         <p id="mic-note" class="muted small" hidden></p>
 
         <div id="people-pop" class="pop" popover>
           <h2>Odadakiler</h2>
           <ul id="people" class="people-list"></ul>
+        </div>
+
+        <div id="rec-pop" class="pop" popover>
+          <h2>Kayıt</h2>
+          <p class="muted small">Kayıt sadece senin bilgisayarına iner, sunucuya gitmez. Başlayınca odadaki herkes görür.</p>
+          <button id="rec-all" class="primary wide">🎵 Müzik dahil kaydet</button>
+          <p class="muted small">Tarayıcı sorunca bu sekmeyi seç, "Sekme sesini de paylaş" açık kalsın. Chrome ve Edge'de çalışır.</p>
+          <button id="rec-voice" class="wide">🎙 Sadece konuşmaları kaydet</button>
         </div>
 
         <div id="gate-pop" class="pop" popover>

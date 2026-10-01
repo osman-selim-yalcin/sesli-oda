@@ -335,6 +335,17 @@ button.off { background: var(--danger); border-color: var(--danger); }
   box-shadow: 0 12px 32px rgba(0, 0, 0, .45);
 }
 .pop h2 { margin: 0 0 10px; }
+#rec-pop { display: none; }
+#rec-pop:popover-open { display: grid; gap: 10px; }
+#rec-pop p { margin: 0; }
+.tool.rec { width: auto; padding: 0 10px; background: var(--danger); border-color: var(--danger); font-variant-numeric: tabular-nums; }
+.rec-banner {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(255, 92, 108, .15);
+  color: var(--danger);
+}
 .pop .people-list { margin: 0; }
 .pop .mic-settings { margin: 0; border: none; padding: 0; background: none; }
 
