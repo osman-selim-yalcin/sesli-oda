@@ -622,7 +622,7 @@ function appendLinkified(el, text) {
   });
 }
 
-function renderChatMessage({ from, name, text, ts }) {
+function renderChatMessage({ from, name, text, image, ts }) {
   const list = $('chat-list');
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
 
@@ -639,6 +639,20 @@ function renderChatMessage({ from, name, text, ts }) {
   body.className = 'text';
   appendLinkified(body, text);
   content.append(who, when, body);
+  if (image) {
+    const link = document.createElement('a');
+    link.href = image;
+    link.target = '_blank';
+    link.rel = 'noopener';
+    const img = document.createElement('img');
+    img.className = 'chat-img';
+    img.alt = `${name} fotoğraf gönderdi`;
+    img.src = image;
+    // Resim yüklenince boyu değişir; alttaysak aşağıda kalalım.
+    img.onload = () => nearBottom && (list.scrollTop = list.scrollHeight);
+    link.append(img);
+    content.append(link);
+  }
   li.append(makeAvatar(name), content);
 
   // Mesajda YouTube linki varsa tek tıkla sıraya eklenebilsin.
@@ -658,6 +672,66 @@ function renderChatMessage({ from, name, text, ts }) {
   $('chat-empty').hidden = true;
   if (nearBottom || from === selfId) list.scrollTop = list.scrollHeight;
 }
+
+// Fotoğrafı göndermeden önce küçültür: en uzun kenar 1600 px, WebP (desteklenmiyorsa JPEG).
+// GIF'ler animasyon bozulmasın diye olduğu gibi gider.
+const IMAGE_MAX_SIDE = 1600;
+const GIF_MAX_BYTES = 2 * 1024 * 1024;
+
+async function compressImage(file) {
+  if (file.type === 'image/gif' && file.size <= GIF_MAX_BYTES) return { blob: file, type: 'image/gif' };
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  const encode = (type) => new Promise((r) => canvas.toBlob(r, type, 0.82));
+  let blob = await encode('image/webp');
+  if (blob?.type !== 'image/webp') blob = await encode('image/jpeg'); // Safari WebP üretemez
+  return { blob, type: blob.type };
+}
+
+async function sendImage(file) {
+  if (!file?.type.startsWith('image/')) return toast('Sadece fotoğraf gönderilebilir.');
+  let compressed;
+  try {
+    compressed = await compressImage(file);
+  } catch {
+    return toast('Bu fotoğraf açılamadı.');
+  }
+  const caption = $('chat-input').value.trim();
+  const data = await compressed.blob.arrayBuffer();
+  const res = await new Promise((r) => socket.emit('chat:image', { data, type: compressed.type, caption }, r));
+  if (res.error) return toast(res.error);
+  $('chat-input').value = '';
+}
+
+$('chat-file').onchange = () => {
+  sendImage($('chat-file').files[0]);
+  $('chat-file').value = '';
+};
+
+$('chat-input').addEventListener('paste', (e) => {
+  const file = [...e.clipboardData.files].find((f) => f.type.startsWith('image/'));
+  if (!file) return;
+  e.preventDefault();
+  sendImage(file);
+});
+
+const chatBox = document.querySelector('.side .chat');
+chatBox.addEventListener('dragover', (e) => {
+  if (![...e.dataTransfer.types].includes('Files')) return;
+  e.preventDefault();
+  chatBox.classList.add('dragging');
+});
+chatBox.addEventListener('dragleave', () => chatBox.classList.remove('dragging'));
+chatBox.addEventListener('drop', (e) => {
+  e.preventDefault();
+  chatBox.classList.remove('dragging');
+  sendImage(e.dataTransfer.files[0]);
+});
 
 socket.on('chat', (msg) => {
   renderChatMessage(msg);

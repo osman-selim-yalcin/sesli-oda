@@ -1,4 +1,5 @@
 const path = require('path');
+const crypto = require('crypto');
 const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
@@ -13,6 +14,15 @@ const CHAT_HISTORY = 50;
 const PLAY_HISTORY = 200; // önceden çalanlar listesinde tutulan şarkı sayısı  // odaya yeni girene gösterilen son mesaj sayısı
 const CHAT_MAX_LENGTH = 500;
 const CHAT_COOLDOWN = 300; // ms
+const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
+const IMAGE_COOLDOWN = 2000; // ms
+// Dosyanın ilk baytlarıyla gerçekten resim olduğunu doğrularız (uzantıya/türe güvenmeyiz).
+const IMAGE_TYPES = {
+  'image/jpeg': (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  'image/png': (b) => b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])),
+  'image/gif': (b) => b.subarray(0, 4).toString('latin1') === 'GIF8',
+  'image/webp': (b) => b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WEBP',
+};
 
 const app = express();
 // Efekt kayıtları değişmez; tarayıcı bir kez indirip saklasın.
@@ -32,6 +42,20 @@ app.get('/config', (req, res) => {
   res.json({ iceServers });
 });
 
+// Sohbet fotoğrafları: sadece hafızada; mesaj sohbet geçmişinden düşünce ya da oda boşalınca silinir.
+const images = new Map(); // id -> { buf, type, code }
+
+app.get('/img/:id', (req, res) => {
+  const img = images.get(req.params.id);
+  if (!img) return res.status(404).end();
+  res.set({ 'Content-Type': img.type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' });
+  res.send(img.buf);
+});
+
+function deleteRoomImages(code) {
+  for (const [id, img] of images) if (img.code === code) images.delete(id);
+}
+
 // Giriş ekranı için: tek odada kimler var.
 app.get('/status', (req, res) => {
   const room = rooms.get('genel');
@@ -39,7 +63,7 @@ app.get('/status', (req, res) => {
 });
 
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, { maxHttpBufferSize: IMAGE_MAX_BYTES + 64 * 1024 });
 
 // oda kodu -> { users: Map<socketId, {name, muted}>, current, queue, playing, position, updatedAt }
 const rooms = new Map();
@@ -126,6 +150,15 @@ async function fetchTitle(videoId) {
   } catch {
     return null;
   }
+}
+
+function postChat(room, msg) {
+  room.chat.push(msg);
+  if (room.chat.length > CHAT_HISTORY) {
+    const old = room.chat.shift();
+    if (old.image) images.delete(old.image.slice('img/'.length));
+  }
+  io.to(room.code).emit('chat', msg);
 }
 
 function stopSharing(room, code, id) {
@@ -234,10 +267,24 @@ io.on('connection', (socket) => {
     if (!text) return;
     lastChat = Date.now();
     const room = getRoom(code);
-    const msg = { from: socket.id, name: room.users.get(socket.id).name, text, ts: Date.now() };
-    room.chat.push(msg);
-    if (room.chat.length > CHAT_HISTORY) room.chat.shift();
-    io.to(code).emit('chat', msg);
+    postChat(room, { from: socket.id, name: room.users.get(socket.id).name, text, ts: Date.now() });
+  });
+
+  let lastImage = 0;
+  socket.on('chat:image', ({ data, type, caption } = {}, ack) => {
+    if (typeof ack !== 'function') return;
+    if (!code) return ack({ error: 'Odada değilsin.' });
+    if (Date.now() - lastImage < IMAGE_COOLDOWN) return ack({ error: 'Biraz bekle, çok hızlı gönderiyorsun.' });
+    if (!Buffer.isBuffer(data) || data.length > IMAGE_MAX_BYTES || !IMAGE_TYPES[type]?.(data)) {
+      return ack({ error: 'Bu dosya gönderilemedi (desteklenmeyen tür ya da çok büyük).' });
+    }
+    lastImage = Date.now();
+    const id = crypto.randomUUID();
+    images.set(id, { buf: data, type, code });
+    const room = getRoom(code);
+    const text = typeof caption === 'string' ? caption.trim().slice(0, CHAT_MAX_LENGTH) : '';
+    postChat(room, { from: socket.id, name: room.users.get(socket.id).name, text, image: `img/${id}`, ts: Date.now() });
+    ack({});
   });
 
   let lastSfx = 0;
@@ -361,7 +408,10 @@ io.on('connection', (socket) => {
     if (!room.users.delete(socket.id)) return;
     stopSharing(room, code, socket.id);
     socket.to(code).emit('user-left', socket.id);
-    if (room.users.size === 0) rooms.delete(code);
+    if (room.users.size === 0) {
+      rooms.delete(code);
+      deleteRoomImages(code);
+    }
   });
 });
 

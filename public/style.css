@@ -253,7 +253,21 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .chat-msg .text { margin-top: 2px; white-space: pre-wrap; }
 .chat-msg a { color: var(--accent); }
 .chat-msg .queue-add { margin-top: 4px; padding: 2px 8px; font-size: 12px; }
-.chat-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); }
+.chat-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); align-items: center; }
+.attach {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  cursor: pointer;
+}
+.attach:hover { border-color: #3a4150; }
+.chat-img { display: block; margin-top: 4px; max-width: 100%; max-height: 220px; border-radius: 8px; cursor: zoom-in; background: var(--panel-2); }
+.chat.dragging { outline: 2px dashed var(--accent); outline-offset: -4px; }
 .chat-form input { padding: 8px 10px; }
 .chat-form button { padding: 8px 12px; }
 

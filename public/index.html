@@ -171,6 +171,9 @@
           <ol id="chat-list" class="chat-list"></ol>
           <p id="chat-empty" class="muted small chat-empty">Sohbet kaydedilmez; herkes çıkınca silinir.</p>
           <form id="chat-form" class="chat-form">
+            <label class="attach" title="Fotoğraf gönder (yapıştırıp sürükleyebilirsin de)">📎
+              <input id="chat-file" type="file" accept="image/*" hidden>
+            </label>
             <input id="chat-input" maxlength="500" placeholder="Mesaj yaz…" autocomplete="off">
             <button type="submit" class="primary">Gönder</button>
           </form>
