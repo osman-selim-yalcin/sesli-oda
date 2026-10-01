@@ -72,16 +72,6 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .card label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 
 /* Oda */
-.topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-}
-.topbar-actions { display: flex; gap: 8px; }
 
 .layout {
   display: grid;
@@ -146,11 +136,14 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .vol { display: flex; align-items: center; gap: 6px; }
 .vol input { width: 90px; padding: 0; accent-color: var(--accent); }
 
-.sfx { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; }
+.sfx-pop { width: auto; padding: 8px; }
+.sfx { display: flex; gap: 6px; }
 .sfx-btn { width: 40px; height: 40px; padding: 0; font-size: 19px; border-radius: 999px; }
 .sfx-btn:disabled { opacity: .5; cursor: default; }
 
 .settings { display: grid; gap: 12px; }
+.settings-actions { display: flex; gap: 8px; }
+.settings-actions button { flex: 1; padding: 7px 10px; font-size: 14px; }
 .select { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--muted); white-space: nowrap; }
 .select select {
   font: inherit;
@@ -267,6 +260,15 @@ button.off { background: var(--danger); border-color: var(--danger); }
 }
 .attach:hover { border-color: #3a4150; }
 .chat-img { display: block; margin-top: 4px; max-width: 100%; max-height: 220px; border-radius: 8px; cursor: zoom-in; background: var(--panel-2); }
+.quick-emojis { display: flex; justify-content: space-between; padding: 4px 8px 0; border-top: 1px solid var(--line); }
+.quick-emojis button { padding: 2px 4px; font-size: 18px; background: none; border: none; border-radius: 6px; }
+.quick-emojis button:hover { background: var(--panel-2); transform: scale(1.15); }
+.quick-emojis + .chat-form { border-top: none; }
+.emoji-pop { width: min(300px, calc(100vw - 32px)); padding: 8px; }
+.emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+.emoji-grid button { padding: 4px 0; font-size: 20px; background: none; border: none; border-radius: 6px; }
+.emoji-grid button:hover { background: var(--panel-2); }
+.chat-msg .text.big { font-size: 32px; line-height: 1.2; }
 .chat.dragging { outline: 2px dashed var(--accent); outline-offset: -4px; }
 .chat-form input { padding: 8px 10px; }
 .chat-form button { padding: 8px 12px; }
@@ -338,7 +340,7 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .side {
   position: sticky;
   top: 16px;
-  height: calc(100vh - 100px);
+  height: calc(100vh - 32px);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -389,7 +391,7 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .pop .people-list { margin: 0; }
 .pop .mic-settings { margin: 0; border: none; padding: 0; background: none; }
 
-.side .chat { flex: 1; min-height: 0; grid-template-rows: 1fr auto; }
+.side .chat { flex: 1; min-height: 0; grid-template-rows: 1fr auto auto; }
 .side .chat-list { max-height: none; align-content: start; }
 .chat-msg { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; }
 .chat-msg .avatar { width: 28px; height: 28px; font-size: 13px; }
@@ -418,8 +420,9 @@ details.usage[open] summary span::after { content: ' ▾'; }
   .layout { grid-template-columns: 1fr; }
   .side { position: static; height: auto; }
   .side .chat { height: 420px; flex: none; }
-  .topbar { flex-wrap: wrap; }
   .vol input { width: 60px; }
   .controls { flex-wrap: wrap; }
+  .controls .vol { display: none; } /* telefonda ses tuşları yeterli */
+  .controls .time:first-of-type { margin-left: auto; }
   .controls #seek { order: 10; flex-basis: 100%; }
 }

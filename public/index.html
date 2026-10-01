@@ -26,13 +26,6 @@
 
   <!-- Oda ekranı -->
   <div id="room-screen" class="room" hidden>
-    <header class="topbar">
-      <div class="room-name"><strong>Sesli Oda</strong></div>
-      <div class="topbar-actions">
-        <button id="copy-link" class="ghost">Davet linkini kopyala</button>
-        <button id="leave" class="ghost danger">Çık</button>
-      </div>
-    </header>
 
     <div class="layout">
       <section class="media">
@@ -77,8 +70,13 @@
             <label class="vol" title="Müzik sesi (sadece sende)">🔊
               <input id="music-vol" type="range" min="0" max="100" value="70" aria-label="Müzik sesi">
             </label>
+            <button id="sfx-open" class="icon" popovertarget="sfx-pop" title="Ses efektleri">🎉</button>
             <button id="settings-btn" class="icon" popovertarget="settings-pop" title="Ayarlar">⚙</button>
           </div>
+        </div>
+
+        <div id="sfx-pop" class="pop sfx-pop" popover>
+          <div id="sfx" class="sfx" aria-label="Ses efektleri"></div>
         </div>
 
         <div id="settings-pop" class="pop" popover>
@@ -97,11 +95,14 @@
             <label class="select">Efekt sesi
               <input id="sfx-vol" type="range" min="0" max="100" value="60">
             </label>
+            <div class="settings-actions">
+              <button id="copy-link">Davet linkini kopyala</button>
+              <button id="leave" class="danger">Odadan çık</button>
+            </div>
             <a href="sfx/KAYNAKLAR.txt" target="_blank" rel="noopener" class="credits">Ses kaynakları</a>
           </div>
         </div>
 
-        <div id="sfx" class="sfx" aria-label="Ses efektleri"></div>
 
         <!-- Sıra ve geçmiş -->
         <div class="panel list-panel">
@@ -158,6 +159,10 @@
           <button id="rec-voice" class="wide">🎙 Sadece konuşmaları kaydet</button>
         </div>
 
+        <div id="emoji-pop" class="pop emoji-pop" popover>
+          <div id="emoji-grid" class="emoji-grid"></div>
+        </div>
+
         <div id="gate-pop" class="pop" popover>
           <div id="mic-settings" class="mic-settings">
             <div class="mic-label"><span>Ses eşiği</span><span id="gate-value" class="muted small"></span></div>
@@ -170,10 +175,12 @@
         <div class="chat">
           <ol id="chat-list" class="chat-list"></ol>
           <p id="chat-empty" class="muted small chat-empty">Sohbet kaydedilmez; herkes çıkınca silinir.</p>
+          <div id="quick-emojis" class="quick-emojis" title="Tek tıkla gönder"></div>
           <form id="chat-form" class="chat-form">
             <label class="attach" title="Fotoğraf gönder (yapıştırıp sürükleyebilirsin de)">📎
               <input id="chat-file" type="file" accept="image/*" hidden>
             </label>
+            <button type="button" class="attach" popovertarget="emoji-pop" title="Emoji">😊</button>
             <input id="chat-input" maxlength="500" placeholder="Mesaj yaz…" autocomplete="off">
             <button type="submit" class="primary">Gönder</button>
           </form>

@@ -662,6 +662,10 @@ function renderChatMessage({ from, name, text, image, ts }) {
   when.textContent = new Date(ts).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
   const body = document.createElement('div');
   body.className = 'text';
+  // Sadece 1-3 emojiden oluşan mesaj büyük gösterilir.
+  if (/^(\p{Extended_Pictographic}(\uFE0F|\u200D\p{Extended_Pictographic}|\p{Emoji_Modifier})*\s*){1,3}$/u.test(text)) {
+    body.classList.add('big');
+  }
   appendLinkified(body, text);
   content.append(who, when, body);
   if (image) {
@@ -762,6 +766,38 @@ socket.on('chat', (msg) => {
   renderChatMessage(msg);
   if (msg.from !== selfId && audioCtx) Sfx.ping(audioCtx, sfxBus);
 });
+
+// Emoji seçici: tıklanan emoji imlecin olduğu yere eklenir, pencere açık kalır (birkaç tane seçilebilsin).
+const EMOJIS = [
+  '😂', '🤣', '😅', '😊', '😍', '🥰', '😘', '😎', '🤩', '🥳', '😏', '😴', '🤔', '🙄', '😬', '😮',
+  '😢', '😭', '😡', '🤯', '🥶', '🥵', '🤢', '💀', '👻', '🤡', '😈', '🙈', '👍', '👎', '👏', '🙌',
+  '🙏', '💪', '🤝', '✌️', '🤘', '👀', '🫡', '🤌', '❤️', '🔥', '✨', '💯', '🎉', '🎵', '🎶', '🎤',
+  '🎧', '🎸', '🥁', '🍕', '🍔', '🍻', '☕', '⚽', '🎮', '🚀', '⭐', '🌙', '💩', '🐐', '❓', '‼️',
+];
+
+for (const emoji of EMOJIS) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = emoji;
+  btn.onclick = () => {
+    const input = $('chat-input');
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    input.setRangeText(emoji, start, end, 'end');
+    input.focus();
+  };
+  $('emoji-grid').append(btn);
+}
+
+// Hızlı emojiler: tek tıkla doğrudan mesaj olarak gider.
+const QUICK_EMOJIS = ['😂', '🔥', '❤️', '👍', '👏', '😮', '😭', '💀'];
+for (const emoji of QUICK_EMOJIS) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = emoji;
+  btn.onclick = () => socket.emit('chat', emoji);
+  $('quick-emojis').append(btn);
+}
 
 $('chat-form').onsubmit = (e) => {
   e.preventDefault();
