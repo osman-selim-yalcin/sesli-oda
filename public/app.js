@@ -5,12 +5,25 @@ const DRIFT_LIMIT = 1.5;      // saniye; bundan fazla kayınca yeniden hizalanı
 const VOICE_BITRATE = 32000;  // bps; Opus için konuşma kalitesi yeterli
 
 const socket = io({ autoConnect: false });
-const peers = new Map();      // id -> { name, muted, pc, audio, pendingIce, row }
+const peers = new Map();      // id -> { name, muted, pc, audio, gain, pendingIce, row, speaking }
 let iceServers = [];
 let localStream = null;
 let micOn = true;
 let selfId = null;
 let audioCtx = null;
+let voiceBus = null;          // tüm konuşmaların geçtiği kompresör
+let sfxBus = null;
+
+// Her sekmenin kalıcı kimliği: yenileyince sunucu eski kaydı silebilsin.
+const clientId = (() => {
+  try {
+    let id = sessionStorage.getItem('clientId');
+    if (!id) sessionStorage.setItem('clientId', (id = crypto.randomUUID()));
+    return id;
+  } catch {
+    return crypto.randomUUID();
+  }
+})();
 
 // ---------- Yardımcılar ----------
 
@@ -68,21 +81,48 @@ async function syncClock() {
   }
 }
 
+// ---------- Ses altyapısı ----------
+// Konuşmalar tek bir kompresörden geçer: aynı anda birkaç kişi konuşunca
+// ses patlamaz, kısık konuşan da duyulur.
+
+function setupAudio() {
+  if (audioCtx) return;
+  audioCtx = new AudioContext();
+  voiceBus = audioCtx.createDynamicsCompressor();
+  voiceBus.threshold.value = -26;
+  voiceBus.knee.value = 12;
+  voiceBus.ratio.value = 4;
+  voiceBus.attack.value = 0.005;
+  voiceBus.release.value = 0.25;
+  const makeup = audioCtx.createGain();
+  makeup.gain.value = 1.4;
+  voiceBus.connect(makeup).connect(audioCtx.destination);
+
+  sfxBus = audioCtx.createGain();
+  sfxBus.gain.value = Number($('sfx-vol').value) / 100;
+  sfxBus.connect(audioCtx.destination);
+}
+
 // ---------- Konuşma göstergesi ----------
 
-function watchLevel(stream, row) {
-  audioCtx ||= new AudioContext();
+const SPEAK_THRESHOLD = 12;
+const SPEAK_HOLD = 350; // ms; kelime aralarında gösterge titremesin
+
+function watchLevel(source, row, state) {
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 512;
-  audioCtx.createMediaStreamSource(stream).connect(analyser);
+  source.connect(analyser);
   const data = new Uint8Array(analyser.fftSize);
+  let lastLoud = 0;
   const timer = setInterval(() => {
     if (!row.isConnected) return clearInterval(timer);
     analyser.getByteTimeDomainData(data);
     let peak = 0;
     for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
-    row.classList.toggle('speaking', peak > 12);
-  }, 120);
+    if (peak > SPEAK_THRESHOLD) lastLoud = Date.now();
+    state.speaking = Date.now() - lastLoud < SPEAK_HOLD;
+    row.classList.toggle('speaking', state.speaking);
+  }, 100);
 }
 
 // ---------- Katılımcı listesi ----------
@@ -121,27 +161,34 @@ function addPeer(id, name, muted) {
   vol.title = `${name} ses seviyesi`;
   row.querySelector('.p-info').append(vol);
 
+  // Chrome, uzaktan gelen sesi Web Audio'ya ancak bir medya öğesine bağlıyken verir;
+  // öğe sessiz çalar, asıl ses kompresörden çıkar.
   const audio = new Audio();
-  audio.autoplay = true;
-  vol.oninput = () => (audio.volume = vol.value / 100);
+  audio.muted = true;
+  const gain = audioCtx.createGain();
+  gain.connect(voiceBus);
+
+  const peer = { name, muted, pc: null, audio, gain, source: null, pendingIce: [], row, speaking: false, localMuted: false };
+  const applyGain = () => (gain.gain.value = peer.localMuted ? 0 : vol.value / 100);
+  vol.oninput = applyGain;
 
   // Kişiyi sadece kendin için susturma (karşı taraf bunu görmez).
   const muteBtn = document.createElement('button');
   muteBtn.className = 'icon p-mute';
   row.append(muteBtn);
   const renderMute = () => {
-    muteBtn.textContent = audio.muted ? '🔇' : '🔊';
-    muteBtn.title = audio.muted ? `${name} sesini aç` : `${name} sesini kapat`;
-    muteBtn.classList.toggle('off', audio.muted);
-    vol.disabled = audio.muted;
+    muteBtn.textContent = peer.localMuted ? '🔇' : '🔊';
+    muteBtn.title = peer.localMuted ? `${name} sesini aç` : `${name} sesini kapat`;
+    muteBtn.classList.toggle('off', peer.localMuted);
+    vol.disabled = peer.localMuted;
   };
   muteBtn.onclick = () => {
-    audio.muted = !audio.muted;
+    peer.localMuted = !peer.localMuted;
+    applyGain();
     renderMute();
   };
   renderMute();
 
-  const peer = { name, muted, pc: null, audio, pendingIce: [], row };
   peers.set(id, peer);
   setStatus(row, muted ? 'Sessizde' : 'Bağlanıyor…');
   renderPeopleCount();
@@ -152,6 +199,8 @@ function removePeer(id) {
   const peer = peers.get(id);
   if (!peer) return;
   peer.pc?.close();
+  peer.source?.disconnect();
+  peer.gain.disconnect();
   peer.audio.srcObject = null;
   peer.row.remove();
   peers.delete(id);
@@ -199,9 +248,13 @@ function createPc(id) {
   };
 
   pc.ontrack = (e) => {
-    peer.audio.srcObject = e.streams[0] || new MediaStream([e.track]);
+    const stream = e.streams[0] || new MediaStream([e.track]);
+    peer.audio.srcObject = stream;
     peer.audio.play().catch(() => {});
-    watchLevel(peer.audio.srcObject, peer.row);
+    peer.source?.disconnect();
+    peer.source = audioCtx.createMediaStreamSource(stream);
+    peer.source.connect(peer.gain);
+    watchLevel(peer.source, peer.row, peer);
   };
 
   pc.onconnectionstatechange = () => {
@@ -268,7 +321,10 @@ socket.on('user-muted', ({ id, muted }) => {
 socket.on('notice', toast);
 
 // Sunucu bağlantısı koparsa odaya yeniden girmek en temiz çözüm.
-socket.on('disconnect', () => toast('Sunucu bağlantısı koptu, yeniden bağlanılıyor…'));
+socket.on('disconnect', (reason) => {
+  if (reason === 'io server disconnect') toast('Bu oda başka bir sekmede açıldı.');
+  else toast('Sunucu bağlantısı koptu, yeniden bağlanılıyor…');
+});
 socket.io.on('reconnect', () => location.reload());
 
 // ---------- Mikrofon ----------
@@ -388,7 +444,7 @@ async function createPlayer() {
       events: {
         onReady: () => {
           playerReady = true;
-          player.setVolume(Number($('music-vol').value));
+          player.setVolume(musicVolume());
           resolve();
         },
         onStateChange: (e) => {
@@ -511,7 +567,57 @@ $('seek').onchange = () => {
   socket.emit('media:seek', Number($('seek').value));
 };
 
-$('music-vol').oninput = () => player?.setVolume(Number($('music-vol').value));
+// Biri konuşurken müzik yumuşakça kısılır, susunca geri açılır.
+const DUCK_LEVEL = 0.3;
+let duck = 1;
+let appliedVolume = null;
+
+function musicVolume() {
+  return Math.round(Number($('music-vol').value) * duck);
+}
+
+setInterval(() => {
+  if (!playerReady) return;
+  const talking = $('duck-toggle').checked && [...peers.values()].some((p) => p.speaking && !p.localMuted);
+  const target = talking ? DUCK_LEVEL : 1;
+  // Kısma hızlı, geri açma yavaş: konuşma aralarında müzik inip çıkmasın.
+  duck = target < duck ? Math.max(target, duck - 0.2) : Math.min(target, duck + 0.04);
+  const vol = musicVolume();
+  if (vol !== appliedVolume) {
+    player.setVolume(vol);
+    appliedVolume = vol;
+  }
+}, 100);
+
+// ---------- Ses efektleri ----------
+
+function renderSfx() {
+  for (const fx of SFX_LIST) {
+    const btn = document.createElement('button');
+    btn.className = 'sfx-btn';
+    btn.textContent = fx.emoji;
+    btn.title = fx.label;
+    btn.onclick = () => {
+      if (btn.disabled) return;
+      Sfx.play(audioCtx, sfxBus, fx.id);
+      socket.emit('sfx', fx.id);
+      // Sunucudaki bekleme süresiyle aynı; spam'i önler.
+      document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = true));
+      setTimeout(() => document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = false)), 600);
+    };
+    $('sfx').append(btn);
+  }
+}
+renderSfx();
+
+socket.on('sfx', ({ id, by }) => {
+  const fx = SFX_LIST.find((f) => f.id === id);
+  if (!fx || !audioCtx) return;
+  Sfx.play(audioCtx, sfxBus, id);
+  toast(`${by}: ${fx.emoji} ${fx.label}`);
+});
+
+$('sfx-vol').oninput = () => sfxBus && (sfxBus.gain.value = Number($('sfx-vol').value) / 100);
 
 $('add-form').onsubmit = (e) => {
   e.preventDefault();
@@ -539,6 +645,9 @@ $('join-form').onsubmit = async (e) => {
     localStorage.setItem('name', name);
   } catch {}
 
+  setupAudio();
+  audioCtx.resume();
+
   try {
     localStream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
@@ -552,7 +661,7 @@ $('join-form').onsubmit = async (e) => {
 
   ({ iceServers } = await fetch('/config').then((r) => r.json()));
   socket.connect();
-  const res = await new Promise((r) => socket.emit('join', { room, name }, r));
+  const res = await new Promise((r) => socket.emit('join', { room, name, clientId }, r));
 
   if (res.error) {
     socket.disconnect();
@@ -571,7 +680,7 @@ $('join-form').onsubmit = async (e) => {
 
   const selfRow = personRow(name, true);
   setStatus(selfRow, localStream ? 'Sen' : 'Sadece dinleyici');
-  if (localStream) watchLevel(localStream, selfRow);
+  if (localStream) watchLevel(audioCtx.createMediaStreamSource(localStream), selfRow, {});
   renderMic();
   renderPeopleCount();
   startUsageMeter();
@@ -600,3 +709,6 @@ $('copy-link').onclick = async () => {
 $('leave').onclick = () => {
   location.href = location.pathname;
 };
+
+// Sekme kapanınca/yenilenince sunucuya hemen haber ver.
+addEventListener('pagehide', () => socket.disconnect());

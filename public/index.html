@@ -60,6 +60,16 @@
           </label>
         </div>
 
+        <div class="sfx-row">
+          <div id="sfx" class="sfx"></div>
+          <label class="vol" title="Efekt sesi (sadece sende)">✨
+            <input id="sfx-vol" type="range" min="0" max="100" value="60">
+          </label>
+        </div>
+        <label class="check">
+          <input id="duck-toggle" type="checkbox" checked> Biri konuşurken müziği kıs
+        </label>
+
         <form id="add-form" class="add">
           <input id="yt-url" placeholder="YouTube linki yapıştır…" autocomplete="off">
           <button type="submit" class="primary">Ekle</button>
@@ -93,6 +103,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="sfx.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

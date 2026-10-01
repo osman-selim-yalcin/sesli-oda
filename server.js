@@ -6,6 +6,8 @@ const { Server } = require('socket.io');
 const PORT = process.env.PORT || 3030;
 const MAX_USERS = 6;
 const VIDEO_ID = /^[\w-]{11}$/;
+const SFX_IDS = new Set(['clap', 'horn', 'rimshot', 'ding', 'sad', 'tada', 'boom']);
+const SFX_COOLDOWN = 600; // ms; efekt spam'ini engeller
 
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
@@ -90,20 +92,30 @@ io.on('connection', (socket) => {
 
   socket.on('time', (ack) => typeof ack === 'function' && ack(Date.now()));
 
-  socket.on('join', ({ room: roomCode, name } = {}, ack) => {
+  socket.on('join', ({ room: roomCode, name, clientId } = {}, ack) => {
     if (typeof ack !== 'function' || code) return;
     roomCode = String(roomCode || '').trim().toLowerCase().slice(0, 32);
     name = String(name || '').trim().slice(0, 24);
+    clientId = String(clientId || '').slice(0, 64);
     if (!roomCode || !name) return ack({ error: 'Oda kodu ve isim gerekli.' });
 
     const room = getRoom(roomCode);
+
+    // Sayfa yenilenince eski bağlantı hemen kapanmayabilir; aynı sekmenin eski kaydını sileriz.
+    for (const [id, user] of room.users) {
+      if (!clientId || user.clientId !== clientId) continue;
+      room.users.delete(id);
+      io.to(roomCode).emit('user-left', id);
+      io.sockets.sockets.get(id)?.disconnect(true);
+    }
+
     if (room.users.size >= MAX_USERS) {
       return ack({ error: `Oda dolu (en fazla ${MAX_USERS} kişi).` });
     }
 
-    const peers = [...room.users].map(([id, u]) => ({ id, ...u }));
+    const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted }));
     code = roomCode;
-    room.users.set(socket.id, { name, muted: false });
+    room.users.set(socket.id, { name, muted: false, clientId });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
     ack({ id: socket.id, peers, media: mediaState(room) });
@@ -120,6 +132,13 @@ io.on('connection', (socket) => {
     const user = getRoom(code).users.get(socket.id);
     user.muted = Boolean(muted);
     socket.to(code).emit('user-muted', { id: socket.id, muted: user.muted });
+  });
+
+  let lastSfx = 0;
+  socket.on('sfx', (id) => {
+    if (!code || !SFX_IDS.has(id) || Date.now() - lastSfx < SFX_COOLDOWN) return;
+    lastSfx = Date.now();
+    socket.to(code).emit('sfx', { id, by: getRoom(code).users.get(socket.id).name });
   });
 
   socket.on('media:add', async (videoId) => {
@@ -194,7 +213,8 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     if (!code) return;
     const room = getRoom(code);
-    room.users.delete(socket.id);
+    // Yenileme sırasında zaten silinmiş olabilir.
+    if (!room.users.delete(socket.id)) return;
     socket.to(code).emit('user-left', socket.id);
     if (room.users.size === 0) rooms.delete(code);
   });
