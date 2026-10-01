@@ -136,8 +136,28 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .vol { display: flex; align-items: center; gap: 6px; }
 .vol input { width: 90px; padding: 0; accent-color: var(--accent); }
 
-.sfx-pop { width: auto; padding: 8px; }
-.sfx { display: flex; gap: 6px; }
+.sfx-pop { width: min(340px, calc(100vw - 32px)); padding: 10px; }
+.sfx-pop:popover-open { display: grid; gap: 8px; }
+.sfx { display: flex; gap: 6px; flex-wrap: wrap; }
+.sfx-custom:empty { display: none; }
+.sfx-custom .sfx-btn { width: auto; padding: 0 12px; font-size: 13px; position: relative; }
+.sfx-custom .remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 50%;
+  display: none;
+}
+.sfx-custom .sfx-btn:hover .remove { display: block; }
+.sfx-upload { display: flex; gap: 6px; }
+.sfx-upload input { padding: 7px 10px; }
+.sfx-upload .attach { width: auto; padding: 0 10px; white-space: nowrap; }
+.sfx-note { margin: 0; }
 .sfx-btn { width: 40px; height: 40px; padding: 0; font-size: 19px; border-radius: 999px; }
 .sfx-btn:disabled { opacity: .5; cursor: default; }
 

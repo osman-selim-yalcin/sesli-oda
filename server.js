@@ -9,6 +9,9 @@ const MAX_USERS = 6;
 const VIDEO_ID = /^[\w-]{11}$/;
 const SFX_IDS = new Set(['clap', 'rimshot', 'ding', 'sad', 'tada', 'boom']);
 const SFX_COOLDOWN = 600; // ms; efekt spam'ini engeller
+const CUSTOM_SFX_MAX = 12;               // odadaki en fazla özel efekt; dolunca en eski silinir
+const CUSTOM_SFX_MAX_BYTES = 300 * 1024; // istemci 4 sn mono WAV'a çevirip gönderir (~170 KB)
+const CUSTOM_SFX_COOLDOWN = 5000;        // ms
 const REACTIONS = ['🔥', '😂', '😍', '👏', '💀', '😴'];
 const CHAT_HISTORY = 50;
 const PLAY_HISTORY = 200; // önceden çalanlar listesinde tutulan şarkı sayısı  // odaya yeni girene gösterilen son mesaj sayısı
@@ -45,6 +48,13 @@ app.get('/config', (req, res) => {
 // Sohbet fotoğrafları: sadece hafızada; mesaj sohbet geçmişinden düşünce ya da oda boşalınca silinir.
 const images = new Map(); // id -> { buf, type, code }
 
+app.get('/sfx-custom/:room/:id', (req, res) => {
+  const fx = customSfxByRoom.get(req.params.room)?.get(req.params.id);
+  if (!fx) return res.status(404).end();
+  res.set({ 'Content-Type': 'audio/wav', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' });
+  res.send(fx.buf);
+});
+
 app.get('/img/:id', (req, res) => {
   const img = images.get(req.params.id);
   if (!img) return res.status(404).end();
@@ -68,15 +78,18 @@ const io = new Server(server, { maxHttpBufferSize: IMAGE_MAX_BYTES + 64 * 1024 }
 // oda kodu -> { users: Map<socketId, {name, muted}>, current, queue, playing, position, updatedAt }
 const rooms = new Map();
 
-// Önceden çalanlar oda boşalınca silinmez (sunucu yeniden başlayana kadar durur).
+// Önceden çalanlar ve özel efektler oda boşalınca silinmez (sunucu yeniden başlayana kadar durur).
 const histories = new Map(); // oda kodu -> [{ videoId, title, by, playedAt }]
+const customSfxByRoom = new Map(); // oda kodu -> Map<id, { buf, label, by }>
 
 function getRoom(code) {
   if (!rooms.has(code)) {
     if (!histories.has(code)) histories.set(code, []);
+    if (!customSfxByRoom.has(code)) customSfxByRoom.set(code, new Map());
     rooms.set(code, {
       code,
       history: histories.get(code),
+      customSfx: customSfxByRoom.get(code),
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -152,6 +165,8 @@ async function fetchTitle(videoId) {
   }
 }
 
+const customSfxList = (room) => [...room.customSfx].map(([id, fx]) => ({ id, label: fx.label, by: fx.by }));
+
 function postChat(room, msg) {
   room.chat.push(msg);
   if (room.chat.length > CHAT_HISTORY) {
@@ -214,7 +229,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room) });
   });
 
   // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir.
@@ -289,9 +304,36 @@ io.on('connection', (socket) => {
 
   let lastSfx = 0;
   socket.on('sfx', (id) => {
-    if (!code || !SFX_IDS.has(id) || Date.now() - lastSfx < SFX_COOLDOWN) return;
+    if (!code || typeof id !== 'string' || Date.now() - lastSfx < SFX_COOLDOWN) return;
+    if (!SFX_IDS.has(id) && !getRoom(code).customSfx.has(id)) return;
     lastSfx = Date.now();
     socket.to(code).emit('sfx', { id, by: getRoom(code).users.get(socket.id).name });
+  });
+
+  // Kullanıcının yüklediği efekt: istemci 16-bit mono WAV'a çevirip gönderir.
+  let lastUpload = 0;
+  socket.on('sfx:upload', ({ data, label } = {}, ack) => {
+    if (typeof ack !== 'function') return;
+    if (!code) return ack({ error: 'Odada değilsin.' });
+    if (Date.now() - lastUpload < CUSTOM_SFX_COOLDOWN) return ack({ error: 'Biraz bekle, çok hızlı yüklüyorsun.' });
+    label = typeof label === 'string' ? label.trim().slice(0, 16) : '';
+    const isWav = Buffer.isBuffer(data) && data.length > 44 && data.length <= CUSTOM_SFX_MAX_BYTES &&
+      data.subarray(0, 4).toString('latin1') === 'RIFF' && data.subarray(8, 12).toString('latin1') === 'WAVE';
+    if (!label) return ack({ error: 'Efekte bir isim ver.' });
+    if (!isWav) return ack({ error: 'Ses dosyası işlenemedi.' });
+    lastUpload = Date.now();
+    const room = getRoom(code);
+    const by = room.users.get(socket.id).name;
+    room.customSfx.set(crypto.randomUUID(), { buf: data, label, by });
+    if (room.customSfx.size > CUSTOM_SFX_MAX) room.customSfx.delete(room.customSfx.keys().next().value);
+    io.to(code).emit('sfx:list', customSfxList(room));
+    io.to(code).emit('notice', `${by} yeni efekt ekledi: ${label}`);
+    ack({});
+  });
+
+  socket.on('sfx:remove', (id) => {
+    if (!code || !getRoom(code).customSfx.delete(id)) return;
+    io.to(code).emit('sfx:list', customSfxList(getRoom(code)));
   });
 
   socket.on('media:add', async (videoId) => {

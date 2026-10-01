@@ -77,6 +77,14 @@
 
         <div id="sfx-pop" class="pop sfx-pop" popover>
           <div id="sfx" class="sfx" aria-label="Ses efektleri"></div>
+          <div id="sfx-custom" class="sfx sfx-custom"></div>
+          <form id="sfx-upload" class="sfx-upload">
+            <input id="sfx-label" maxlength="16" placeholder="Efekt adı (ör. bruh)" autocomplete="off">
+            <label class="attach" title="Ses dosyası seç (en fazla 4 sn kullanılır)">＋🔊
+              <input id="sfx-file" type="file" accept="audio/*" hidden>
+            </label>
+          </form>
+          <p class="muted small sfx-note">Kendi sesini yükle: isim yaz, ＋🔊 ile dosya seç. İlk 4 saniyesi alınır.</p>
         </div>
 
         <div id="settings-pop" class="pop" popover>

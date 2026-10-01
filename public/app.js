@@ -1384,31 +1384,125 @@ setInterval(() => {
 
 // ---------- Ses efektleri ----------
 
-function renderSfx() {
-  for (const fx of SFX_LIST) {
-    const btn = document.createElement('button');
-    btn.className = 'sfx-btn';
-    btn.textContent = fx.emoji;
-    btn.title = fx.label;
-    btn.onclick = () => {
-      if (btn.disabled) return;
-      Sfx.play(audioCtx, sfxBus, fx.id);
-      socket.emit('sfx', fx.id);
-      // Sunucudaki bekleme süresiyle aynı; spam'i önler.
-      document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = true));
-      setTimeout(() => document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = false)), 600);
-    };
-    $('sfx').append(btn);
-  }
+let customSfx = []; // [{ id, label, by }]
+
+function sfxButton(id, text, title) {
+  const btn = document.createElement('button');
+  btn.className = 'sfx-btn';
+  btn.textContent = text;
+  btn.title = title;
+  btn.onclick = (e) => {
+    if (btn.disabled || e.target !== btn) return;
+    Sfx.play(audioCtx, sfxBus, id);
+    socket.emit('sfx', id);
+    // Sunucudaki bekleme süresiyle aynı; spam'i önler.
+    document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = true));
+    setTimeout(() => document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = false)), 600);
+  };
+  return btn;
 }
-renderSfx();
+
+for (const fx of SFX_LIST) $('sfx').append(sfxButton(fx.id, fx.emoji, fx.label));
+
+function renderCustomSfx() {
+  $('sfx-custom').replaceChildren(
+    ...customSfx.map((fx) => {
+      const btn = sfxButton(fx.id, fx.label, `${fx.label} (${fx.by} yükledi)`);
+      const remove = document.createElement('span');
+      remove.className = 'remove';
+      remove.textContent = '✕';
+      remove.title = 'Efekti sil';
+      remove.onclick = () => socket.emit('sfx:remove', fx.id);
+      btn.append(remove);
+      return btn;
+    })
+  );
+}
+
+async function setCustomSfx(list) {
+  customSfx = list;
+  renderCustomSfx();
+  await Promise.all(list.map((fx) => Sfx.addCustom(audioCtx, fx.id, `sfx-custom/${ROOM}/${fx.id}`).catch(() => {})));
+}
+
+socket.on('sfx:list', setCustomSfx);
 
 socket.on('sfx', ({ id, by }) => {
+  if (!audioCtx) return;
   const fx = SFX_LIST.find((f) => f.id === id);
-  if (!fx || !audioCtx) return;
+  const custom = customSfx.find((f) => f.id === id);
+  if (!fx && !custom) return;
   Sfx.play(audioCtx, sfxBus, id);
-  toast(`${by}: ${fx.emoji} ${fx.label}`);
+  toast(fx ? `${by}: ${fx.emoji} ${fx.label}` : `${by}: 🔊 ${custom.label}`);
 });
+
+// Yüklenen sesi efekte çevirir: ilk 4 sn, mono, 22 kHz, ses seviyesi eşitlenmiş 16-bit WAV.
+const CUSTOM_SFX_SECONDS = 4;
+const CUSTOM_SFX_RATE = 22050;
+const CUSTOM_SFX_RMS = 0.16;  // hazır efektlerle aynı yükseklik
+const CUSTOM_SFX_PEAK = 0.89;
+
+async function toEffectWav(file) {
+  const decoded = await audioCtx.decodeAudioData(await file.arrayBuffer());
+  const length = Math.min(decoded.length, Math.round(decoded.sampleRate * CUSTOM_SFX_SECONDS));
+  const off = new OfflineAudioContext(1, Math.ceil((length / decoded.sampleRate) * CUSTOM_SFX_RATE), CUSTOM_SFX_RATE);
+  const src = off.createBufferSource();
+  src.buffer = decoded;
+  src.connect(off.destination);
+  src.start(0, 0, length / decoded.sampleRate);
+  const data = (await off.startRendering()).getChannelData(0);
+
+  // Ses seviyesi: en yüksek kısımların ortalamasına göre, tepe sınırıyla.
+  let peak = 0;
+  let sum = 0;
+  for (const v of data) {
+    peak = Math.max(peak, Math.abs(v));
+    sum += v * v;
+  }
+  const rms = Math.sqrt(sum / data.length) || 1;
+  const gain = Math.min(CUSTOM_SFX_RMS / rms, CUSTOM_SFX_PEAK / (peak || 1));
+  const fade = Math.min(data.length, Math.round(CUSTOM_SFX_RATE * 0.05)); // kesik bitmesin
+
+  const view = new DataView(new ArrayBuffer(44 + data.length * 2));
+  const text = (o, s) => [...s].forEach((c, i) => view.setUint8(o + i, c.charCodeAt(0)));
+  text(0, 'RIFF');
+  view.setUint32(4, 36 + data.length * 2, true);
+  text(8, 'WAVEfmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, CUSTOM_SFX_RATE, true);
+  view.setUint32(28, CUSTOM_SFX_RATE * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  text(36, 'data');
+  view.setUint32(40, data.length * 2, true);
+  data.forEach((v, i) => {
+    const tail = data.length - i < fade ? (data.length - i) / fade : 1;
+    view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, v * gain * tail)) * 32767, true);
+  });
+  return view.buffer;
+}
+
+$('sfx-file').onchange = async () => {
+  const file = $('sfx-file').files[0];
+  $('sfx-file').value = '';
+  if (!file) return;
+  const label = $('sfx-label').value.trim() || file.name.replace(/\.[^.]+$/, '').slice(0, 16);
+  let data;
+  try {
+    data = await toEffectWav(file);
+  } catch {
+    return toast('Bu ses dosyası açılamadı.');
+  }
+  const res = await new Promise((r) => socket.emit('sfx:upload', { data, label }, r));
+  if (res.error) return toast(res.error);
+  $('sfx-label').value = '';
+};
+$('sfx-upload').onsubmit = (e) => {
+  e.preventDefault();
+  $('sfx-file').click();
+};
 
 $('sfx-vol').oninput = () => sfxBus && (sfxBus.gain.value = Number($('sfx-vol').value) / 100);
 
@@ -1501,6 +1595,7 @@ $('join-form').onsubmit = async (e) => {
   renderRecBanner();
   res.chat.forEach(renderChatMessage);
   mergeHistory([...loadLocalHistory(), ...res.history]);
+  setCustomSfx(res.customSfx);
 
   await Promise.all([syncClock(), createPlayer()]);
 

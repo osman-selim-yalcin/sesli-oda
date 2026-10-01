@@ -140,6 +140,12 @@ const Sfx = (() => {
       tone(ctx, out, t, { type: 'sine', freq: 880, peak: 0.18, attack: 0.004, decay: 0.12 });
       tone(ctx, out, t + 0.08, { type: 'sine', freq: 1320, peak: 0.14, attack: 0.004, decay: 0.22 });
     },
+    // Kullanıcının yüklediği efekti hafızaya alır.
+    async addCustom(ctx, id, url) {
+      if (samples.has(id)) return;
+      const res = await fetch(url);
+      samples.set(id, await ctx.decodeAudioData(await res.arrayBuffer()));
+    },
     play(ctx, out, id) {
       const t = ctx.currentTime + 0.01;
       const buffer = samples.get(id);
