@@ -136,6 +136,12 @@ io.on('connection', (socket) => {
     socket.to(code).emit('user-muted', { id: socket.id, muted: user.muted });
   });
 
+  // Kişinin videosu donuyor mu; diğerlerinin listesinde ⏳ olarak görünür.
+  socket.on('video-state', (state) => {
+    if (!code || (state !== 'buffering' && state !== 'ok')) return;
+    socket.to(code).emit('video-state', { id: socket.id, state });
+  });
+
   let lastSfx = 0;
   socket.on('sfx', (id) => {
     if (!code || !SFX_IDS.has(id) || Date.now() - lastSfx < SFX_COOLDOWN) return;

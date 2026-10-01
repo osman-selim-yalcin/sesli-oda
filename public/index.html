@@ -36,7 +36,7 @@
 
     <div class="layout">
       <section class="media">
-        <div class="player-wrap">
+        <div id="player-wrap" class="player-wrap">
           <div id="player"></div>
           <!-- YouTube'un kendi tıklamalarını engeller; kontrol bizim butonlarda -->
           <div class="player-shield"></div>
@@ -70,6 +70,13 @@
           <label class="check">
             <input id="duck-toggle" type="checkbox" checked> Biri konuşurken müziği kıs
           </label>
+          <label class="select">Video kalitesi
+            <select id="quality">
+              <option value="auto">Otomatik</option>
+              <option value="medium">Orta (~360p)</option>
+              <option value="low">Düşük (~144p, veri tasarrufu)</option>
+            </select>
+          </label>
           <a href="sfx/KAYNAKLAR.txt" target="_blank" rel="noopener" class="credits">Ses kaynakları</a>
         </div>
 
@@ -95,8 +102,8 @@
           <div class="usage-row"><span>Bu oturum</span><strong id="use-total">—</strong></div>
           <div class="usage-row sub"><span>Sesli sohbet</span><span id="use-voice">—</span></div>
           <div class="usage-row sub"><span>Senkron (sunucu)</span><span id="use-sync">—</span></div>
-          <div class="usage-row sub"><span>YouTube</span><span>ölçülemiyor</span></div>
-          <p class="muted small">↓ indirilen · ↑ gönderilen. YouTube videosu bu sayılara dahil değil; tarayıcı, YouTube'un kendi oynatıcısının harcadığı veriyi sayfaya göstermiyor.</p>
+          <div class="usage-row sub"><span>YouTube (tahmini)</span><span id="use-yt">—</span></div>
+          <p class="muted small">↓ indirilen · ↑ gönderilen. YouTube'un harcadığı veri tarayıcı tarafından sayfaya gösterilmez; indirilen video süresi ve kaliteden tahmin edilir (±%30).</p>
         </div>
       </aside>
     </div>

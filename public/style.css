@@ -143,6 +143,16 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .sfx-btn:disabled { opacity: .5; cursor: default; }
 .options { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
 .options .check { margin-top: 0; }
+.select { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.select select {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+}
+.p-badge { font-size: 12px; }
 .credits { font-size: 12px; color: var(--muted); }
 .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--muted); cursor: pointer; }
 .check input { width: auto; accent-color: var(--accent); }

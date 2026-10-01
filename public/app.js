@@ -136,11 +136,11 @@ function personRow(name, isSelf) {
   li.innerHTML = `
     <div class="avatar"></div>
     <div class="p-info">
-      <div class="p-name"></div>
+      <div class="p-name"><span class="p-label"></span> <span class="p-badge" hidden title="Videosu yükleniyor">⏳</span></div>
       <div class="p-status"></div>
     </div>`;
   li.querySelector('.avatar').textContent = name.slice(0, 1).toUpperCase();
-  li.querySelector('.p-name').textContent = isSelf ? `${name} (sen)` : name;
+  li.querySelector('.p-label').textContent = isSelf ? `${name} (sen)` : name;
   $('people').append(li);
   return li;
 }
@@ -349,7 +349,7 @@ $('mic-toggle').onclick = () => {
 
 const UDP_OVERHEAD = 28; // paket başına IPv4 + UDP başlığı; getStats bunu saymaz
 const WS_OVERHEAD = 6;   // mesaj başına yaklaşık WebSocket çerçeve başlığı
-const usage = { voice: { down: 0, up: 0 }, sync: { down: 0, up: 0 } };
+const usage = { voice: { down: 0, up: 0 }, sync: { down: 0, up: 0 }, youtube: 0 };
 const encoder = new TextEncoder();
 
 function fmtBytes(b) {
@@ -397,17 +397,51 @@ async function pollVoice() {
   }
 }
 
+// YouTube'un verisi ölçülemez; tahmin = yeni indirilen video süresi × o kalitenin tipik veri hızı.
+// Değerler video + ses birlikte, Mbps; YouTube'un gerçek hızı videoya göre ±%30 oynar.
+const YT_MBPS = { tiny: 0.25, small: 0.4, medium: 0.75, large: 1.2, hd720: 2.2, hd1080: 3.8, hd1440: 8, hd2160: 16, highres: 16 };
+const YT_MAX_STEP = 30; // sn; tek ölçümde sayılacak en fazla yeni tampon (sarma atlamalarına karşı)
+const ytTrack = { id: null, loaded: 0, reset: false };
+
+// Oynatıcı kaliteyi bildirmezse, oynatıcının gerçek piksel yüksekliğinden kestiririz.
+function ytQuality() {
+  const q = player.getPlaybackQuality?.();
+  if (YT_MBPS[q]) return q;
+  const h = player.getIframe().clientHeight * devicePixelRatio;
+  if (h <= 160) return 'tiny';
+  if (h <= 260) return 'small';
+  if (h <= 380) return 'medium';
+  if (h <= 500) return 'large';
+  return h <= 760 ? 'hd720' : 'hd1080';
+}
+
+function pollYouTube() {
+  if (!playerReady || !loadedId) return;
+  const loaded = (player.getVideoLoadedFraction() || 0) * (player.getDuration() || 0);
+  if (ytTrack.id !== loadedId || ytTrack.reset) {
+    // Yeni video başlangıç konumundan, sarmadan sonra ise mevcut tampondan saymaya başlar.
+    if (ytTrack.id === loadedId) ytTrack.loaded = loaded;
+    ytTrack.id = loadedId;
+    ytTrack.reset = false;
+  }
+  const fresh = Math.min(YT_MAX_STEP, loaded - ytTrack.loaded);
+  if (fresh > 0) usage.youtube += (fresh * YT_MBPS[ytQuality()] * 1e6) / 8;
+  ytTrack.loaded = Math.max(ytTrack.loaded, loaded);
+}
+
 function startUsageMeter() {
   let last = { down: 0, up: 0, time: performance.now() };
   setInterval(async () => {
     await pollVoice();
-    const down = usage.voice.down + usage.sync.down;
+    pollYouTube();
+    const down = usage.voice.down + usage.sync.down + usage.youtube;
     const up = usage.voice.up + usage.sync.up;
     const now = performance.now();
     const secs = (now - last.time) / 1000;
     $('use-rate').textContent =
       `↓ ${fmtRate(((down - last.down) * 8) / secs)}  ↑ ${fmtRate(((up - last.up) * 8) / secs)}`;
-    $('use-total').textContent = `↓ ${fmtBytes(down)}  ↑ ${fmtBytes(up)}`;
+    $('use-total').textContent = `↓ ~${fmtBytes(down)}  ↑ ${fmtBytes(up)}`;
+    $('use-yt').textContent = `↓ ~${fmtBytes(usage.youtube)}`;
     $('use-voice').textContent = `↓ ${fmtBytes(usage.voice.down)}  ↑ ${fmtBytes(usage.voice.up)}`;
     $('use-sync').textContent = `↓ ${fmtBytes(usage.sync.down)}  ↑ ${fmtBytes(usage.sync.up)}`;
     last = { down, up, time: now };
@@ -422,6 +456,11 @@ let media = null;        // sunucudan gelen son durum
 let loadedId = null;
 let seeking = false;
 let stalled = 0;
+
+function seekPlayer(pos) {
+  player.seekTo(pos, true);
+  ytTrack.reset = true;
+}
 
 const ytReady = new Promise((resolve) => {
   if (window.YT?.Player) resolve();
@@ -445,6 +484,8 @@ async function createPlayer() {
         onReady: () => {
           playerReady = true;
           player.setVolume(musicVolume());
+          new ResizeObserver(applyQuality).observe($('player-wrap'));
+          applyQuality();
           resolve();
         },
         onStateChange: (e) => {
@@ -452,11 +493,76 @@ async function createPlayer() {
             socket.emit('media:ended', media.current.videoId);
           }
           if (e.data === YT.PlayerState.PLAYING) $('unlock').hidden = true;
+          trackBuffering(e.data === YT.PlayerState.BUFFERING);
         },
       },
     });
   });
 }
+
+// ---------- Kişiye özel video kalitesi ----------
+// YouTube kaliteyi oynatıcının piksel boyutuna göre seçer. Oynatıcıyı küçük boyutta
+// tutup ekranda büyütünce (CSS scale) düşük kaliteye geçer ve daha az veri harcar.
+// Her kişinin ayarı sadece kendi cihazını etkiler.
+
+const QUALITY_PIXELS = { medium: [640, 360], low: [256, 144] }; // gerçek ekran pikseli
+
+function applyQuality() {
+  const iframe = player?.getIframe?.();
+  if (!iframe) return;
+  const mode = $('quality').value;
+  if (!QUALITY_PIXELS[mode]) {
+    iframe.style.width = iframe.style.height = iframe.style.transform = '';
+    return;
+  }
+  const [w, h] = QUALITY_PIXELS[mode].map((v) => v / devicePixelRatio);
+  iframe.style.width = `${w}px`;
+  iframe.style.height = `${h}px`;
+  iframe.style.transformOrigin = '0 0';
+  iframe.style.transform = `scale(${$('player-wrap').clientWidth / w})`;
+}
+
+try {
+  $('quality').value = localStorage.getItem('quality') || 'auto';
+} catch {}
+$('quality').onchange = () => {
+  try {
+    localStorage.setItem('quality', $('quality').value);
+  } catch {}
+  applyQuality();
+};
+
+// ---------- Donma takibi ----------
+// Video 1 sn'den uzun yüklenirse diğerlerine "⏳" gösterilir. Sık donuyorsa kaliteyi düşürmeyi öneririz.
+
+const BUFFER_REPORT_DELAY = 1000;
+let bufferTimer = null;
+let reportedBuffering = false;
+let freezes = [];
+let qualityHintShown = false;
+
+function trackBuffering(buffering) {
+  clearTimeout(bufferTimer);
+  if (buffering) {
+    bufferTimer = setTimeout(() => {
+      reportedBuffering = true;
+      socket.emit('video-state', 'buffering');
+      freezes = freezes.filter((t) => Date.now() - t < 60000).concat(Date.now());
+      if (freezes.length >= 3 && $('quality').value !== 'low' && !qualityHintShown) {
+        qualityHintShown = true;
+        toast('Videon sık donuyor. "Video kalitesi"ni Düşük yapmayı dene.');
+      }
+    }, BUFFER_REPORT_DELAY);
+  } else if (reportedBuffering) {
+    reportedBuffering = false;
+    socket.emit('video-state', 'ok');
+  }
+}
+
+socket.on('video-state', ({ id, state }) => {
+  const peer = peers.get(id);
+  if (peer) peer.row.querySelector('.p-badge').hidden = state !== 'buffering';
+});
 
 function applyMedia() {
   if (!playerReady || !media) return;
@@ -477,6 +583,7 @@ function applyMedia() {
   const pos = expectedPosition();
   if (cur.videoId !== loadedId) {
     loadedId = cur.videoId;
+    ytTrack.loaded = pos;
     if (media.playing) player.loadVideoById({ videoId: cur.videoId, startSeconds: pos });
     else player.cueVideoById({ videoId: cur.videoId, startSeconds: pos });
     return;
@@ -484,11 +591,11 @@ function applyMedia() {
 
   const state = player.getPlayerState();
   if (media.playing) {
-    if (Math.abs(player.getCurrentTime() - pos) > DRIFT_LIMIT) player.seekTo(pos, true);
+    if (Math.abs(player.getCurrentTime() - pos) > DRIFT_LIMIT) seekPlayer(pos);
     if (state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.BUFFERING) player.playVideo();
   } else {
     if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) player.pauseVideo();
-    if (Math.abs(player.getCurrentTime() - pos) > 0.5) player.seekTo(pos, true);
+    if (Math.abs(player.getCurrentTime() - pos) > 0.5) seekPlayer(pos);
   }
 }
 
@@ -533,7 +640,7 @@ setInterval(() => {
 
   if (media.playing && state === YT.PlayerState.PLAYING) {
     if (Math.abs(player.getCurrentTime() - expectedPosition()) > DRIFT_LIMIT) {
-      player.seekTo(expectedPosition(), true);
+      seekPlayer(expectedPosition());
     }
     stalled = 0;
   } else if (media.playing && state !== YT.PlayerState.BUFFERING) {
@@ -546,7 +653,7 @@ setInterval(() => {
 }, 1000);
 
 $('unlock').onclick = () => {
-  player.seekTo(expectedPosition(), true);
+  seekPlayer(expectedPosition());
   player.playVideo();
 };
 
