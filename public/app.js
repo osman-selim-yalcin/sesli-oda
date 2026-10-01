@@ -287,6 +287,77 @@ $('mic-toggle').onclick = () => {
   renderMic();
 };
 
+// ---------- İnternet kullanımı ----------
+// Sesli sohbet WebRTC istatistiklerinden, senkron ise Socket.IO mesajlarından ölçülür.
+// YouTube oynatıcısı başka bir siteden geldiği için onun verisi ölçülemez.
+
+const UDP_OVERHEAD = 28; // paket başına IPv4 + UDP başlığı; getStats bunu saymaz
+const WS_OVERHEAD = 6;   // mesaj başına yaklaşık WebSocket çerçeve başlığı
+const usage = { voice: { down: 0, up: 0 }, sync: { down: 0, up: 0 } };
+const encoder = new TextEncoder();
+
+function fmtBytes(b) {
+  if (b < 1024 * 1024) return `${Math.round(b / 1024)} KB`;
+  if (b < 1024 ** 3) return `${(b / 1024 ** 2).toFixed(1)} MB`;
+  return `${(b / 1024 ** 3).toFixed(2)} GB`;
+}
+
+function fmtRate(bitsPerSec) {
+  if (bitsPerSec >= 1e6) return `${(bitsPerSec / 1e6).toFixed(1)} Mbps`;
+  return `${Math.round(bitsPerSec / 1000)} kbps`;
+}
+
+function packetBytes(packet) {
+  const d = packet.data;
+  const size = typeof d === 'string' ? encoder.encode(d).length : d?.byteLength || 0;
+  return size + WS_OVERHEAD;
+}
+
+socket.io.on('open', () => {
+  const engine = socket.io.engine;
+  engine.on('packetCreate', (p) => (usage.sync.up += packetBytes(p)));
+  engine.on('packet', (p) => (usage.sync.down += packetBytes(p)));
+});
+
+async function pollVoice() {
+  for (const peer of peers.values()) {
+    if (!peer.pc) continue;
+    let down = 0;
+    let up = 0;
+    try {
+      (await peer.pc.getStats()).forEach((s) => {
+        if (s.type !== 'transport') return;
+        down += (s.bytesReceived || 0) + (s.packetsReceived || 0) * UDP_OVERHEAD;
+        up += (s.bytesSent || 0) + (s.packetsSent || 0) * UDP_OVERHEAD;
+      });
+    } catch {
+      continue;
+    }
+    // Sayaçlar bağlantı başına birikir; sadece artışı ekleriz ki ayrılanların verisi kaybolmasın.
+    usage.voice.down += Math.max(0, down - (peer.statDown || 0));
+    usage.voice.up += Math.max(0, up - (peer.statUp || 0));
+    peer.statDown = down;
+    peer.statUp = up;
+  }
+}
+
+function startUsageMeter() {
+  let last = { down: 0, up: 0, time: performance.now() };
+  setInterval(async () => {
+    await pollVoice();
+    const down = usage.voice.down + usage.sync.down;
+    const up = usage.voice.up + usage.sync.up;
+    const now = performance.now();
+    const secs = (now - last.time) / 1000;
+    $('use-rate').textContent =
+      `↓ ${fmtRate(((down - last.down) * 8) / secs)}  ↑ ${fmtRate(((up - last.up) * 8) / secs)}`;
+    $('use-total').textContent = `↓ ${fmtBytes(down)}  ↑ ${fmtBytes(up)}`;
+    $('use-voice').textContent = `↓ ${fmtBytes(usage.voice.down)}  ↑ ${fmtBytes(usage.voice.up)}`;
+    $('use-sync').textContent = `↓ ${fmtBytes(usage.sync.down)}  ↑ ${fmtBytes(usage.sync.up)}`;
+    last = { down, up, time: now };
+  }, 1000);
+}
+
 // ---------- YouTube senkronizasyonu ----------
 
 let player = null;
@@ -503,6 +574,7 @@ $('join-form').onsubmit = async (e) => {
   if (localStream) watchLevel(localStream, selfRow);
   renderMic();
   renderPeopleCount();
+  startUsageMeter();
 
   await Promise.all([syncClock(), createPlayer()]);
 

@@ -183,6 +183,18 @@ button.off { background: var(--danger); border-color: var(--danger); }
 .p-vol:disabled { opacity: .35; }
 .p-mute { flex-shrink: 0; width: 34px; height: 34px; font-size: 14px; }
 
+.usage {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+}
+.usage-row { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
+.usage-row.sub { font-size: 13px; color: var(--muted); }
+.usage p { margin: 6px 0 0; }
+
 .toasts {
   position: fixed;
   bottom: 16px;
