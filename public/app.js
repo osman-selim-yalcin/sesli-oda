@@ -518,10 +518,91 @@ for (const pop of document.querySelectorAll('.pop')) {
     if (e.newState !== 'open') return;
     const btn = document.querySelector(`[popovertarget="${pop.id}"]`).getBoundingClientRect();
     const width = pop.offsetWidth;
-    pop.style.top = `${btn.bottom + 6}px`;
+    // Aşağıda yer yoksa düğmenin üstünde açılır.
+    const below = btn.bottom + 6 + pop.offsetHeight <= innerHeight - 16;
+    pop.style.top = `${below ? btn.bottom + 6 : Math.max(16, btn.top - 6 - pop.offsetHeight)}px`;
     pop.style.left = `${Math.max(16, Math.min(btn.left, innerWidth - width - 16))}px`;
   });
 }
+
+// ---------- Sıra / önceden çalanlar ----------
+// Geçmiş sunucuda (sunucu yeniden başlayana kadar) ve tarayıcıda (kalıcı) tutulur; ikisi birleştirilir.
+
+const HISTORY_LIMIT = 200;
+const PLAYLIST_LIMIT = 50; // YouTube'un geçici playlist sınırı
+let playHistory = [];
+
+function loadLocalHistory() {
+  try {
+    return JSON.parse(localStorage.getItem('history')) || [];
+  } catch {
+    return [];
+  }
+}
+
+function mergeHistory(entries) {
+  const seen = new Set(playHistory.map((h) => `${h.videoId}@${h.playedAt}`));
+  for (const h of entries) {
+    const key = `${h.videoId}@${h.playedAt}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    playHistory.push(h);
+  }
+  playHistory.sort((a, b) => a.playedAt - b.playedAt);
+  playHistory = playHistory.slice(-HISTORY_LIMIT);
+  try {
+    localStorage.setItem('history', JSON.stringify(playHistory));
+  } catch {}
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = $('history');
+  list.replaceChildren();
+  for (const h of [...playHistory].reverse()) {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="q-text">
+        <div class="q-title"></div>
+        <div class="muted small"></div>
+      </div>
+      <button>Tekrar ekle</button>`;
+    li.prepend(thumb(h.videoId));
+    li.querySelector('.q-title').textContent = h.title;
+    const when = new Date(h.playedAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    li.querySelector('.small').textContent = `${h.by} ekledi · ${when}`;
+    li.querySelector('button').onclick = (e) => {
+      socket.emit('media:add', h.videoId);
+      e.target.disabled = true;
+    };
+    list.append(li);
+  }
+  $('history-empty').hidden = playHistory.length > 0;
+  $('history-playlist').disabled = playHistory.length === 0;
+  $('history-count').textContent = playHistory.length || '';
+}
+
+socket.on('history:add', (entry) => mergeHistory([entry]));
+
+// Son çalınan (tekrarsız) şarkılardan YouTube'un geçici playlist'i; giriş gerektirmez.
+$('history-playlist').onclick = () => {
+  const ids = [];
+  for (const h of [...playHistory].reverse()) {
+    if (!ids.includes(h.videoId)) ids.push(h.videoId);
+    if (ids.length === PLAYLIST_LIMIT) break;
+  }
+  ids.reverse();
+  window.open(`https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}`, '_blank', 'noopener');
+};
+
+function showTab(name) {
+  $('tab-queue').classList.toggle('active', name === 'queue');
+  $('tab-history').classList.toggle('active', name === 'history');
+  $('queue-view').hidden = name !== 'queue';
+  $('history-view').hidden = name !== 'history';
+}
+$('tab-queue').onclick = () => showTab('queue');
+$('tab-history').onclick = () => showTab('history');
 
 // ---------- Geçici sohbet ----------
 // Mesajlar sadece sunucunun hafızasında tutulur (son 50); herkes çıkınca silinir.
@@ -883,6 +964,10 @@ async function createPlayer() {
           updatePoster();
           trackBuffering(e.data === YT.PlayerState.BUFFERING);
         },
+        // 100: video yok/özel, 101 ve 150: sahibi YouTube dışında oynatmayı kapatmış.
+        onError: () => {
+          if (media?.current) socket.emit('media:error', media.current.videoId);
+        },
       },
     });
   });
@@ -957,7 +1042,8 @@ function applyMedia() {
   const cur = media.current;
 
   $('player-empty').hidden = Boolean(cur);
-  $('now-title').textContent = cur ? cur.title : '—';
+  $('now-title').textContent = cur ? cur.title : 'Şu an bir şey çalmıyor';
+  $('now-title').classList.toggle('muted', !cur);
   $('now-by').textContent = cur ? `${cur.by} ekledi` : '';
   $('play-toggle').textContent = media.playing ? '⏸' : '▶';
 
@@ -1026,6 +1112,16 @@ function fillReactions(container, item) {
   container.append(more, picker);
 }
 
+// Küçük önizleme (YouTube'un en küçük resmi, ~3 KB; görünür olunca yüklenir).
+function thumb(videoId) {
+  const img = document.createElement('img');
+  img.className = 'thumb';
+  img.loading = 'lazy';
+  img.alt = '';
+  img.src = `https://i.ytimg.com/vi/${videoId}/default.jpg`;
+  return img;
+}
+
 function renderQueue() {
   fillReactions($('now-reactions'), media.current);
   const list = $('queue');
@@ -1040,6 +1136,7 @@ function renderQueue() {
       </div>
       <button data-act="play">Şimdi oynat</button>
       <button data-act="remove" title="Sıradan çıkar">✕</button>`;
+    li.prepend(thumb(item.videoId));
     li.querySelector('.q-title').textContent = item.title;
     li.querySelector('.small').textContent = `${item.by} ekledi`;
     fillReactions(li.querySelector('.reactions'), item);
@@ -1048,6 +1145,7 @@ function renderQueue() {
     list.append(li);
   });
   $('queue-empty').hidden = media.queue.length > 0;
+  $('queue-count').textContent = media.queue.length || '';
 }
 
 socket.on('media', (state) => {
@@ -1264,6 +1362,7 @@ $('join-form').onsubmit = async (e) => {
   sharerId = res.sharer;
   renderRecBanner();
   res.chat.forEach(renderChatMessage);
+  mergeHistory([...loadLocalHistory(), ...res.history]);
 
   await Promise.all([syncClock(), createPlayer()]);
 

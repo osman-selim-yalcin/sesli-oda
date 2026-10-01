@@ -59,51 +59,75 @@
           </div>
         </div>
 
-        <div class="now-playing">
-          <div id="now-title" class="now-title">—</div>
-          <div id="now-by" class="muted small"></div>
-          <div id="now-reactions" class="reactions"></div>
+        <!-- Çalan şarkı: başlık, tepkiler ve kontroller tek kartta -->
+        <div class="panel now">
+          <div class="now-head">
+            <div class="now-text">
+              <div id="now-title" class="now-title muted">Şu an bir şey çalmıyor</div>
+              <div id="now-by" class="muted small"></div>
+            </div>
+            <div id="now-reactions" class="reactions"></div>
+          </div>
+          <div class="controls">
+            <button id="play-toggle" class="icon" title="Oynat / Duraklat">▶</button>
+            <button id="next" class="icon" title="Sonraki">⏭</button>
+            <span id="time-cur" class="time">0:00</span>
+            <input id="seek" type="range" min="0" max="0" step="0.1" value="0" aria-label="Konum">
+            <span id="time-dur" class="time">0:00</span>
+            <label class="vol" title="Müzik sesi (sadece sende)">🔊
+              <input id="music-vol" type="range" min="0" max="100" value="70" aria-label="Müzik sesi">
+            </label>
+            <button id="settings-btn" class="icon" popovertarget="settings-pop" title="Ayarlar">⚙</button>
+          </div>
         </div>
 
-        <div class="controls">
-          <button id="play-toggle" class="icon" title="Oynat / Duraklat">▶</button>
-          <button id="next" class="icon" title="Sonraki">⏭</button>
-          <span id="time-cur" class="time">0:00</span>
-          <input id="seek" type="range" min="0" max="0" step="0.1" value="0">
-          <span id="time-dur" class="time">0:00</span>
-          <label class="vol" title="Müzik sesi (sadece sende)">🔊
-            <input id="music-vol" type="range" min="0" max="100" value="70">
-          </label>
+        <div id="settings-pop" class="pop" popover>
+          <h2>Ayarlar</h2>
+          <div class="settings">
+            <label class="check">
+              <input id="duck-toggle" type="checkbox" checked> Biri konuşurken müziği kıs
+            </label>
+            <label class="select">Video kalitesi
+              <select id="quality">
+                <option value="auto">Otomatik</option>
+                <option value="medium">Orta (~360p)</option>
+                <option value="low">Düşük (~144p, veri tasarrufu)</option>
+              </select>
+            </label>
+            <label class="select">Efekt sesi
+              <input id="sfx-vol" type="range" min="0" max="100" value="60">
+            </label>
+            <a href="sfx/KAYNAKLAR.txt" target="_blank" rel="noopener" class="credits">Ses kaynakları</a>
+          </div>
         </div>
 
-        <div class="sfx-row">
-          <div id="sfx" class="sfx"></div>
-          <label class="vol" title="Efekt sesi (sadece sende)">✨
-            <input id="sfx-vol" type="range" min="0" max="100" value="60">
-          </label>
-        </div>
-        <div class="options">
-          <label class="check">
-            <input id="duck-toggle" type="checkbox" checked> Biri konuşurken müziği kıs
-          </label>
-          <label class="select">Video kalitesi
-            <select id="quality">
-              <option value="auto">Otomatik</option>
-              <option value="medium">Orta (~360p)</option>
-              <option value="low">Düşük (~144p, veri tasarrufu)</option>
-            </select>
-          </label>
-          <a href="sfx/KAYNAKLAR.txt" target="_blank" rel="noopener" class="credits">Ses kaynakları</a>
-        </div>
+        <div id="sfx" class="sfx" aria-label="Ses efektleri"></div>
 
-        <form id="add-form" class="add">
-          <input id="yt-url" placeholder="YouTube linki yapıştır…" autocomplete="off">
-          <button type="submit" class="primary">Ekle</button>
-        </form>
+        <!-- Sıra ve geçmiş -->
+        <div class="panel list-panel">
+          <div class="tabs" role="tablist">
+            <button id="tab-queue" class="tab active" role="tab">Sıradakiler <span id="queue-count" class="count"></span></button>
+            <button id="tab-history" class="tab" role="tab">Önceden çalanlar <span id="history-count" class="count"></span></button>
+          </div>
 
-        <h2>Sıradakiler</h2>
-        <ol id="queue" class="queue"></ol>
-        <p id="queue-empty" class="muted small">Sıra boş.</p>
+          <div id="queue-view">
+            <form id="add-form" class="add">
+              <input id="yt-url" placeholder="YouTube linki yapıştır…" autocomplete="off">
+              <button type="submit" class="primary">Ekle</button>
+            </form>
+            <ol id="queue" class="queue"></ol>
+            <p id="queue-empty" class="muted small empty">Sıra boş. Yukarıya bir YouTube linki yapıştır.</p>
+          </div>
+
+          <div id="history-view" hidden>
+            <div class="history-actions">
+              <button id="history-playlist" class="primary">▶ YouTube'da playlist olarak aç</button>
+              <span class="muted small">Açılan sayfada "Kaydet" ile hesabına ekleyebilirsin (son 50 şarkı).</span>
+            </div>
+            <ol id="history" class="queue"></ol>
+            <p id="history-empty" class="muted small empty">Henüz çalan şarkı yok.</p>
+          </div>
+        </div>
       </section>
 
       <aside class="side">

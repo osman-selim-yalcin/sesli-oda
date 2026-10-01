@@ -9,7 +9,8 @@ const VIDEO_ID = /^[\w-]{11}$/;
 const SFX_IDS = new Set(['clap', 'rimshot', 'ding', 'sad', 'tada', 'boom']);
 const SFX_COOLDOWN = 600; // ms; efekt spam'ini engeller
 const REACTIONS = ['🔥', '😂', '😍', '👏', '💀', '😴'];
-const CHAT_HISTORY = 50;  // odaya yeni girene gösterilen son mesaj sayısı
+const CHAT_HISTORY = 50;
+const PLAY_HISTORY = 200; // önceden çalanlar listesinde tutulan şarkı sayısı  // odaya yeni girene gösterilen son mesaj sayısı
 const CHAT_MAX_LENGTH = 500;
 const CHAT_COOLDOWN = 300; // ms
 
@@ -43,9 +44,15 @@ const io = new Server(server);
 // oda kodu -> { users: Map<socketId, {name, muted}>, current, queue, playing, position, updatedAt }
 const rooms = new Map();
 
+// Önceden çalanlar oda boşalınca silinmez (sunucu yeniden başlayana kadar durur).
+const histories = new Map(); // oda kodu -> [{ videoId, title, by, playedAt }]
+
 function getRoom(code) {
   if (!rooms.has(code)) {
+    if (!histories.has(code)) histories.set(code, []);
     rooms.set(code, {
+      code,
+      history: histories.get(code),
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -127,9 +134,19 @@ function stopSharing(room, code, id) {
   io.to(code).emit('screen', null);
 }
 
-function playNext(room) {
-  room.current = room.queue.shift() || null;
+// Çalan şarkıyı değiştirir ve önceden çalanlar listesine ekler.
+function setCurrent(room, item) {
+  room.current = item || null;
   setPlayback(room, Boolean(room.current), 0);
+  if (!item) return;
+  const entry = { videoId: item.videoId, title: item.title, by: item.by, playedAt: Date.now() };
+  room.history.push(entry);
+  if (room.history.length > PLAY_HISTORY) room.history.shift();
+  io.to(room.code).emit('history:add', entry);
+}
+
+function playNext(room) {
+  setCurrent(room, room.queue.shift());
 }
 
 io.on('connection', (socket) => {
@@ -164,7 +181,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history });
   });
 
   // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir.
@@ -241,8 +258,7 @@ io.on('connection', (socket) => {
     if (room.current) {
       room.queue.push(item);
     } else {
-      room.current = item;
-      setPlayback(room, true, 0);
+      setCurrent(room, item);
     }
     io.to(roomCode).emit('notice', `${by} ekledi: ${title}`);
     broadcastMedia(roomCode);
@@ -312,6 +328,16 @@ io.on('connection', (socket) => {
     broadcastMedia(code);
   });
 
+  // Video oynatılamıyorsa (gömme kapalı, silinmiş) atlanır; ilk bildiren yeterli.
+  socket.on('media:error', (videoId) => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (room.current?.videoId !== videoId) return;
+    io.to(code).emit('notice', `Oynatılamadı, atlandı: ${room.current.title}`);
+    playNext(room);
+    broadcastMedia(code);
+  });
+
   socket.on('media:remove', (index) => {
     if (!code) return;
     const room = getRoom(code);
@@ -324,8 +350,7 @@ io.on('connection', (socket) => {
     if (!code) return;
     const room = getRoom(code);
     if (!Number.isInteger(index) || !room.queue[index]) return;
-    room.current = room.queue.splice(index, 1)[0];
-    setPlayback(room, true, 0);
+    setCurrent(room, room.queue.splice(index, 1)[0]);
     broadcastMedia(code);
   });
 
