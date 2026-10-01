@@ -28,7 +28,6 @@ h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: v
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 .error { color: var(--danger); margin: 0; }
-.hint { color: var(--muted); font-size: 13px; margin: 0; }
 
 input {
   width: 100%;
