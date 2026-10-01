@@ -31,5 +31,5 @@ Bazı mobil ağlarda doğrudan bağlantı kurulamayabilir ("Bağlanamadı"). O z
 
 ## Ses efektleri
 
-Kayıtlı efektler `public/sfx/` içinde (toplam ~144 KB, AAC). Kaynaklar ve lisanslar: `public/sfx/KAYNAKLAR.txt`.
+Kayıtlı efektler `public/sfx/` içinde (toplam ~124 KB, AAC). Kaynaklar ve lisanslar: `public/sfx/KAYNAKLAR.txt`.
 CC BY 3.0 olanlar için atıf uygulamadaki "Ses kaynakları" linkinde görünür; bu dosyayı silmeyin.

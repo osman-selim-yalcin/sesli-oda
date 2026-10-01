@@ -5,11 +5,10 @@
 // Efekt çalınca ağdan sadece efektin adı gider (birkaç byte).
 
 // Kaydı olan efektler; kaynaklar ve lisanslar public/sfx/KAYNAKLAR.txt dosyasında.
-const SFX_FILES = ['clap', 'horn', 'ding', 'sad', 'tada', 'boom'];
+const SFX_FILES = ['clap', 'ding', 'sad', 'tada', 'boom'];
 
 const SFX_LIST = [
   { id: 'clap', emoji: '👏', label: 'Alkış' },
-  { id: 'horn', emoji: '📯', label: 'Korna' },
   { id: 'rimshot', emoji: '🥁', label: 'Ba dum tss' },
   { id: 'ding', emoji: '🔔', label: 'Ding' },
   { id: 'sad', emoji: '🎺', label: 'Hüzün' },
@@ -80,13 +79,6 @@ const Sfx = (() => {
           peak: 0.14 + Math.random() * 0.26,
           decay: 0.05 + Math.random() * 0.04,
         });
-      }
-    },
-    horn(ctx, out, t) {
-      for (const [start, len] of [[0, 0.12], [0.18, 0.12], [0.36, 0.75]]) {
-        for (const freq of [466, 471, 233]) {
-          tone(ctx, out, t + start, { type: 'sawtooth', freq, peak: 0.12, attack: 0.01, hold: len, decay: 0.06, lowpass: 2600 });
-        }
       }
     },
     rimshot(ctx, out, t) {

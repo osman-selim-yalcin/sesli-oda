@@ -58,10 +58,6 @@ function parseVideoId(input) {
   }
 }
 
-function randomRoom() {
-  return Math.random().toString(36).slice(2, 8);
-}
-
 // ---------- Sunucu saati ----------
 // Herkesin aynı saniyeyi çalabilmesi için sunucu ile saat farkını ölçeriz.
 
@@ -492,7 +488,8 @@ async function createPlayer() {
           if (e.data === YT.PlayerState.ENDED && media?.current) {
             socket.emit('media:ended', media.current.videoId);
           }
-          if (e.data === YT.PlayerState.PLAYING) $('unlock').hidden = true;
+          if (e.data === YT.PlayerState.PLAYING) stalled = 0;
+          updatePoster();
           trackBuffering(e.data === YT.PlayerState.BUFFERING);
         },
       },
@@ -576,7 +573,7 @@ function applyMedia() {
   if (!cur) {
     if (loadedId) player.stopVideo();
     loadedId = null;
-    $('unlock').hidden = true;
+    updatePoster();
     return;
   }
 
@@ -646,15 +643,35 @@ setInterval(() => {
   } else if (media.playing && state !== YT.PlayerState.BUFFERING) {
     // Tarayıcı otomatik oynatmayı engellediyse kullanıcıdan tek tık isteriz.
     player.playVideo();
-    if (++stalled >= 3) $('unlock').hidden = false;
+    stalled++;
   } else {
     stalled = 0;
   }
+  updatePoster();
 }, 1000);
 
-$('unlock').onclick = () => {
-  seekPlayer(expectedPosition());
-  player.playVideo();
+// Video başlamamışken (duraklatılmış yeni video ya da tarayıcının otomatik oynatma engeli)
+// YouTube kendi kapağını ve tıklanamayan oynat düğmesini gösterir; onun yerine bizimkini koyarız.
+function updatePoster() {
+  const cur = media?.current;
+  const state = playerReady ? player.getPlayerState() : null;
+  const notStarted = state === YT.PlayerState.UNSTARTED || state === YT.PlayerState.CUED;
+  const blocked = media?.playing && stalled >= 3;
+  const show = Boolean(cur) && (media.playing ? blocked : notStarted);
+  $('poster').hidden = !show;
+  if (!show) return;
+  const src = `https://i.ytimg.com/vi/${cur.videoId}/mqdefault.jpg`;
+  if ($('poster-img').src !== src) $('poster-img').src = src;
+  $('poster-play').textContent = media.playing ? '▶ Senkronize başlatmak için tıkla' : '▶ Oynat';
+}
+
+$('poster-play').onclick = () => {
+  if (media.playing) {
+    seekPlayer(expectedPosition());
+    player.playVideo();
+  } else {
+    socket.emit('media:play', media.position);
+  }
 };
 
 $('play-toggle').onclick = () => {
@@ -736,14 +753,25 @@ $('add-form').onsubmit = (e) => {
 
 // ---------- Giriş / çıkış ----------
 
-const params = new URLSearchParams(location.search);
-$('room').value = params.get('oda') || randomRoom();
-$('name').value = localStorage.getItem('name') || '';
+// Tek oda var; giriş ekranında kimlerin içeride olduğunu gösteririz.
+const ROOM = 'genel';
+
+try {
+  $('name').value = localStorage.getItem('name') || '';
+} catch {}
+
+fetch('/status')
+  .then((r) => r.json())
+  .then(({ names, max }) => {
+    $('room-status').textContent = names.length
+      ? `Şu an odada (${names.length}/${max}): ${names.join(', ')}`
+      : 'Oda şu an boş.';
+  })
+  .catch(() => {});
 
 $('join-form').onsubmit = async (e) => {
   e.preventDefault();
   const name = $('name').value.trim();
-  const room = $('room').value.trim().toLowerCase();
   const btn = e.submitter;
   btn.disabled = true;
   $('join-error').hidden = true;
@@ -769,7 +797,7 @@ $('join-form').onsubmit = async (e) => {
 
   ({ iceServers } = await fetch('/config').then((r) => r.json()));
   socket.connect();
-  const res = await new Promise((r) => socket.emit('join', { room, name, clientId }, r));
+  const res = await new Promise((r) => socket.emit('join', { room: ROOM, name, clientId }, r));
 
   if (res.error) {
     socket.disconnect();
@@ -781,8 +809,6 @@ $('join-form').onsubmit = async (e) => {
   }
 
   selfId = res.id;
-  history.replaceState(null, '', `?oda=${encodeURIComponent(room)}`);
-  $('room-label').textContent = room;
   $('join-screen').hidden = true;
   $('room-screen').hidden = false;
 
@@ -807,15 +833,15 @@ $('join-form').onsubmit = async (e) => {
 
 $('copy-link').onclick = async () => {
   try {
-    await navigator.clipboard.writeText(location.href);
+    await navigator.clipboard.writeText(location.origin);
     toast('Davet linki kopyalandı');
   } catch {
-    toast(location.href);
+    toast(location.origin);
   }
 };
 
 $('leave').onclick = () => {
-  location.href = location.pathname;
+  location.reload();
 };
 
 // Sekme kapanınca/yenilenince sunucuya hemen haber ver.

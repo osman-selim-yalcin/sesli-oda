@@ -4,6 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sesli Oda</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <meta name="theme-color" content="#0f1115">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -15,9 +18,7 @@
       <label>İsmin
         <input id="name" maxlength="24" autocomplete="nickname" required>
       </label>
-      <label>Oda kodu
-        <input id="room" maxlength="32" required>
-      </label>
+      <p id="room-status" class="muted small"></p>
       <button type="submit" class="primary">Odaya katıl</button>
       <p id="join-error" class="error" hidden></p>
       <p class="hint">İpucu: Müzik mikrofona geri kaçmasın diye kulaklık kullanın.</p>
@@ -27,7 +28,7 @@
   <!-- Oda ekranı -->
   <div id="room-screen" class="room" hidden>
     <header class="topbar">
-      <div class="room-name">Oda: <strong id="room-label"></strong></div>
+      <div class="room-name"><strong>Sesli Oda</strong></div>
       <div class="topbar-actions">
         <button id="copy-link" class="ghost">Davet linkini kopyala</button>
         <button id="leave" class="ghost danger">Çık</button>
@@ -41,7 +42,11 @@
           <!-- YouTube'un kendi tıklamalarını engeller; kontrol bizim butonlarda -->
           <div class="player-shield"></div>
           <div id="player-empty" class="player-empty">Henüz bir şey çalmıyor. Aşağıya YouTube linki yapıştır.</div>
-          <button id="unlock" class="unlock" hidden>▶ Senkronize başlatmak için tıkla</button>
+          <!-- Video başlamamışken YouTube'un tıklanamayan kapağı yerine bizim kapağımız -->
+          <div id="poster" class="poster" hidden>
+            <img id="poster-img" alt="">
+            <button id="poster-play" class="poster-play"></button>
+          </div>
         </div>
 
         <div class="now-playing">

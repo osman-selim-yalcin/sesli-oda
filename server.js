@@ -6,7 +6,7 @@ const { Server } = require('socket.io');
 const PORT = process.env.PORT || 3030;
 const MAX_USERS = 6;
 const VIDEO_ID = /^[\w-]{11}$/;
-const SFX_IDS = new Set(['clap', 'horn', 'rimshot', 'ding', 'sad', 'tada', 'boom']);
+const SFX_IDS = new Set(['clap', 'rimshot', 'ding', 'sad', 'tada', 'boom']);
 const SFX_COOLDOWN = 600; // ms; efekt spam'ini engeller
 
 const app = express();
@@ -25,6 +25,12 @@ app.get('/config', (req, res) => {
     });
   }
   res.json({ iceServers });
+});
+
+// Giriş ekranı için: tek odada kimler var.
+app.get('/status', (req, res) => {
+  const room = rooms.get('genel');
+  res.json({ names: room ? [...room.users.values()].map((u) => u.name) : [], max: MAX_USERS });
 });
 
 const server = http.createServer(app);
