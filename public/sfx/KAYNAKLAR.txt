@@ -1,0 +1,20 @@
+Sesli Oda - ses efekti kaynakları
+
+Kayıtlar SoundBible.com'dan alındı; kısaltıldı, ses seviyeleri eşitlendi ve AAC'ye dönüştürüldü.
+
+Alkış  - "Auditorium Applause", Thore - Kamu malı (Public Domain)
+         https://soundbible.com/1260-Auditorium-Applause.html
+Korna  - "Air Horn", Mike Koenig - CC BY 3.0
+         https://soundbible.com/1542-Air-Horn.html
+Ding   - "Service Bell Help", Daniel Simion - CC BY 3.0
+         https://soundbible.com/2218-Service-Bell-Help.html
+Hüzün  - "Sad Trombone", Joe Lamb - CC BY 3.0
+         https://soundbible.com/1830-Sad-Trombone.html
+Tada   - "Winning Triumphal Fanfare", John Stracke - CC BY 3.0
+         https://soundbible.com/1823-Winning-Triumphal-Fanfare.html
+Bum    - "Bomb", Mike Koenig - CC BY 3.0
+         https://soundbible.com/1234-Bomb.html
+
+Ba dum tss - Web Audio ile cihazda üretilir (kayıt yok).
+
+CC BY 3.0 lisansı: https://creativecommons.org/licenses/by/3.0/

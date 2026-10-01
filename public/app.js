@@ -647,6 +647,7 @@ $('join-form').onsubmit = async (e) => {
 
   setupAudio();
   audioCtx.resume();
+  Sfx.load(audioCtx);
 
   try {
     localStream = await navigator.mediaDevices.getUserMedia({

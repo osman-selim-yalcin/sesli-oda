@@ -28,3 +28,8 @@ Mikrofon için tarayıcı HTTPS ister, bu yüzden uygulamayı internete açman g
 
 Bazı mobil ağlarda doğrudan bağlantı kurulamayabilir ("Bağlanamadı"). O zaman bir TURN sunucusu ekle:
 `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` ortam değişkenleri.
+
+## Ses efektleri
+
+Kayıtlı efektler `public/sfx/` içinde (toplam ~144 KB, AAC). Kaynaklar ve lisanslar: `public/sfx/KAYNAKLAR.txt`.
+CC BY 3.0 olanlar için atıf uygulamadaki "Ses kaynakları" linkinde görünür; bu dosyayı silmeyin.

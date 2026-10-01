@@ -1,7 +1,11 @@
 'use strict';
 
-// Ses efektleri dosya indirmeden, Web Audio ile cihazda üretilir.
-// Ağdan sadece efektin adı gider (birkaç byte).
+// Ses efektleri: gerçek kayıtlar (public/sfx, odaya girişte bir kez iner) ve
+// kaydı olmayanlar için Web Audio ile cihazda üretilen sesler.
+// Efekt çalınca ağdan sadece efektin adı gider (birkaç byte).
+
+// Kaydı olan efektler; kaynaklar ve lisanslar public/sfx/KAYNAKLAR.txt dosyasında.
+const SFX_FILES = ['clap', 'horn', 'ding', 'sad', 'tada', 'boom'];
 
 const SFX_LIST = [
   { id: 'clap', emoji: '👏', label: 'Alkış' },
@@ -15,6 +19,7 @@ const SFX_LIST = [
 
 const Sfx = (() => {
   let noise = null;
+  const samples = new Map(); // id -> AudioBuffer
 
   function noiseBuffer(ctx) {
     if (noise) return noise;
@@ -128,8 +133,23 @@ const Sfx = (() => {
   };
 
   return {
+    // Kayıtları indirip çözer; çözülemeyen (ör. AAC desteklemeyen tarayıcı) sentezle çalar.
+    async load(ctx) {
+      await Promise.all(SFX_FILES.map(async (id) => {
+        try {
+          const res = await fetch(`sfx/${id}.m4a`);
+          samples.set(id, await ctx.decodeAudioData(await res.arrayBuffer()));
+        } catch {}
+      }));
+    },
     play(ctx, out, id) {
-      effects[id]?.(ctx, out, ctx.currentTime + 0.01);
+      const t = ctx.currentTime + 0.01;
+      const buffer = samples.get(id);
+      if (!buffer) return effects[id]?.(ctx, out, t);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      src.connect(out);
+      src.start(t);
     },
   };
 })();

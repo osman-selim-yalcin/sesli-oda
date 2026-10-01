@@ -10,6 +10,8 @@ const SFX_IDS = new Set(['clap', 'horn', 'rimshot', 'ding', 'sad', 'tada', 'boom
 const SFX_COOLDOWN = 600; // ms; efekt spam'ini engeller
 
 const app = express();
+// Efekt kayıtları değişmez; tarayıcı bir kez indirip saklasın.
+app.use('/sfx', express.static(path.join(__dirname, 'public/sfx'), { maxAge: '30d' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ICE sunucuları: varsayılan STUN; gerekirse TURN ortam değişkenleriyle eklenir.
