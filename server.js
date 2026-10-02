@@ -499,14 +499,22 @@ io.on('connection', (socket) => {
     broadcastMedia(code);
   });
 
-  // Video oynatılamıyorsa (gömme kapalı, silinmiş) atlanır; ilk bildiren yeterli.
-  socket.on('media:error', (videoId) => {
+  // Video oynatılamıyorsa (gömme kapalı, silinmiş) atlanır. Tek kişinin cihazındaki sorun
+  // (reklam engelleyici, tarayıcı) herkesin şarkısını geçmesin: odanın yarısı bildirince atlanır.
+  socket.on('media:error', (data, ack) => {
     if (!code) return;
+    const { videoId, error } = typeof data === 'string' ? { videoId: data } : data || {};
     const room = getRoom(code);
-    if (room.current?.videoId !== videoId) return;
-    io.to(code).emit('notice', `Oynatılamadı, atlandı: ${room.current.title}`);
+    const done = (skipped) => typeof ack === 'function' && ack(skipped);
+    if (room.current?.videoId !== videoId) return done(false);
+    const failed = (room.current.failed ??= new Set());
+    failed.add(socket.id);
+    if (failed.size * 2 < room.users.size) return done(false);
+    const why = Number.isInteger(error) ? ` (YouTube hata ${error})` : '';
+    io.to(code).emit('notice', `Oynatılamadı, atlandı: ${room.current.title}${why}`);
     playNext(room);
     broadcastMedia(code);
+    done(true);
   });
 
   socket.on('media:remove', (index) => {

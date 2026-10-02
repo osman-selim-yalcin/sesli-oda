@@ -1175,7 +1175,7 @@ async function createPlayer() {
     player = new YT.Player('player', {
       width: '100%',
       height: '100%',
-      playerVars: { controls: 0, disablekb: 1, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1 },
+      playerVars: { controls: 0, disablekb: 1, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1, origin: location.origin },
       events: {
         onReady: () => {
           playerReady = true;
@@ -1192,9 +1192,14 @@ async function createPlayer() {
           updatePoster();
           trackBuffering(e.data === YT.PlayerState.BUFFERING);
         },
-        // 100: video yok/özel, 101 ve 150: sahibi YouTube dışında oynatmayı kapatmış.
-        onError: () => {
-          if (media?.current) socket.emit('media:error', media.current.videoId);
+        // 100: video yok/özel, 101 ve 150: sahibi YouTube dışında oynatmayı kapatmış,
+        // 5: tarayıcı oynatamadı. Sunucu odanın yarısı bildirince atlar; atlanmadıysa
+        // sorun sadece bu cihazdadır.
+        onError: (e) => {
+          if (!media?.current) return;
+          socket.emit('media:error', { videoId: media.current.videoId, error: e.data }, (skipped) => {
+            if (!skipped) toast(`Bu video sende oynatılamadı (YouTube hata ${e.data}). Sayfayı yenile ya da reklam engelleyiciyi kapatmayı dene.`);
+          });
         },
       },
     });
