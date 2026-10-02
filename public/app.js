@@ -578,7 +578,7 @@ let playHistory = [];
 
 function loadLocalHistory() {
   try {
-    return JSON.parse(localStorage.getItem('history')) || [];
+    return JSON.parse(localStorage.getItem(historyKey())) || [];
   } catch {
     return [];
   }
@@ -595,7 +595,7 @@ function mergeHistory(entries) {
   playHistory.sort((a, b) => a.playedAt - b.playedAt);
   playHistory = playHistory.slice(-HISTORY_LIMIT);
   try {
-    localStorage.setItem('history', JSON.stringify(playHistory));
+    localStorage.setItem(historyKey(), JSON.stringify(playHistory));
   } catch {}
   renderHistory();
 }
@@ -1514,7 +1514,7 @@ function renderCustomSfx() {
 async function setCustomSfx(list) {
   customSfx = list;
   renderCustomSfx();
-  await Promise.all(list.map((fx) => Sfx.addCustom(audioCtx, fx.id, `sfx-custom/${ROOM}/${fx.id}`).catch(() => {})));
+  await Promise.all(list.map((fx) => Sfx.addCustom(audioCtx, fx.id, `sfx-custom/${encodeURIComponent(ROOM)}/${fx.id}`).catch(() => {})));
 }
 
 socket.on('sfx:list', setCustomSfx);
@@ -1666,8 +1666,39 @@ $('search-close').onclick = () => {
 
 // ---------- Giriş / çıkış ----------
 
-// Tek oda var; giriş ekranında kimlerin içeride olduğunu gösteririz.
-const ROOM = 'genel';
+// Herkese açık tek oda "genel"; giriş ekranında kimlerin içeride olduğunu gösteririz.
+// Gizli oda şifreyle girilir: aynı şifreyi yazanlar ayrı bir odada buluşur, genel odadan
+// görünmez. Davet linki şifreyi #gizli=... olarak taşır.
+let ROOM = 'genel';
+let secret = '';
+
+// Önceden çalanlar her oda için ayrı saklanır (genel oda eski anahtarı kullanmaya devam eder).
+const historyKey = () => (ROOM === 'genel' ? 'history' : `history:${ROOM}`);
+
+function setSecretMode(on) {
+  $('secret-field').hidden = !on;
+  $('room-status').hidden = on;
+  $('join-btn').textContent = on ? 'Gizli odaya katıl' : 'Odaya katıl';
+  $('secret-toggle').textContent = on ? 'Genel odaya dön' : 'Gizli odaya gir';
+  $('secret').required = on;
+  if (!on) {
+    $('secret').value = '';
+    if (location.hash) history.replaceState(null, '', location.pathname);
+  }
+}
+
+$('secret-toggle').onclick = () => {
+  setSecretMode($('secret-field').hidden);
+  if (!$('secret-field').hidden) $('secret').focus();
+};
+
+{
+  const fromLink = new URLSearchParams(location.hash.slice(1)).get('gizli');
+  if (fromLink) {
+    $('secret').value = fromLink.slice(0, 24);
+    setSecretMode(true);
+  }
+}
 
 try {
   $('name').value = localStorage.getItem('name') || '';
@@ -1686,6 +1717,8 @@ $('join-form').onsubmit = async (e) => {
   e.preventDefault();
   const name = $('name').value.trim();
   myName = name;
+  secret = $('secret-field').hidden ? '' : $('secret').value.trim().toLocaleLowerCase('tr-TR');
+  ROOM = secret ? `gizli-${secret}` : 'genel';
   const btn = e.submitter;
   btn.disabled = true;
   $('join-error').hidden = true;
@@ -1729,6 +1762,11 @@ $('join-form').onsubmit = async (e) => {
   selfId = res.id;
   $('join-screen').hidden = true;
   $('room-screen').hidden = false;
+  if (secret) {
+    document.title = `Gizli oda · ${document.title}`;
+    history.replaceState(null, '', `#gizli=${encodeURIComponent(secret)}`);
+    toast('Gizli odadasın; sadece şifreyi bilenler girebilir');
+  }
 
   const selfRow = personRow(name, true);
   setStatus(selfRow, localStream ? 'Sen' : 'Sadece dinleyici');
@@ -1756,12 +1794,14 @@ $('join-form').onsubmit = async (e) => {
   applyMedia();
 };
 
+const inviteLink = () => (secret ? `${location.origin}/#gizli=${encodeURIComponent(secret)}` : location.origin);
+
 $('copy-link').onclick = async () => {
   try {
-    await navigator.clipboard.writeText(location.origin);
-    toast('Davet linki kopyalandı');
+    await navigator.clipboard.writeText(inviteLink());
+    toast(secret ? 'Gizli oda linki kopyalandı (şifre içinde)' : 'Davet linki kopyalandı');
   } catch {
-    toast(location.origin);
+    toast(inviteLink());
   }
 };
 

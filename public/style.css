@@ -131,6 +131,7 @@ button.off:hover { background: #ff7482; }
 .card label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .card #room-status { margin: -4px 0 0; }
 .card button.primary { padding: 12px; }
+.card #secret-toggle { justify-self: center; color: var(--muted); margin-top: -8px; }
 
 /* Oda */
 
