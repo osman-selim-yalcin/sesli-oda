@@ -483,18 +483,23 @@ button.off:hover { background: #ff7482; }
 .toolbar .tool.off { background: var(--danger); color: #fff; }
 .tool.on { background: var(--accent) !important; color: #fff !important; }
 .people-btn {
+  --ring: var(--panel);
   flex: 1;
   min-width: 0;
   height: 40px;
   justify-content: flex-start;
-  gap: 8px;
+  gap: 10px;
   padding: 0 8px;
   background: transparent;
   border-color: transparent;
 }
-.avatar-strip { display: flex; min-width: 0; overflow: hidden; padding-left: 2px; }
-.avatar-strip .avatar { width: 26px; height: 26px; font-size: 12px; margin-right: -6px; border: 2px solid var(--panel); }
-.avatar-strip .avatar.speaking { box-shadow: 0 0 0 2px var(--speak); position: relative; z-index: 1; }
+.people-btn:hover, .people-btn:focus-visible { --ring: var(--panel-2); background: var(--panel-2); border-color: transparent; }
+.people-btn .muted { font-variant-numeric: tabular-nums; }
+/* Üst üste binen avatarları arka planla aynı renkte bir halka ayırır */
+.avatar-strip { display: flex; min-width: 0; overflow: hidden; padding: 5px; margin: -5px; }
+.avatar-strip .avatar { width: 26px; height: 26px; font-size: 12px; margin-right: -6px; box-shadow: 0 0 0 2px var(--ring); transition: box-shadow .15s; }
+.avatar-strip .avatar:last-child { margin-right: 0; }
+.avatar-strip .avatar.speaking { box-shadow: 0 0 0 2px var(--ring), 0 0 0 4px var(--speak); position: relative; z-index: 1; }
 
 .pop {
   position: fixed;
