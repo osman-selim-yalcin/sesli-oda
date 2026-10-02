@@ -34,6 +34,17 @@ const clientId = (() => {
 
 // ---------- Yardımcılar ----------
 
+// İkonlar index.html'deki SVG setinden gelir (Lucide).
+function icon(name) {
+  return `<svg class="ic" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
+}
+
+// Düğmenin içeriğini ikon (+ isteğe bağlı yazı) yapar.
+function setIcon(el, name, text) {
+  el.innerHTML = icon(name);
+  if (text) el.append(text);
+}
+
 function toast(text) {
   const el = document.createElement('div');
   el.className = 'toast';
@@ -155,7 +166,7 @@ function personRow(name, isSelf) {
   const li = document.createElement('li');
   li.innerHTML = `
     <div class="p-info">
-      <div class="p-name"><span class="p-label"></span> <span class="p-badge" hidden title="Videosu yükleniyor">⏳</span></div>
+      <div class="p-name"><span class="p-label"></span> <span class="p-badge" hidden title="Videosu yükleniyor">${icon('loader')}</span></div>
       <div class="p-status"></div>
     </div>`;
   li.prepend(makeAvatar(name));
@@ -199,7 +210,7 @@ function addPeer(id, name, muted) {
   muteBtn.className = 'icon p-mute';
   row.append(muteBtn);
   const renderMute = () => {
-    muteBtn.textContent = peer.localMuted ? '🔇' : '🔊';
+    setIcon(muteBtn, peer.localMuted ? 'volume-x' : 'volume');
     muteBtn.title = peer.localMuted ? `${name} sesini aç` : `${name} sesini kapat`;
     muteBtn.classList.toggle('off', peer.localMuted);
     vol.disabled = peer.localMuted;
@@ -394,7 +405,7 @@ socket.io.on('reconnect', () => location.reload());
 
 function renderMic() {
   const btn = $('mic-toggle');
-  btn.textContent = micOn ? '🎙' : '🔇';
+  setIcon(btn, micOn ? 'mic' : 'mic-off');
   btn.title = micOn ? 'Mikrofonu kapat' : 'Mikrofonu aç';
   btn.classList.toggle('off', !micOn);
 }
@@ -588,14 +599,14 @@ function renderHistory() {
         <div class="q-title"></div>
         <div class="muted small"></div>
       </div>
-      <button>Tekrar ekle</button>`;
+      <button class="sm">${icon('plus')}Tekrar ekle</button>`;
     li.prepend(thumb(h.videoId));
     li.querySelector('.q-title').textContent = h.title;
     const when = new Date(h.playedAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     li.querySelector('.small').textContent = `${h.by} ekledi · ${when}`;
     li.querySelector('button').onclick = (e) => {
       socket.emit('media:add', h.videoId);
-      e.target.disabled = true;
+      e.currentTarget.disabled = true;
     };
     list.append(li);
   }
@@ -697,7 +708,7 @@ function renderChatMessage({ from, name, text, image, ts, system }) {
   if (videoId) {
     const add = document.createElement('button');
     add.className = 'queue-add';
-    add.textContent = '＋ Sıraya ekle';
+    setIcon(add, 'plus', 'Sıraya ekle');
     add.onclick = () => {
       socket.emit('media:add', videoId);
       add.disabled = true;
@@ -896,7 +907,7 @@ async function startRecording(withMusic) {
   recorder ??= startNative(dest.stream);
 
   const started = Date.now();
-  recTimer = setInterval(() => ($('rec-btn').textContent = `⏹ ${fmtTime((Date.now() - started) / 1000)}`), 1000);
+  recTimer = setInterval(() => setIcon($('rec-btn'), 'stop', fmtTime((Date.now() - started) / 1000)), 1000);
   socket.emit('rec', true);
   renderRec();
 }
@@ -964,7 +975,7 @@ function renderRec() {
   const btn = $('rec-btn');
   btn.classList.toggle('rec', Boolean(recorder));
   btn.title = recorder ? 'Kaydı durdur ve indir' : 'Kaydet';
-  btn.textContent = recorder ? '⏹ 0:00' : '⏺';
+  setIcon(btn, recorder ? 'stop' : 'rec', recorder ? '0:00' : '');
   renderRecBanner();
 }
 
@@ -972,7 +983,7 @@ function renderRecBanner() {
   const names = [...peers.values()].filter((p) => p.recording).map((p) => p.name);
   if (recorder) names.unshift('sen');
   $('rec-banner').hidden = !names.length;
-  $('rec-banner').textContent = `🔴 Kayıt yapılıyor: ${names.join(', ')}`;
+  $('rec-banner').textContent = `Kayıt yapılıyor: ${names.join(', ')}`;
 }
 
 socket.on('rec', ({ id, on }) => {
@@ -1246,7 +1257,7 @@ function applyMedia() {
   $('now-title').textContent = cur ? cur.title : 'Şu an bir şey çalmıyor';
   $('now-title').classList.toggle('muted', !cur);
   $('now-by').textContent = cur ? `${cur.by} ekledi` : '';
-  $('play-toggle').textContent = media.playing ? '⏸' : '▶';
+  setIcon($('play-toggle'), media.playing ? 'pause' : 'play');
 
   if (!cur) {
     if (loadedId) player.stopVideo();
@@ -1282,7 +1293,9 @@ const REACTIONS = ['🔥', '😂', '😍', '👏', '💀', '😴'];
 function reactButton(label, who, onClick) {
   const btn = document.createElement('button');
   btn.className = 'react' + (who.includes(myName) ? ' mine' : '');
-  btn.textContent = who.length ? `${label} ${who.length}` : label;
+  const count = who.length ? String(who.length) : '';
+  if (label === 'like' || label === 'dislike') setIcon(btn, label, count);
+  else btn.textContent = count ? `${label} ${count}` : label;
   if (who.length) btn.title = who.join(', ');
   btn.onclick = onClick;
   return btn;
@@ -1293,7 +1306,7 @@ function fillReactions(container, item) {
   if (!item) return;
   const vote = (v) => () => socket.emit('media:vote', { itemId: item.id, vote: v });
   const react = (emoji) => () => socket.emit('media:react', { itemId: item.id, emoji });
-  container.append(reactButton('👍', item.likes, vote(1)), reactButton('👎', item.dislikes, vote(-1)));
+  container.append(reactButton('like', item.likes, vote(1)), reactButton('dislike', item.dislikes, vote(-1)));
   for (const [emoji, who] of Object.entries(item.reactions)) container.append(reactButton(emoji, who, react(emoji)));
 
   const picker = document.createElement('span');
@@ -1307,7 +1320,7 @@ function fillReactions(container, item) {
   }
   const more = document.createElement('button');
   more.className = 'react';
-  more.textContent = '😊＋';
+  setIcon(more, 'smile-plus');
   more.title = 'Emoji ekle';
   more.onclick = () => (picker.hidden = !picker.hidden);
   container.append(more, picker);
@@ -1335,8 +1348,8 @@ function renderQueue() {
         <div class="muted small"></div>
         <div class="reactions"></div>
       </div>
-      <button data-act="play">Şimdi oynat</button>
-      <button data-act="remove" title="Sıradan çıkar">✕</button>`;
+      <button data-act="play" class="icon sm ghost" title="Şimdi oynat">${icon('play')}</button>
+      <button data-act="remove" class="icon sm ghost" title="Sıradan çıkar">${icon('x')}</button>`;
     li.prepend(thumb(item.videoId));
     li.querySelector('.q-title').textContent = item.title;
     li.querySelector('.small').textContent = `${item.by} ekledi`;
@@ -1394,7 +1407,7 @@ function updatePoster() {
   if (!show) return;
   const src = `https://i.ytimg.com/vi/${cur.videoId}/mqdefault.jpg`;
   if ($('poster-img').src !== src) $('poster-img').src = src;
-  $('poster-play').textContent = media.playing ? '▶ Senkronize başlatmak için tıkla' : '▶ Oynat';
+  setIcon($('poster-play'), 'play', media.playing ? 'Senkronize başlatmak için tıkla' : 'Oynat');
 }
 
 $('poster-play').onclick = () => {
@@ -1473,7 +1486,7 @@ function renderCustomSfx() {
       const btn = sfxButton(fx.id, fx.label, `${fx.label} (${fx.by} yükledi)`);
       const remove = document.createElement('span');
       remove.className = 'remove';
-      remove.textContent = '✕';
+      remove.innerHTML = icon('x');
       remove.title = 'Efekti sil';
       remove.onclick = () => socket.emit('sfx:remove', fx.id);
       btn.append(remove);
@@ -1616,14 +1629,15 @@ async function searchYouTube(q) {
         <div class="q-title"></div>
         <div class="muted small"></div>
       </div>
-      <button class="primary">Ekle</button>`;
+      <button class="primary sm">${icon('plus')}Ekle</button>`;
     li.prepend(thumb(r.videoId));
     li.querySelector('.q-title').textContent = r.title;
     li.querySelector('.small').textContent = r.duration ? `${r.channel} · ${fmtTime(r.duration)}` : r.channel;
     li.querySelector('button').onclick = (ev) => {
       socket.emit('media:add', r.videoId);
-      ev.target.textContent = 'Eklendi ✓';
-      ev.target.disabled = true;
+      const b = ev.currentTarget;
+      setIcon(b, 'check', 'Eklendi');
+      b.disabled = true;
     };
     $('search-results').append(li);
   }
