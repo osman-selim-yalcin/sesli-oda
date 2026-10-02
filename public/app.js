@@ -819,17 +819,18 @@ $('chat-form').onsubmit = (e) => {
 // Kayıt tarayıcıda yapılır ve dosya olarak iner. "Müzik dahil" sekmenin sesini yakalar
 // (YouTube dahil); "sadece konuşmalar" uygulamanın kendi ses karışımını kaydeder.
 // İki durumda da kendi mikrofonun ayrıca eklenir, çünkü o sekmede çalınmaz.
+// Tarayıcı MP3 kaydedemez; MP3 seçiliyse ses kayıt sürerken ayrı iş parçacığında MP3'e çevrilir.
 
 const REC_MIME = ['audio/webm;codecs=opus', 'audio/mp4', 'audio/ogg;codecs=opus']
   .find((m) => window.MediaRecorder?.isTypeSupported(m));
-let recorder = null;
+const REC_EXT = REC_MIME?.includes('mp4') ? 'm4a' : REC_MIME?.includes('ogg') ? 'ogg' : 'webm';
+let recorder = null; // { stop() } — MediaRecorder ya da MP3 kodlayıcı
 let recCleanup = [];
 let recTimer = null;
 
-function recFileName() {
+function recFileName(ext) {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
-  const ext = REC_MIME.includes('mp4') ? 'm4a' : REC_MIME.includes('ogg') ? 'ogg' : 'webm';
   return `sesli-oda-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.${ext}`;
 }
 
@@ -885,23 +886,68 @@ async function startRecording(withMusic) {
     recCleanup.push(() => mine.disconnect());
   }
 
-  const chunks = [];
-  recorder = new MediaRecorder(dest.stream, { mimeType: REC_MIME, audioBitsPerSecond: 96000 });
-  recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-  recorder.onstop = () => {
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob(chunks, { type: REC_MIME }));
-    a.download = recFileName();
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
-    toast('Kayıt indirildi.');
-  };
-  recorder.start(10000);
+  if ($('rec-format').value === 'mp3') {
+    try {
+      recorder = await startMp3(limiter);
+    } catch {
+      toast('MP3 kodlayıcı yüklenemedi, kayıt ' + REC_EXT + ' olarak yapılıyor.');
+    }
+  }
+  recorder ??= startNative(dest.stream);
 
   const started = Date.now();
   recTimer = setInterval(() => ($('rec-btn').textContent = `⏹ ${fmtTime((Date.now() - started) / 1000)}`), 1000);
   socket.emit('rec', true);
   renderRec();
+}
+
+function downloadRec(blob, ext) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = recFileName(ext);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+  toast('Kayıt indirildi.');
+}
+
+function startNative(stream) {
+  const chunks = [];
+  const rec = new MediaRecorder(stream, { mimeType: REC_MIME, audioBitsPerSecond: 96000 });
+  rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+  rec.onstop = () => downloadRec(new Blob(chunks, { type: REC_MIME }), REC_EXT);
+  rec.start(10000);
+  return rec;
+}
+
+let recWorkletReady = null;
+
+async function startMp3(input) {
+  recWorkletReady ??= audioCtx.audioWorklet.addModule('rec-worklet.js');
+  await recWorkletReady;
+  const worker = new Worker('mp3-worker.js');
+  worker.postMessage({ type: 'start', sampleRate: audioCtx.sampleRate, kbps: 160 });
+  // Çıkışı yok: hiçbir yere bağlanmadan sadece dinler.
+  const tap = new AudioWorkletNode(audioCtx, 'pcm-tap', {
+    numberOfOutputs: 0,
+    channelCount: 2,
+    channelCountMode: 'explicit',
+  });
+  tap.port.onmessage = ({ data }) => {
+    if (!data.done) return worker.postMessage({ type: 'pcm', ...data }, [data.left.buffer, data.right.buffer]);
+    tap.port.onmessage = null;
+    worker.postMessage({ type: 'end' });
+  };
+  worker.onmessage = ({ data }) => {
+    worker.terminate();
+    downloadRec(data, 'mp3');
+  };
+  input.connect(tap);
+  return {
+    stop() {
+      tap.port.postMessage('flush');
+      input.disconnect(tap);
+    },
+  };
 }
 
 function stopRecording() {
@@ -946,6 +992,15 @@ $('rec-btn').addEventListener('click', (e) => {
 });
 $('rec-all').onclick = () => startRecording(true);
 $('rec-voice').onclick = () => startRecording(false);
+try {
+  $('rec-format').value = localStorage.getItem('rec-format') || 'mp3';
+} catch {}
+$('rec-format').onchange = () => {
+  try {
+    localStorage.setItem('rec-format', $('rec-format').value);
+  } catch {}
+};
+$('rec-format').querySelector('[value=native]').textContent = REC_EXT.toUpperCase() + ' (daha küçük dosya)';
 if (!TAB_AUDIO) {
   $('rec-all').hidden = true;
   $('rec-all').nextElementSibling.textContent =
