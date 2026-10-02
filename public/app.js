@@ -1211,7 +1211,8 @@ const QUALITY_PIXELS = { medium: [640, 360], low: [256, 144] }; // gerçek ekran
 function applyQuality() {
   const iframe = player?.getIframe?.();
   if (!iframe) return;
-  const mode = $('quality').value;
+  // Sadece seste görüntü görünmez; en düşük kalite yeterli, veri de az gider.
+  const mode = $('audio-only').checked ? 'low' : $('quality').value;
   if (!QUALITY_PIXELS[mode]) {
     iframe.style.width = iframe.style.height = iframe.style.transform = '';
     return;
@@ -1223,9 +1224,24 @@ function applyQuality() {
   iframe.style.transform = `scale(${$('player-wrap').clientWidth / w})`;
 }
 
+function applyAudioOnly() {
+  const on = $('audio-only').checked;
+  $('player-wrap').classList.toggle('audio-only', on);
+  $('quality-field').hidden = on;
+  applyQuality();
+}
+
 try {
   $('quality').value = localStorage.getItem('quality') || 'auto';
+  $('audio-only').checked = localStorage.getItem('audio-only') === '1';
 } catch {}
+applyAudioOnly();
+$('audio-only').onchange = () => {
+  try {
+    localStorage.setItem('audio-only', $('audio-only').checked ? '1' : '');
+  } catch {}
+  applyAudioOnly();
+};
 $('quality').onchange = () => {
   try {
     localStorage.setItem('quality', $('quality').value);
@@ -1249,9 +1265,9 @@ function trackBuffering(buffering) {
       reportedBuffering = true;
       socket.emit('video-state', 'buffering');
       freezes = freezes.filter((t) => Date.now() - t < 60000).concat(Date.now());
-      if (freezes.length >= 3 && $('quality').value !== 'low' && !qualityHintShown) {
+      if (freezes.length >= 3 && $('quality').value !== 'low' && !$('audio-only').checked && !qualityHintShown) {
         qualityHintShown = true;
-        toast('Videon sık donuyor. "Video kalitesi"ni Düşük yapmayı dene.');
+        toast('Videon sık donuyor. Ayarlardan "Sadece ses"i ya da düşük kaliteyi dene.');
       }
     }, BUFFER_REPORT_DELAY);
   } else if (reportedBuffering) {

@@ -153,6 +153,10 @@ button.off:hover { background: #ff7482; }
 }
 .player-wrap iframe, #player { position: absolute; inset: 0; width: 100%; height: 100%; }
 .player-shield { position: absolute; inset: 0; }
+/* Sadece ses: oynatıcı görünmez ama çalmaya devam eder. Tarayıcı oynatmayı engellediyse
+   başlatma düğmesi için kapak yine görünür. */
+.player-wrap.audio-only:not(:has(#poster:not([hidden]))) { height: 0; border: 0; }
+.player-wrap.audio-only { aspect-ratio: auto; height: 160px; }
 .player-empty {
   position: absolute;
   inset: 0;
