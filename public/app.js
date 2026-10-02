@@ -117,6 +117,12 @@ function setupAudio() {
   sfxBus = audioCtx.createGain();
   sfxBus.gain.value = Number($('sfx-vol').value) / 100;
   sfxBus.connect(audioCtx.destination);
+
+  // Telefonda ekran kilitlenince ya da arama gelince ses altyapısı durur ve kendiliğinden
+  // dönmez; oda sessiz kalır, kayda da boşluk girer. Sayfaya dönünce ya da dokununca sürdür.
+  const wake = () => audioCtx.state !== 'running' && audioCtx.resume().catch(() => {});
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
+  document.addEventListener('pointerdown', wake);
 }
 
 // ---------- Konuşma göstergesi ----------
@@ -468,8 +474,13 @@ async function setupMic() {
 // paylaşan kişi bunu odadaki herkese ayrı ayrı gönderir.
 
 // Sekme/ekran sesini sadece Chromium tabanlı tarayıcılar (Chrome, Edge, Brave, Opera) verir;
-// Firefox ve Safari ekran paylaşımında yalnızca görüntü verir.
-const TAB_AUDIO = Boolean(navigator.userAgentData?.brands?.some((b) => b.brand === 'Chromium'));
+// Firefox ve Safari ekran paylaşımında yalnızca görüntü verir. Telefondaki Chrome da Chromium
+// görünür ama ekran/sekme paylaşımı hiç yoktur.
+const TAB_AUDIO = Boolean(
+  navigator.mediaDevices?.getDisplayMedia &&
+    !navigator.userAgentData?.mobile &&
+    navigator.userAgentData?.brands?.some((b) => b.brand === 'Chromium'),
+);
 
 async function startScreen() {
   try {
@@ -867,8 +878,9 @@ async function startRecording(withMusic) {
         preferCurrentTab: true,
         selfBrowserSurface: 'include',
       });
-    } catch {
-      return; // vazgeçildi
+    } catch (err) {
+      if (err.name !== 'NotAllowedError') toast('Sekme sesi alınamadı: ' + err.message); // NotAllowedError: vazgeçildi
+      return;
     }
     tab.getVideoTracks().forEach((t) => t.stop());
     const [track] = tab.getAudioTracks();
@@ -916,7 +928,11 @@ function downloadRec(blob, ext) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = recFileName(ext);
+  // Bazı mobil tarayıcılar sayfada olmayan bağlantıya tıklamayı yok sayıyor.
+  a.hidden = true;
+  document.body.append(a);
   a.click();
+  a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 60000);
   toast('Kayıt indirildi.');
 }
