@@ -7,8 +7,8 @@ En fazla 6 kişilik sesli sohbet + senkronize YouTube izleme/dinleme.
 ## Neler var
 
 - Sesli sohbet (WebRTC, Opus); gürültü kapısı ve ses eşiği ayarı
-- Gizli oda: giriş ekranında "Gizli odaya gir" ile şifre yazılır; aynı şifreyi yazanlar genel odadan
-  ayrı bir odada buluşur, giriş ekranında görünmez. Davet linki şifreyi taşır (`/#gizli=şifre`).
+- Gizli oda: arayüzde girişi yok, sadece linkle açılır (`/#gizli=şifre`). Aynı linke gelenler genel
+  odadan ayrı bir odada buluşur; giriş ekranındaki listede görünmez.
 - Herkeste aynı anda oynayan YouTube; site içi arama ve oynatma geçmişi
 - Yazılı sohbet, emoji seçici
 - Ses efektleri; herkes kendi efektini de yükleyebilir

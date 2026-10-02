@@ -1667,58 +1667,40 @@ $('search-close').onclick = () => {
 // ---------- Giriş / çıkış ----------
 
 // Herkese açık tek oda "genel"; giriş ekranında kimlerin içeride olduğunu gösteririz.
-// Gizli oda şifreyle girilir: aynı şifreyi yazanlar ayrı bir odada buluşur, genel odadan
-// görünmez. Davet linki şifreyi #gizli=... olarak taşır.
-let ROOM = 'genel';
-let secret = '';
+// Gizli odaya arayüzde bir yol yok, sadece linkle girilir: /#gizli=şifre. Aynı şifreli linke
+// gelenler genel odadan ayrı bir odada buluşur.
+const secret = (new URLSearchParams(location.hash.slice(1)).get('gizli') || '')
+  .trim().toLocaleLowerCase('tr-TR').slice(0, 24);
+const ROOM = secret ? `gizli-${secret}` : 'genel';
 
 // Önceden çalanlar her oda için ayrı saklanır (genel oda eski anahtarı kullanmaya devam eder).
 const historyKey = () => (ROOM === 'genel' ? 'history' : `history:${ROOM}`);
-
-function setSecretMode(on) {
-  $('secret-field').hidden = !on;
-  $('room-status').hidden = on;
-  $('join-btn').textContent = on ? 'Gizli odaya katıl' : 'Odaya katıl';
-  $('secret-toggle').textContent = on ? 'Genel odaya dön' : 'Gizli odaya gir';
-  $('secret').required = on;
-  if (!on) {
-    $('secret').value = '';
-    if (location.hash) history.replaceState(null, '', location.pathname);
-  }
-}
-
-$('secret-toggle').onclick = () => {
-  setSecretMode($('secret-field').hidden);
-  if (!$('secret-field').hidden) $('secret').focus();
-};
-
-{
-  const fromLink = new URLSearchParams(location.hash.slice(1)).get('gizli');
-  if (fromLink) {
-    $('secret').value = fromLink.slice(0, 24);
-    setSecretMode(true);
-  }
-}
 
 try {
   $('name').value = localStorage.getItem('name') || '';
 } catch {}
 
-fetch('/status')
-  .then((r) => r.json())
-  .then(({ names, max }) => {
-    $('room-status').textContent = names.length
-      ? `Şu an odada (${names.length}/${max}): ${names.join(', ')}`
-      : 'Oda şu an boş.';
-  })
-  .catch(() => {});
+if (secret) {
+  $('room-status').textContent = 'Gizli oda';
+  $('join-btn').textContent = 'Gizli odaya katıl';
+} else {
+  fetch('/status')
+    .then((r) => r.json())
+    .then(({ names, max }) => {
+      $('room-status').textContent = names.length
+        ? `Şu an odada (${names.length}/${max}): ${names.join(', ')}`
+        : 'Oda şu an boş.';
+    })
+    .catch(() => {});
+}
+
+// Açık sekmeye gizli link yapıştırılınca sadece # değişir, sayfa yenilenmez; oda yeniden seçilsin.
+addEventListener('hashchange', () => location.reload());
 
 $('join-form').onsubmit = async (e) => {
   e.preventDefault();
   const name = $('name').value.trim();
   myName = name;
-  secret = $('secret-field').hidden ? '' : $('secret').value.trim().toLocaleLowerCase('tr-TR');
-  ROOM = secret ? `gizli-${secret}` : 'genel';
   const btn = e.submitter;
   btn.disabled = true;
   $('join-error').hidden = true;
@@ -1764,8 +1746,7 @@ $('join-form').onsubmit = async (e) => {
   $('room-screen').hidden = false;
   if (secret) {
     document.title = `Gizli oda · ${document.title}`;
-    history.replaceState(null, '', `#gizli=${encodeURIComponent(secret)}`);
-    toast('Gizli odadasın; sadece şifreyi bilenler girebilir');
+    toast('Gizli odadasın; sadece linki bilenler girebilir');
   }
 
   const selfRow = personRow(name, true);
@@ -1799,7 +1780,7 @@ const inviteLink = () => (secret ? `${location.origin}/#gizli=${encodeURICompone
 $('copy-link').onclick = async () => {
   try {
     await navigator.clipboard.writeText(inviteLink());
-    toast(secret ? 'Gizli oda linki kopyalandı (şifre içinde)' : 'Davet linki kopyalandı');
+    toast(secret ? 'Gizli oda linki kopyalandı' : 'Davet linki kopyalandı');
   } catch {
     toast(inviteLink());
   }
