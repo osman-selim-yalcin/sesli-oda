@@ -2,7 +2,7 @@
 
 En fazla 6 kişilik sesli sohbet + senkronize YouTube izleme/dinleme.
 
-**Canlı:** https://sesli-oda-qdq4.onrender.com/
+**Canlı:** https://agalar.app
 
 ## Neler var
 
