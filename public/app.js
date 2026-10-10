@@ -794,7 +794,10 @@ chatBox.addEventListener('drop', (e) => {
 
 socket.on('chat', (msg) => {
   renderChatMessage(msg);
-  if (!msg.system && msg.from !== selfId && audioCtx) Sfx.ping(audioCtx, sfxBus);
+  if (!audioCtx || msg.from === selfId) return;
+  if (!msg.system) Sfx.ping(audioCtx, sfxBus);
+  else if (msg.event === 'join') Sfx.join(audioCtx, sfxBus);
+  else if (msg.event === 'leave') Sfx.leave(audioCtx, sfxBus);
 });
 
 // Emoji seçici: tıklanan emoji imlecin olduğu yere eklenir, pencere açık kalır (birkaç tane seçilebilsin).

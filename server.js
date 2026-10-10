@@ -237,8 +237,8 @@ const customSfxList = (room) => [...room.customSfx].map(([id, fx]) => ({ id, lab
 const REJOIN_GRACE = 5000; // ms
 const pendingLeaves = new Map(); // `${oda}:${sekme}` -> zamanlayıcı
 
-function postSystem(room, text) {
-  postChat(room, { system: true, text, ts: Date.now() });
+function postSystem(room, text, extra) {
+  postChat(room, { system: true, text, ts: Date.now(), ...extra });
 }
 
 function postChat(room, msg) {
@@ -311,7 +311,7 @@ io.on('connection', (socket) => {
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
     ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room) });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
-    if (!rejoined) postSystem(room, `${name} odaya katıldı`);
+    if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
 
   // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir.
@@ -547,7 +547,7 @@ io.on('connection', (socket) => {
     pendingLeaves.set(leaveKey, setTimeout(() => {
       pendingLeaves.delete(leaveKey);
       const current = rooms.get(roomCode);
-      if (current) postSystem(current, `${user.name} ayrıldı`);
+      if (current) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
     }, REJOIN_GRACE));
     if (room.users.size === 0) {
       rooms.delete(code);

@@ -140,6 +140,17 @@ const Sfx = (() => {
       tone(ctx, out, t, { type: 'sine', freq: 880, peak: 0.18, attack: 0.004, decay: 0.12 });
       tone(ctx, out, t + 0.08, { type: 'sine', freq: 1320, peak: 0.14, attack: 0.004, decay: 0.22 });
     },
+    // Biri odaya girince yükselen, çıkınca alçalan iki nota.
+    join(ctx, out) {
+      const t = ctx.currentTime + 0.01;
+      tone(ctx, out, t, { type: 'triangle', freq: 587, peak: 0.16, attack: 0.006, decay: 0.15 });
+      tone(ctx, out, t + 0.1, { type: 'triangle', freq: 880, peak: 0.16, attack: 0.006, decay: 0.3 });
+    },
+    leave(ctx, out) {
+      const t = ctx.currentTime + 0.01;
+      tone(ctx, out, t, { type: 'triangle', freq: 880, peak: 0.14, attack: 0.006, decay: 0.15 });
+      tone(ctx, out, t + 0.1, { type: 'triangle', freq: 587, peak: 0.14, attack: 0.006, decay: 0.3 });
+    },
     // Kullanıcının yüklediği efekti hafızaya alır.
     async addCustom(ctx, id, url) {
       if (samples.has(id)) return;
