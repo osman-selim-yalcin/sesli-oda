@@ -1968,7 +1968,7 @@ $('copy-link').onclick = async () => {
 $('leave').onclick = () => {
   socket.disconnect();
   Sfx.leave(audioCtx, sfxBus);
-  setTimeout(() => location.reload(), 350);
+  setTimeout(() => location.reload(), 600);
 };
 
 // Sekme kapanınca/yenilenince sunucuya hemen haber ver.

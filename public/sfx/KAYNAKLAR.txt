@@ -17,6 +17,5 @@ Ba dum tss - Web Audio ile cihazda üretilir (kayıt yok).
 
 CC BY 3.0 lisansı: https://creativecommons.org/licenses/by/3.0/
 
-Giriş ve çıkış bildirimi - "maximize_009" ve "minimize_009", Kenney "Interface Sounds" paketi -
-         Kamu malı (CC0); ses seviyesi düşürüldü ve AAC'ye dönüştürüldü.
-         https://kenney.nl/assets/interface-sounds
+Giriş ve çıkış bildirimi (chime-in, chime-out) - bu proje için sentezlendi (yumuşak çan,
+         iki nota: Mi5-Si5 yükselen / Si5-Mi5 alçalan, hafif oda yankısı).
