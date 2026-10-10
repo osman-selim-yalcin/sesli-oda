@@ -5,7 +5,8 @@
 // Efekt çalınca ağdan sadece efektin adı gider (birkaç byte).
 
 // Kaydı olan efektler; kaynaklar ve lisanslar public/sfx/KAYNAKLAR.txt dosyasında.
-const SFX_FILES = ['clap', 'ding', 'sad', 'tada', 'boom'];
+// join/leave giriş-çıkış bildirimidir; efekt listesinde yoktur, başkası tetikleyemez.
+const SFX_FILES = ['clap', 'ding', 'sad', 'tada', 'boom', 'join', 'leave'];
 
 const SFX_LIST = [
   { id: 'clap', emoji: '👏', label: 'Alkış' },
@@ -140,13 +141,15 @@ const Sfx = (() => {
       tone(ctx, out, t, { type: 'sine', freq: 880, peak: 0.18, attack: 0.004, decay: 0.12 });
       tone(ctx, out, t + 0.08, { type: 'sine', freq: 1320, peak: 0.14, attack: 0.004, decay: 0.22 });
     },
-    // Biri odaya girince yükselen, çıkınca alçalan iki nota.
+    // Biri odaya girince yükselen, çıkınca alçalan ses (kayıt yoksa iki notayla üretilir).
     join(ctx, out) {
+      if (samples.has('join')) return this.play(ctx, out, 'join');
       const t = ctx.currentTime + 0.01;
       tone(ctx, out, t, { type: 'triangle', freq: 587, peak: 0.16, attack: 0.006, decay: 0.15 });
       tone(ctx, out, t + 0.1, { type: 'triangle', freq: 880, peak: 0.16, attack: 0.006, decay: 0.3 });
     },
     leave(ctx, out) {
+      if (samples.has('leave')) return this.play(ctx, out, 'leave');
       const t = ctx.currentTime + 0.01;
       tone(ctx, out, t, { type: 'triangle', freq: 880, peak: 0.14, attack: 0.006, decay: 0.15 });
       tone(ctx, out, t + 0.1, { type: 'triangle', freq: 587, peak: 0.14, attack: 0.006, decay: 0.3 });

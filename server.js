@@ -32,12 +32,44 @@ const app = express();
 app.use('/sfx', express.static(path.join(__dirname, 'public/sfx'), { maxAge: '30d' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ICE sunucuları: varsayılan STUN; gerekirse TURN ortam değişkenleriyle eklenir.
-app.get('/config', (req, res) => {
-  const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+// ICE sunucuları: STUN herkese yeter, ama mobil hat ve bazı modemlerde (CGNAT) doğrudan
+// bağlantı kurulamaz; o zaman ses TURN sunucusu üzerinden geçer.
+// Cloudflare TURN (CF_TURN_KEY_ID + CF_TURN_API_TOKEN, ayda 1 TB ücretsiz) ya da
+// sabit bir TURN sunucusu (TURN_URL, TURN_USERNAME, TURN_CREDENTIAL) kullanılabilir.
+const STUN = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+const TURN_TTL = 24 * 3600; // sn
+let cfTurn = null; // { iceServers, expires }
+
+async function cloudflareTurn() {
+  if (cfTurn && cfTurn.expires > Date.now()) return cfTurn.iceServers;
+  const res = await fetch(
+    `https://rtc.live.cloudflare.com/v1/turn/keys/${process.env.CF_TURN_KEY_ID}/credentials/generate-ice-servers`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.CF_TURN_API_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ttl: TURN_TTL }),
+      signal: AbortSignal.timeout(5000),
+    }
+  );
+  if (!res.ok) throw new Error(`Cloudflare TURN ${res.status}`);
+  const { iceServers } = await res.json();
+  // Bilgiler süresi dolmadan yenilensin: yarı ömürde tazelenir.
+  cfTurn = { iceServers: [].concat(iceServers), expires: Date.now() + (TURN_TTL / 2) * 1000 };
+  return cfTurn.iceServers;
+}
+
+app.get('/config', async (req, res) => {
+  const iceServers = [...STUN];
+  if (process.env.CF_TURN_KEY_ID && process.env.CF_TURN_API_TOKEN) {
+    try {
+      iceServers.push(...(await cloudflareTurn()));
+    } catch (err) {
+      console.warn('turn', err.message);
+    }
+  }
   if (process.env.TURN_URL) {
     iceServers.push({
-      urls: process.env.TURN_URL,
+      urls: process.env.TURN_URL.split(','),
       username: process.env.TURN_USERNAME,
       credential: process.env.TURN_CREDENTIAL,
     });

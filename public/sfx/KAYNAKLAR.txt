@@ -16,3 +16,7 @@ Bum    - "Bomb", Mike Koenig - CC BY 3.0
 Ba dum tss - Web Audio ile cihazda üretilir (kayıt yok).
 
 CC BY 3.0 lisansı: https://creativecommons.org/licenses/by/3.0/
+
+Giriş ve çıkış bildirimi - "maximize_009" ve "minimize_009", Kenney "Interface Sounds" paketi -
+         Kamu malı (CC0); ses seviyesi düşürüldü ve AAC'ye dönüştürüldü.
+         https://kenney.nl/assets/interface-sounds

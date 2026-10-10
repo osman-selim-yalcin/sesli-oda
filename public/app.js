@@ -45,6 +45,11 @@ function setIcon(el, name, text) {
   if (text) el.append(text);
 }
 
+// Cevap gelmezse sonsuza kadar beklenmez: süre dolunca null döner.
+function emitAck(ms, event, ...args) {
+  return new Promise((resolve) => socket.timeout(ms).emit(event, ...args, (err, res) => resolve(err ? null : res)));
+}
+
 function toast(text) {
   const el = document.createElement('div');
   el.className = 'toast';
@@ -87,7 +92,8 @@ async function syncClock() {
   let best = Infinity;
   for (let i = 0; i < 5; i++) {
     const t0 = Date.now();
-    const server = await new Promise((r) => socket.emit('time', r));
+    const server = await emitAck(3000, 'time');
+    if (server == null) continue;
     const rtt = Date.now() - t0;
     if (rtt < best) {
       best = rtt;
@@ -207,7 +213,7 @@ function addPeer(id, name, muted) {
   const gain = audioCtx.createGain();
   gain.connect(voiceBus);
 
-  const peer = { name, muted, pc: null, audio, gain, source: null, pendingIce: [], row, speaking: false, localMuted: false };
+  const peer = { name, muted, pc: null, audio, gain, source: null, pendingIce: [], row, speaking: false, localMuted: false, badSince: null, retries: 0 };
   const applyGain = () => (gain.gain.value = peer.localMuted ? 0 : vol.value / 100);
   vol.oninput = applyGain;
 
@@ -291,6 +297,7 @@ function createPc(id) {
   peer.pc = pc;
   peer.polite = selfId < id;
   peer.makingOffer = false;
+  peer.badSince = Date.now();
 
   if (sendStream) {
     for (const track of sendStream.getAudioTracks()) pc.addTrack(track, sendStream);
@@ -341,13 +348,54 @@ function createPc(id) {
 
   pc.onconnectionstatechange = () => {
     const s = pc.connectionState;
-    if (s === 'connected') setStatus(peer.row, peer.muted ? 'Sessizde' : 'Bağlı');
-    else if (s === 'failed') setStatus(peer.row, 'Bağlanamadı (ağ engeli)');
-    else if (s === 'disconnected') setStatus(peer.row, 'Bağlantı koptu…');
+    if (s === 'connected') {
+      setStatus(peer.row, peer.muted ? 'Sessizde' : 'Bağlı');
+      peer.badSince = null;
+      peer.retries = 0;
+      return;
+    }
+    peer.badSince ??= Date.now();
+    if (s === 'failed') {
+      setStatus(peer.row, 'Yeniden bağlanıyor…');
+      // Önce ağ yolu yeniden aranır; iki taraf aynı anda denemesin diye kaba taraf başlatır.
+      if (!peer.polite) pc.restartIce();
+    } else if (s === 'disconnected') setStatus(peer.row, 'Bağlantı koptu…');
   };
 
   return pc;
 }
+
+// Bağlantıyı baştan kurar; karşı taraf da kendi bağlantısını sıfırlasın diye haber verilir.
+function resetPeer(id, notify) {
+  const peer = peers.get(id);
+  if (!peer) return;
+  peer.pc?.close();
+  peer.source?.disconnect();
+  peer.source = null;
+  peer.voiceStreamId = null;
+  peer.screen = null;
+  peer.screenSenders = null;
+  if (peer.screenAudio) peer.screenAudio.srcObject = null;
+  peer.pendingIce = [];
+  if (notify) socket.emit('signal', { to: id, data: { reset: true } });
+  createPc(id);
+  setStatus(peer.row, 'Yeniden bağlanıyor…');
+  renderScreen();
+}
+
+// Takılan bağlantılar (yarıda kalan kurulum, kopan ağ) sayfa yenilenmeden onarılır.
+// Kaba taraf önce dener; o denemezse (sekmesi arka planda vb.) kibar taraf daha geç dener.
+// Her başarısız denemede bekleme ikiye katlanır.
+const PEER_RETRY = 12000; // ms
+setInterval(() => {
+  for (const [id, peer] of peers) {
+    if (!peer.pc || peer.badSince == null) continue;
+    const wait = PEER_RETRY * Math.min(2 ** peer.retries, 8) * (peer.polite ? 2.5 : 1);
+    if (Date.now() - peer.badSince < wait) continue;
+    peer.retries++;
+    resetPeer(id, true);
+  }
+}, 2000);
 
 async function flushIce(peer) {
   for (const c of peer.pendingIce.splice(0)) {
@@ -356,6 +404,7 @@ async function flushIce(peer) {
 }
 
 socket.on('signal', async ({ from, data }) => {
+  if (data.reset) return resetPeer(from, false);
   const peer = peers.get(from);
   const pc = peer?.pc;
   if (!pc) return;
@@ -400,12 +449,37 @@ socket.on('user-muted', ({ id, muted }) => {
 
 socket.on('notice', toast);
 
-// Sunucu bağlantısı koparsa odaya yeniden girmek en temiz çözüm.
 socket.on('disconnect', (reason) => {
+  if (reason === 'io client disconnect') return; // kendimiz çıktık
   if (reason === 'io server disconnect') toast('Bu oda başka bir sekmede açıldı.');
   else toast('Sunucu bağlantısı koptu, yeniden bağlanılıyor…');
 });
-socket.io.on('reconnect', () => location.reload());
+
+// Sunucu bağlantısı geri gelince odaya sayfa yenilenmeden yeniden girilir. Sunucu aynı
+// sekmeyi (clientId) tanır: "ayrıldı/katıldı" mesajı çıkmaz.
+let rejoining = false;
+async function rejoin() {
+  if (!selfId || rejoining) return; // henüz odaya girilmemişti
+  rejoining = true;
+  const res = await emitAck(15000, 'join', { room: ROOM, name: myName, clientId });
+  rejoining = false;
+  if (!res) {
+    if (socket.connected) setTimeout(rejoin, 2000);
+    return;
+  }
+  if (res.error) return toast(`${res.error} Sayfayı yenileyip tekrar dene.`);
+
+  applyJoin(res);
+  if (!micOn) socket.emit('mute', true);
+  if (recorder) socket.emit('rec', true);
+  if (screenStream) {
+    const r = await emitAck(5000, 'screen:start');
+    if (!r || r.error) stopScreen();
+  }
+  syncClock();
+  toast('Bağlantı geri geldi');
+}
+socket.io.on('reconnect', rejoin);
 
 // ---------- Mikrofon ----------
 
@@ -1155,15 +1229,29 @@ let media = null;        // sunucudan gelen son durum
 let loadedId = null;
 let seeking = false;
 let stalled = 0;
+let buffering = 0;      // sn; video oynarken ne kadardır yükleniyor
+let retriedId = null;   // oynatıcısı baştan kurulmuş son video (her video için bir kez)
+let resizeWatched = false;
+let recreating = null;
 
 function seekPlayer(pos) {
   player.seekTo(pos, true);
   ytTrack.reset = true;
 }
 
+// YouTube betiği yüklenemezse (ağ hatası, engelleyici) sayfa yenilenmeden tekrar denenir.
 const ytReady = new Promise((resolve) => {
-  if (window.YT?.Player) resolve();
-  else window.onYouTubeIframeAPIReady = resolve;
+  if (window.YT?.Player) return resolve();
+  window.onYouTubeIframeAPIReady = resolve;
+  let tries = 0;
+  const timer = setInterval(() => {
+    if (window.YT?.Player) return clearInterval(timer);
+    if (++tries === 3) toast('YouTube yüklenemiyor; reklam engelleyici varsa bu sitede kapatmayı dene.');
+    if (!window.YT?.loaded) window.YT = undefined; // yarım kalan yükleme baştan başlasın
+    const script = document.createElement('script');
+    script.src = 'https://www.youtube.com/iframe_api';
+    document.head.append(script);
+  }, 8000);
 });
 
 function expectedPosition() {
@@ -1183,7 +1271,9 @@ async function createPlayer() {
         onReady: () => {
           playerReady = true;
           player.setVolume(musicVolume());
-          new ResizeObserver(applyQuality).observe($('player-wrap'));
+          appliedVolume = null;
+          if (!resizeWatched) new ResizeObserver(applyQuality).observe($('player-wrap'));
+          resizeWatched = true;
           applyQuality();
           resolve();
         },
@@ -1195,18 +1285,44 @@ async function createPlayer() {
           updatePoster();
           trackBuffering(e.data === YT.PlayerState.BUFFERING);
         },
-        // 100: video yok/özel, 101 ve 150: sahibi YouTube dışında oynatmayı kapatmış,
-        // 5: tarayıcı oynatamadı. Sunucu odanın yarısı bildirince atlar; atlanmadıysa
-        // sorun sadece bu cihazdadır.
+        // 100: video yok/özel, 101 ve 150: sahibi YouTube dışında oynatmayı kapatmış;
+        // bunlarda tekrar denemek boşuna. Diğerleri (5: tarayıcı oynatamadı, 2: bozuk istek)
+        // çoğu zaman geçicidir: oynatıcı bir kez baştan kurulup tekrar denenir.
+        // Sunucu odanın yarısı bildirince atlar; atlanmadıysa sorun sadece bu cihazdadır.
         onError: (e) => {
-          if (!media?.current) return;
-          socket.emit('media:error', { videoId: media.current.videoId, error: e.data }, (skipped) => {
-            if (!skipped) toast(`Bu video sende oynatılamadı (YouTube hata ${e.data}). Sayfayı yenile ya da reklam engelleyiciyi kapatmayı dene.`);
+          const cur = media?.current;
+          if (!cur) return;
+          if (![100, 101, 150].includes(e.data) && retriedId !== cur.videoId) {
+            retriedId = cur.videoId;
+            recreatePlayer();
+            return;
+          }
+          socket.emit('media:error', { videoId: cur.videoId, error: e.data }, (skipped) => {
+            if (!skipped) toast(`Bu video sende oynatılamadı (YouTube hata ${e.data}). Reklam engelleyici varsa kapatmayı dene.`);
           });
         },
       },
     });
   });
+}
+
+// Oynatıcı bozulursa (oynatma hatası, takılı kalma) sayfa yenilenmeden baştan kurulur.
+function recreatePlayer() {
+  if (recreating) return recreating;
+  playerReady = false;
+  loadedId = null;
+  try {
+    player?.destroy();
+  } catch {}
+  $('player')?.remove();
+  const el = document.createElement('div');
+  el.id = 'player';
+  $('player-wrap').prepend(el);
+  recreating = createPlayer().then(() => {
+    recreating = null;
+    applyMedia();
+  });
+  return recreating;
 }
 
 // ---------- Kişiye özel video kalitesi ----------
@@ -1411,7 +1527,24 @@ socket.on('media', (state) => {
 // Düzenli kontrol: kayma düzeltme, zaman çubuğu ve otomatik oynatma engeli.
 setInterval(() => {
   if (!playerReady || !media?.current || loadedId !== media.current.videoId) return;
-  const state = player.getPlayerState();
+  const state = player.getPlayerState?.();
+  if (typeof state !== 'number') return recreatePlayer(); // oynatıcı çerçevesi çökmüş
+  const videoId = media.current.videoId;
+
+  // Video uzun süre yüklenip duruyorsa önce aynı yere tekrar atlanır, olmazsa oynatıcı baştan kurulur.
+  buffering = media.playing && state === YT.PlayerState.BUFFERING ? buffering + 1 : 0;
+  if (buffering === 10) seekPlayer(expectedPosition());
+  else if (buffering >= 25) {
+    buffering = 0;
+    return recreatePlayer();
+  }
+  // Hiç başlamayan video: otomatik oynatma engeli değilse oynatıcı bir kez baştan kurulur.
+  if (stalled >= 20 && state === YT.PlayerState.UNSTARTED && retriedId !== videoId) {
+    retriedId = videoId;
+    stalled = 0;
+    return recreatePlayer();
+  }
+
   const dur = player.getDuration() || 0;
   $('seek').max = dur;
   $('time-dur').textContent = fmtTime(dur);
@@ -1735,7 +1868,7 @@ $('join-form').onsubmit = async (e) => {
 
   setupAudio();
   audioCtx.resume();
-  Sfx.load(audioCtx);
+  const sfxLoaded = Sfx.load(audioCtx);
 
   try {
     localStream = await navigator.mediaDevices.getUserMedia({
@@ -1750,11 +1883,21 @@ $('join-form').onsubmit = async (e) => {
   }
   if (localStream) await setupMic();
 
-  const config = await fetch('/config').then((r) => r.json());
-  iceServers = config.iceServers;
-  setSearchEnabled(config.search);
+  try {
+    const config = await fetch('/config').then((r) => r.json());
+    iceServers = config.iceServers;
+    setSearchEnabled(config.search);
+  } catch {
+    iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+  }
   socket.connect();
-  const res = await new Promise((r) => socket.emit('join', { room: ROOM, name, clientId }, r));
+  // Ücretsiz sunucu uykudaysa uyanması yarım dakikayı bulabilir.
+  const label = btn.textContent;
+  btn.textContent = 'Bağlanıyor…';
+  const res = (await emitAck(45000, 'join', { room: ROOM, name, clientId })) ?? {
+    error: 'Sunucuya bağlanılamadı. İnternetini kontrol edip tekrar dene.',
+  };
+  btn.textContent = label;
 
   if (res.error) {
     socket.disconnect();
@@ -1765,7 +1908,6 @@ $('join-form').onsubmit = async (e) => {
     return;
   }
 
-  selfId = res.id;
   $('join-screen').hidden = true;
   $('room-screen').hidden = false;
   if (secret) {
@@ -1781,23 +1923,35 @@ $('join-form').onsubmit = async (e) => {
   renderPeopleCount();
   startUsageMeter();
 
+  applyJoin(res);
+  sfxLoaded.then(() => Sfx.join(audioCtx, sfxBus));
+
+  // YouTube yüklenemese de oda çalışır; oynatıcı hazır olunca video başlar.
+  await Promise.all([syncClock(), createPlayer()]);
+  applyMedia();
+};
+
+// Sunucudan gelen oda durumunu uygular: ilk girişte ve bağlantı kopup geri gelince.
+function applyJoin(res) {
+  selfId = res.id;
+  for (const id of [...peers.keys()]) removePeer(id);
   // Bağlantıları hemen kur: odadakiler de bize teklif gönderiyor, gecikirsek kaybolur.
   for (const p of res.peers) {
     addPeer(p.id, p.name, p.muted).recording = p.recording;
     createPc(p.id);
   }
   sharerId = res.sharer;
+  renderScreen();
   renderRecBanner();
+  $('chat-list').replaceChildren();
+  $('chat-empty').hidden = false;
   res.chat.forEach(renderChatMessage);
   mergeHistory([...loadLocalHistory(), ...res.history]);
   setCustomSfx(res.customSfx);
-
-  await Promise.all([syncClock(), createPlayer()]);
-
-  media ||= res.media;
+  media = res.media;
   renderQueue();
   applyMedia();
-};
+}
 
 const inviteLink = () => (secret ? `${location.origin}/#gizli=${encodeURIComponent(secret)}` : location.origin);
 
@@ -1810,8 +1964,11 @@ $('copy-link').onclick = async () => {
   }
 };
 
+// Çıkış sesi bitsin diye sayfa biraz bekleyip yenilenir.
 $('leave').onclick = () => {
-  location.reload();
+  socket.disconnect();
+  Sfx.leave(audioCtx, sfxBus);
+  setTimeout(() => location.reload(), 350);
 };
 
 // Sekme kapanınca/yenilenince sunucuya hemen haber ver.
