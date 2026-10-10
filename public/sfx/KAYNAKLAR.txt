@@ -17,5 +17,5 @@ Ba dum tss - Web Audio ile cihazda üretilir (kayıt yok).
 
 CC BY 3.0 lisansı: https://creativecommons.org/licenses/by/3.0/
 
-Giriş ve çıkış bildirimi (chime-in, chime-out) - bu proje için sentezlendi (yumuşak çan,
-         iki nota: Mi5-Si5 yükselen / Si5-Mi5 alçalan, hafif oda yankısı).
+Giriş ve çıkış bildirimi (marimba-in, marimba-out) - bu proje için sentezlendi (marimba,
+         üç nota: Do5-Mi5-Sol5 yükselen / Sol5-Mi5-Do5 alçalan, hafif oda yankısı).
