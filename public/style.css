@@ -153,6 +153,26 @@ button.off:hover { background: #ff7482; }
 }
 .player-wrap iframe, #player { position: absolute; inset: 0; width: 100%; height: 100%; }
 .player-shield { position: absolute; inset: 0; }
+#x-frame { border: 0; background: #000; }
+.player-wrap.x-mode #player { visibility: hidden; }
+/* İleri/geri sarma: basılı tutunca biriken süre */
+.seek-hint {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .6);
+  color: #fff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .25s;
+}
+.seek-hint.show { opacity: 1; transition: none; }
+.seek-hint.back { left: 8%; }
+.seek-hint.fwd { right: 8%; }
 /* Sadece ses: oynatıcı görünmez ama çalmaya devam eder. Tarayıcı oynatmayı engellediyse
    başlatma düğmesi için kapak yine görünür. */
 .player-wrap.audio-only:not(:has(#poster:not([hidden]))) { height: 0; border: 0; }

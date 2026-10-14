@@ -15,6 +15,8 @@
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M6 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L7.5 3.64A1 1 0 0 0 6 4.5Z" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1.2" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" rx="1.2" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-skip" viewBox="0 0 24 24"><path d="M5 5.2v13.6a1 1 0 0 0 1.55.83l9.6-6.8a1 1 0 0 0 0-1.66l-9.6-6.8A1 1 0 0 0 5 5.2Z" fill="currentColor" stroke="none"/><path d="M19 5v14"/></symbol>
+    <symbol id="i-back5" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 2.64-6.36L3 8.3"/><path d="M3 3v5.3h5.3"/><text x="12" y="15.6" text-anchor="middle" font-size="9.5" font-weight="700" font-family="system-ui, sans-serif" fill="currentColor" stroke="none">5</text></symbol>
+    <symbol id="i-fwd5" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8.3"/><path d="M21 3v5.3h-5.3"/><text x="12" y="15.6" text-anchor="middle" font-size="9.5" font-weight="700" font-family="system-ui, sans-serif" fill="currentColor" stroke="none">5</text></symbol>
     <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6a1.4 1.4 0 0 1-1 .4H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.36 18.36a9 9 0 0 0 0-12.72"/></symbol>
     <symbol id="i-volume-x" viewBox="0 0 24 24"><path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6a1.4 1.4 0 0 1-1 .4H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></symbol>
     <symbol id="i-party" viewBox="0 0 24 24"><path d="M5.8 11.3 2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11-.11.7-.72 1.22-1.43 1.22H17"/><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98C9.52 4.9 9 5.52 9 6.23V7"/><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z"/></symbol>
@@ -82,16 +84,19 @@
 
         <div id="player-wrap" class="player-wrap">
           <div id="player"></div>
+          <!-- X videoları: referer gönderilmeyen ayrı bir çerçevede oynar (X başka sitelerden gelen isteği reddediyor) -->
+          <iframe id="x-frame" title="X videosu" hidden></iframe>
           <!-- YouTube'un kendi tıklamalarını engeller; kontrol bizim butonlarda -->
           <div class="player-shield"></div>
           <div id="player-empty" class="player-empty">
             <div>
               <svg class="ic"><use href="#i-music"></use></svg>
               <p>Henüz bir şey çalmıyor</p>
-              <p class="muted small">Aşağıdan şarkı ara ya da YouTube linki yapıştır.</p>
+              <p class="muted small">Aşağıdan şarkı ara ya da YouTube veya X linki yapıştır.</p>
             </div>
           </div>
           <!-- Video başlamamışken YouTube'un tıklanamayan kapağı yerine bizim kapağımız -->
+          <div id="seek-hint" class="seek-hint" aria-live="polite"></div>
           <div id="poster" class="poster" hidden>
             <img id="poster-img" alt="">
             <button id="poster-play" class="poster-play"></button>
@@ -108,7 +113,9 @@
             <div id="now-reactions" class="reactions"></div>
           </div>
           <div class="controls">
+            <button id="back5" class="icon ghost" title="5 sn geri (←)"><svg class="ic"><use href="#i-back5"></use></svg></button>
             <button id="play-toggle" class="icon round" title="Oynat / Duraklat"><svg class="ic"><use href="#i-play"></use></svg></button>
+            <button id="fwd5" class="icon ghost" title="5 sn ileri (→)"><svg class="ic"><use href="#i-fwd5"></use></svg></button>
             <button id="next" class="icon ghost" title="Sonraki"><svg class="ic"><use href="#i-skip"></use></svg></button>
             <span id="time-cur" class="time">0:00</span>
             <input id="seek" type="range" min="0" max="0" step="0.1" value="0" aria-label="Konum">
@@ -181,7 +188,7 @@
               <ol id="search-results" class="queue"></ol>
             </div>
             <ol id="queue" class="queue"></ol>
-            <p id="queue-empty" class="muted small empty">Sıra boş. Yukarıya bir YouTube linki yapıştır.</p>
+            <p id="queue-empty" class="muted small empty">Sıra boş. Yukarıya bir YouTube ya da X linki yapıştır.</p>
           </div>
 
           <div id="history-view" hidden>

@@ -7,6 +7,7 @@ const { Server } = require('socket.io');
 const PORT = process.env.PORT || 3030;
 const MAX_USERS = 6;
 const VIDEO_ID = /^[\w-]{11}$/;
+const TWEET_ID = /^x:(\d{1,25})$/; // X (Twitter) postu; videoId olarak "x:<post no>" tutulur
 const SFX_IDS = new Set(['clap', 'rimshot', 'ding', 'sad', 'tada', 'boom']);
 const SFX_COOLDOWN = 600; // ms; efekt spam'ini engeller
 const CUSTOM_SFX_MAX = 12;               // odadaki en fazla özel efekt; dolunca en eski silinir
@@ -223,6 +224,8 @@ function itemView(item) {
     id: item.id,
     videoId: item.videoId,
     title: item.title,
+    thumb: item.thumb,
+    sources: item.sources,
     by: item.by,
     likes: names(item.likes),
     dislikes: names(item.dislikes),
@@ -262,6 +265,34 @@ async function fetchTitle(videoId) {
   }
 }
 
+// X postundaki ilk videoyu FxTwitter'ın herkese açık API'siyle buluruz (giriş gerektirmez).
+// Kaynaklar düşük kaliteden yükseğe sıralı mp4'ler; istemci kalite ayarına göre seçer.
+async function fetchTweet(id) {
+  try {
+    const res = await fetch(`https://api.fxtwitter.com/status/${id}`, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    const { tweet } = await res.json();
+    const video = tweet?.media?.videos?.[0];
+    if (!video) return null;
+    const mp4 = (video.formats || video.variants || [])
+      .filter((f) => f.container === 'mp4' || /\.mp4(\?|$)/.test(f.url || ''))
+      .map((f) => ({ url: f.url, bitrate: f.bitrate || 0 }));
+    const sources = (mp4.length ? mp4 : [{ url: video.url, bitrate: 0 }])
+      .filter((f) => /^https:\/\/video\.twimg\.com\//.test(f.url))
+      .sort((a, b) => a.bitrate - b.bitrate);
+    if (!sources.length) return null;
+    const text = (tweet.text || '').replace(/\s+/g, ' ').trim();
+    const name = tweet.author?.screen_name ? `@${tweet.author.screen_name}` : 'X';
+    return {
+      title: text ? `${name}: ${text.length > 90 ? `${text.slice(0, 90)}…` : text}` : `${name} videosu`,
+      thumb: video.thumbnail_url || null,
+      sources,
+    };
+  } catch {
+    return null;
+  }
+}
+
 const customSfxList = (room) => [...room.customSfx].map(([id, fx]) => ({ id, label: fx.label, by: fx.by }));
 
 // Giriş/çıkış sohbete yazılır. Sayfayı yenileyen kişi için iki mesaj da yazılmasın diye
@@ -293,7 +324,7 @@ function setCurrent(room, item) {
   room.current = item || null;
   setPlayback(room, Boolean(room.current), 0);
   if (!item) return;
-  const entry = { videoId: item.videoId, title: item.title, by: item.by, playedAt: Date.now() };
+  const entry = { videoId: item.videoId, title: item.title, thumb: item.thumb, by: item.by, playedAt: Date.now() };
   room.history.push(entry);
   if (room.history.length > PLAY_HISTORY) room.history.shift();
   io.to(room.code).emit('history:add', entry);
@@ -451,13 +482,22 @@ io.on('connection', (socket) => {
   });
 
   socket.on('media:add', async (videoId) => {
-    if (!code || !VIDEO_ID.test(videoId)) return;
+    if (!code || typeof videoId !== 'string') return;
+    const tweetId = videoId.match(TWEET_ID)?.[1];
+    if (!tweetId && !VIDEO_ID.test(videoId)) return;
     const roomCode = code;
     const by = getRoom(roomCode).users.get(socket.id).name;
-    const title = (await fetchTitle(videoId)) || videoId;
+    let info;
+    if (tweetId) {
+      info = await fetchTweet(tweetId);
+      if (!info) return socket.emit('notice', 'Bu X postunda oynatılabilir video bulunamadı.');
+    } else {
+      info = { title: (await fetchTitle(videoId)) || videoId };
+    }
     if (!rooms.has(roomCode)) return;
     const room = getRoom(roomCode);
-    const item = { id: nextItemId++, videoId, title, by, likes: new Map(), dislikes: new Map(), reactions: new Map() };
+    const { title, thumb = null, sources = null } = info;
+    const item = { id: nextItemId++, videoId, title, thumb, sources, by, likes: new Map(), dislikes: new Map(), reactions: new Map() };
     if (room.current) {
       room.queue.push(item);
     } else {

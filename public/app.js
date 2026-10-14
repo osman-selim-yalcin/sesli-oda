@@ -66,11 +66,18 @@ function fmtTime(sec) {
   return h ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
 }
 
+const X_HOSTS = /(^|\.)(twitter|x|fxtwitter|vxtwitter|fixupx|fixvx)\.com$/;
+const isX = (videoId) => Boolean(videoId?.startsWith('x:'));
+
 function parseVideoId(input) {
   input = input.trim();
   if (/^[\w-]{11}$/.test(input)) return input;
   try {
     const url = new URL(input);
+    if (X_HOSTS.test(url.hostname)) {
+      const post = url.pathname.match(/\/status(?:es)?\/(\d{1,25})/)?.[1];
+      return post ? `x:${post}` : null;
+    }
     const id = /(^|\.)youtu\.be$/.test(url.hostname)
       ? url.pathname.slice(1, 12)
       : /(^|\.)youtube\.com$/.test(url.hostname)
@@ -685,7 +692,7 @@ function renderHistory() {
         <div class="muted small"></div>
       </div>
       <button class="sm">${icon('plus')}Tekrar ekle</button>`;
-    li.prepend(thumb(h.videoId));
+    li.prepend(thumb(h.videoId, h.thumb));
     li.querySelector('.q-title').textContent = h.title;
     const when = new Date(h.playedAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     li.querySelector('.small').textContent = `${h.by} ekledi · ${when}`;
@@ -706,7 +713,7 @@ socket.on('history:add', (entry) => mergeHistory([entry]));
 $('history-playlist').onclick = () => {
   const ids = [];
   for (const h of [...playHistory].reverse()) {
-    if (!ids.includes(h.videoId)) ids.push(h.videoId);
+    if (!isX(h.videoId) && !ids.includes(h.videoId)) ids.push(h.videoId);
     if (ids.length === PLAYLIST_LIMIT) break;
   }
   ids.reverse();
@@ -788,7 +795,7 @@ function renderChatMessage({ from, name, text, image, ts, system }) {
   }
   li.append(makeAvatar(name), content);
 
-  // Mesajda YouTube linki varsa tek tıkla sıraya eklenebilsin.
+  // Mesajda YouTube ya da X linki varsa tek tıkla sıraya eklenebilsin.
   const videoId = (text.match(URL_RE) || []).map(parseVideoId).find(Boolean);
   if (videoId) {
     const add = document.createElement('button');
@@ -1189,6 +1196,7 @@ function ytQuality() {
 }
 
 function pollYouTube() {
+  if (isX(loadedId)) return;
   if (!playerReady || !loadedId) return;
   const loaded = (player.getVideoLoadedFraction() || 0) * (player.getDuration() || 0);
   if (ytTrack.id !== loadedId || ytTrack.reset) {
@@ -1234,8 +1242,11 @@ let retriedId = null;   // oynatıcısı baştan kurulmuş son video (her video 
 let resizeWatched = false;
 let recreating = null;
 
+// Çalan videonun oynatıcısı: YouTube ya da X (aynı arayüz).
+const P = () => (isX(loadedId) ? xPlayer : player);
+
 function seekPlayer(pos) {
-  player.seekTo(pos, true);
+  P().seekTo(pos, true);
   ytTrack.reset = true;
 }
 
@@ -1277,21 +1288,14 @@ async function createPlayer() {
           applyQuality();
           resolve();
         },
-        onStateChange: (e) => {
-          if (e.data === YT.PlayerState.ENDED && media?.current) {
-            socket.emit('media:ended', media.current.videoId);
-          }
-          if (e.data === YT.PlayerState.PLAYING) stalled = 0;
-          updatePoster();
-          trackBuffering(e.data === YT.PlayerState.BUFFERING);
-        },
+        onStateChange: (e) => !isX(loadedId) && onPlayerState(e.data),
         // 100: video yok/özel, 101 ve 150: sahibi YouTube dışında oynatmayı kapatmış;
         // bunlarda tekrar denemek boşuna. Diğerleri (5: tarayıcı oynatamadı, 2: bozuk istek)
         // çoğu zaman geçicidir: oynatıcı bir kez baştan kurulup tekrar denenir.
         // Sunucu odanın yarısı bildirince atlar; atlanmadıysa sorun sadece bu cihazdadır.
         onError: (e) => {
           const cur = media?.current;
-          if (!cur) return;
+          if (!cur || isX(loadedId)) return;
           if (![100, 101, 150].includes(e.data) && retriedId !== cur.videoId) {
             retriedId = cur.videoId;
             recreatePlayer();
@@ -1303,6 +1307,101 @@ async function createPlayer() {
         },
       },
     });
+  });
+}
+
+function onPlayerState(state) {
+  if (state === YT.PlayerState.ENDED && media?.current) {
+    socket.emit('media:ended', media.current.videoId);
+  }
+  if (state === YT.PlayerState.PLAYING) stalled = 0;
+  updatePoster();
+  trackBuffering(state === YT.PlayerState.BUFFERING);
+}
+
+// ---------- X (Twitter) videoları ----------
+// X, başka sitelerden gelen (referer'lı) video isteklerini reddediyor. Video bu yüzden
+// referer göndermeyen aynı kaynaklı bir çerçevede oynar; YouTube oynatıcısıyla aynı arayüzü sunar.
+
+let xVideo = null;
+let xItem = null; // çerçevede yüklü X öğesi (kalite değişince kaynağı yeniden seçmek için)
+
+const xReady = new Promise((resolve) => {
+  const frame = $('x-frame');
+  frame.onload = () => {
+    xVideo = frame.contentDocument.querySelector('video');
+    const report = () => isX(loadedId) && onPlayerState(xPlayer.getPlayerState());
+    for (const ev of ['playing', 'pause', 'waiting', 'ended', 'seeked']) xVideo.addEventListener(ev, report);
+    xVideo.addEventListener('error', onXError);
+    appliedVolume = null; // ses seviyesi bir sonraki turda bu oynatıcıya da uygulanır
+    resolve();
+  };
+  frame.srcdoc = `<!doctype html><meta name="referrer" content="no-referrer">
+    <style>html,body{margin:0;height:100%;background:#000;overflow:hidden}video{width:100%;height:100%;display:block}</style>
+    <video playsinline preload="auto"></video>`;
+});
+
+// Kalite ayarına göre mp4 seçilir (kaynaklar düşükten yükseğe sıralı, bit/sn).
+const X_MAX_BITRATE = { auto: 2500000, medium: 1000000, low: 0 };
+
+function xSource(item) {
+  const mode = $('audio-only').checked ? 'low' : $('quality').value;
+  const max = X_MAX_BITRATE[mode] ?? X_MAX_BITRATE.auto;
+  const fit = item.sources.filter((s) => s.bitrate <= max);
+  return (fit.at(-1) || item.sources[0]).url;
+}
+
+const xPlayer = {
+  load(item, pos, play) {
+    xItem = item;
+    xVideo.src = xSource(item);
+    xVideo.currentTime = pos;
+    if (play) this.playVideo();
+  },
+  // Kalite değişince kaynak değişir; konum ve oynatma durumu korunur.
+  applySource() {
+    if (!xItem || !xVideo.src) return;
+    const url = xSource(xItem);
+    if (xVideo.src === url) return;
+    const pos = xVideo.currentTime;
+    const play = !xVideo.paused;
+    xVideo.src = url;
+    xVideo.currentTime = pos;
+    if (play) this.playVideo();
+  },
+  getPlayerState() {
+    const S = YT.PlayerState;
+    if (!xVideo?.getAttribute('src') || xVideo.error) return S.UNSTARTED;
+    if (xVideo.ended) return S.ENDED;
+    if (xVideo.paused) return xVideo.played.length ? S.PAUSED : S.CUED;
+    if (xVideo.readyState < 3 || xVideo.seeking) return S.BUFFERING;
+    return S.PLAYING;
+  },
+  getCurrentTime: () => xVideo?.currentTime || 0,
+  getDuration: () => (Number.isFinite(xVideo?.duration) ? xVideo.duration : 0),
+  seekTo: (pos) => (xVideo.currentTime = pos),
+  playVideo: () => xVideo.play().catch(() => {}), // otomatik oynatma engeli: kapak gösterilir
+  pauseVideo: () => xVideo.pause(),
+  stopVideo() {
+    xItem = null;
+    xVideo.pause();
+    xVideo.removeAttribute('src');
+    xVideo.load();
+  },
+  setVolume: (vol) => xVideo && (xVideo.volume = vol / 100),
+};
+
+// Bozuk bağlantı ya da geçici ağ hatasında kaynak bir kez yeniden yüklenir.
+function onXError() {
+  const cur = media?.current;
+  if (!cur || !isX(loadedId) || cur.videoId !== loadedId || !xVideo.getAttribute('src')) return;
+  if (retriedId !== cur.videoId) {
+    retriedId = cur.videoId;
+    xPlayer.load(cur, expectedPosition(), media.playing);
+    return;
+  }
+  socket.emit('media:error', { videoId: cur.videoId }, (skipped) => {
+    if (!skipped) toast('Bu X videosu sende oynatılamadı.');
   });
 }
 
@@ -1333,6 +1432,7 @@ function recreatePlayer() {
 const QUALITY_PIXELS = { medium: [640, 360], low: [256, 144] }; // gerçek ekran pikseli
 
 function applyQuality() {
+  if (isX(loadedId) && xVideo) xPlayer.applySource();
   const iframe = player?.getIframe?.();
   if (!iframe) return;
   // Sadece seste görüntü görünmez; en düşük kalite yeterli, veri de az gider.
@@ -1407,6 +1507,7 @@ socket.on('video-state', ({ id, state }) => {
 
 function applyMedia() {
   if (!playerReady || !media) return;
+  if (isX(media.current?.videoId) && !xVideo) return void xReady.then(applyMedia);
   const cur = media.current;
 
   $('player-empty').hidden = Boolean(cur);
@@ -1416,28 +1517,35 @@ function applyMedia() {
   setIcon($('play-toggle'), media.playing ? 'pause' : 'play');
 
   if (!cur) {
-    if (loadedId) player.stopVideo();
+    if (loadedId) P().stopVideo();
     loadedId = null;
+    $('player-wrap').classList.remove('x-mode');
+    $('x-frame').hidden = true;
     updatePoster();
     return;
   }
 
   const pos = expectedPosition();
   if (cur.videoId !== loadedId) {
+    // YouTube'dan X'e (ya da tersi) geçerken eski oynatıcı durdurulur.
+    if (loadedId && isX(loadedId) !== isX(cur.videoId)) P().stopVideo();
     loadedId = cur.videoId;
     ytTrack.loaded = pos;
-    if (media.playing) player.loadVideoById({ videoId: cur.videoId, startSeconds: pos });
+    $('player-wrap').classList.toggle('x-mode', isX(cur.videoId));
+    $('x-frame').hidden = !isX(cur.videoId);
+    if (isX(cur.videoId)) xPlayer.load(cur, pos, media.playing);
+    else if (media.playing) player.loadVideoById({ videoId: cur.videoId, startSeconds: pos });
     else player.cueVideoById({ videoId: cur.videoId, startSeconds: pos });
     return;
   }
 
-  const state = player.getPlayerState();
+  const state = P().getPlayerState();
   if (media.playing) {
-    if (Math.abs(player.getCurrentTime() - pos) > DRIFT_LIMIT) seekPlayer(pos);
-    if (state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.BUFFERING) player.playVideo();
+    if (Math.abs(P().getCurrentTime() - pos) > DRIFT_LIMIT) seekPlayer(pos);
+    if (state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.BUFFERING) P().playVideo();
   } else {
-    if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) player.pauseVideo();
-    if (Math.abs(player.getCurrentTime() - pos) > 0.5) seekPlayer(pos);
+    if (state === YT.PlayerState.PLAYING || state === YT.PlayerState.BUFFERING) P().pauseVideo();
+    if (Math.abs(P().getCurrentTime() - pos) > 0.5) seekPlayer(pos);
   }
 }
 
@@ -1483,12 +1591,12 @@ function fillReactions(container, item) {
 }
 
 // Küçük önizleme (YouTube'un en küçük resmi, ~3 KB; görünür olunca yüklenir).
-function thumb(videoId) {
+function thumb(videoId, src) {
   const img = document.createElement('img');
   img.className = 'thumb';
   img.loading = 'lazy';
   img.alt = '';
-  img.src = `https://i.ytimg.com/vi/${videoId}/default.jpg`;
+  img.src = isX(videoId) ? src || '' : `https://i.ytimg.com/vi/${videoId}/default.jpg`;
   return img;
 }
 
@@ -1506,7 +1614,7 @@ function renderQueue() {
       </div>
       <button data-act="play" class="icon sm ghost" title="Şimdi oynat">${icon('play')}</button>
       <button data-act="remove" class="icon sm ghost" title="Sıradan çıkar">${icon('x')}</button>`;
-    li.prepend(thumb(item.videoId));
+    li.prepend(thumb(item.videoId, item.thumb));
     li.querySelector('.q-title').textContent = item.title;
     li.querySelector('.small').textContent = `${item.by} ekledi`;
     fillReactions(li.querySelector('.reactions'), item);
@@ -1527,7 +1635,7 @@ socket.on('media', (state) => {
 // Düzenli kontrol: kayma düzeltme, zaman çubuğu ve otomatik oynatma engeli.
 setInterval(() => {
   if (!playerReady || !media?.current || loadedId !== media.current.videoId) return;
-  const state = player.getPlayerState?.();
+  const state = P().getPlayerState?.();
   if (typeof state !== 'number') return recreatePlayer(); // oynatıcı çerçevesi çökmüş
   const videoId = media.current.videoId;
 
@@ -1536,6 +1644,7 @@ setInterval(() => {
   if (buffering === 10) seekPlayer(expectedPosition());
   else if (buffering >= 25) {
     buffering = 0;
+    if (isX(videoId)) return xPlayer.load(media.current, expectedPosition(), true);
     return recreatePlayer();
   }
   // Hiç başlamayan video: otomatik oynatma engeli değilse oynatıcı bir kez baştan kurulur.
@@ -1545,22 +1654,22 @@ setInterval(() => {
     return recreatePlayer();
   }
 
-  const dur = player.getDuration() || 0;
+  const dur = P().getDuration() || 0;
   $('seek').max = dur;
   $('time-dur').textContent = fmtTime(dur);
   if (!seeking) {
-    $('seek').value = player.getCurrentTime();
-    $('time-cur').textContent = fmtTime(player.getCurrentTime());
+    $('seek').value = P().getCurrentTime();
+    $('time-cur').textContent = fmtTime(P().getCurrentTime());
   }
 
   if (media.playing && state === YT.PlayerState.PLAYING) {
-    if (Math.abs(player.getCurrentTime() - expectedPosition()) > DRIFT_LIMIT) {
+    if (Math.abs(P().getCurrentTime() - expectedPosition()) > DRIFT_LIMIT) {
       seekPlayer(expectedPosition());
     }
     stalled = 0;
   } else if (media.playing && state !== YT.PlayerState.BUFFERING) {
     // Tarayıcı otomatik oynatmayı engellediyse kullanıcıdan tek tık isteriz.
-    player.playVideo();
+    P().playVideo();
     stalled++;
   } else {
     stalled = 0;
@@ -1572,13 +1681,13 @@ setInterval(() => {
 // YouTube kendi kapağını ve tıklanamayan oynat düğmesini gösterir; onun yerine bizimkini koyarız.
 function updatePoster() {
   const cur = media?.current;
-  const state = playerReady ? player.getPlayerState() : null;
+  const state = playerReady ? P().getPlayerState() : null;
   const notStarted = state === YT.PlayerState.UNSTARTED || state === YT.PlayerState.CUED;
   const blocked = media?.playing && stalled >= 3;
   const show = Boolean(cur) && (media.playing ? blocked : notStarted);
   $('poster').hidden = !show;
   if (!show) return;
-  const src = `https://i.ytimg.com/vi/${cur.videoId}/mqdefault.jpg`;
+  const src = isX(cur.videoId) ? cur.thumb || '' : `https://i.ytimg.com/vi/${cur.videoId}/mqdefault.jpg`;
   if ($('poster-img').src !== src) $('poster-img').src = src;
   setIcon($('poster-play'), 'play', media.playing ? 'Senkronize başlatmak için tıkla' : 'Oynat');
 }
@@ -1586,7 +1695,7 @@ function updatePoster() {
 $('poster-play').onclick = () => {
   if (media.playing) {
     seekPlayer(expectedPosition());
-    player.playVideo();
+    P().playVideo();
   } else {
     socket.emit('media:play', media.position);
   }
@@ -1594,11 +1703,85 @@ $('poster-play').onclick = () => {
 
 $('play-toggle').onclick = () => {
   if (!media?.current) return;
-  const pos = player.getCurrentTime();
+  const pos = P().getCurrentTime();
   socket.emit(media.playing ? 'media:pause' : 'media:play', pos);
 };
 
 $('next').onclick = () => socket.emit('media:next');
+
+// ---------- 5 sn ileri/geri ----------
+// YouTube'daki gibi: her basış 5 sn ekler, basılı tutunca birikir. Bırakınca toplam
+// tek seferde herkese gönderilir (her basışta değil), böylece oynatıcılar zıplayıp durmaz.
+
+const NUDGE_STEP = 5;           // sn
+const NUDGE_COMMIT_DELAY = 450; // ms; son basıştan sonra bu kadar beklenip gönderilir
+const NUDGE_REPEAT = 150;       // ms; basılı tutarken tekrar aralığı
+let nudgeBase = null;
+let nudgeTarget = 0;
+let nudgeSteps = 0;
+let nudgeTimer = null;
+let lastNudge = 0;
+
+function nudge(dir) {
+  if (!playerReady || !media?.current || loadedId !== media.current.videoId) return;
+  lastNudge = Date.now();
+  if (nudgeBase === null) {
+    nudgeBase = P().getCurrentTime();
+    nudgeSteps = 0;
+  }
+  nudgeSteps += dir;
+  const dur = P().getDuration();
+  nudgeTarget = Math.max(0, nudgeBase + nudgeSteps * NUDGE_STEP);
+  if (dur) nudgeTarget = Math.min(nudgeTarget, Math.max(0, dur - 1));
+
+  seeking = true;
+  $('seek').value = nudgeTarget;
+  $('time-cur').textContent = fmtTime(nudgeTarget);
+  // YouTube'daki gibi istenen toplam gösterilir (videonun başı/sonu sınırı ayrıca uygulanır).
+  const total = Math.abs(nudgeSteps) * NUDGE_STEP;
+  const hint = $('seek-hint');
+  hint.className = `seek-hint show ${nudgeSteps < 0 ? 'back' : 'fwd'}`;
+  hint.textContent = nudgeSteps < 0 ? `« ${total} sn` : `${total} sn »`;
+
+  clearTimeout(nudgeTimer);
+  nudgeTimer = setTimeout(() => {
+    seeking = false;
+    socket.emit('media:seek', nudgeTarget);
+    nudgeBase = null;
+    hint.classList.remove('show');
+  }, NUDGE_COMMIT_DELAY);
+}
+
+// Düğmeye basılı tutunca kısa bir beklemeden sonra tekrarlar.
+function holdToRepeat(btn, dir) {
+  let delay = null;
+  let repeat = null;
+  const stop = () => {
+    clearTimeout(delay);
+    clearInterval(repeat);
+  };
+  btn.onpointerdown = (e) => {
+    if (e.button !== 0) return;
+    stop();
+    nudge(dir);
+    delay = setTimeout(() => (repeat = setInterval(() => nudge(dir), NUDGE_REPEAT)), 400);
+  };
+  btn.onpointerup = btn.onpointerleave = btn.onpointercancel = stop;
+  btn.onclick = (e) => e.detail === 0 && nudge(dir); // klavyeyle (Enter/Boşluk) basış
+}
+holdToRepeat($('back5'), -1);
+holdToRepeat($('fwd5'), 1);
+
+// Yön tuşları: yazı kutularında ve kaydırıcılarda kendi işini yapar.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+  const t = e.target;
+  if (t.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
+  e.preventDefault();
+  if (e.repeat && Date.now() - lastNudge < NUDGE_REPEAT) return;
+  nudge(e.key === 'ArrowLeft' ? -1 : 1);
+});
 
 $('seek').oninput = () => {
   seeking = true;
@@ -1627,6 +1810,7 @@ setInterval(() => {
   const vol = musicVolume();
   if (vol !== appliedVolume) {
     player.setVolume(vol);
+    xPlayer.setVolume(vol);
     appliedVolume = vol;
   }
 }, 100);
@@ -1766,7 +1950,7 @@ $('add-form').onsubmit = (e) => {
     $('yt-url').value = '';
     return;
   }
-  if (!searchEnabled) return toast('Geçerli bir YouTube linki değil.');
+  if (!searchEnabled) return toast('Geçerli bir YouTube ya da X linki değil.');
   searchYouTube(value);
 };
 
@@ -1775,7 +1959,7 @@ let searchEnabled = false;
 
 function setSearchEnabled(on) {
   searchEnabled = on;
-  $('yt-url').placeholder = on ? 'Şarkı ara ya da YouTube linki yapıştır…' : 'YouTube linki yapıştır…';
+  $('yt-url').placeholder = on ? 'Şarkı ara ya da YouTube / X linki yapıştır…' : 'YouTube ya da X linki yapıştır…';
   $('add-form').querySelector('button').textContent = on ? 'Ara / Ekle' : 'Ekle';
 }
 
