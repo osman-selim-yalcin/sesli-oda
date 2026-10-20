@@ -2438,8 +2438,12 @@ function renderAccount() {
   setProfile(account.name, account.avatar);
   $('account-name').textContent = account.name;
   $('account-avatar').replaceChildren(makeAvatar(account.name));
-  $('avatar-change').textContent = account.avatar ? 'Resmi değiştir' : 'Resim ekle';
-  $('avatar-remove').hidden = !account.avatar;
+  // Ayarlar penceresindeki profil bölümü ve üst çubuktaki küçük avatar
+  $('profile-name').textContent = account.name;
+  $('profile-avatar').replaceChildren(makeAvatar(account.name));
+  $('topbar-avatar').replaceChildren(makeAvatar(account.name));
+  for (const id of ['avatar-change', 'profile-change']) $(id).textContent = account.avatar ? 'Resmi değiştir' : 'Resim ekle';
+  for (const id of ['avatar-remove', 'profile-remove']) $(id).hidden = !account.avatar;
 }
 
 function setAuthMode(mode) {
@@ -2509,7 +2513,8 @@ if (authToken) {
 const pickAvatar = () => $('avatar-file').click();
 $('account-avatar').onclick = pickAvatar;
 $('avatar-change').onclick = pickAvatar;
-$('profile-photo').onclick = pickAvatar;
+$('profile-avatar').onclick = pickAvatar;
+$('profile-change').onclick = pickAvatar;
 
 $('avatar-file').onchange = async () => {
   const file = $('avatar-file').files[0];
@@ -2528,7 +2533,7 @@ $('avatar-file').onchange = async () => {
   toast('Profil resmin güncellendi');
 };
 
-$('avatar-remove').onclick = async () => {
+$('avatar-remove').onclick = $('profile-remove').onclick = async () => {
   const res = await api('DELETE', '/auth/avatar');
   if (res.error) return toast(res.error);
   account.avatar = null;

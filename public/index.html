@@ -103,9 +103,51 @@
           <button id="nav-room" class="top-tab active" role="tab"><svg class="ic"><use href="#i-music"></use></svg>Oda</button>
           <button id="nav-games" class="top-tab" role="tab"><svg class="ic"><use href="#i-trophy"></use></svg>Oyunlar</button>
         </nav>
-        <button id="topbar-now" class="topbar-now ghost sm" title="Odaya dön" hidden></button>
+        <div class="topbar-right">
+          <button id="topbar-now" class="topbar-now ghost sm" title="Odaya dön" hidden></button>
+          <button id="settings-btn" class="topbar-settings ghost" popovertarget="settings-pop" title="Ayarlar ve profil">
+            <span id="topbar-avatar"></span><svg class="ic"><use href="#i-settings"></use></svg>
+          </button>
+        </div>
       </div>
     </header>
+    <div id="settings-pop" class="pop" popover>
+      <div class="profile-row">
+        <button id="profile-avatar" class="account-avatar" title="Profil resmini değiştir"></button>
+        <div class="account-text">
+          <strong id="profile-name"></strong>
+          <div class="account-links small">
+            <button id="profile-change" class="link">Resim ekle</button>
+            <button id="profile-remove" class="link" hidden>Resmi kaldır</button>
+          </div>
+        </div>
+      </div>
+      <h2>Ayarlar</h2>
+      <div class="settings">
+        <label class="check">
+          <input id="duck-toggle" type="checkbox" checked> Biri konuşurken müziği kıs
+        </label>
+        <label class="check">
+          <input id="audio-only" type="checkbox"> Videoyu gizle, sadece ses çalsın
+        </label>
+        <label class="select" id="quality-field">Video kalitesi
+          <select id="quality">
+            <option value="auto">Otomatik</option>
+            <option value="medium">Orta (~360p)</option>
+            <option value="low">Düşük (~144p, veri tasarrufu)</option>
+          </select>
+        </label>
+        <label class="select">Efekt sesi
+          <input id="sfx-vol" type="range" min="0" max="100" value="60">
+        </label>
+        <div class="settings-actions">
+          <button id="copy-link"><svg class="ic"><use href="#i-link"></use></svg>Davet linki</button>
+          <button id="leave" class="danger"><svg class="ic"><use href="#i-logout"></use></svg>Odadan çık</button>
+          <button id="sign-out" class="danger">Hesaptan çık</button>
+        </div>
+        <a href="sfx/KAYNAKLAR.txt" target="_blank" rel="noopener" class="credits">Ses kaynakları</a>
+      </div>
+    </div>
 
     <div class="layout">
       <section class="media">
@@ -162,7 +204,6 @@
               <input id="music-vol" type="range" min="0" max="100" value="70" aria-label="Müzik sesi">
             </label>
             <button id="sfx-open" class="icon ghost" popovertarget="sfx-pop" title="Ses efektleri"><svg class="ic"><use href="#i-party"></use></svg></button>
-            <button id="settings-btn" class="icon ghost" popovertarget="settings-pop" title="Ayarlar"><svg class="ic"><use href="#i-settings"></use></svg></button>
           </div>
         </div>
 
@@ -177,36 +218,6 @@
           </form>
           <p class="muted small sfx-note">Kendi sesini ekle: isim yaz, "Yükle" ile dosya seç. İlk 4 saniyesi alınır.</p>
         </div>
-
-        <div id="settings-pop" class="pop" popover>
-          <h2>Ayarlar</h2>
-          <div class="settings">
-            <label class="check">
-              <input id="duck-toggle" type="checkbox" checked> Biri konuşurken müziği kıs
-            </label>
-            <label class="check">
-              <input id="audio-only" type="checkbox"> Videoyu gizle, sadece ses çalsın
-            </label>
-            <label class="select" id="quality-field">Video kalitesi
-              <select id="quality">
-                <option value="auto">Otomatik</option>
-                <option value="medium">Orta (~360p)</option>
-                <option value="low">Düşük (~144p, veri tasarrufu)</option>
-              </select>
-            </label>
-            <label class="select">Efekt sesi
-              <input id="sfx-vol" type="range" min="0" max="100" value="60">
-            </label>
-            <div class="settings-actions">
-              <button id="profile-photo"><svg class="ic"><use href="#i-image"></use></svg>Profil resmi</button>
-              <button id="copy-link"><svg class="ic"><use href="#i-link"></use></svg>Davet linki</button>
-              <button id="leave" class="danger"><svg class="ic"><use href="#i-logout"></use></svg>Odadan çık</button>
-              <button id="sign-out" class="danger">Hesaptan çık</button>
-            </div>
-            <a href="sfx/KAYNAKLAR.txt" target="_blank" rel="noopener" class="credits">Ses kaynakları</a>
-          </div>
-        </div>
-
 
         <!-- Sıra ve geçmiş -->
         <div class="panel list-panel">

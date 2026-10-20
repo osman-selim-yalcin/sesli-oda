@@ -283,6 +283,7 @@ button.link:hover { background: none; text-decoration: underline; }
 .settings-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .settings-actions button { flex: 1; min-width: 0; padding: 8px 10px; font-size: 14px; white-space: nowrap; }
 .settings-actions .ic { width: 16px; height: 16px; }
+.settings-actions #sign-out { grid-column: 1 / -1; }
 .select { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--muted); white-space: nowrap; }
 .select select { width: auto; min-width: 0; max-width: 60%; padding: 6px 8px; cursor: pointer; text-overflow: ellipsis; }
 .select input[type=range] { width: 140px; }
@@ -352,7 +353,14 @@ button.link:hover { background: none; text-decoration: underline; }
 .top-tab:hover { background: none; color: var(--text); }
 .top-tab:active:not(:disabled) { transform: none; }
 .top-tab.active { color: var(--text); border-bottom-color: var(--accent); }
-.topbar-now { margin-left: auto; max-width: 280px; min-width: 0; color: var(--muted); }
+.topbar-right { margin-left: auto; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.topbar-settings { padding: 4px 8px 4px 4px; gap: 6px; border-radius: 999px; color: var(--muted); flex-shrink: 0; }
+.topbar-settings:hover { color: var(--text); }
+.topbar-settings .avatar { width: 28px; height: 28px; font-size: 13px; }
+#topbar-avatar:empty { display: none; }
+.profile-row { display: flex; align-items: center; gap: 12px; padding: 10px; margin-bottom: 4px; background: var(--panel-2); border-radius: var(--radius-sm); }
+.profile-row .account-avatar .avatar { width: 44px; height: 44px; font-size: 18px; }
+.topbar-now { max-width: 280px; min-width: 0; color: var(--muted); }
 .topbar-now { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .topbar-now .ic { margin-right: 6px; color: var(--accent); }
 
