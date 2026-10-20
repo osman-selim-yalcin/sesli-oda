@@ -1714,10 +1714,11 @@ const xReady = new Promise((resolve) => {
 });
 
 // Kalite ayarına göre mp4 seçilir (kaynaklar düşükten yükseğe sıralı, bit/sn).
-const X_MAX_BITRATE = { auto: 2500000, medium: 1000000, low: 0 };
+// X'in mp4 seçenekleri genelde ~0.3 / 0.8 / 2.2 / 10 Mbps (270p / 480p / 720p / 1080p).
+const X_MAX_BITRATE = { auto: 2500000, 2160: Infinity, 1440: Infinity, 1080: Infinity, 720: 2500000, 480: 1000000, 360: 1000000, 240: 400000, 144: 0 };
 
 function xSource(item) {
-  const mode = $('audio-only').checked ? 'low' : $('quality').value;
+  const mode = $('audio-only').checked ? '144' : $('quality').value;
   const max = X_MAX_BITRATE[mode] ?? X_MAX_BITRATE.auto;
   const fit = item.sources.filter((s) => s.bitrate <= max);
   return (fit.at(-1) || item.sources[0]).url;
@@ -1801,14 +1802,21 @@ function recreatePlayer() {
 // tutup ekranda büyütünce (CSS scale) düşük kaliteye geçer ve daha az veri harcar.
 // Her kişinin ayarı sadece kendi cihazını etkiler.
 
-const QUALITY_PIXELS = { medium: [640, 360], low: [256, 144] }; // gerçek ekran pikseli
+// YouTube kalite seçtirmez, oynatıcının boyutuna göre seçer. Oynatıcıyı istenen kalitenin boyutunda
+// çizip kutuya sığacak şekilde büyütür/küçültürüz (gerçek ekran pikseli). İnternet yetmezse YouTube
+// yine de daha düşüğe inebilir.
+const QUALITY_PIXELS = {
+  2160: [3840, 2160], 1440: [2560, 1440], 1080: [1920, 1080], 720: [1280, 720],
+  480: [854, 480], 360: [640, 360], 240: [426, 240], 144: [256, 144],
+};
+const OLD_QUALITY = { medium: '360', low: '144' }; // eski ayar adları
 
 function applyQuality() {
   if (isX(loadedId) && xVideo) xPlayer.applySource();
   const iframe = player?.getIframe?.();
   if (!iframe) return;
   // Sadece seste görüntü görünmez; en düşük kalite yeterli, veri de az gider.
-  const mode = $('audio-only').checked ? 'low' : $('quality').value;
+  const mode = $('audio-only').checked ? '144' : $('quality').value;
   if (!QUALITY_PIXELS[mode]) {
     iframe.style.width = iframe.style.height = iframe.style.transform = '';
     return;
@@ -1828,7 +1836,9 @@ function applyAudioOnly() {
 }
 
 try {
-  $('quality').value = localStorage.getItem('quality') || 'auto';
+  const saved = localStorage.getItem('quality') || 'auto';
+  $('quality').value = OLD_QUALITY[saved] || saved;
+  if (!$('quality').value) $('quality').value = 'auto';
   $('audio-only').checked = localStorage.getItem('audio-only') === '1';
 } catch {}
 applyAudioOnly();
@@ -1861,7 +1871,7 @@ function trackBuffering(buffering) {
       reportedBuffering = true;
       socket.emit('video-state', 'buffering');
       freezes = freezes.filter((t) => Date.now() - t < 60000).concat(Date.now());
-      if (freezes.length >= 3 && $('quality').value !== 'low' && !$('audio-only').checked && !qualityHintShown) {
+      if (freezes.length >= 3 && Number($('quality').value) > 240 && !$('audio-only').checked && !qualityHintShown) {
         qualityHintShown = true;
         toast('Videon sık donuyor. Ayarlardan "Sadece ses"i ya da düşük kaliteyi dene.');
       }
