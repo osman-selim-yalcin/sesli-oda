@@ -1075,6 +1075,145 @@ $('card-form').onsubmit = async (e) => {
   $('card-text').value = '';
 };
 
+// ---------- Oyun sekmeleri ----------
+
+function showGame(name) {
+  for (const game of ['tier', 'timing']) {
+    $(`game-tab-${game}`).classList.toggle('active', game === name);
+    $(`game-${game}`).hidden = game !== name;
+  }
+}
+$('game-tab-tier').onclick = () => showGame('tier');
+$('game-tab-timing').onclick = () => showGame('timing');
+
+// ---------- Süre tahmini ----------
+// Başlatınca süre ekranda görünmeden sayar; durdurunca geçen süre ve hedeften farkı açılır.
+// Hedef odada herkes için ortak; sonuçlar herkese gider.
+
+const TIMING_TARGETS = [5, 10, 15, 30, 60];
+const TIMING_BOARD = 10;
+let timing = { target: 10, results: [] };
+let timingRun = null;  // { start, target } süre sayarken
+let timingLast = null; // kendi son sonucum { elapsed, target }
+
+const fmtSeconds = (ms) => (ms / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtDiff = (ms) => `${ms >= 0 ? '+' : '−'}${fmtSeconds(Math.abs(ms))} sn`;
+
+// Farka göre yorum ve renk sınıfı
+function timingVerdict(diff) {
+  const abs = Math.abs(diff);
+  if (abs <= 50) return ['Kusursuz!', 'great'];
+  if (abs <= 150) return ['Çok yakın!', 'great'];
+  if (abs <= 400) return ['İyi', 'good'];
+  if (abs <= 1000) return ['Fena değil', 'ok'];
+  return [diff > 0 ? 'Geç kaldın' : 'Erken bıraktın', 'far'];
+}
+
+function timingRow(name, main, sub, cls) {
+  const li = document.createElement('li');
+  li.append(makeAvatar(name));
+  const text = document.createElement('span');
+  text.className = 'timing-name';
+  text.textContent = name;
+  const val = document.createElement('span');
+  val.className = `timing-val ${cls || ''}`;
+  val.textContent = main;
+  li.append(text, val);
+  if (sub) {
+    const small = document.createElement('span');
+    small.className = 'muted small';
+    small.textContent = sub;
+    li.append(small);
+  }
+  return li;
+}
+
+function renderTiming() {
+  $('timing-target').textContent = `${timing.target} sn`;
+  const chips = $('timing-targets');
+  chips.replaceChildren();
+  for (const t of [...TIMING_TARGETS, 'random']) {
+    const b = document.createElement('button');
+    b.className = 'sm' + (t === timing.target ? ' active' : '');
+    b.textContent = t === 'random' ? 'Rastgele' : `${t} sn`;
+    b.disabled = Boolean(timingRun);
+    b.onclick = () => socket.emit('timing:target', t);
+    chips.append(b);
+  }
+
+  const display = $('timing-display');
+  const diffEl = $('timing-diff');
+  display.className = 'timing-display';
+  diffEl.className = 'timing-diff';
+  if (timingRun) {
+    display.textContent = '???';
+    display.classList.add('running');
+    diffEl.textContent = 'Süre sayıyor… Hedefe geldiğini düşününce durdur.';
+  } else if (timingLast) {
+    const diff = timingLast.elapsed - timingLast.target * 1000;
+    const [word, cls] = timingVerdict(diff);
+    display.textContent = `${fmtSeconds(timingLast.elapsed)} sn`;
+    diffEl.textContent = `${fmtDiff(diff)} · ${word}`;
+    diffEl.classList.add(cls);
+  } else {
+    display.textContent = 'Hazır';
+    diffEl.textContent = '';
+  }
+  $('timing-btn').textContent = timingRun ? 'Durdur' : 'Başlat';
+  $('timing-btn').classList.toggle('stop', Boolean(timingRun));
+
+  // En iyiler: bu hedefte herkesin en yakın denemesi
+  const best = new Map();
+  for (const r of timing.results) {
+    if (r.target !== timing.target) continue;
+    const diff = r.elapsed - r.target * 1000;
+    if (!best.has(r.name) || Math.abs(diff) < Math.abs(best.get(r.name).diff)) best.set(r.name, { ...r, diff });
+  }
+  const bestList = $('timing-best');
+  bestList.replaceChildren();
+  [...best.values()].sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff)).slice(0, TIMING_BOARD).forEach((r, i) => {
+    const row = timingRow(r.name, fmtDiff(r.diff), `${fmtSeconds(r.elapsed)} sn`, timingVerdict(r.diff)[1]);
+    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+    bestList.append(row);
+  });
+  if (!best.size) bestList.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Bu hedefte henüz deneme yok.' }));
+
+  const recent = $('timing-recent');
+  recent.replaceChildren();
+  for (const r of timing.results.slice(-TIMING_BOARD).reverse()) {
+    const diff = r.elapsed - r.target * 1000;
+    recent.append(timingRow(r.name, fmtDiff(diff), `${r.target} sn hedef`, timingVerdict(diff)[1]));
+  }
+  if (!timing.results.length) recent.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz deneme yok.' }));
+}
+
+function toggleTiming() {
+  if (!timingRun) {
+    timingRun = { start: performance.now(), target: timing.target };
+    timingLast = null;
+  } else {
+    const elapsed = Math.round(performance.now() - timingRun.start); // sunucu da ms'ye yuvarlar
+    timingLast = { elapsed, target: timingRun.target };
+    timingRun = null;
+    socket.emit('timing:result', { elapsed, target: timingLast.target });
+  }
+  renderTiming();
+}
+$('timing-btn').onclick = toggleTiming;
+
+// Boşluk tuşu: oyun açıkken başlat/durdur (yazı alanındayken ya da başka düğme seçiliyken değil).
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space' || e.repeat || $('games').hidden || $('game-timing').hidden) return;
+  if (e.target.closest?.('input, textarea, select, button, [contenteditable=""], [contenteditable="true"]')) return;
+  e.preventDefault();
+  toggleTiming();
+});
+
+socket.on('timing', (state) => {
+  timing = state;
+  renderTiming();
+});
+
 // Silme düğmeleri iki aşamalı: ilk basışta onay ister, birkaç saniye içinde ikinci basış uygular.
 function confirmButton(btn, ask, run) {
   const label = btn.textContent;
@@ -2671,6 +2810,8 @@ function applyJoin(res) {
   profiles = res.profiles;
   for (const el of document.querySelectorAll('.avatar')) fillAvatar(el);
   setTierLists(res.tierLists);
+  timing = res.timing;
+  renderTiming();
   media = res.media;
   renderQueue();
   applyMedia();

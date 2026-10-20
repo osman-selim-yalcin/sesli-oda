@@ -34,6 +34,11 @@ const CARD_TEXT_MAX = 60;
 const CARD_IMAGE_MAX_BYTES = 200 * 1024; // istemci küçültüp gönderir (~20-40 KB)
 const CARD_COOLDOWN = 300;     // ms
 const DEFAULT_TIERS = ['S', 'A', 'B', 'C', 'D'];
+const TIMING_TARGET_MIN = 3;   // sn; süre tahmini oyununun hedefi
+const TIMING_TARGET_MAX = 120;
+const TIMING_RANDOM = [5, 30]; // "rastgele" hedef bu aralıktan
+const TIMING_RESULTS = 100;    // odada tutulan son deneme sayısı
+const TIMING_COOLDOWN = 1000;  // ms
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
 const IMAGE_COOLDOWN = 2000; // ms
 // Dosyanın ilk baytlarıyla gerçekten resim olduğunu doğrularız (uzantıya/türe güvenmeyiz).
@@ -224,6 +229,7 @@ function getRoom(code) {
       history: histories.get(code),
       customSfx: customSfxByRoom.get(code),
       tierLists: tierListsByRoom.get(code),
+      timing: { target: 10, results: [] }, // süre tahmini: sadece hafızada
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -459,7 +465,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -805,6 +811,34 @@ io.on('connection', (socket) => {
     const at = Number.isInteger(index) ? Math.max(0, Math.min(index, target.length)) : target.length;
     target.splice(at, 0, cardId);
   }));
+
+  // ---------- Süre tahmini ----------
+  // Süreyi oyuncunun tarayıcısı ölçer; sunucu sadece sonuçları odaya dağıtır.
+
+  socket.on('timing:target', (target) => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (target === 'random') {
+      const [min, max] = TIMING_RANDOM;
+      target = min + Math.floor(Math.random() * (max - min + 1));
+    }
+    if (!Number.isInteger(target) || target < TIMING_TARGET_MIN || target > TIMING_TARGET_MAX) return;
+    room.timing.target = target;
+    io.to(code).emit('timing', room.timing);
+    socket.to(code).emit('notice', `${room.users.get(socket.id).name} süre tahmini hedefini ${target} sn yaptı`);
+  });
+
+  let lastTiming = 0;
+  socket.on('timing:result', ({ elapsed, target } = {}) => {
+    if (!code || Date.now() - lastTiming < TIMING_COOLDOWN) return;
+    if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > 10 * 60 * 1000) return;
+    if (!Number.isInteger(target) || target < TIMING_TARGET_MIN || target > TIMING_TARGET_MAX) return;
+    lastTiming = Date.now();
+    const room = getRoom(code);
+    room.timing.results.push({ name: room.users.get(socket.id).name, target, elapsed: Math.round(elapsed), at: Date.now() });
+    if (room.timing.results.length > TIMING_RESULTS) room.timing.results.shift();
+    io.to(code).emit('timing', room.timing);
+  });
 
   socket.on('disconnect', () => {
     if (!code) return;

@@ -371,6 +371,33 @@ button.link:hover { background: none; text-decoration: underline; }
 .tier-title { font-weight: 600; }
 .tierlist-item { cursor: pointer; }
 
+/* Süre tahmini */
+.timing { display: grid; justify-items: center; gap: 10px; padding: 6px 0 4px; text-align: center; }
+.timing-target { display: grid; justify-items: center; gap: 4px; }
+.timing-target strong { font-size: 22px; }
+.timing-targets { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 4px; }
+.timing-targets button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.timing-display { font-size: 64px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; margin-top: 10px; }
+.timing-display.running { color: var(--accent); animation: timing-pulse 1.2s ease-in-out infinite; }
+@keyframes timing-pulse { 50% { opacity: .45; } }
+.timing-diff { min-height: 1.5em; font-weight: 600; color: var(--muted); }
+.timing-diff.great, .timing-val.great { color: var(--speak); }
+.timing-diff.good, .timing-val.good { color: #9be15d; }
+.timing-diff.ok, .timing-val.ok { color: #ffbf5f; }
+.timing-diff.far, .timing-val.far { color: var(--danger); }
+.timing-btn { min-width: 200px; padding: 16px 28px; font-size: 18px; border-radius: 999px; }
+.timing-btn.stop { background: var(--danger); border-color: var(--danger); }
+.timing-hint { margin: 0; }
+.timing-boards { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: left; }
+.timing-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.timing-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel-2); border-radius: var(--radius-sm); min-width: 0; }
+.timing-list li.muted { background: none; padding: 6px 0; }
+.timing-list .avatar { width: 24px; height: 24px; font-size: 11px; }
+.timing-rank { width: 16px; text-align: center; font-weight: 700; color: var(--muted); font-size: 13px; }
+.timing-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.timing-val { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.timing-list .small { white-space: nowrap; }
+
 /* Tier list tahtası */
 .tier-board { display: grid; gap: 4px; }
 .tier-row { display: flex; align-items: stretch; min-height: 84px; background: var(--panel-2); border-radius: var(--radius-sm); overflow: hidden; }
@@ -702,6 +729,8 @@ details.usage[open] summary span::after { content: '▾'; }
   .tier-card { width: 64px; height: 64px; }
   .tier-row { min-height: 72px; }
   .tier-row-actions { opacity: 1; }
+  .timing-boards { grid-template-columns: minmax(0, 1fr); }
+  .timing-display { font-size: 52px; }
   .side .chat { height: 420px; flex: none; }
   /* Telefonda araç çubuğu (mikrofon vs.) ekranın altında hep görünür */
   .toolbar {

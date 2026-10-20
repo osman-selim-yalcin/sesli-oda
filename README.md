@@ -18,6 +18,8 @@ En fazla 6 kişilik sesli sohbet + senkronize YouTube izleme/dinleme.
 - Oyunlar (üst çubuktaki sekme; oyundayken müzik ve sesli sohbet sürer). İlk oyun tier list: liste
   oluşturulur, yazılı ya da resimli kartlar eklenir, herkes kartları ortak tahtada satırlara sürükler.
   Satırlar eklenip silinebilir, isimleri değiştirilebilir.
+  Süre tahmini: herkes için ortak bir hedef süre var; sayaç görünmeden başlat/durdur, hedefe en
+  yakın olan sıralamada öne çıkar (sonuçlar sadece hafızada).
 - Ses kaydı: müzik dahil ya da sadece konuşmalar, MP3 veya WebM olarak iner. Kayıt sadece kaydedenin
   bilgisayarına iner, sunucuya gitmez.
 

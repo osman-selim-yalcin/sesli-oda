@@ -266,8 +266,10 @@
         <div class="panel games-panel">
           <div class="tabs" role="tablist">
             <button id="game-tab-tier" class="tab active" role="tab">Tier list</button>
+            <button id="game-tab-timing" class="tab" role="tab">Süre tahmini</button>
           </div>
 
+          <div id="game-tier">
           <div id="tier-home">
             <form id="tierlist-new" class="add">
               <input id="tierlist-title" maxlength="60" placeholder="Yeni tier list adı (ör. En iyi filmler)" autocomplete="off">
@@ -297,6 +299,30 @@
               <button type="submit" class="primary">Kart ekle</button>
             </form>
             <p class="muted small">Kartları sürükleyip bir satıra bırak. Telefonda karta dokun, sonra satıra dokun. Satır adına tıklayıp değiştirebilirsin.</p>
+          </div>
+          </div>
+
+          <!-- Süre tahmini: sayaç görünmeden hedef süreyi tutturmaya çalış -->
+          <div id="game-timing" class="timing" hidden>
+            <div class="timing-target">
+              <span class="muted small">Hedef</span>
+              <strong id="timing-target"></strong>
+              <div id="timing-targets" class="timing-targets"></div>
+            </div>
+            <div id="timing-display" class="timing-display">Hazır</div>
+            <div id="timing-diff" class="timing-diff"></div>
+            <button id="timing-btn" class="primary timing-btn">Başlat</button>
+            <p class="muted small timing-hint">Boşluk tuşuyla da başlatıp durdurabilirsin.</p>
+            <div class="timing-boards">
+              <div>
+                <h2>Bu hedefte en iyiler</h2>
+                <ol id="timing-best" class="timing-list"></ol>
+              </div>
+              <div>
+                <h2>Son denemeler</h2>
+                <ol id="timing-recent" class="timing-list"></ol>
+              </div>
+            </div>
           </div>
         </div>
       </section>
