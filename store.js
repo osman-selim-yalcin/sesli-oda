@@ -42,6 +42,43 @@ async function upsert(room, kind, data) {
   await check(res, 'yazma');
 }
 
+// Hesap ve oturum tabloları için: hata olursa fırlatır, çağıran karar verir.
+// filter PostgREST biçiminde, ör. "id=eq.osman".
+store.ns = NS;
+
+store.select = async (table, filter) => {
+  const res = await fetch(`${BASE}/rest/v1/${table}?${filter}`, { headers: headers(), signal: timeout() });
+  return (await check(res, `${table} okuma`)).json();
+};
+
+store.insert = async (table, row) => {
+  if (!store.enabled) return;
+  const res = await fetch(`${BASE}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { ...headers(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify(row),
+    signal: timeout(),
+  });
+  await check(res, `${table} ekleme`);
+};
+
+store.update = async (table, filter, patch) => {
+  if (!store.enabled) return;
+  const res = await fetch(`${BASE}/rest/v1/${table}?${filter}`, {
+    method: 'PATCH',
+    headers: { ...headers(), 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify(patch),
+    signal: timeout(),
+  });
+  await check(res, `${table} güncelleme`);
+};
+
+store.remove = async (table, filter) => {
+  if (!store.enabled) return;
+  const res = await fetch(`${BASE}/rest/v1/${table}?${filter}`, { method: 'DELETE', headers: headers(), signal: timeout() });
+  await check(res, `${table} silme`);
+};
+
 const pending = new Map(); // `${oda}\n${tür}` -> { timer, room, kind, getData }
 
 // Kaydı biraz geciktirir; o sürede gelen değişiklikler de aynı yazmaya girer.
@@ -74,8 +111,9 @@ store.flush = () =>
     return run(key, job);
   }));
 
+// Başarılıysa true döner (kayıt kapalıyken de: yazılacak yer yok).
 store.putFile = async (path, buf, type) => {
-  if (!store.enabled) return;
+  if (!store.enabled) return true;
   try {
     const res = await fetch(`${BASE}/storage/v1/object/${BUCKET}/${path}`, {
       method: 'POST',
@@ -84,8 +122,10 @@ store.putFile = async (path, buf, type) => {
       signal: timeout(),
     });
     await check(res, 'yükleme');
+    return true;
   } catch (err) {
     console.warn('dosya', path, err.message);
+    return false;
   }
 };
 

@@ -61,9 +61,32 @@
           <p class="muted">Arkadaşlarınla konuş, aynı anda YouTube izle/dinle.</p>
         </div>
       </div>
-      <label>İsmin
-        <input id="name" maxlength="24" autocomplete="nickname" required>
-      </label>
+      <!-- Giriş yapılmamışsa: kullanıcı adı + şifre -->
+      <div id="auth-fields" class="auth-fields">
+        <div class="tabs auth-tabs" role="tablist">
+          <button type="button" id="auth-login" class="tab active" role="tab">Giriş yap</button>
+          <button type="button" id="auth-register" class="tab" role="tab">Kayıt ol</button>
+        </div>
+        <label>Kullanıcı adı
+          <input id="name" maxlength="24" autocomplete="username" autocapitalize="off" spellcheck="false">
+        </label>
+        <label>Şifre
+          <input id="password" type="password" maxlength="200" autocomplete="current-password">
+        </label>
+      </div>
+      <!-- Giriş yapılmışsa: hesap kartı -->
+      <div id="account" class="account" hidden>
+        <button type="button" id="account-avatar" class="account-avatar" title="Profil resmini değiştir"></button>
+        <div class="account-text">
+          <strong id="account-name"></strong>
+          <div class="account-links small">
+            <button type="button" id="avatar-change" class="link">Resim ekle</button>
+            <button type="button" id="avatar-remove" class="link" hidden>Resmi kaldır</button>
+            <button type="button" id="logout" class="link">Çıkış yap</button>
+          </div>
+        </div>
+      </div>
+      <input id="avatar-file" type="file" accept="image/*" hidden>
       <p id="room-status" class="muted small"></p>
       <button type="submit" id="join-btn" class="primary">Odaya katıl</button>
       <p id="join-error" class="error" hidden></p>
@@ -175,8 +198,10 @@
               <input id="sfx-vol" type="range" min="0" max="100" value="60">
             </label>
             <div class="settings-actions">
+              <button id="profile-photo"><svg class="ic"><use href="#i-image"></use></svg>Profil resmi</button>
               <button id="copy-link"><svg class="ic"><use href="#i-link"></use></svg>Davet linki</button>
               <button id="leave" class="danger"><svg class="ic"><use href="#i-logout"></use></svg>Odadan çık</button>
+              <button id="sign-out" class="danger">Hesaptan çık</button>
             </div>
             <a href="sfx/KAYNAKLAR.txt" target="_blank" rel="noopener" class="credits">Ses kaynakları</a>
           </div>

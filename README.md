@@ -6,6 +6,8 @@ En fazla 6 kişilik sesli sohbet + senkronize YouTube izleme/dinleme.
 
 ## Neler var
 
+- Hesaplar: kullanıcı adı + şifreyle kayıt/giriş, isteğe bağlı profil resmi. Giriş tarayıcıda açık
+  kalır; aynı isim ikinci kez alınamaz, aynı hesapla ikinci yerden girilince eskisi odadan düşer.
 - Sesli sohbet (WebRTC, Opus); gürültü kapısı ve ses eşiği ayarı
 - Gizli oda: arayüzde girişi yok, sadece linkle açılır (`/#gizli=şifre`). Aynı linke gelenler genel
   odadan ayrı bir odada buluşur; giriş ekranındaki listede görünmez.
@@ -39,6 +41,7 @@ Derleme adımı yok; `public/` içindeki dosyalar olduğu gibi sunulur.
 | --- | --- |
 | `server.js` | Express + Socket.IO: odalar, sinyalleşme, sohbet, YouTube araması, oyunlar |
 | `store.js` | Supabase'e kalıcı kayıt (geçmiş, efektler, tier listler) |
+| `accounts.js` | Hesaplar, oturumlar, profil resimleri |
 | `public/index.html`, `style.css` | Arayüz |
 | `public/app.js` | İstemcinin tamamı: ses, YouTube, sohbet, kayıt, oyunlar |
 | `public/sfx.js`, `public/sfx/` | Ses efektleri |
@@ -66,7 +69,7 @@ Hepsi isteğe bağlı. Render'da **Environment** bölümünden eklenir; anahtarl
 | --- | --- |
 | `YT_API_KEY` | Site içi YouTube araması (YouTube Data API v3, ücretsiz, günlük ~100 arama). Yoksa arama kapalıdır, link yapıştırma çalışır. Aynı arama 1 saat önbellekte tutulur. |
 | `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` | Bazı mobil ağlarda doğrudan bağlantı kurulamaz ("Bağlanamadı"); o zaman bir TURN sunucusu gerekir. |
-| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Önceden çalanlar, özel efektler ve tier listler Supabase'de kalıcı tutulur (`room_state` tablosu ve özel `media` bölmesi). Yoksa sadece hafızada durur, sunucu uyuyunca silinir. Bilgisayarda `.env` dosyasına yazılır (git'e girmez); orada oda adları `dev:` önekiyle ayrılır, canlı sitenin kayıtlarına dokunulmaz. |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Hesaplar, önceden çalanlar, özel efektler ve tier listler Supabase'de kalıcı tutulur (`accounts`, `sessions`, `room_state` tabloları ve özel `media` bölmesi). Şifrelerin sadece scrypt özeti, oturum anahtarlarının sadece SHA-256 özeti saklanır. Yoksa sadece hafızada durur, sunucu uyuyunca silinir. Bilgisayarda `.env` dosyasına yazılır (git'e girmez); orada oda adları `dev:` önekiyle ayrılır, canlı sitenin kayıtlarına dokunulmaz. |
 | `PORT` | Sunucu portu (varsayılan 3030; Render kendisi verir). |
 
 ## İnternet kullanımı

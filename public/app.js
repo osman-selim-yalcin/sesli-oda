@@ -170,16 +170,43 @@ function renderPeopleCount() {
 // İsimden sabit bir renk: herkes her yerde (liste, sohbet) aynı renkte görünür.
 const AVATAR_COLORS = ['#c2413b', '#d9822b', '#b59a1f', '#3f9b4f', '#1f9a8a', '#2f7fc1', '#5b5fd6', '#8f4fc9', '#c2448f', '#6b7280'];
 
+// Profil resmi olanlar: { ad: sürüm }. Resmi olmayanın avatarı baş harfi ve isimden gelen renktir.
+let profiles = {};
+
 function makeAvatar(name) {
-  let hash = 2166136261; // FNV-1a: benzer isimler de farklı renge düşsün
-  for (const ch of name) hash = Math.imul(hash ^ ch.codePointAt(0), 16777619);
   const el = document.createElement('div');
   el.className = 'avatar';
-  el.textContent = [...name][0]?.toLocaleUpperCase('tr-TR') || '?';
-  el.style.background = AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
+  el.dataset.name = name;
   el.title = name;
+  fillAvatar(el);
   return el;
 }
+
+function fillAvatar(el) {
+  const name = el.dataset.name;
+  const version = profiles[name];
+  el.replaceChildren();
+  el.style.background = '';
+  if (version) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.src = `avatar/${encodeURIComponent(name)}?v=${version}`;
+    el.append(img);
+    return;
+  }
+  let hash = 2166136261; // FNV-1a: benzer isimler de farklı renge düşsün
+  for (const ch of name) hash = Math.imul(hash ^ ch.codePointAt(0), 16777619);
+  el.textContent = [...name][0]?.toLocaleUpperCase('tr-TR') || '?';
+  el.style.background = AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
+}
+
+function setProfile(name, version) {
+  if (version) profiles[name] = version;
+  else delete profiles[name];
+  for (const el of document.querySelectorAll('.avatar')) if (el.dataset.name === name) fillAvatar(el);
+}
+
+socket.on('profile', ({ name, avatar }) => setProfile(name, avatar));
 
 function personRow(name, isSelf) {
   const li = document.createElement('li');
@@ -458,7 +485,7 @@ socket.on('notice', toast);
 
 socket.on('disconnect', (reason) => {
   if (reason === 'io client disconnect') return; // kendimiz çıktık
-  if (reason === 'io server disconnect') toast('Bu oda başka bir sekmede açıldı.');
+  if (reason === 'io server disconnect') toast('Bu hesapla başka bir sekmeden ya da cihazdan odaya girildi.');
   else toast('Sunucu bağlantısı koptu, yeniden bağlanılıyor…');
 });
 
@@ -468,7 +495,7 @@ let rejoining = false;
 async function rejoin() {
   if (!selfId || rejoining) return; // henüz odaya girilmemişti
   rejoining = true;
-  const res = await emitAck(15000, 'join', { room: ROOM, name: myName, clientId });
+  const res = await emitAck(15000, 'join', { room: ROOM, token: authToken, clientId });
   rejoining = false;
   if (!res) {
     if (socket.connected) setTimeout(rejoin, 2000);
@@ -1158,14 +1185,19 @@ function renderChatMessage({ from, name, text, image, ts, system }) {
 const IMAGE_MAX_SIDE = 1600;
 const GIF_MAX_BYTES = 2 * 1024 * 1024;
 
-async function compressImage(file, maxSide = IMAGE_MAX_SIDE) {
+// square: ortadan kare kırpar (profil resmi).
+async function compressImage(file, maxSide = IMAGE_MAX_SIDE, square = false) {
   if (maxSide === IMAGE_MAX_SIDE && file.type === 'image/gif' && file.size <= GIF_MAX_BYTES) return { blob: file, type: 'image/gif' };
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+  const side = Math.min(bitmap.width, bitmap.height);
+  const [sx, sy, sw, sh] = square
+    ? [(bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side]
+    : [0, 0, bitmap.width, bitmap.height];
+  const scale = Math.min(1, maxSide / Math.max(sw, sh));
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  canvas.width = Math.round(sw * scale);
+  canvas.height = Math.round(sh * scale);
+  canvas.getContext('2d').drawImage(bitmap, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   bitmap.close();
   const encode = (type) => new Promise((r) => canvas.toBlob(r, type, 0.82));
   let blob = await encode('image/webp');
@@ -2358,9 +2390,150 @@ const ROOM = secret ? `gizli-${secret}` : 'genel';
 // Önceden çalanlar her oda için ayrı saklanır (genel oda eski anahtarı kullanmaya devam eder).
 const historyKey = () => (ROOM === 'genel' ? 'history' : `history:${ROOM}`);
 
+// ---------- Hesap ----------
+// Giriş yapınca sunucunun verdiği oturum anahtarı tarayıcıda saklanır; çıkış yapılana kadar
+// bir daha şifre sorulmaz.
+
+let authToken = '';
+let account = null; // { name, avatar }
+let authMode = 'login';
+const AVATAR_SIDE = 256;
+
 try {
+  authToken = localStorage.getItem('token') || '';
   $('name').value = localStorage.getItem('name') || '';
 } catch {}
+
+function saveToken(token) {
+  authToken = token;
+  try {
+    if (token) localStorage.setItem('token', token);
+    else localStorage.removeItem('token');
+  } catch {}
+}
+
+async function api(method, url, body, type = 'application/json') {
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { Authorization: `Bearer ${authToken}`, ...(body ? { 'Content-Type': type } : {}) },
+      body: body && type === 'application/json' ? JSON.stringify(body) : body,
+    });
+    const data = await res.json().catch(() => ({}));
+    return res.ok ? data : { error: data.error || 'Sunucuya ulaşılamadı.', status: res.status };
+  } catch {
+    return { error: 'Sunucuya ulaşılamadı. İnternetini kontrol edip tekrar dene.' };
+  }
+}
+
+function showJoinError(text) {
+  $('join-error').textContent = text;
+  $('join-error').hidden = false;
+}
+
+function renderAccount() {
+  $('auth-fields').hidden = Boolean(account);
+  $('account').hidden = !account;
+  if (!account) return;
+  setProfile(account.name, account.avatar);
+  $('account-name').textContent = account.name;
+  $('account-avatar').replaceChildren(makeAvatar(account.name));
+  $('avatar-change').textContent = account.avatar ? 'Resmi değiştir' : 'Resim ekle';
+  $('avatar-remove').hidden = !account.avatar;
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  $('auth-login').classList.toggle('active', mode === 'login');
+  $('auth-register').classList.toggle('active', mode === 'register');
+  $('password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+  $('password').placeholder = mode === 'login' ? '' : 'En az 4 karakter';
+  $('join-error').hidden = true;
+}
+$('auth-login').onclick = () => setAuthMode('login');
+$('auth-register').onclick = () => setAuthMode('register');
+
+async function signIn() {
+  const name = $('name').value.trim();
+  const password = $('password').value;
+  if (!name || !password) {
+    showJoinError('Kullanıcı adı ve şifre yaz.');
+    return false;
+  }
+  const res = await api('POST', authMode === 'login' ? '/auth/login' : '/auth/register', { name, password });
+  if (res.error) {
+    showJoinError(res.error);
+    return false;
+  }
+  saveToken(res.token);
+  account = { name: res.name, avatar: res.avatar };
+  $('password').value = '';
+  try {
+    localStorage.setItem('name', res.name);
+  } catch {}
+  renderAccount();
+  return true;
+}
+
+function signedOut() {
+  saveToken('');
+  account = null;
+  renderAccount();
+}
+
+$('logout').onclick = async () => {
+  await api('POST', '/auth/logout');
+  signedOut();
+};
+
+$('sign-out').onclick = async () => {
+  await api('POST', '/auth/logout');
+  saveToken('');
+  socket.disconnect();
+  Sfx.leave(audioCtx, sfxBus);
+  setTimeout(() => location.reload(), 600);
+};
+
+// Kayıtlı oturum hâlâ geçerli mi?
+if (authToken) {
+  api('GET', '/auth/me').then((res) => {
+    if (res.error) {
+      if (res.status === 401) signedOut();
+      return;
+    }
+    account = res;
+    renderAccount();
+  });
+}
+
+const pickAvatar = () => $('avatar-file').click();
+$('account-avatar').onclick = pickAvatar;
+$('avatar-change').onclick = pickAvatar;
+$('profile-photo').onclick = pickAvatar;
+
+$('avatar-file').onchange = async () => {
+  const file = $('avatar-file').files[0];
+  $('avatar-file').value = '';
+  if (!file) return;
+  let compressed;
+  try {
+    compressed = await compressImage(file, AVATAR_SIDE, true);
+  } catch {
+    return toast('Bu resim açılamadı.');
+  }
+  const res = await api('PUT', '/auth/avatar', compressed.blob, compressed.type);
+  if (res.error) return toast(res.error);
+  account.avatar = res.avatar;
+  renderAccount();
+  toast('Profil resmin güncellendi');
+};
+
+$('avatar-remove').onclick = async () => {
+  const res = await api('DELETE', '/auth/avatar');
+  if (res.error) return toast(res.error);
+  account.avatar = null;
+  renderAccount();
+};
 
 if (secret) {
   $('room-status').textContent = 'Gizli oda';
@@ -2381,15 +2554,15 @@ addEventListener('hashchange', () => location.reload());
 
 $('join-form').onsubmit = async (e) => {
   e.preventDefault();
-  const name = $('name').value.trim();
-  myName = name;
   const btn = e.submitter;
   btn.disabled = true;
   $('join-error').hidden = true;
-
-  try {
-    localStorage.setItem('name', name);
-  } catch {}
+  if (!account && !(await signIn())) {
+    btn.disabled = false;
+    return;
+  }
+  const { name } = account;
+  myName = name;
 
   setupAudio();
   audioCtx.resume();
@@ -2419,7 +2592,7 @@ $('join-form').onsubmit = async (e) => {
   // Ücretsiz sunucu uykudaysa uyanması yarım dakikayı bulabilir.
   const label = btn.textContent;
   btn.textContent = 'Bağlanıyor…';
-  const res = (await emitAck(45000, 'join', { room: ROOM, name, clientId })) ?? {
+  const res = (await emitAck(45000, 'join', { room: ROOM, token: authToken, clientId })) ?? {
     error: 'Sunucuya bağlanılamadı. İnternetini kontrol edip tekrar dene.',
   };
   btn.textContent = label;
@@ -2427,8 +2600,8 @@ $('join-form').onsubmit = async (e) => {
   if (res.error) {
     socket.disconnect();
     localStream?.getTracks().forEach((t) => t.stop());
-    $('join-error').textContent = res.error;
-    $('join-error').hidden = false;
+    if (res.auth) signedOut();
+    showJoinError(res.error);
     btn.disabled = false;
     return;
   }
@@ -2473,6 +2646,8 @@ function applyJoin(res) {
   res.chat.forEach(renderChatMessage);
   mergeHistory([...loadLocalHistory(), ...res.history]);
   setCustomSfx(res.customSfx);
+  profiles = res.profiles;
+  for (const el of document.querySelectorAll('.avatar')) fillAvatar(el);
   setTierLists(res.tierLists);
   media = res.media;
   renderQueue();

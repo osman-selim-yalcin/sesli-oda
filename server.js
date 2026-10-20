@@ -9,6 +9,7 @@ try {
   process.loadEnvFile();
 } catch {}
 const store = require('./store');
+const accounts = require('./accounts');
 
 const PORT = process.env.PORT || 3030;
 const MAX_USERS = 6;
@@ -47,6 +48,7 @@ const app = express();
 // Efekt kayıtları değişmez; tarayıcı bir kez indirip saklasın.
 app.use('/sfx', express.static(path.join(__dirname, 'public/sfx'), { maxAge: '30d' }));
 app.use(express.static(path.join(__dirname, 'public')));
+accounts.setup(app, { imageTypes: IMAGE_TYPES, onProfile: (name, avatar) => io.emit('profile', { name, avatar }) });
 
 // ICE sunucuları: STUN herkese yeter, ama mobil hat ve bazı modemlerde (CGNAT) doğrudan
 // bağlantı kurulamaz; o zaman ses TURN sunucusu üzerinden geçer.
@@ -420,23 +422,27 @@ io.on('connection', (socket) => {
 
   socket.on('time', (ack) => typeof ack === 'function' && ack(Date.now()));
 
-  socket.on('join', ({ room: roomCode, name, clientId } = {}, ack) => {
+  // İsim hesaptan gelir; herkes kendi hesabıyla girer.
+  socket.on('join', ({ room: roomCode, token, clientId } = {}, ack) => {
     if (typeof ack !== 'function' || code) return;
     roomCode = String(roomCode || '').trim().toLowerCase().slice(0, 32);
-    name = String(name || '').trim().slice(0, 24);
     clientId = String(clientId || '').slice(0, 64);
-    if (!roomCode || !name) return ack({ error: 'Oda kodu ve isim gerekli.' });
+    const account = accounts.accountByToken(token);
+    if (!account) return ack({ error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true });
+    const { name } = account;
+    if (!roomCode) return ack({ error: 'Oda kodu gerekli.' });
 
     const room = getRoom(roomCode);
 
     // Sayfa yenilenince eski bağlantı hemen kapanmayabilir; aynı sekmenin eski kaydını sileriz.
+    // Aynı hesapla başka bir sekmeden/cihazdan girilirse eskisi odadan çıkarılır.
     const leaveKey = `${roomCode}:${clientId}`;
     let rejoined = pendingLeaves.has(leaveKey);
     clearTimeout(pendingLeaves.get(leaveKey));
     pendingLeaves.delete(leaveKey);
 
     for (const [id, user] of room.users) {
-      if (!clientId || user.clientId !== clientId) continue;
+      if (!(clientId && user.clientId === clientId) && user.name !== name) continue;
       rejoined = true;
       room.users.delete(id);
       stopSharing(room, roomCode, id);
@@ -453,7 +459,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView) });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -825,10 +831,11 @@ io.on('connection', (socket) => {
 
 // Kayıtlı durumu hafızaya alır. Okunamazsa kayıt da kapatılır ki boş hafıza eskilerin üstüne yazılmasın.
 async function loadSaved() {
-  if (!store.enabled) return console.log('Supabase ayarlı değil; geçmiş, efektler ve tier listler sadece hafızada.');
+  if (!store.enabled) return console.log('Supabase ayarlı değil; hesaplar, geçmiş, efektler ve tier listler sadece hafızada.');
   let rows;
   try {
     rows = await store.loadAll();
+    await accounts.load();
   } catch (err) {
     store.enabled = false;
     return console.warn('Kayıtlar okunamadı, bu oturumda kaydetme kapalı:', err.message);
