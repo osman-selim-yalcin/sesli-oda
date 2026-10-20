@@ -38,6 +38,7 @@ Derleme adımı yok; `public/` içindeki dosyalar olduğu gibi sunulur.
 | Dosya | Ne işe yarar |
 | --- | --- |
 | `server.js` | Express + Socket.IO: odalar, sinyalleşme, sohbet, YouTube araması, oyunlar |
+| `store.js` | Supabase'e kalıcı kayıt (geçmiş, efektler, tier listler) |
 | `public/index.html`, `style.css` | Arayüz |
 | `public/app.js` | İstemcinin tamamı: ses, YouTube, sohbet, kayıt, oyunlar |
 | `public/sfx.js`, `public/sfx/` | Ses efektleri |
@@ -65,6 +66,7 @@ Hepsi isteğe bağlı. Render'da **Environment** bölümünden eklenir; anahtarl
 | --- | --- |
 | `YT_API_KEY` | Site içi YouTube araması (YouTube Data API v3, ücretsiz, günlük ~100 arama). Yoksa arama kapalıdır, link yapıştırma çalışır. Aynı arama 1 saat önbellekte tutulur. |
 | `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` | Bazı mobil ağlarda doğrudan bağlantı kurulamaz ("Bağlanamadı"); o zaman bir TURN sunucusu gerekir. |
+| `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Önceden çalanlar, özel efektler ve tier listler Supabase'de kalıcı tutulur (`room_state` tablosu ve özel `media` bölmesi). Yoksa sadece hafızada durur, sunucu uyuyunca silinir. Bilgisayarda `.env` dosyasına yazılır (git'e girmez); orada oda adları `dev:` önekiyle ayrılır, canlı sitenin kayıtlarına dokunulmaz. |
 | `PORT` | Sunucu portu (varsayılan 3030; Render kendisi verir). |
 
 ## İnternet kullanımı

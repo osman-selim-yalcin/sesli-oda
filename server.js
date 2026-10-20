@@ -4,6 +4,12 @@ const http = require('http');
 const express = require('express');
 const { Server } = require('socket.io');
 
+// Bilgisayarda .env dosyasından ortam değişkenleri (Render'da panelden gelir).
+try {
+  process.loadEnvFile();
+} catch {}
+const store = require('./store');
+
 const PORT = process.env.PORT || 3030;
 const MAX_USERS = 6;
 const VIDEO_ID = /^[\w-]{11}$/;
@@ -90,16 +96,24 @@ app.get('/config', async (req, res) => {
 // Sohbet fotoğrafları: sadece hafızada; mesaj sohbet geçmişinden düşünce ya da oda boşalınca silinir.
 const images = new Map(); // id -> { buf, type, code }
 
-app.get('/sfx-custom/:room/:id', (req, res) => {
+app.get('/sfx-custom/:room/:id', async (req, res) => {
   const fx = customSfxByRoom.get(req.params.room)?.get(req.params.id);
   if (!fx) return res.status(404).end();
+  // Kayıttan yüklenen efektin sesi ilk istendiğinde depodan alınır.
+  fx.buf ??= (await store.getFile(`sfx/${req.params.id}.wav`))?.buf;
+  if (!fx.buf) return res.status(404).end();
   res.set({ 'Content-Type': 'audio/wav', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' });
   res.send(fx.buf);
 });
 
-app.get('/card-img/:id', (req, res) => {
-  const img = cardImages.get(req.params.id);
-  if (!img) return res.status(404).end();
+app.get('/card-img/:id', async (req, res) => {
+  if (!/^[\w-]{36}$/.test(req.params.id)) return res.status(404).end();
+  let img = cardImages.get(req.params.id);
+  if (!img) {
+    img = await store.getFile(`cards/${req.params.id}`);
+    if (!img || !IMAGE_TYPES[img.type]) return res.status(404).end();
+    cardImages.set(req.params.id, img);
+  }
   res.set({ 'Content-Type': img.type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' });
   res.send(img.buf);
 });
@@ -192,7 +206,8 @@ const io = new Server(server, { maxHttpBufferSize: IMAGE_MAX_BYTES + 64 * 1024 }
 // oda kodu -> { users: Map<socketId, {name, muted}>, current, queue, playing, position, updatedAt }
 const rooms = new Map();
 
-// Önceden çalanlar ve özel efektler oda boşalınca silinmez (sunucu yeniden başlayana kadar durur).
+// Önceden çalanlar, özel efektler ve tier listler oda boşalınca silinmez; Supabase ayarlıysa
+// kalıcıdır (store.js), değilse sunucu yeniden başlayana kadar durur.
 const histories = new Map(); // oda kodu -> [{ videoId, title, by, playedAt }]
 const customSfxByRoom = new Map(); // oda kodu -> Map<id, { buf, label, by }>
 const tierListsByRoom = new Map(); // oda kodu -> [tier list] (aşağıda)
@@ -313,6 +328,7 @@ async function fetchTweet(id) {
 }
 
 const customSfxList = (room) => [...room.customSfx].map(([id, fx]) => ({ id, label: fx.label, by: fx.by }));
+const saveCustomSfx = (room) => store.save(room.code, 'sfx', () => customSfxList(room));
 
 // Giriş/çıkış sohbete yazılır. Sayfayı yenileyen kişi için iki mesaj da yazılmasın diye
 // çıkış mesajı biraz bekletilir; o sürede aynı sekme geri dönerse ikisi de atlanır.
@@ -346,6 +362,7 @@ function setCurrent(room, item) {
   const entry = { videoId: item.videoId, title: item.title, thumb: item.thumb, by: item.by, playedAt: Date.now() };
   room.history.push(entry);
   if (room.history.length > PLAY_HISTORY) room.history.shift();
+  store.save(room.code, 'history', () => room.history);
   io.to(room.code).emit('history:add', entry);
 }
 
@@ -376,6 +393,7 @@ function tierListView(list) {
 
 function broadcastTierLists(room) {
   io.to(room.code).emit('tierlists', room.tierLists.map(tierListView));
+  store.save(room.code, 'tierlists', () => room.tierLists.map(tierListView));
 }
 
 // Kartı bulunduğu yerden (havuz ya da bir satır) çıkarır.
@@ -389,7 +407,11 @@ function takeCard(list, cardId) {
 function deleteCard(list, cardId) {
   takeCard(list, cardId);
   const card = list.cards.get(cardId);
-  if (card?.image) cardImages.delete(card.image.slice('card-img/'.length));
+  if (card?.image) {
+    const imageId = card.image.slice('card-img/'.length);
+    cardImages.delete(imageId);
+    store.deleteFile(`cards/${imageId}`);
+  }
   list.cards.delete(cardId);
 }
 
@@ -528,8 +550,15 @@ io.on('connection', (socket) => {
     lastUpload = Date.now();
     const room = getRoom(code);
     const by = room.users.get(socket.id).name;
-    room.customSfx.set(crypto.randomUUID(), { buf: data, label, by });
-    if (room.customSfx.size > CUSTOM_SFX_MAX) room.customSfx.delete(room.customSfx.keys().next().value);
+    const id = crypto.randomUUID();
+    room.customSfx.set(id, { buf: data, label, by });
+    store.putFile(`sfx/${id}.wav`, data, 'audio/wav');
+    if (room.customSfx.size > CUSTOM_SFX_MAX) {
+      const oldest = room.customSfx.keys().next().value;
+      room.customSfx.delete(oldest);
+      store.deleteFile(`sfx/${oldest}.wav`);
+    }
+    saveCustomSfx(room);
     io.to(code).emit('sfx:list', customSfxList(room));
     io.to(code).emit('notice', `${by} yeni efekt ekledi: ${label}`);
     ack({});
@@ -537,6 +566,8 @@ io.on('connection', (socket) => {
 
   socket.on('sfx:remove', (id) => {
     if (!code || !getRoom(code).customSfx.delete(id)) return;
+    store.deleteFile(`sfx/${id}.wav`);
+    saveCustomSfx(getRoom(code));
     io.to(code).emit('sfx:list', customSfxList(getRoom(code)));
   });
 
@@ -741,6 +772,7 @@ io.on('connection', (socket) => {
       }
       const imageId = crypto.randomUUID();
       cardImages.set(imageId, { buf: data, type });
+      store.putFile(`cards/${imageId}`, data, type);
       image = `card-img/${imageId}`;
     }
     if (!text && !image) return ack({ error: 'Karta bir isim yaz ya da resim seç.' });
@@ -791,6 +823,38 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Sesli Oda çalışıyor: http://localhost:${PORT}`);
+// Kayıtlı durumu hafızaya alır. Okunamazsa kayıt da kapatılır ki boş hafıza eskilerin üstüne yazılmasın.
+async function loadSaved() {
+  if (!store.enabled) return console.log('Supabase ayarlı değil; geçmiş, efektler ve tier listler sadece hafızada.');
+  let rows;
+  try {
+    rows = await store.loadAll();
+  } catch (err) {
+    store.enabled = false;
+    return console.warn('Kayıtlar okunamadı, bu oturumda kaydetme kapalı:', err.message);
+  }
+  for (const { room, kind, data } of rows) {
+    if (kind === 'history') histories.set(room, data);
+    if (kind === 'sfx') customSfxByRoom.set(room, new Map(data.map((fx) => [fx.id, { buf: null, label: fx.label, by: fx.by }])));
+    if (kind === 'tierlists') {
+      tierListsByRoom.set(room, data.map((l) => ({ ...l, cards: new Map(l.cards.map((c) => [c.id, c])) })));
+      for (const l of data) {
+        for (const id of [l.id, ...l.tiers.map((t) => t.id), ...l.cards.map((c) => c.id)]) nextTierId = Math.max(nextTierId, id + 1);
+      }
+    }
+  }
+  console.log(`Supabase: ${rows.length} kayıt yüklendi.`);
+}
+
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.once(signal, async () => {
+    await store.flush();
+    process.exit(0);
+  });
+}
+
+loadSaved().then(() => {
+  server.listen(PORT, () => {
+    console.log(`Sesli Oda çalışıyor: http://localhost:${PORT}`);
+  });
 });
