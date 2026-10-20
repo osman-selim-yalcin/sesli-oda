@@ -721,13 +721,232 @@ $('history-playlist').onclick = () => {
 };
 
 function showTab(name) {
-  $('tab-queue').classList.toggle('active', name === 'queue');
-  $('tab-history').classList.toggle('active', name === 'history');
-  $('queue-view').hidden = name !== 'queue';
-  $('history-view').hidden = name !== 'history';
+  for (const tab of ['queue', 'history', 'games']) {
+    $(`tab-${tab}`).classList.toggle('active', name === tab);
+    $(`${tab}-view`).hidden = name !== tab;
+  }
+  renderGamesBadge();
 }
 $('tab-queue').onclick = () => showTab('queue');
 $('tab-history').onclick = () => showTab('history');
+$('tab-games').onclick = () => showTab('games');
+
+// ---------- Oyunlar ----------
+// Oyun durumu sunucuda tutulur ve herkese aynı anda gider; oyun açıkken diğer her şey çalışmaya devam eder.
+
+$('game-tier').onclick = () => {
+  $('games-menu').hidden = true;
+  $('tier-game').hidden = false;
+  renderGamesBadge();
+};
+$('games-back').onclick = () => {
+  $('games-menu').hidden = false;
+  $('tier-game').hidden = true;
+  renderGamesBadge();
+};
+
+// ---------- Tier list ----------
+// Sıralama her öğenin kazandığı oy oranıyla yapılır; harfler bu orana göre verilir.
+
+const TIERS = [
+  { name: 'S', min: 0.8 },
+  { name: 'A', min: 0.6 },
+  { name: 'B', min: 0.4 },
+  { name: 'C', min: 0.2 },
+  { name: 'D', min: 0 },
+];
+let tier = null;
+
+const tierWaiting = () => {
+  const pair = tier?.pair;
+  return Boolean(pair && !pair.revealing && !Object.values(pair.votes).some((who) => who.includes(myName)));
+};
+
+// Oyunlar sekmesi açık değilken oy bekleyen bir eşleşme varsa sekmede işaret çıkar.
+function renderGamesBadge() {
+  const open = !$('games-view').hidden && !$('tier-game').hidden;
+  $('games-count').textContent = !open && tierWaiting() ? 'oyla' : '';
+}
+
+function tierThumb(item) {
+  const el = document.createElement('div');
+  el.className = 'duel-thumb';
+  if (item.videoId) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.src = `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`;
+    el.append(img);
+  } else {
+    el.textContent = [...item.title][0]?.toLocaleUpperCase('tr-TR') || '?';
+  }
+  return el;
+}
+
+function renderDuel() {
+  const box = $('tier-duel');
+  box.replaceChildren();
+  const byId = new Map(tier.items.map((it) => [it.id, it]));
+  const progress = document.createElement('div');
+  progress.className = 'duel-progress muted small';
+
+  if (!tier.pair) {
+    progress.textContent = tier.items.length < 2
+      ? 'Oylama için havuza en az iki şey ekleyin.'
+      : `Bütün eşleşmeler oylandı (${tier.done}/${tier.total}). Yeni bir şey ekleyince devam eder.`;
+    box.append(progress);
+    return;
+  }
+
+  const { ids, votes, revealing } = tier.pair;
+  const count = (id) => votes[id]?.length || 0;
+  const cards = document.createElement('div');
+  cards.className = 'duel-cards';
+  ids.forEach((id, i) => {
+    const item = byId.get(id);
+    const who = votes[id] || [];
+    const card = document.createElement('button');
+    card.className = 'duel-card' + (who.includes(myName) ? ' mine' : '');
+    if (revealing) {
+      const other = count(ids[1 - i]);
+      card.classList.add(count(id) > other ? 'won' : count(id) < other ? 'lost' : 'tie');
+    }
+    card.disabled = revealing;
+    card.append(tierThumb(item));
+    const title = document.createElement('span');
+    title.className = 'duel-title';
+    title.textContent = item.title;
+    const voters = document.createElement('span');
+    voters.className = 'duel-voters muted small';
+    voters.textContent = who.length ? who.join(', ') : ' ';
+    card.append(title, voters);
+    card.onclick = () => socket.emit('tier:vote', id);
+    cards.append(card);
+    if (i === 0) {
+      const vs = document.createElement('span');
+      vs.className = 'duel-vs';
+      vs.textContent = 'VS';
+      cards.append(vs);
+    }
+  });
+
+  const foot = document.createElement('div');
+  foot.className = 'duel-foot';
+  progress.textContent = `Eşleşme ${tier.done + 1}/${tier.total} · Hangisi daha iyi?`;
+  foot.append(progress);
+  for (const id of ids) {
+    const item = byId.get(id);
+    if (!item.videoId) continue;
+    const add = document.createElement('button');
+    add.className = 'sm ghost';
+    setIcon(add, 'plus', 'Sıraya');
+    add.title = `Sıraya ekle: ${item.title}`;
+    add.onclick = () => {
+      socket.emit('media:add', item.videoId);
+      add.disabled = true;
+    };
+    foot.append(add);
+  }
+  const skip = document.createElement('button');
+  skip.className = 'sm ghost';
+  setIcon(skip, 'skip', 'Geç');
+  skip.title = 'Bu eşleşmeyi geç';
+  skip.disabled = revealing;
+  skip.onclick = () => socket.emit('tier:next');
+  foot.append(skip);
+  box.append(cards, foot);
+}
+
+function renderBoard() {
+  const board = $('tier-board');
+  board.replaceChildren();
+  const rated = tier.items.filter((it) => it.games).map((it) => ({ ...it, rate: it.wins / it.games }));
+  rated.sort((a, b) => b.rate - a.rate || b.wins - a.wins);
+  if (!rated.length) return;
+  for (const t of TIERS) {
+    const upper = TIERS[TIERS.indexOf(t) - 1]?.min ?? Infinity;
+    const items = rated.filter((it) => it.rate >= t.min && it.rate < upper);
+    const row = document.createElement('div');
+    row.className = `tier-row tier-${t.name}`;
+    row.innerHTML = `<span class="tier-label">${t.name}</span><div class="tier-items"></div>`;
+    for (const it of items) {
+      const chip = document.createElement('span');
+      chip.className = 'tier-chip';
+      chip.textContent = it.title;
+      chip.title = `${it.wins}/${it.games} oy (%${Math.round(it.rate * 100)})`;
+      row.querySelector('.tier-items').append(chip);
+    }
+    board.append(row);
+  }
+}
+
+function renderPool() {
+  const list = $('tier-pool');
+  list.replaceChildren();
+  for (const item of tier.items) {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="q-text">
+        <div class="q-title"></div>
+        <div class="muted small"></div>
+      </div>
+      <button class="icon sm ghost" title="Havuzdan çıkar">${icon('x')}</button>`;
+    if (item.videoId) li.prepend(thumb(item.videoId));
+    li.querySelector('.q-title').textContent = item.title;
+    const score = item.games ? ` · ${item.wins}/${item.games} oy` : '';
+    li.querySelector('.small').textContent = `${item.by} ekledi${score}`;
+    li.querySelector('button').onclick = () => socket.emit('tier:remove', item.id);
+    list.append(li);
+  }
+  $('tier-pool-empty').hidden = tier.items.length > 0;
+  $('tier-pool-count').textContent = tier.items.length || '';
+}
+
+function renderTier() {
+  if (document.activeElement !== $('tier-topic')) $('tier-topic').value = tier.topic;
+  renderDuel();
+  renderBoard();
+  renderPool();
+  renderGamesBadge();
+}
+
+socket.on('tier', (state) => {
+  tier = state;
+  renderTier();
+});
+
+$('tier-add').onsubmit = (e) => {
+  e.preventDefault();
+  const text = $('tier-input').value.trim();
+  if (!text) return;
+  const videoId = parseVideoId(text);
+  socket.emit('tier:add', { text, videoId: isX(videoId) ? null : videoId });
+  $('tier-input').value = '';
+};
+
+$('tier-topic').onchange = () => socket.emit('tier:topic', $('tier-topic').value);
+$('tier-topic').onkeydown = (e) => e.key === 'Enter' && e.currentTarget.blur();
+
+// Silme düğmeleri iki aşamalı: ilk basışta onay ister, birkaç saniye içinde ikinci basış uygular.
+function confirmButton(btn, ask, run) {
+  const label = btn.textContent;
+  let timer = null;
+  btn.onclick = () => {
+    if (!timer) {
+      btn.textContent = ask;
+      timer = setTimeout(() => {
+        btn.textContent = label;
+        timer = null;
+      }, 3000);
+      return;
+    }
+    clearTimeout(timer);
+    timer = null;
+    btn.textContent = label;
+    run();
+  };
+}
+confirmButton($('tier-reset'), 'Emin misin? Tekrar bas', () => socket.emit('tier:reset', false));
+confirmButton($('tier-clear'), 'Her şey silinecek, tekrar bas', () => socket.emit('tier:reset', true));
 
 // ---------- Geçici sohbet ----------
 // Mesajlar sadece sunucunun hafızasında tutulur (son 50); herkes çıkınca silinir.
@@ -2132,6 +2351,8 @@ function applyJoin(res) {
   res.chat.forEach(renderChatMessage);
   mergeHistory([...loadLocalHistory(), ...res.history]);
   setCustomSfx(res.customSfx);
+  tier = res.tier;
+  renderTier();
   media = res.media;
   renderQueue();
   applyMedia();

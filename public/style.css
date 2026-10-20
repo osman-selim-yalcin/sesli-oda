@@ -323,6 +323,78 @@ button.off:hover { background: #ff7482; }
 .queue .q-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .queue li > button { flex-shrink: 0; }
 
+/* Oyunlar */
+.games-menu { display: grid; gap: 8px; }
+.game-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  text-align: left;
+  background: var(--panel-2);
+  border-radius: var(--radius-sm);
+}
+.game-card > .ic { width: 26px; height: 26px; color: var(--accent); margin-top: 2px; }
+.game-card strong { display: block; margin-bottom: 2px; }
+.game-card .small { font-weight: 400; }
+.game-head { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+.game-head button { flex-shrink: 0; }
+
+.duel { margin-bottom: 14px; }
+.duel-cards { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: stretch; }
+.duel-vs { align-self: center; font-weight: 800; color: var(--muted); font-size: 13px; }
+.duel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px;
+  background: var(--panel-2);
+  border: 2px solid transparent;
+  border-radius: var(--radius);
+  text-align: center;
+  font-weight: 600;
+  transition: border-color .15s, opacity .2s, transform .1s;
+}
+.duel-card:hover:not(:disabled) { border-color: var(--line-2); background: var(--panel-3); }
+.duel-card.mine { border-color: var(--accent); background: var(--accent-soft); }
+.duel-card:disabled { cursor: default; }
+.duel-card.won { border-color: var(--speak); opacity: 1; }
+.duel-card.lost { opacity: .45; }
+.duel-thumb {
+  aspect-ratio: 16 / 9;
+  max-height: 150px;
+  width: 100%;
+  margin: 0 auto;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  display: grid;
+  place-items: center;
+  font-size: 34px;
+  font-weight: 800;
+  color: #fff;
+  overflow: hidden;
+}
+.duel-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.duel-title { overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.duel-voters { font-weight: 400; min-height: 1.4em; }
+.duel-foot { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.duel-progress { margin-right: auto; }
+.duel > .duel-progress { text-align: center; padding: 16px 0; }
+
+.tier-board { display: grid; gap: 4px; }
+.tier-row { display: flex; align-items: stretch; gap: 8px; min-height: 40px; background: var(--panel-2); border-radius: var(--radius-sm); overflow: hidden; }
+.tier-label { width: 40px; flex-shrink: 0; display: grid; place-items: center; font-weight: 800; font-size: 18px; color: #111; }
+.tier-S .tier-label { background: #ff7f7f; }
+.tier-A .tier-label { background: #ffbf7f; }
+.tier-B .tier-label { background: #ffdf7f; }
+.tier-C .tier-label { background: #bfff7f; }
+.tier-D .tier-label { background: #7fbfff; }
+.tier-items { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 6px 6px 0; align-items: center; min-width: 0; }
+.tier-chip { background: var(--panel-3); border-radius: 6px; padding: 3px 8px; font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tier-pool li { padding-top: 6px; padding-bottom: 6px; }
+.tier-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+
 .people-list { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 6px; }
 .people-list li {
   display: flex;

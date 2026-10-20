@@ -18,6 +18,9 @@ const CHAT_HISTORY = 50;
 const PLAY_HISTORY = 200; // önceden çalanlar listesinde tutulan şarkı sayısı  // odaya yeni girene gösterilen son mesaj sayısı
 const CHAT_MAX_LENGTH = 500;
 const CHAT_COOLDOWN = 300; // ms
+const TIER_MAX_ITEMS = 40;   // 40 öğe = 780 eşleşme; daha fazlası bitmez
+const TIER_TITLE_MAX = 80;
+const TIER_REVEAL_MS = 1500;  // herkes oy verince sonuç bu kadar görünür, sonra sıradaki eşleşme
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
 const IMAGE_COOLDOWN = 2000; // ms
 // Dosyanın ilk baytlarıyla gerçekten resim olduğunu doğrularız (uzantıya/türe güvenmeyiz).
@@ -179,15 +182,18 @@ const rooms = new Map();
 // Önceden çalanlar ve özel efektler oda boşalınca silinmez (sunucu yeniden başlayana kadar durur).
 const histories = new Map(); // oda kodu -> [{ videoId, title, by, playedAt }]
 const customSfxByRoom = new Map(); // oda kodu -> Map<id, { buf, label, by }>
+const tiersByRoom = new Map(); // oda kodu -> tier list oyunu (aşağıda)
 
 function getRoom(code) {
   if (!rooms.has(code)) {
     if (!histories.has(code)) histories.set(code, []);
     if (!customSfxByRoom.has(code)) customSfxByRoom.set(code, new Map());
+    if (!tiersByRoom.has(code)) tiersByRoom.set(code, newTier());
     rooms.set(code, {
       code,
       history: histories.get(code),
       customSfx: customSfxByRoom.get(code),
+      tier: tiersByRoom.get(code),
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -334,6 +340,91 @@ function playNext(room) {
   setCurrent(room, room.queue.shift());
 }
 
+// ---------- Oyunlar: tier list ----------
+// Havuzdaki öğeler ikişer ikişer herkese aynı anda sorulur. Herkes oy verince kısa bir süre
+// sonuç görünür ve sıradaki eşleşmeye geçilir. Sıralama her öğenin kazandığı oy oranıdır.
+
+const pairKey = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+
+function newTier() {
+  return {
+    topic: '',
+    items: [],          // { id, title, by, videoId }
+    votes: new Map(),   // eşleşme anahtarı -> Map<sekme kimliği, { name, pick }>
+    done: new Set(),    // oylanmış ya da geçilmiş eşleşmeler
+    pair: null,         // [a, b]
+    revealing: false,   // herkes oy verdi, sonuç gösteriliyor
+    timer: null,
+  };
+}
+
+let nextTierItemId = 1;
+
+function tierView(tier) {
+  const score = new Map(tier.items.map((it) => [it.id, { wins: 0, games: 0 }]));
+  for (const [key, votes] of tier.votes) {
+    const [a, b] = key.split('-').map(Number);
+    if (!score.has(a) || !score.has(b)) continue;
+    for (const { pick } of votes.values()) {
+      score.get(a).games++;
+      score.get(b).games++;
+      score.get(pick).wins++;
+    }
+  }
+  const n = tier.items.length;
+  let pair = null;
+  if (tier.pair) {
+    const votes = {};
+    for (const { name, pick } of tier.votes.get(pairKey(...tier.pair))?.values() || []) (votes[pick] ??= []).push(name);
+    pair = { ids: tier.pair, votes, revealing: tier.revealing };
+  }
+  return {
+    topic: tier.topic,
+    items: tier.items.map((it) => ({ ...it, ...score.get(it.id) })),
+    pair,
+    done: tier.done.size,
+    total: (n * (n - 1)) / 2,
+  };
+}
+
+function broadcastTier(room) {
+  io.to(room.code).emit('tier', tierView(room.tier));
+}
+
+// Henüz sorulmamış bir eşleşme seçer; az önce sorulan öğeler arka arkaya gelmesin.
+function nextPair(tier) {
+  clearTimeout(tier.timer);
+  tier.revealing = false;
+  const last = new Set(tier.pair || []);
+  if (tier.pair) tier.done.add(pairKey(...tier.pair));
+  const open = [];
+  const ids = tier.items.map((it) => it.id);
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      if (!tier.done.has(pairKey(ids[i], ids[j]))) open.push([ids[i], ids[j]]);
+    }
+  }
+  const fresh = open.filter(([a, b]) => !last.has(a) && !last.has(b));
+  const pool = fresh.length ? fresh : open;
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  tier.pair = pick ? (Math.random() < 0.5 ? pick : [pick[1], pick[0]]) : null;
+}
+
+// Odadaki herkes oy verdiyse sonucu gösterip sıradakine geçer.
+function checkTierVotes(room) {
+  const tier = room.tier;
+  if (!tier.pair || tier.revealing) return;
+  const votes = tier.votes.get(pairKey(...tier.pair));
+  const present = new Set([...room.users.values()].map((u) => u.clientId));
+  const voted = [...(votes?.keys() || [])].filter((k) => present.has(k)).length;
+  if (!present.size || voted < present.size) return;
+  tier.revealing = true;
+  tier.timer = setTimeout(() => {
+    nextPair(tier);
+    if (rooms.get(room.code) === room) broadcastTier(room);
+  }, TIER_REVEAL_MS);
+}
+
 io.on('connection', (socket) => {
   let code = null;
 
@@ -372,7 +463,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room) });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tier: tierView(room.tier) });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -605,6 +696,89 @@ io.on('connection', (socket) => {
     broadcastMedia(code);
   });
 
+  socket.on('tier:add', async ({ text, videoId } = {}) => {
+    if (!code) return;
+    const roomCode = code;
+    const tier = getRoom(roomCode).tier;
+    if (tier.items.length >= TIER_MAX_ITEMS) return socket.emit('notice', `Havuz dolu (en fazla ${TIER_MAX_ITEMS} öğe).`);
+    videoId = typeof videoId === 'string' && VIDEO_ID.test(videoId) ? videoId : null;
+    let title = typeof text === 'string' ? text.trim() : '';
+    if (videoId) title = (await fetchTitle(videoId)) || title;
+    title = title.slice(0, TIER_TITLE_MAX);
+    if (!title || !rooms.has(roomCode)) return;
+    const room = getRoom(roomCode);
+    if (room.tier.items.some((it) => it.title.toLocaleLowerCase('tr-TR') === title.toLocaleLowerCase('tr-TR'))) {
+      return socket.emit('notice', `Bu zaten havuzda: ${title}`);
+    }
+    room.tier.items.push({ id: nextTierItemId++, title, by: room.users.get(socket.id)?.name || '?', videoId });
+    if (!room.tier.pair) nextPair(room.tier);
+    broadcastTier(room);
+  });
+
+  socket.on('tier:remove', (id) => {
+    if (!code) return;
+    const room = getRoom(code);
+    const tier = room.tier;
+    const index = tier.items.findIndex((it) => it.id === id);
+    if (index < 0) return;
+    tier.items.splice(index, 1);
+    if (tier.pair?.includes(id)) {
+      tier.pair = null; // silinen öğenin eşleşmesi oylanmış sayılmasın
+      nextPair(tier);
+    }
+    broadcastTier(room);
+  });
+
+  // Oy değiştirilebilir; aynı öğeye tekrar basmak geri alır. Sonuç gösterilirken oy alınmaz.
+  socket.on('tier:vote', (pick) => {
+    if (!code) return;
+    const room = getRoom(code);
+    const tier = room.tier;
+    if (!tier.pair?.includes(pick) || tier.revealing) return;
+    const key = pairKey(...tier.pair);
+    if (!tier.votes.has(key)) tier.votes.set(key, new Map());
+    const votes = tier.votes.get(key);
+    const { key: who, name } = voter();
+    if (votes.get(who)?.pick === pick) votes.delete(who);
+    else votes.set(who, { name, pick });
+    if (!votes.size) tier.votes.delete(key);
+    checkTierVotes(room);
+    broadcastTier(room);
+  });
+
+  socket.on('tier:next', () => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (!room.tier.pair) return;
+    nextPair(room.tier);
+    broadcastTier(room);
+  });
+
+  socket.on('tier:topic', (topic) => {
+    if (!code || typeof topic !== 'string') return;
+    const room = getRoom(code);
+    room.tier.topic = topic.trim().slice(0, TIER_TITLE_MAX);
+    broadcastTier(room);
+  });
+
+  // reset: oylar silinir, havuz kalır. clear: her şey silinir.
+  socket.on('tier:reset', (all) => {
+    if (!code) return;
+    const room = getRoom(code);
+    const tier = room.tier;
+    clearTimeout(tier.timer);
+    if (all) {
+      tier.items = [];
+      tier.topic = '';
+    }
+    tier.votes.clear();
+    tier.done.clear();
+    tier.pair = null;
+    nextPair(tier);
+    io.to(code).emit('notice', `${room.users.get(socket.id).name} ${all ? 'tier listesini temizledi' : 'tier listesinin oylarını sıfırladı'}`);
+    broadcastTier(room);
+  });
+
   socket.on('disconnect', () => {
     if (!code) return;
     const room = getRoom(code);
@@ -621,7 +795,14 @@ io.on('connection', (socket) => {
       const current = rooms.get(roomCode);
       if (current) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
     }, REJOIN_GRACE));
+    // Herkes oy vermiş, sadece giden kişi bekleniyorsa eşleşme ilerlesin.
+    if (room.users.size) {
+      checkTierVotes(room);
+      broadcastTier(room);
+    }
     if (room.users.size === 0) {
+      clearTimeout(room.tier.timer);
+      room.tier.revealing = false;
       rooms.delete(code);
       deleteRoomImages(code);
     }

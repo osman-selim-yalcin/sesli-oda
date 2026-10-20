@@ -13,6 +13,8 @@ En fazla 6 kişilik sesli sohbet + senkronize YouTube izleme/dinleme.
 - Yazılı sohbet, emoji seçici
 - Ses efektleri; herkes kendi efektini de yükleyebilir
 - Ekran paylaşımı (Chrome/Edge'de sekme sesiyle birlikte)
+- Oyunlar sekmesi. İlk oyun tier list: havuza şarkı, film, video, ne istenirse eklenir; herkes aynı
+  ikiliyi oylar, oy oranına göre S'den D'ye sıralanır.
 - Ses kaydı: müzik dahil ya da sadece konuşmalar, MP3 veya WebM olarak iner. Kayıt sadece kaydedenin
   bilgisayarına iner, sunucuya gitmez.
 

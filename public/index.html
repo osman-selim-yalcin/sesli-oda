@@ -44,6 +44,8 @@
     <symbol id="i-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></symbol>
     <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
     <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
     <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.22-8.56"/></symbol>
   </svg>
 
@@ -173,6 +175,7 @@
           <div class="tabs" role="tablist">
             <button id="tab-queue" class="tab active" role="tab">Sıradakiler <span id="queue-count" class="count"></span></button>
             <button id="tab-history" class="tab" role="tab">Önceden çalanlar <span id="history-count" class="count"></span></button>
+            <button id="tab-games" class="tab" role="tab">Oyunlar <span id="games-count" class="count"></span></button>
           </div>
 
           <div id="queue-view">
@@ -198,6 +201,40 @@
             </div>
             <ol id="history" class="queue"></ol>
             <p id="history-empty" class="muted small empty">Henüz çalan şarkı yok.</p>
+          </div>
+
+          <!-- Oyunlar: konuşurken birlikte oynanan küçük şeyler -->
+          <div id="games-view" hidden>
+            <div id="games-menu" class="games-menu">
+              <button id="game-tier" class="game-card">
+                <svg class="ic"><use href="#i-trophy"></use></svg>
+                <span><strong>Tier list</strong>
+                  <span class="muted small">Havuza şarkı, film, video, ne istersen at. İkişer ikişer oylayın; sonunda S'den D'ye sıralansın.</span></span>
+              </button>
+              <p class="muted small empty">Yakında başka oyunlar da gelecek.</p>
+            </div>
+
+            <div id="tier-game" class="tier-game" hidden>
+              <div class="game-head">
+                <button id="games-back" class="ghost sm"><svg class="ic"><use href="#i-back"></use></svg>Oyunlar</button>
+                <input id="tier-topic" maxlength="80" placeholder="Konu (ör. En iyi Türkçe rap şarkısı)" autocomplete="off">
+              </div>
+
+              <div id="tier-duel" class="duel"></div>
+              <div id="tier-board" class="tier-board"></div>
+
+              <h2>Havuz <span id="tier-pool-count" class="count"></span></h2>
+              <form id="tier-add" class="add">
+                <input id="tier-input" maxlength="300" placeholder="Bir şey yaz ya da YouTube linki yapıştır…" autocomplete="off">
+                <button type="submit" class="primary">Ekle</button>
+              </form>
+              <ol id="tier-pool" class="queue tier-pool"></ol>
+              <p id="tier-pool-empty" class="muted small empty">Havuz boş. En az iki şey ekleyince oylama başlar.</p>
+              <div class="tier-actions">
+                <button id="tier-reset" class="sm">Oyları sıfırla</button>
+                <button id="tier-clear" class="sm danger">Listeyi temizle</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
