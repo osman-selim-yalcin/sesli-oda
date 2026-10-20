@@ -7,9 +7,6 @@ const KEY = process.env.SUPABASE_SECRET_KEY;
 const BUCKET = 'media';
 const SAVE_DELAY = 1500;  // ms; art arda gelen değişiklikler tek yazmada birleşir
 const RETRY_DELAY = 10000; // ms
-// Bilgisayarda çalışan sunucu canlı sitenin kayıtlarına dokunmasın: oda adları "dev:" ile ayrılır.
-// Render, RENDER ortam değişkenini her zaman tanımlar.
-const NS = process.env.RENDER ? '' : 'dev:';
 
 const headers = () => ({ apikey: KEY, Authorization: `Bearer ${KEY}` });
 const timeout = () => AbortSignal.timeout(10000);
@@ -26,17 +23,15 @@ async function check(res, what) {
 
 // [{ room, kind, data }]
 store.loadAll = async () => {
-  const filter = NS ? `&room=like.${encodeURIComponent(NS)}*` : '&room=not.like.dev:*';
-  const res = await fetch(`${BASE}/rest/v1/room_state?select=room,kind,data${filter}`, { headers: headers(), signal: timeout() });
-  const rows = await (await check(res, 'okuma')).json();
-  return rows.map((r) => ({ ...r, room: r.room.slice(NS.length) }));
+  const res = await fetch(`${BASE}/rest/v1/room_state?select=room,kind,data`, { headers: headers(), signal: timeout() });
+  return (await check(res, 'okuma')).json();
 };
 
 async function upsert(room, kind, data) {
   const res = await fetch(`${BASE}/rest/v1/room_state`, {
     method: 'POST',
     headers: { ...headers(), 'Content-Type': 'application/json', Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({ room: NS + room, kind, data, updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ room, kind, data, updated_at: new Date().toISOString() }),
     signal: timeout(),
   });
   await check(res, 'yazma');
@@ -44,7 +39,6 @@ async function upsert(room, kind, data) {
 
 // Hesap ve oturum tabloları için: hata olursa fırlatır, çağıran karar verir.
 // filter PostgREST biçiminde, ör. "id=eq.osman".
-store.ns = NS;
 
 store.select = async (table, filter) => {
   const res = await fetch(`${BASE}/rest/v1/${table}?${filter}`, { headers: headers(), signal: timeout() });

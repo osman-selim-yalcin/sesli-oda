@@ -2462,6 +2462,8 @@ function setAuthMode(mode) {
   $('auth-register').classList.toggle('active', mode === 'register');
   $('password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
   $('password').placeholder = mode === 'login' ? '' : 'En az 4 karakter';
+  $('password2-field').hidden = mode === 'login';
+  $('password2').value = '';
   $('join-error').hidden = true;
 }
 $('auth-login').onclick = () => setAuthMode('login');
@@ -2474,6 +2476,11 @@ async function signIn() {
     showJoinError('Kullanıcı adı ve şifre yaz.');
     return false;
   }
+  if (authMode === 'register' && password !== $('password2').value) {
+    showJoinError('Şifreler aynı değil.');
+    $('password2').focus();
+    return false;
+  }
   const res = await api('POST', authMode === 'login' ? '/auth/login' : '/auth/register', { name, password });
   if (res.error) {
     showJoinError(res.error);
@@ -2481,7 +2488,7 @@ async function signIn() {
   }
   saveToken(res.token);
   account = { name: res.name, avatar: res.avatar };
-  $('password').value = '';
+  $('password').value = $('password2').value = '';
   try {
     localStorage.setItem('name', res.name);
   } catch {}

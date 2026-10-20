@@ -21,9 +21,8 @@ const avatarCache = new Map(); // anahtar -> { buf, type }
 const loginFails = new Map(); // ip -> { count, since }
 
 const keyOf = (name) => name.toLocaleLowerCase('tr-TR');
-const dbId = (key) => store.ns + key;
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
-const avatarPath = (key) => `avatars/${sha256(dbId(key)).slice(0, 32)}`;
+const avatarPath = (key) => `avatars/${sha256(key).slice(0, 32)}`;
 const eq = (v) => `eq.${encodeURIComponent(v)}`;
 
 async function hashPassword(password) {
@@ -52,18 +51,17 @@ function accountByToken(token) {
 
 async function load() {
   if (!store.enabled) return;
-  const own = store.ns ? `like.${encodeURIComponent(store.ns)}*` : 'not.like.dev:*';
-  const rows = await store.select('accounts', `select=id,name,pass_hash,avatar&id=${own}`);
-  for (const r of rows) accounts.set(r.id.slice(store.ns.length), { name: r.name, passHash: r.pass_hash, avatar: r.avatar });
-  const sess = await store.select('sessions', `select=token_hash,account_id&account_id=${own}`);
-  for (const s of sess) sessions.set(s.token_hash, s.account_id.slice(store.ns.length));
+  const rows = await store.select('accounts', 'select=id,name,pass_hash,avatar');
+  for (const r of rows) accounts.set(r.id, { name: r.name, passHash: r.pass_hash, avatar: r.avatar });
+  const sess = await store.select('sessions', 'select=token_hash,account_id');
+  for (const s of sess) sessions.set(s.token_hash, s.account_id);
   console.log(`Hesaplar: ${accounts.size} hesap, ${sessions.size} oturum yüklendi.`);
 }
 
 async function newSession(key) {
   const token = crypto.randomBytes(32).toString('base64url');
   const hash = sha256(token);
-  await store.insert('sessions', { token_hash: hash, account_id: dbId(key) });
+  await store.insert('sessions', { token_hash: hash, account_id: key });
   sessions.set(hash, key);
   return token;
 }
@@ -103,7 +101,7 @@ function setup(app, { imageTypes, onProfile }) {
     const account = { name, passHash: await hashPassword(password), avatar: null };
     if (accounts.has(key)) return fail(res, 409, 'Bu kullanıcı adı alınmış.');
     try {
-      await store.insert('accounts', { id: dbId(key), name, pass_hash: account.passHash });
+      await store.insert('accounts', { id: key, name, pass_hash: account.passHash });
       accounts.set(key, account);
       res.json({ token: await newSession(key), ...me(account) });
     } catch (err) {
@@ -148,7 +146,7 @@ function setup(app, { imageTypes, onProfile }) {
     const version = Date.now();
     try {
       if (!(await store.putFile(avatarPath(a.key), req.body, type))) throw new Error('yüklenemedi');
-      await store.update('accounts', `id=${eq(dbId(a.key))}`, { avatar: version });
+      await store.update('accounts', `id=${eq(a.key)}`, { avatar: version });
     } catch (err) {
       console.warn('profil resmi', err.message);
       return fail(res, 500, 'Resim kaydedilemedi, biraz sonra tekrar dene.');
@@ -163,7 +161,7 @@ function setup(app, { imageTypes, onProfile }) {
     const a = accountByToken(bearer(req));
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
     try {
-      await store.update('accounts', `id=${eq(dbId(a.key))}`, { avatar: null });
+      await store.update('accounts', `id=${eq(a.key)}`, { avatar: null });
     } catch (err) {
       console.warn('profil resmi silme', err.message);
       return fail(res, 500, 'Resim kaldırılamadı, biraz sonra tekrar dene.');
