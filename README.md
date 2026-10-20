@@ -80,5 +80,5 @@ Hepsi isteğe bağlı. Render'da **Environment** bölümünden eklenir; anahtarl
 
 ## Lisanslar
 
-Ses efektlerinin kaynakları ve lisansları `public/sfx/KAYNAKLAR.txt` içinde. CC BY 3.0 olanların atfı
-uygulamadaki "Ses kaynakları" linkinde görünür; bu dosyayı silmeyin.
+Ses efektlerinin kaynakları ve lisansları `public/sfx/KAYNAKLAR.txt` içinde; bu dosyayı silmeyin. Dört efekt
+(Ding, Hüzün, Tada, Bum) CC BY 3.0 lisanslı ve atıf ister; uygulamada şu an atıf linki yok.
