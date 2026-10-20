@@ -721,210 +721,332 @@ $('history-playlist').onclick = () => {
 };
 
 function showTab(name) {
-  for (const tab of ['queue', 'history', 'games']) {
+  for (const tab of ['queue', 'history']) {
     $(`tab-${tab}`).classList.toggle('active', name === tab);
     $(`${tab}-view`).hidden = name !== tab;
   }
-  renderGamesBadge();
 }
 $('tab-queue').onclick = () => showTab('queue');
 $('tab-history').onclick = () => showTab('history');
-$('tab-games').onclick = () => showTab('games');
 
-// ---------- Oyunlar ----------
-// Oyun durumu sunucuda tutulur ve herkese aynı anda gider; oyun açıkken diğer her şey çalışmaya devam eder.
+// ---------- Üst çubuk: oda / oyunlar ----------
+// Oyunlardayken oynatıcı ekrandan çıkarılır ama silinmez; müzik çalmaya devam eder.
 
-$('game-tier').onclick = () => {
-  $('games-menu').hidden = true;
-  $('tier-game').hidden = false;
-  renderGamesBadge();
-};
-$('games-back').onclick = () => {
-  $('games-menu').hidden = false;
-  $('tier-game').hidden = true;
-  renderGamesBadge();
-};
+function showPage(page) {
+  const games = page === 'games';
+  $('nav-room').classList.toggle('active', !games);
+  $('nav-games').classList.toggle('active', games);
+  document.querySelector('.media').classList.toggle('away', games);
+  $('games').hidden = !games;
+  renderTopbarNow();
+}
+$('nav-room').onclick = () => showPage('room');
+$('nav-games').onclick = () => showPage('games');
+$('topbar-now').onclick = () => showPage('room');
+
+// Oyunlardayken çalan şarkı üst çubukta görünür.
+function renderTopbarNow() {
+  const btn = $('topbar-now');
+  const title = media?.current?.title;
+  btn.hidden = !title || $('games').hidden;
+  if (title) setIcon(btn, 'music', title);
+}
 
 // ---------- Tier list ----------
-// Sıralama her öğenin kazandığı oy oranıyla yapılır; harfler bu orana göre verilir.
+// Tahta herkeste ortak: biri kartı taşıyınca herkeste yer değiştirir.
 
-const TIERS = [
-  { name: 'S', min: 0.8 },
-  { name: 'A', min: 0.6 },
-  { name: 'B', min: 0.4 },
-  { name: 'C', min: 0.2 },
-  { name: 'D', min: 0 },
-];
-let tier = null;
+const TIER_COLORS = ['#ff7f7f', '#ffbf7f', '#ffdf7f', '#bfff7f', '#7fbfff', '#a78bfa', '#f0a6e8', '#7fe0d0', '#cbd5e1'];
+const CARD_IMAGE_SIDE = 320;
+let tierLists = [];
+let openListId = null;
+let selectedCard = null;  // telefonda: dokunulan kart, sonra dokunulan satıra gider
+let drag = null;          // sürüklenen kart
+let tierRenderPending = false;
 
-const tierWaiting = () => {
-  const pair = tier?.pair;
-  return Boolean(pair && !pair.revealing && !Object.values(pair.votes).some((who) => who.includes(myName)));
-};
+const openList = () => tierLists.find((l) => l.id === openListId);
 
-// Oyunlar sekmesi açık değilken oy bekleyen bir eşleşme varsa sekmede işaret çıkar.
-function renderGamesBadge() {
-  const open = !$('games-view').hidden && !$('tier-game').hidden;
-  $('games-count').textContent = !open && tierWaiting() ? 'oyla' : '';
-}
-
-function tierThumb(item) {
-  const el = document.createElement('div');
-  el.className = 'duel-thumb';
-  if (item.videoId) {
-    const img = document.createElement('img');
-    img.alt = '';
-    img.src = `https://i.ytimg.com/vi/${item.videoId}/mqdefault.jpg`;
-    el.append(img);
-  } else {
-    el.textContent = [...item.title][0]?.toLocaleUpperCase('tr-TR') || '?';
+function setTierLists(lists) {
+  tierLists = lists;
+  if (openListId && !openList()) {
+    openListId = null;
+    toast('Açık olan tier list silindi.');
   }
-  return el;
+  renderTierLists();
 }
 
-function renderDuel() {
-  const box = $('tier-duel');
-  box.replaceChildren();
-  const byId = new Map(tier.items.map((it) => [it.id, it]));
-  const progress = document.createElement('div');
-  progress.className = 'duel-progress muted small';
-
-  if (!tier.pair) {
-    progress.textContent = tier.items.length < 2
-      ? 'Oylama için havuza en az iki şey ekleyin.'
-      : `Bütün eşleşmeler oylandı (${tier.done}/${tier.total}). Yeni bir şey ekleyince devam eder.`;
-    box.append(progress);
+function renderTierLists() {
+  // Sürüklerken ya da satır adı yazılırken tahta yeniden çizilmez; bitince çizilir.
+  const typing = $('tier-edit').contains(document.activeElement) && document.activeElement.matches('.tier-name, #tier-title');
+  if (drag || typing) {
+    tierRenderPending = true;
     return;
   }
-
-  const { ids, votes, revealing } = tier.pair;
-  const count = (id) => votes[id]?.length || 0;
-  const cards = document.createElement('div');
-  cards.className = 'duel-cards';
-  ids.forEach((id, i) => {
-    const item = byId.get(id);
-    const who = votes[id] || [];
-    const card = document.createElement('button');
-    card.className = 'duel-card' + (who.includes(myName) ? ' mine' : '');
-    if (revealing) {
-      const other = count(ids[1 - i]);
-      card.classList.add(count(id) > other ? 'won' : count(id) < other ? 'lost' : 'tie');
-    }
-    card.disabled = revealing;
-    card.append(tierThumb(item));
-    const title = document.createElement('span');
-    title.className = 'duel-title';
-    title.textContent = item.title;
-    const voters = document.createElement('span');
-    voters.className = 'duel-voters muted small';
-    voters.textContent = who.length ? who.join(', ') : ' ';
-    card.append(title, voters);
-    card.onclick = () => socket.emit('tier:vote', id);
-    cards.append(card);
-    if (i === 0) {
-      const vs = document.createElement('span');
-      vs.className = 'duel-vs';
-      vs.textContent = 'VS';
-      cards.append(vs);
-    }
-  });
-
-  const foot = document.createElement('div');
-  foot.className = 'duel-foot';
-  progress.textContent = `Eşleşme ${tier.done + 1}/${tier.total} · Hangisi daha iyi?`;
-  foot.append(progress);
-  for (const id of ids) {
-    const item = byId.get(id);
-    if (!item.videoId) continue;
-    const add = document.createElement('button');
-    add.className = 'sm ghost';
-    setIcon(add, 'plus', 'Sıraya');
-    add.title = `Sıraya ekle: ${item.title}`;
-    add.onclick = () => {
-      socket.emit('media:add', item.videoId);
-      add.disabled = true;
-    };
-    foot.append(add);
-  }
-  const skip = document.createElement('button');
-  skip.className = 'sm ghost';
-  setIcon(skip, 'skip', 'Geç');
-  skip.title = 'Bu eşleşmeyi geç';
-  skip.disabled = revealing;
-  skip.onclick = () => socket.emit('tier:next');
-  foot.append(skip);
-  box.append(cards, foot);
+  tierRenderPending = false;
+  const list = openList();
+  $('tier-home').hidden = Boolean(list);
+  $('tier-edit').hidden = !list;
+  if (list) renderTierBoard(list);
+  else renderTierHome();
 }
 
-function renderBoard() {
-  const board = $('tier-board');
-  board.replaceChildren();
-  const rated = tier.items.filter((it) => it.games).map((it) => ({ ...it, rate: it.wins / it.games }));
-  rated.sort((a, b) => b.rate - a.rate || b.wins - a.wins);
-  if (!rated.length) return;
-  for (const t of TIERS) {
-    const upper = TIERS[TIERS.indexOf(t) - 1]?.min ?? Infinity;
-    const items = rated.filter((it) => it.rate >= t.min && it.rate < upper);
-    const row = document.createElement('div');
-    row.className = `tier-row tier-${t.name}`;
-    row.innerHTML = `<span class="tier-label">${t.name}</span><div class="tier-items"></div>`;
-    for (const it of items) {
-      const chip = document.createElement('span');
-      chip.className = 'tier-chip';
-      chip.textContent = it.title;
-      chip.title = `${it.wins}/${it.games} oy (%${Math.round(it.rate * 100)})`;
-      row.querySelector('.tier-items').append(chip);
-    }
-    board.append(row);
-  }
-}
+$('tier-edit').addEventListener('focusout', () => setTimeout(() => tierRenderPending && renderTierLists()));
 
-function renderPool() {
-  const list = $('tier-pool');
-  list.replaceChildren();
-  for (const item of tier.items) {
+function renderTierHome() {
+  const ol = $('tierlist-list');
+  ol.replaceChildren();
+  for (const list of tierLists) {
+    const placed = list.tiers.reduce((n, t) => n + t.cards.length, 0);
     const li = document.createElement('li');
+    li.className = 'tierlist-item';
     li.innerHTML = `
       <div class="q-text">
         <div class="q-title"></div>
         <div class="muted small"></div>
       </div>
-      <button class="icon sm ghost" title="Havuzdan çıkar">${icon('x')}</button>`;
-    if (item.videoId) li.prepend(thumb(item.videoId));
-    li.querySelector('.q-title').textContent = item.title;
-    const score = item.games ? ` · ${item.wins}/${item.games} oy` : '';
-    li.querySelector('.small').textContent = `${item.by} ekledi${score}`;
-    li.querySelector('button').onclick = () => socket.emit('tier:remove', item.id);
-    list.append(li);
+      <button class="sm">Aç</button>`;
+    li.querySelector('.q-title').textContent = list.title;
+    li.querySelector('.small').textContent = `${list.by} oluşturdu · ${list.cards.length} kart, ${placed} yerleşti`;
+    li.onclick = () => {
+      openListId = list.id;
+      selectedCard = null;
+      renderTierLists();
+    };
+    ol.append(li);
   }
-  $('tier-pool-empty').hidden = tier.items.length > 0;
-  $('tier-pool-count').textContent = tier.items.length || '';
+  $('tierlist-empty').hidden = tierLists.length > 0;
 }
 
-function renderTier() {
-  if (document.activeElement !== $('tier-topic')) $('tier-topic').value = tier.topic;
-  renderDuel();
-  renderBoard();
-  renderPool();
-  renderGamesBadge();
+function tierCard(card) {
+  const el = document.createElement('div');
+  el.className = 'tier-card' + (card.image ? ' has-img' : '') + (selectedCard === card.id ? ' selected' : '');
+  el.dataset.card = card.id;
+  el.title = `${card.text || 'Resim'} · ${card.by} ekledi`;
+  if (card.image) {
+    const img = document.createElement('img');
+    img.src = card.image;
+    img.alt = card.text;
+    img.draggable = false;
+    el.append(img);
+  }
+  if (card.text) {
+    const text = document.createElement('span');
+    text.className = 'tier-card-text';
+    text.textContent = card.text;
+    el.append(text);
+  }
+  const del = document.createElement('button');
+  del.className = 'tier-card-del';
+  del.title = 'Kartı sil';
+  setIcon(del, 'x');
+  del.onclick = (e) => {
+    e.stopPropagation();
+    socket.emit('card:remove', { listId: openListId, cardId: card.id });
+  };
+  del.onpointerdown = (e) => e.stopPropagation();
+  el.append(del);
+  el.onpointerdown = (e) => startCardDrag(e, el, card.id);
+  return el;
 }
 
-socket.on('tier', (state) => {
-  tier = state;
-  renderTier();
+function fillDrop(zone, ids, cards) {
+  zone.replaceChildren();
+  for (const id of ids) if (cards.has(id)) zone.append(tierCard(cards.get(id)));
+}
+
+function renderTierBoard(list) {
+  if (document.activeElement !== $('tier-title')) $('tier-title').value = list.title;
+  const cards = new Map(list.cards.map((c) => [c.id, c]));
+  const board = $('tier-board');
+  board.replaceChildren();
+  list.tiers.forEach((tier, i) => {
+    const row = document.createElement('div');
+    row.className = 'tier-row';
+    row.innerHTML = `
+      <div class="tier-label"><input class="tier-name" maxlength="24" aria-label="Satır adı"></div>
+      <div class="tier-items tier-drop"></div>
+      <div class="tier-row-actions">
+        <button data-act="up" class="icon sm ghost" title="Yukarı taşı">${icon('up')}</button>
+        <button data-act="down" class="icon sm ghost" title="Aşağı taşı">${icon('chevron')}</button>
+        <button data-act="remove" class="icon sm ghost" title="Satırı sil (kartlar aşağıya döner)">${icon('x')}</button>
+      </div>`;
+    row.querySelector('.tier-label').style.background = TIER_COLORS[i % TIER_COLORS.length];
+    const name = row.querySelector('.tier-name');
+    name.value = tier.name;
+    name.onchange = () => {
+      if (name.value.trim()) socket.emit('tier:rename', { listId: list.id, tierId: tier.id, name: name.value });
+      else name.value = tier.name;
+    };
+    name.onkeydown = (e) => e.key === 'Enter' && name.blur();
+    const drop = row.querySelector('.tier-drop');
+    drop.dataset.tier = tier.id;
+    fillDrop(drop, tier.cards, cards);
+    const act = (sel, fn) => (row.querySelector(`[data-act=${sel}]`).onclick = fn);
+    act('up', () => socket.emit('tier:shift', { listId: list.id, tierId: tier.id, dir: -1 }));
+    act('down', () => socket.emit('tier:shift', { listId: list.id, tierId: tier.id, dir: 1 }));
+    act('remove', () => socket.emit('tier:remove', { listId: list.id, tierId: tier.id }));
+    row.querySelector('[data-act=up]').disabled = i === 0;
+    row.querySelector('[data-act=down]').disabled = i === list.tiers.length - 1;
+    row.querySelector('[data-act=remove]').disabled = list.tiers.length <= 1;
+    board.append(row);
+  });
+  fillDrop($('tier-pool'), list.pool, cards);
+  $('tier-pool').classList.toggle('empty-pool', !list.pool.length);
+  $('tier-add-row').disabled = list.tiers.length >= 12;
+}
+
+// ---------- Sürükle-bırak ----------
+// Fare ve dokunmatik için aynı kod (pointer olayları). Kıpırdamadan bırakılırsa "dokunma" sayılır.
+
+const DRAG_START_PX = 6;
+
+function startCardDrag(e, el, cardId) {
+  if (e.button !== 0) return;
+  drag = { cardId, el, x: e.clientX, y: e.clientY, ghost: null, zone: null };
+  el.setPointerCapture(e.pointerId);
+  el.onpointermove = moveCardDrag;
+  el.onpointerup = el.onpointercancel = endCardDrag;
+}
+
+function dropZoneAt(x, y) {
+  return document.elementFromPoint(x, y)?.closest('#tier-edit .tier-drop, #tier-edit .tier-row') || null;
+}
+
+function moveCardDrag(e) {
+  if (!drag) return;
+  if (!drag.ghost) {
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < DRAG_START_PX) return;
+    const rect = drag.el.getBoundingClientRect();
+    drag.ghost = drag.el.cloneNode(true);
+    drag.ghost.classList.add('tier-ghost');
+    drag.ghost.style.width = `${rect.width}px`;
+    drag.ghost.style.height = `${rect.height}px`;
+    drag.dx = drag.x - rect.left;
+    drag.dy = drag.y - rect.top;
+    document.body.append(drag.ghost);
+    drag.el.classList.add('dragging');
+  }
+  drag.ghost.style.transform = `translate(${e.clientX - drag.dx}px, ${e.clientY - drag.dy}px)`;
+  let zone = dropZoneAt(e.clientX, e.clientY);
+  if (zone?.classList.contains('tier-row')) zone = zone.querySelector('.tier-drop');
+  if (zone !== drag.zone) {
+    drag.zone?.classList.remove('over');
+    zone?.classList.add('over');
+    drag.zone = zone;
+  }
+}
+
+// Bırakılan noktadan önceki kart sayısı = yeni sıra.
+function dropIndex(zone, x, y, cardId) {
+  const others = [...zone.querySelectorAll('.tier-card')].filter((c) => Number(c.dataset.card) !== cardId);
+  const i = others.findIndex((c) => {
+    const r = c.getBoundingClientRect();
+    return y < r.top || (y <= r.bottom && x < r.left + r.width / 2);
+  });
+  return i < 0 ? others.length : i;
+}
+
+function moveCard(cardId, zone, index) {
+  const to = zone.dataset.tier ? Number(zone.dataset.tier) : null;
+  socket.emit('card:move', { listId: openListId, cardId, to, index });
+}
+
+function endCardDrag(e) {
+  if (!drag) return;
+  const { cardId, ghost, zone } = drag;
+  drag.el.onpointermove = drag.el.onpointerup = drag.el.onpointercancel = null;
+  drag = null;
+  if (ghost) {
+    ghost.remove();
+    zone?.classList.remove('over');
+    document.querySelector('.tier-card.dragging')?.classList.remove('dragging');
+    if (zone && e.type === 'pointerup') moveCard(cardId, zone, dropIndex(zone, e.clientX, e.clientY, cardId));
+    else if (tierRenderPending) renderTierLists();
+  } else if (e.type === 'pointerup') {
+    selectedCard = selectedCard === cardId ? null : cardId;
+    renderTierLists();
+  }
+}
+
+// Seçili kart varken bir satıra (ya da aşağıdaki alana) dokunmak kartı oraya taşır.
+$('tier-edit').addEventListener('click', (e) => {
+  if (!selectedCard || e.target.closest('.tier-card, button, input')) return;
+  let zone = e.target.closest('.tier-drop, .tier-row');
+  if (zone?.classList.contains('tier-row')) zone = zone.querySelector('.tier-drop');
+  if (!zone) return;
+  const cardId = selectedCard;
+  selectedCard = null;
+  moveCard(cardId, zone);
 });
 
-$('tier-add').onsubmit = (e) => {
+socket.on('tierlists', setTierLists);
+
+$('tierlist-new').onsubmit = async (e) => {
   e.preventDefault();
-  const text = $('tier-input').value.trim();
-  if (!text) return;
-  const videoId = parseVideoId(text);
-  socket.emit('tier:add', { text, videoId: isX(videoId) ? null : videoId });
-  $('tier-input').value = '';
+  const title = $('tierlist-title').value.trim();
+  if (!title) return;
+  const res = await emitAck(8000, 'tierlist:create', title);
+  if (!res) return toast('Sunucuya ulaşılamadı.');
+  if (res.error) return toast(res.error);
+  $('tierlist-title').value = '';
+  openListId = res.id;
+  renderTierLists();
 };
 
-$('tier-topic').onchange = () => socket.emit('tier:topic', $('tier-topic').value);
-$('tier-topic').onkeydown = (e) => e.key === 'Enter' && e.currentTarget.blur();
+$('tier-back').onclick = () => {
+  openListId = null;
+  selectedCard = null;
+  renderTierLists();
+};
+$('tier-title').onchange = () => {
+  if ($('tier-title').value.trim()) socket.emit('tierlist:rename', { listId: openListId, title: $('tier-title').value });
+};
+$('tier-title').onkeydown = (e) => e.key === 'Enter' && e.currentTarget.blur();
+$('tier-add-row').onclick = () => socket.emit('tier:add', openListId);
+
+// Seçilen resimler kart eklenene kadar bekler; birden fazla seçilirse her biri ayrı kart olur.
+let cardFiles = [];
+$('card-file').onchange = () => {
+  cardFiles = [...$('card-file').files].filter((f) => f.type.startsWith('image/'));
+  $('card-file').value = '';
+  $('card-pick-label').textContent = cardFiles.length ? `${cardFiles.length} resim` : 'Resim';
+  $('card-form').querySelector('.card-pick').classList.toggle('picked', cardFiles.length > 0);
+  if (cardFiles.length) $('card-text').focus();
+};
+
+$('card-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('card-text').value.trim();
+  const files = cardFiles;
+  if (!text && !files.length) return $('card-text').focus();
+  const btn = e.submitter || $('card-form').querySelector('[type=submit]');
+  btn.disabled = true;
+  try {
+    for (const [i, file] of (files.length ? files : [null]).entries()) {
+      const card = { listId: openListId, text: files.length > 1 ? '' : text };
+      if (file) {
+        try {
+          const { blob, type } = await compressImage(file, CARD_IMAGE_SIDE);
+          Object.assign(card, { data: await blob.arrayBuffer(), type });
+        } catch {
+          toast(`Bu resim açılamadı: ${file.name}`);
+          continue;
+        }
+      }
+      if (i) await new Promise((r) => setTimeout(r, 350)); // sunucudaki hız sınırı
+      const res = await emitAck(15000, 'card:add', card);
+      if (!res || res.error) {
+        toast(res?.error || 'Kart eklenemedi.');
+        break;
+      }
+    }
+  } finally {
+    btn.disabled = false;
+  }
+  cardFiles = [];
+  $('card-pick-label').textContent = 'Resim';
+  $('card-form').querySelector('.card-pick').classList.remove('picked');
+  $('card-text').value = '';
+};
 
 // Silme düğmeleri iki aşamalı: ilk basışta onay ister, birkaç saniye içinde ikinci basış uygular.
 function confirmButton(btn, ask, run) {
@@ -945,8 +1067,7 @@ function confirmButton(btn, ask, run) {
     run();
   };
 }
-confirmButton($('tier-reset'), 'Emin misin? Tekrar bas', () => socket.emit('tier:reset', false));
-confirmButton($('tier-clear'), 'Her şey silinecek, tekrar bas', () => socket.emit('tier:reset', true));
+confirmButton($('tier-delete'), 'Emin misin? Tekrar bas', () => socket.emit('tierlist:delete', openListId));
 
 // ---------- Geçici sohbet ----------
 // Mesajlar sadece sunucunun hafızasında tutulur (son 50); herkes çıkınca silinir.
@@ -1037,10 +1158,10 @@ function renderChatMessage({ from, name, text, image, ts, system }) {
 const IMAGE_MAX_SIDE = 1600;
 const GIF_MAX_BYTES = 2 * 1024 * 1024;
 
-async function compressImage(file) {
-  if (file.type === 'image/gif' && file.size <= GIF_MAX_BYTES) return { blob: file, type: 'image/gif' };
+async function compressImage(file, maxSide = IMAGE_MAX_SIDE) {
+  if (maxSide === IMAGE_MAX_SIDE && file.type === 'image/gif' && file.size <= GIF_MAX_BYTES) return { blob: file, type: 'image/gif' };
   const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(bitmap.width * scale);
   canvas.height = Math.round(bitmap.height * scale);
@@ -1841,6 +1962,7 @@ function renderQueue() {
     li.querySelector('[data-act=remove]').onclick = () => socket.emit('media:remove', i);
     list.append(li);
   });
+  renderTopbarNow();
   $('queue-empty').hidden = media.queue.length > 0;
   $('queue-count').textContent = media.queue.length || '';
 }
@@ -2351,8 +2473,7 @@ function applyJoin(res) {
   res.chat.forEach(renderChatMessage);
   mergeHistory([...loadLocalHistory(), ...res.history]);
   setCustomSfx(res.customSfx);
-  tier = res.tier;
-  renderTier();
+  setTierLists(res.tierLists);
   media = res.media;
   renderQueue();
   applyMedia();

@@ -18,9 +18,15 @@ const CHAT_HISTORY = 50;
 const PLAY_HISTORY = 200; // önceden çalanlar listesinde tutulan şarkı sayısı  // odaya yeni girene gösterilen son mesaj sayısı
 const CHAT_MAX_LENGTH = 500;
 const CHAT_COOLDOWN = 300; // ms
-const TIER_MAX_ITEMS = 40;   // 40 öğe = 780 eşleşme; daha fazlası bitmez
-const TIER_TITLE_MAX = 80;
-const TIER_REVEAL_MS = 1500;  // herkes oy verince sonuç bu kadar görünür, sonra sıradaki eşleşme
+const TIERLIST_MAX = 10;       // odadaki en fazla tier list
+const TIERLIST_TITLE_MAX = 60;
+const TIER_MAX = 12;           // bir listedeki en fazla satır (S, A, B...)
+const TIER_NAME_MAX = 24;
+const CARD_MAX = 100;          // bir listedeki en fazla kart
+const CARD_TEXT_MAX = 60;
+const CARD_IMAGE_MAX_BYTES = 200 * 1024; // istemci küçültüp gönderir (~20-40 KB)
+const CARD_COOLDOWN = 300;     // ms
+const DEFAULT_TIERS = ['S', 'A', 'B', 'C', 'D'];
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
 const IMAGE_COOLDOWN = 2000; // ms
 // Dosyanın ilk baytlarıyla gerçekten resim olduğunu doğrularız (uzantıya/türe güvenmeyiz).
@@ -89,6 +95,13 @@ app.get('/sfx-custom/:room/:id', (req, res) => {
   if (!fx) return res.status(404).end();
   res.set({ 'Content-Type': 'audio/wav', 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' });
   res.send(fx.buf);
+});
+
+app.get('/card-img/:id', (req, res) => {
+  const img = cardImages.get(req.params.id);
+  if (!img) return res.status(404).end();
+  res.set({ 'Content-Type': img.type, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'private, max-age=86400' });
+  res.send(img.buf);
 });
 
 app.get('/img/:id', (req, res) => {
@@ -182,18 +195,18 @@ const rooms = new Map();
 // Önceden çalanlar ve özel efektler oda boşalınca silinmez (sunucu yeniden başlayana kadar durur).
 const histories = new Map(); // oda kodu -> [{ videoId, title, by, playedAt }]
 const customSfxByRoom = new Map(); // oda kodu -> Map<id, { buf, label, by }>
-const tiersByRoom = new Map(); // oda kodu -> tier list oyunu (aşağıda)
+const tierListsByRoom = new Map(); // oda kodu -> [tier list] (aşağıda)
 
 function getRoom(code) {
   if (!rooms.has(code)) {
     if (!histories.has(code)) histories.set(code, []);
     if (!customSfxByRoom.has(code)) customSfxByRoom.set(code, new Map());
-    if (!tiersByRoom.has(code)) tiersByRoom.set(code, newTier());
+    if (!tierListsByRoom.has(code)) tierListsByRoom.set(code, []);
     rooms.set(code, {
       code,
       history: histories.get(code),
       customSfx: customSfxByRoom.get(code),
-      tier: tiersByRoom.get(code),
+      tierLists: tierListsByRoom.get(code),
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -341,88 +354,43 @@ function playNext(room) {
 }
 
 // ---------- Oyunlar: tier list ----------
-// Havuzdaki öğeler ikişer ikişer herkese aynı anda sorulur. Herkes oy verince kısa bir süre
-// sonuç görünür ve sıradaki eşleşmeye geçilir. Sıralama her öğenin kazandığı oy oranıdır.
+// Odada birden fazla tier list olabilir. Herkes kart ekler (yazı ve/veya resim) ve kartları
+// satırlara sürükler; tahta herkeste ortaktır. Listeler oda boşalınca silinmez, kart resimleri
+// de sunucu yeniden başlayana kadar hafızada durur.
 
-const pairKey = (a, b) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+const cardImages = new Map(); // id -> { buf, type }
+let nextTierId = 1; // listeler, satırlar ve kartlar için ortak sayaç
 
-function newTier() {
+const newTierRow = (name) => ({ id: nextTierId++, name, cards: [] });
+
+function tierListView(list) {
   return {
-    topic: '',
-    items: [],          // { id, title, by, videoId }
-    votes: new Map(),   // eşleşme anahtarı -> Map<sekme kimliği, { name, pick }>
-    done: new Set(),    // oylanmış ya da geçilmiş eşleşmeler
-    pair: null,         // [a, b]
-    revealing: false,   // herkes oy verdi, sonuç gösteriliyor
-    timer: null,
+    id: list.id,
+    title: list.title,
+    by: list.by,
+    tiers: list.tiers.map((t) => ({ id: t.id, name: t.name, cards: t.cards })),
+    pool: list.pool,
+    cards: [...list.cards.values()],
   };
 }
 
-let nextTierItemId = 1;
-
-function tierView(tier) {
-  const score = new Map(tier.items.map((it) => [it.id, { wins: 0, games: 0 }]));
-  for (const [key, votes] of tier.votes) {
-    const [a, b] = key.split('-').map(Number);
-    if (!score.has(a) || !score.has(b)) continue;
-    for (const { pick } of votes.values()) {
-      score.get(a).games++;
-      score.get(b).games++;
-      score.get(pick).wins++;
-    }
-  }
-  const n = tier.items.length;
-  let pair = null;
-  if (tier.pair) {
-    const votes = {};
-    for (const { name, pick } of tier.votes.get(pairKey(...tier.pair))?.values() || []) (votes[pick] ??= []).push(name);
-    pair = { ids: tier.pair, votes, revealing: tier.revealing };
-  }
-  return {
-    topic: tier.topic,
-    items: tier.items.map((it) => ({ ...it, ...score.get(it.id) })),
-    pair,
-    done: tier.done.size,
-    total: (n * (n - 1)) / 2,
-  };
+function broadcastTierLists(room) {
+  io.to(room.code).emit('tierlists', room.tierLists.map(tierListView));
 }
 
-function broadcastTier(room) {
-  io.to(room.code).emit('tier', tierView(room.tier));
-}
-
-// Henüz sorulmamış bir eşleşme seçer; az önce sorulan öğeler arka arkaya gelmesin.
-function nextPair(tier) {
-  clearTimeout(tier.timer);
-  tier.revealing = false;
-  const last = new Set(tier.pair || []);
-  if (tier.pair) tier.done.add(pairKey(...tier.pair));
-  const open = [];
-  const ids = tier.items.map((it) => it.id);
-  for (let i = 0; i < ids.length; i++) {
-    for (let j = i + 1; j < ids.length; j++) {
-      if (!tier.done.has(pairKey(ids[i], ids[j]))) open.push([ids[i], ids[j]]);
-    }
+// Kartı bulunduğu yerden (havuz ya da bir satır) çıkarır.
+function takeCard(list, cardId) {
+  for (const arr of [list.pool, ...list.tiers.map((t) => t.cards)]) {
+    const i = arr.indexOf(cardId);
+    if (i >= 0) return arr.splice(i, 1);
   }
-  const fresh = open.filter(([a, b]) => !last.has(a) && !last.has(b));
-  const pool = fresh.length ? fresh : open;
-  const pick = pool[Math.floor(Math.random() * pool.length)];
-  tier.pair = pick ? (Math.random() < 0.5 ? pick : [pick[1], pick[0]]) : null;
 }
 
-// Odadaki herkes oy verdiyse sonucu gösterip sıradakine geçer.
-function checkTierVotes(room) {
-  const tier = room.tier;
-  if (!tier.pair || tier.revealing) return;
-  const votes = tier.votes.get(pairKey(...tier.pair));
-  const present = new Set([...room.users.values()].map((u) => u.clientId));
-  const voted = [...(votes?.keys() || [])].filter((k) => present.has(k)).length;
-  if (!present.size || voted < present.size) return;
-  tier.revealing = true;
-  tier.timer = setTimeout(() => {
-    nextPair(tier);
-    if (rooms.get(room.code) === room) broadcastTier(room);
-  }, TIER_REVEAL_MS);
+function deleteCard(list, cardId) {
+  takeCard(list, cardId);
+  const card = list.cards.get(cardId);
+  if (card?.image) cardImages.delete(card.image.slice('card-img/'.length));
+  list.cards.delete(cardId);
 }
 
 io.on('connection', (socket) => {
@@ -463,7 +431,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tier: tierView(room.tier) });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView) });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -696,88 +664,109 @@ io.on('connection', (socket) => {
     broadcastMedia(code);
   });
 
-  socket.on('tier:add', async ({ text, videoId } = {}) => {
+  // Tier list olayları listenin kimliğiyle gelir; liste yoksa yok sayılır.
+  const withList = (listId, fn) => {
     if (!code) return;
-    const roomCode = code;
-    const tier = getRoom(roomCode).tier;
-    if (tier.items.length >= TIER_MAX_ITEMS) return socket.emit('notice', `Havuz dolu (en fazla ${TIER_MAX_ITEMS} öğe).`);
-    videoId = typeof videoId === 'string' && VIDEO_ID.test(videoId) ? videoId : null;
-    let title = typeof text === 'string' ? text.trim() : '';
-    if (videoId) title = (await fetchTitle(videoId)) || title;
-    title = title.slice(0, TIER_TITLE_MAX);
-    if (!title || !rooms.has(roomCode)) return;
-    const room = getRoom(roomCode);
-    if (room.tier.items.some((it) => it.title.toLocaleLowerCase('tr-TR') === title.toLocaleLowerCase('tr-TR'))) {
-      return socket.emit('notice', `Bu zaten havuzda: ${title}`);
+    const room = getRoom(code);
+    const list = room.tierLists.find((l) => l.id === listId);
+    if (list && fn(list, room) !== false) broadcastTierLists(room);
+  };
+  const cleanText = (text, max) => (typeof text === 'string' ? text.replace(/\s+/g, ' ').trim().slice(0, max) : '');
+
+  socket.on('tierlist:create', (title, ack) => {
+    if (!code || typeof ack !== 'function') return;
+    const room = getRoom(code);
+    title = cleanText(title, TIERLIST_TITLE_MAX);
+    if (!title) return ack({ error: 'Listeye bir isim ver.' });
+    if (room.tierLists.length >= TIERLIST_MAX) return ack({ error: `En fazla ${TIERLIST_MAX} tier list olabilir; eskilerden birini sil.` });
+    const by = room.users.get(socket.id).name;
+    const list = { id: nextTierId++, title, by, tiers: DEFAULT_TIERS.map(newTierRow), pool: [], cards: new Map() };
+    room.tierLists.push(list);
+    broadcastTierLists(room);
+    socket.to(code).emit('notice', `${by} yeni tier list oluşturdu: ${title}`);
+    ack({ id: list.id });
+  });
+
+  socket.on('tierlist:delete', (listId) => withList(listId, (list, room) => {
+    for (const id of [...list.cards.keys()]) deleteCard(list, id);
+    room.tierLists.splice(room.tierLists.indexOf(list), 1);
+  }));
+
+  socket.on('tierlist:rename', ({ listId, title } = {}) => withList(listId, (list) => {
+    title = cleanText(title, TIERLIST_TITLE_MAX);
+    if (!title) return false;
+    list.title = title;
+  }));
+
+  socket.on('tier:add', (listId) => withList(listId, (list) => {
+    if (list.tiers.length >= TIER_MAX) return false;
+    list.tiers.push(newTierRow(String(list.tiers.length + 1)));
+  }));
+
+  // Silinen satırdaki kartlar havuza döner.
+  socket.on('tier:remove', ({ listId, tierId } = {}) => withList(listId, (list) => {
+    const i = list.tiers.findIndex((t) => t.id === tierId);
+    if (i < 0 || list.tiers.length <= 1) return false;
+    list.pool.push(...list.tiers.splice(i, 1)[0].cards);
+  }));
+
+  socket.on('tier:rename', ({ listId, tierId, name } = {}) => withList(listId, (list) => {
+    const tier = list.tiers.find((t) => t.id === tierId);
+    name = cleanText(name, TIER_NAME_MAX);
+    if (!tier || !name) return false;
+    tier.name = name;
+  }));
+
+  // dir: -1 yukarı, 1 aşağı
+  socket.on('tier:shift', ({ listId, tierId, dir } = {}) => withList(listId, (list) => {
+    const i = list.tiers.findIndex((t) => t.id === tierId);
+    const j = i + (dir === -1 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= list.tiers.length) return false;
+    [list.tiers[i], list.tiers[j]] = [list.tiers[j], list.tiers[i]];
+  }));
+
+  let lastCard = 0;
+  socket.on('card:add', ({ listId, text, data, type } = {}, ack) => {
+    if (typeof ack !== 'function') return;
+    if (!code) return ack({ error: 'Odada değilsin.' });
+    if (Date.now() - lastCard < CARD_COOLDOWN) return ack({ error: 'Biraz bekle, çok hızlı ekliyorsun.' });
+    const list = getRoom(code).tierLists.find((l) => l.id === listId);
+    if (!list) return ack({ error: 'Bu liste silinmiş.' });
+    if (list.cards.size >= CARD_MAX) return ack({ error: `Bir listede en fazla ${CARD_MAX} kart olabilir.` });
+    text = cleanText(text, CARD_TEXT_MAX);
+    let image = null;
+    if (data != null) {
+      if (!Buffer.isBuffer(data) || data.length > CARD_IMAGE_MAX_BYTES || !IMAGE_TYPES[type]?.(data)) {
+        return ack({ error: 'Bu resim eklenemedi (desteklenmeyen tür ya da çok büyük).' });
+      }
+      const imageId = crypto.randomUUID();
+      cardImages.set(imageId, { buf: data, type });
+      image = `card-img/${imageId}`;
     }
-    room.tier.items.push({ id: nextTierItemId++, title, by: room.users.get(socket.id)?.name || '?', videoId });
-    if (!room.tier.pair) nextPair(room.tier);
-    broadcastTier(room);
+    if (!text && !image) return ack({ error: 'Karta bir isim yaz ya da resim seç.' });
+    lastCard = Date.now();
+    withList(listId, (l, room) => {
+      const card = { id: nextTierId++, text, image, by: room.users.get(socket.id).name };
+      l.cards.set(card.id, card);
+      l.pool.push(card.id);
+    });
+    ack({});
   });
 
-  socket.on('tier:remove', (id) => {
-    if (!code) return;
-    const room = getRoom(code);
-    const tier = room.tier;
-    const index = tier.items.findIndex((it) => it.id === id);
-    if (index < 0) return;
-    tier.items.splice(index, 1);
-    if (tier.pair?.includes(id)) {
-      tier.pair = null; // silinen öğenin eşleşmesi oylanmış sayılmasın
-      nextPair(tier);
-    }
-    broadcastTier(room);
-  });
+  socket.on('card:remove', ({ listId, cardId } = {}) => withList(listId, (list) => {
+    if (!list.cards.has(cardId)) return false;
+    deleteCard(list, cardId);
+  }));
 
-  // Oy değiştirilebilir; aynı öğeye tekrar basmak geri alır. Sonuç gösterilirken oy alınmaz.
-  socket.on('tier:vote', (pick) => {
-    if (!code) return;
-    const room = getRoom(code);
-    const tier = room.tier;
-    if (!tier.pair?.includes(pick) || tier.revealing) return;
-    const key = pairKey(...tier.pair);
-    if (!tier.votes.has(key)) tier.votes.set(key, new Map());
-    const votes = tier.votes.get(key);
-    const { key: who, name } = voter();
-    if (votes.get(who)?.pick === pick) votes.delete(who);
-    else votes.set(who, { name, pick });
-    if (!votes.size) tier.votes.delete(key);
-    checkTierVotes(room);
-    broadcastTier(room);
-  });
-
-  socket.on('tier:next', () => {
-    if (!code) return;
-    const room = getRoom(code);
-    if (!room.tier.pair) return;
-    nextPair(room.tier);
-    broadcastTier(room);
-  });
-
-  socket.on('tier:topic', (topic) => {
-    if (!code || typeof topic !== 'string') return;
-    const room = getRoom(code);
-    room.tier.topic = topic.trim().slice(0, TIER_TITLE_MAX);
-    broadcastTier(room);
-  });
-
-  // reset: oylar silinir, havuz kalır. clear: her şey silinir.
-  socket.on('tier:reset', (all) => {
-    if (!code) return;
-    const room = getRoom(code);
-    const tier = room.tier;
-    clearTimeout(tier.timer);
-    if (all) {
-      tier.items = [];
-      tier.topic = '';
-    }
-    tier.votes.clear();
-    tier.done.clear();
-    tier.pair = null;
-    nextPair(tier);
-    io.to(code).emit('notice', `${room.users.get(socket.id).name} ${all ? 'tier listesini temizledi' : 'tier listesinin oylarını sıfırladı'}`);
-    broadcastTier(room);
-  });
+  // to: satır kimliği ya da havuz için null; index: o yerdeki sırası.
+  socket.on('card:move', ({ listId, cardId, to, index } = {}) => withList(listId, (list) => {
+    if (!list.cards.has(cardId)) return false;
+    const target = to == null ? list.pool : list.tiers.find((t) => t.id === to)?.cards;
+    if (!target) return false;
+    takeCard(list, cardId);
+    const at = Number.isInteger(index) ? Math.max(0, Math.min(index, target.length)) : target.length;
+    target.splice(at, 0, cardId);
+  }));
 
   socket.on('disconnect', () => {
     if (!code) return;
@@ -795,14 +784,7 @@ io.on('connection', (socket) => {
       const current = rooms.get(roomCode);
       if (current) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
     }, REJOIN_GRACE));
-    // Herkes oy vermiş, sadece giden kişi bekleniyorsa eşleşme ilerlesin.
-    if (room.users.size) {
-      checkTierVotes(room);
-      broadcastTier(room);
-    }
     if (room.users.size === 0) {
-      clearTimeout(room.tier.timer);
-      room.tier.revealing = false;
       rooms.delete(code);
       deleteRoomImages(code);
     }

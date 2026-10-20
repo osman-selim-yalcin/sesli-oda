@@ -323,77 +323,88 @@ button.off:hover { background: #ff7482; }
 .queue .q-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .queue li > button { flex-shrink: 0; }
 
-/* Oyunlar */
-.games-menu { display: grid; gap: 8px; }
-.game-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px;
-  text-align: left;
-  background: var(--panel-2);
-  border-radius: var(--radius-sm);
-}
-.game-card > .ic { width: 26px; height: 26px; color: var(--accent); margin-top: 2px; }
-.game-card strong { display: block; margin-bottom: 2px; }
-.game-card .small { font-weight: 400; }
-.game-head { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
-.game-head button { flex-shrink: 0; }
-
-.duel { margin-bottom: 14px; }
-.duel-cards { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 10px; align-items: stretch; }
-.duel-vs { align-self: center; font-weight: 800; color: var(--muted); font-size: 13px; }
-.duel-card {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  padding: 10px;
-  background: var(--panel-2);
-  border: 2px solid transparent;
-  border-radius: var(--radius);
-  text-align: center;
+/* Üst çubuk */
+.topbar { position: sticky; top: 0; z-index: 6; background: rgba(11, 12, 16, .85); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
+.topbar-inner { max-width: 1240px; margin: 0 auto; padding: 0 16px; height: 52px; display: flex; align-items: center; gap: 18px; }
+.topbar-brand { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.top-tabs { display: flex; gap: 4px; align-self: stretch; }
+.top-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0 12px;
+  color: var(--muted);
   font-weight: 600;
-  transition: border-color .15s, opacity .2s, transform .1s;
 }
-.duel-card:hover:not(:disabled) { border-color: var(--line-2); background: var(--panel-3); }
-.duel-card.mine { border-color: var(--accent); background: var(--accent-soft); }
-.duel-card:disabled { cursor: default; }
-.duel-card.won { border-color: var(--speak); opacity: 1; }
-.duel-card.lost { opacity: .45; }
-.duel-thumb {
-  aspect-ratio: 16 / 9;
-  max-height: 150px;
-  width: 100%;
-  margin: 0 auto;
-  border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+.top-tab:hover { background: none; color: var(--text); }
+.top-tab:active:not(:disabled) { transform: none; }
+.top-tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.topbar-now { margin-left: auto; max-width: 280px; min-width: 0; color: var(--muted); }
+.topbar-now { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.topbar-now .ic { margin-right: 6px; color: var(--accent); }
+
+/* Oyunlardayken oynatıcı ekrandan çıkar ama çalmaya devam eder */
+.media.away { position: absolute; left: -10000px; top: 0; width: 800px; }
+.games-panel { margin-top: 0; }
+.game-head { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
+.game-head > button { flex-shrink: 0; }
+.tier-title { font-weight: 600; }
+.tierlist-item { cursor: pointer; }
+
+/* Tier list tahtası */
+.tier-board { display: grid; gap: 4px; }
+.tier-row { display: flex; align-items: stretch; min-height: 84px; background: var(--panel-2); border-radius: var(--radius-sm); overflow: hidden; }
+.tier-label { width: 84px; flex-shrink: 0; display: grid; place-items: center; padding: 4px; }
+.tier-name {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #111;
+  font-weight: 800;
+  font-size: 18px;
+  text-align: center;
+  padding: 4px;
+}
+.tier-name:hover { border-color: rgba(0, 0, 0, .2); }
+.tier-name:focus { background: rgba(255, 255, 255, .5); border-color: rgba(0, 0, 0, .3); outline: none; }
+.tier-items { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; align-content: flex-start; transition: background .12s; }
+.tier-drop.over { background: var(--accent-soft); }
+.tier-row-actions { display: flex; flex-direction: column; justify-content: center; padding: 0 2px; opacity: .35; transition: opacity .15s; }
+.tier-row:hover .tier-row-actions { opacity: 1; }
+.tier-row-actions button { padding: 2px; }
+.tier-add-row { margin-top: 6px; }
+.tier-pool { display: flex; flex-wrap: wrap; gap: 4px; min-height: 84px; padding: 4px; border: 1px dashed var(--line-2); border-radius: var(--radius-sm); margin-bottom: 10px; }
+.tier-pool.empty-pool::before { content: "Bütün kartlar yerleşti. Yeni kart eklersen burada çıkar."; margin: auto; color: var(--muted); font-size: 13px; }
+
+.tier-card {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  border-radius: 8px;
+  background: var(--panel-3);
   display: grid;
   place-items: center;
-  font-size: 34px;
-  font-weight: 800;
-  color: #fff;
   overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
 }
-.duel-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.duel-title { overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-.duel-voters { font-weight: 400; min-height: 1.4em; }
-.duel-foot { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-.duel-progress { margin-right: auto; }
-.duel > .duel-progress { text-align: center; padding: 16px 0; }
+.tier-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.tier-card-text { position: relative; padding: 4px; font-size: 12px; font-weight: 600; text-align: center; line-height: 1.2; overflow-wrap: break-word; hyphens: auto; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+.tier-card.has-img .tier-card-text { align-self: end; width: 100%; padding: 10px 3px 3px; font-size: 11px; -webkit-line-clamp: 2; background: linear-gradient(transparent, rgba(0, 0, 0, .8)); color: #fff; }
+.tier-card.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+.tier-card.dragging { opacity: .3; }
+.tier-card-del { position: absolute; top: 2px; right: 2px; padding: 2px; border-radius: 999px; background: rgba(0, 0, 0, .6); border: none; color: #fff; opacity: 0; }
+.tier-card-del .ic { width: 13px; height: 13px; }
+.tier-card:hover .tier-card-del, .tier-card.selected .tier-card-del { opacity: 1; }
+.tier-ghost { position: fixed; left: 0; top: 0; z-index: 50; pointer-events: none; box-shadow: var(--shadow); cursor: grabbing; opacity: .92; }
 
-.tier-board { display: grid; gap: 4px; }
-.tier-row { display: flex; align-items: stretch; gap: 8px; min-height: 40px; background: var(--panel-2); border-radius: var(--radius-sm); overflow: hidden; }
-.tier-label { width: 40px; flex-shrink: 0; display: grid; place-items: center; font-weight: 800; font-size: 18px; color: #111; }
-.tier-S .tier-label { background: #ff7f7f; }
-.tier-A .tier-label { background: #ffbf7f; }
-.tier-B .tier-label { background: #ffdf7f; }
-.tier-C .tier-label { background: #bfff7f; }
-.tier-D .tier-label { background: #7fbfff; }
-.tier-items { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 6px 6px 0; align-items: center; min-width: 0; }
-.tier-chip { background: var(--panel-3); border-radius: 6px; padding: 3px 8px; font-size: 13px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tier-pool li { padding-top: 6px; padding-bottom: 6px; }
-.tier-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.card-form { display: flex; gap: 8px; margin-bottom: 8px; }
+.card-form button { white-space: nowrap; flex-shrink: 0; }
+.card-form .card-pick { display: inline-flex; width: auto; height: auto; gap: 6px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); white-space: nowrap; flex-shrink: 0; }
+.card-form .card-pick.picked { color: var(--accent); border-color: var(--accent); }
 
 .people-list { list-style: none; padding: 0; margin: 0 0 14px; display: grid; gap: 6px; }
 .people-list li {
@@ -558,8 +569,8 @@ button.off:hover { background: #ff7482; }
 /* Sağ panel: araç çubuğu + ekranı dolduran sohbet */
 .side {
   position: sticky;
-  top: 20px;
-  height: calc(100vh - 40px);
+  top: 72px; /* üst çubuğun altında */
+  height: calc(100vh - 92px);
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -664,6 +675,13 @@ details.usage[open] summary span::after { content: '▾'; }
 @media (max-width: 800px) {
   .layout { grid-template-columns: minmax(0, 1fr); padding: 12px 12px 84px; gap: 12px; }
   .side { position: static; height: auto; }
+  .topbar-inner { padding: 0 12px; gap: 10px; }
+  .topbar-brand { display: none; }
+  .topbar-now { max-width: 45vw; }
+  .tier-label { width: 60px; }
+  .tier-card { width: 64px; height: 64px; }
+  .tier-row { min-height: 72px; }
+  .tier-row-actions { opacity: 1; }
   .side .chat { height: 420px; flex: none; }
   /* Telefonda araç çubuğu (mikrofon vs.) ekranın altında hep görünür */
   .toolbar {

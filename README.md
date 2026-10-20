@@ -13,8 +13,9 @@ En fazla 6 kişilik sesli sohbet + senkronize YouTube izleme/dinleme.
 - Yazılı sohbet, emoji seçici
 - Ses efektleri; herkes kendi efektini de yükleyebilir
 - Ekran paylaşımı (Chrome/Edge'de sekme sesiyle birlikte)
-- Oyunlar sekmesi. İlk oyun tier list: havuza şarkı, film, video, ne istenirse eklenir; herkes aynı
-  ikiliyi oylar, oy oranına göre S'den D'ye sıralanır.
+- Oyunlar (üst çubuktaki sekme; oyundayken müzik ve sesli sohbet sürer). İlk oyun tier list: liste
+  oluşturulur, yazılı ya da resimli kartlar eklenir, herkes kartları ortak tahtada satırlara sürükler.
+  Satırlar eklenip silinebilir, isimleri değiştirilebilir.
 - Ses kaydı: müzik dahil ya da sadece konuşmalar, MP3 veya WebM olarak iner. Kayıt sadece kaydedenin
   bilgisayarına iner, sunucuya gitmez.
 
@@ -36,9 +37,9 @@ Derleme adımı yok; `public/` içindeki dosyalar olduğu gibi sunulur.
 
 | Dosya | Ne işe yarar |
 | --- | --- |
-| `server.js` | Express + Socket.IO: odalar, sinyalleşme, sohbet, YouTube araması |
+| `server.js` | Express + Socket.IO: odalar, sinyalleşme, sohbet, YouTube araması, oyunlar |
 | `public/index.html`, `style.css` | Arayüz |
-| `public/app.js` | İstemcinin tamamı: ses, YouTube, sohbet, kayıt |
+| `public/app.js` | İstemcinin tamamı: ses, YouTube, sohbet, kayıt, oyunlar |
 | `public/sfx.js`, `public/sfx/` | Ses efektleri |
 | `public/gate-worklet.js` | Mikrofon gürültü kapısı (AudioWorklet) |
 | `public/rec-worklet.js`, `mp3-worker.js` | Kayıt ve MP3'e çevirme |
