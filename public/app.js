@@ -1155,13 +1155,14 @@ $('card-form').onsubmit = async (e) => {
 // ---------- Oyun sekmeleri ----------
 
 function showGame(name) {
-  for (const game of ['tier', 'timing', 'dino']) {
+  for (const game of ['tier', 'timing', 'dino', 'peacock']) {
     $(`game-tab-${game}`).classList.toggle('active', game === name);
     $(`game-${game}`).hidden = game !== name;
   }
 }
 $('game-tab-tier').onclick = () => showGame('tier');
 $('game-tab-timing').onclick = () => showGame('timing');
+$('game-tab-peacock').onclick = () => showGame('peacock');
 $('game-tab-dino').onclick = () => {
   showGame('dino');
   dinoKick();
@@ -1474,19 +1475,16 @@ socket.on('timing', (state) => {
 const DINO = {
   viewW: 1100, viewH: 250, groundY: 215, // ekranda zeminin yüksekliği
   leaderX: 420,         // kamera en öndekini (çoğunlukla Jef'i) ekranın bu noktasında tutar
-  accel: 800, // birim/sn²; azami hız zamanla artar (DINO_PACE)
-  // Bırakınca momentum: yerde hız önce hızlı, sonra yavaş azalır (tam hızdan ~2 sn'de durur);
-  // havada azalmaz, iyi zıplayan Jef'ten kopmaz.
-  coast: 1.0, coastMin: 60, airCoast: 0,
-  tapWindow: 700, tapFull: 8, // tıklama modu: saniyede bu kadar basış tam hız
+  gap: 60,              // oyuncular Jef'in arkasında bu aralıklarla sıralanır
   gravity: 2600, jump: 860, fastFall: 3200,
   w: 40, h: 44, duckW: 54, duckH: 26,
   sendEvery: 50, // ms; konum yayını
 };
 
-// Tempo: azami hız gitgide artar. Jef kusursuz oynayan bottur: hep o anki azami hızda koşar, hiç
-// ölmez; kamera onu izler. Oyuncular en fazla onun hızına çıkabilir, amaç ondan kopmamak.
-// Sunucudaki DINO_PACE ile aynı olmalı (Jef'in çok gerisinde kalanı sunucu da öldürür).
+// Tempo: hız herkes için otomatik ve gitgide artar. Konum kare kare toplanmaz, oyunun başından beri
+// geçen süreden hesaplanır; takılan kareler ya da gecikme kimseyi yavaşlatmaz. Jef kusursuz oynayan
+// bottur, en önde koşar; oyuncular onun arkasında sıralanır ve sadece zıplayıp eğilir.
+// Sunucudaki DINO_PACE ile aynı olmalı.
 const DINO_PACE = { runStart: 460, runAccel: 30, runMax: 1400 };
 const dinoFullAt = (DINO_PACE.runMax - DINO_PACE.runStart) / DINO_PACE.runAccel; // sn; bu andan sonra hız sabit
 const dinoFullX = DINO_PACE.runStart * dinoFullAt + (DINO_PACE.runAccel * dinoFullAt ** 2) / 2;
@@ -1538,10 +1536,9 @@ let dinoNextX = 0;
 let dinoLastSend = 0;
 let dinoLoop = 0;
 const dinoOthers = new Map(); // isim -> { x, y, duck, tx, ty }
-const dinoKeys = { run: false, jump: false, duck: false };
-let dinoTaps = [];       // tıklama modu: son basışların zamanları
-let dinoMode = 'hold';   // başlatırken seçili mod
-const dinoModeNow = () => (dinoGame && !dinoGame.done ? dinoGame.mode : dinoMode);
+const dinoKeys = { jump: false, duck: false };
+// Oyuncunun sıradaki yeri: oyuncu listesindeki sırası (herkeste aynı)
+const dinoSlot = (game, name) => Object.keys(game.players).indexOf(name) + 1;
 
 // Tohumdan sayı üreten küçük rastgele üreteç (mulberry32): herkes aynı engelleri görür.
 function seeded(seed) {
@@ -1582,7 +1579,6 @@ function setDino(game) {
     dinoObstacles = [];
     dinoCam = 0;
     dinoMe = null;
-    dinoTaps = [];
     if (game) {
       dinoRng = seeded(game.seed);
       dinoNextX = 700;
@@ -1590,7 +1586,7 @@ function setDino(game) {
       const mine = game.players[myName];
       // Sayfayı yenileyen oyuncunun dinozoru kaybolur; oyunda takılı kalmasın diye ölmüş sayılır.
       if (mine && !mine.dead) {
-        if (serverNow() < game.startAt) dinoMe = { x: 0, y: 0, vx: 0, vy: 0, duck: false, dead: false };
+        if (serverNow() < game.startAt) dinoMe = { t: 0, x: -DINO.gap * dinoSlot(game, myName), y: 0, vx: 0, vy: 0, duck: false, dead: false };
         else socket.emit('dino:dead', { id: game.id });
       }
     }
@@ -1613,25 +1609,21 @@ function renderDinoUi() {
   const game = dinoGame;
   const running = game && !game.done;
   $('dino-start').hidden = Boolean(running);
-  $('dino-modes').hidden = Boolean(running);
-  for (const b of $('dino-modes').children) b.classList.toggle('active', b.dataset.mode === dinoMode);
-  $('dino-help').innerHTML = dinoModeNow() === 'tap'
-    ? '<b>Space</b>\'e art arda bas: koş (ne kadar hızlı basarsan o kadar hızlı) · <b>W</b> / <b>↑</b>: zıpla · <b>S</b> / <b>↓</b>: eğil.'
-    : '<b>D</b> / <b>→</b> basılı tut: koş · <b>W</b> / <b>↑</b> / boşluk: zıpla · <b>S</b> / <b>↓</b>: eğil.';
-  $('dino-help').innerHTML += ' Bırakınca hemen durmazsın, yavaşlarsın. Kamera kusursuz koşan bot Jef\'i izler; ondan kopup ekranın solundan çıkan ya da engele çarpan ölür.';
+  $('dino-help').innerHTML = '<b>W</b> / <b>↑</b> / boşluk: zıpla · <b>S</b> / <b>↓</b>: eğil (havadayken hızlı iner). '
+    + 'Hız otomatik ve gitgide artar; herkes kusursuz koşan Jef\'in arkasında koşar. Engele çarpan ölür, en uzağa giden kazanır.';
   $('dino-start').textContent = game ? 'Tekrar oyna' : 'Başlat';
   let status = 'Odadaki herkes Jef\'in peşinden koşar. Başlatınca 5 sn geri sayım olur.';
   if (running) {
     const alive = Object.values(game.players).filter((p) => !p.dead).length;
-    status = `${game.mode === 'tap' ? 'Tıklama' : 'Basılı tut'} · ${alive}/${Object.keys(game.players).length} kişi hayatta` + (game.players[myName] ? '' : ' · İzliyorsun');
+    status = `${alive}/${Object.keys(game.players).length} kişi hayatta` + (game.players[myName] ? '' : ' · İzliyorsun');
   } else if (game) status = 'Oyun bitti.';
   $('dino-status').textContent = status;
 
   const list = $('dino-results');
   list.replaceChildren();
   if (!game) return;
-  // Koşarken mesafe sunucuyu beklemeden ekrandaki konumlardan gelir.
-  const dist = (name, p) => (p.dead || game.done ? p.dist : name === myName ? dinoMe?.x ?? p.dist : dinoOthers.get(name)?.tx ?? p.dist);
+  // Skor, ölene kadar geçen sürede Jef'in gittiği yol: sıradaki yer skoru etkilemez. Hayattakiler için şu anki yol.
+  const dist = (name, p) => (p.dead || game.done ? p.dist : dinoJefNow());
   const rows = Object.entries(game.players).map(([name, p]) => [name, { ...p, dist: dist(name, p) }]).sort((a, b) => b[1].dist - a[1].dist);
   const jef = timingRow('Jef (bot)', `${Math.round(dinoJefNow() / 10)} m`, 'Kusursuz', '');
   jef.querySelector('.avatar').style.background = DINO_JEF_COLOR;
@@ -1646,56 +1638,38 @@ function renderDinoUi() {
   });
 }
 
-// Kalıcı skor tablosu: her mod için en iyi 10 skor
+// Kalıcı skor tablosu: en iyi 10 skor. Eski modların (basılı tut, tıklama) skorları kayıtta durur, gösterilmez.
 function renderDinoBoard(board) {
-  for (const mode of ['hold', 'tap']) {
-    const list = $(`dino-board-${mode}`);
-    list.replaceChildren();
-    (board?.[mode] || []).forEach((r, i) => {
-      const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-      const row = timingRow(r.name, `${Math.round(r.dist / 10)} m`, date, i === 0 ? 'great' : '');
-      row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
-      list.append(row);
-    });
-    if (!board?.[mode]?.length) list.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz skor yok.' }));
-  }
+  const list = $('dino-board');
+  list.replaceChildren();
+  (board?.auto || []).forEach((r, i) => {
+    const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    const row = timingRow(r.name, `${Math.round(r.dist / 10)} m`, date, i === 0 ? 'great' : '');
+    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+    list.append(row);
+  });
+  if (!board?.auto?.length) list.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz skor yok.' }));
 }
 socket.on('dino:board', renderDinoBoard);
 
-$('dino-start').onclick = () => socket.emit('dino:start', dinoMode);
-for (const b of $('dino-modes').children) {
-  b.onclick = () => {
-    dinoMode = b.dataset.mode;
-    renderDinoUi();
-  };
-}
+$('dino-start').onclick = () => socket.emit('dino:start');
 
 function dinoBox(d) {
   return d.duck && d.y === 0 ? { w: DINO.duckW, h: DINO.duckH } : { w: DINO.w, h: DINO.h };
 }
 
+// dt kadar ilerler. x zamandan gelir (Jef'in yeri eksi sıradaki yer); sadece zıplama kare kare hesaplanır.
 function dinoStep(dt) {
   const me = dinoMe;
-  // Hedef hız: basılı tut modunda tuşa, tıklama modunda son basışların sıklığına bağlı.
-  let target;
-  if (dinoGame.mode === 'tap') {
-    const now = performance.now();
-    dinoTaps = dinoTaps.filter((t) => now - t < DINO.tapWindow);
-    const rate = dinoTaps.length / (DINO.tapWindow / 1000);
-    target = dinoMaxSpeed(dinoElapsed()) * Math.min(1, rate / DINO.tapFull);
-  } else {
-    target = dinoKeys.run ? dinoMaxSpeed(dinoElapsed()) : 0;
-  }
-  if (me.vx < target) me.vx = Math.min(target, me.vx + DINO.accel * dt);
-  else if (me.y === 0) me.vx = Math.max(target, me.vx - (me.vx * DINO.coast + DINO.coastMin) * dt);
-  else me.vx = Math.max(target, me.vx - me.vx * DINO.airCoast * dt);
+  me.t += dt;
+  me.x = dinoJefX(me.t) - DINO.gap * dinoSlot(dinoGame, myName);
+  me.vx = dinoMaxSpeed(me.t);
   if (dinoKeys.jump && me.y === 0) {
     me.vy = DINO.jump;
     if (dinoSound) Chip.jump(audioCtx);
   }
   me.duck = dinoKeys.duck;
   me.vy -= (me.duck && me.y > 0 ? DINO.fastFall : DINO.gravity) * dt;
-  me.x += me.vx * dt;
   me.y = Math.max(0, me.y + me.vy * dt);
   if (me.y === 0) me.vy = Math.max(0, me.vy);
 
@@ -1712,7 +1686,7 @@ function dinoStep(dt) {
 function dinoDie() {
   dinoMe.dead = true;
   if (dinoSound) Chip.die(audioCtx);
-  socket.emit('dino:dead', { id: dinoGame.id, x: dinoMe.x });
+  socket.emit('dino:dead', { id: dinoGame.id, x: dinoJefX(dinoMe.t) }); // skor: sıradaki yerden bağımsız
 }
 
 let dinoPrev = 0;
@@ -1724,7 +1698,10 @@ function dinoFrame(t) {
   dinoPrev = t;
   const started = serverNow() >= dinoGame.startAt;
   if (started && dinoMe && !dinoMe.dead && !dinoGame.done) {
-    for (let left = dt; left > 0; left -= 1 / 120) dinoStep(Math.min(left, 1 / 120)); // küçük adımlar: hızlıyken engelin içinden geçilmesin
+    // Oyunun saatine yetişene kadar küçük adımlarla ilerle: hızlıyken engelin içinden geçilmesin,
+    // takılan kare de oyuncuyu geride bırakmasın.
+    const now = Math.min(dinoElapsed(), dinoMe.t + 1);
+    while (!dinoMe.dead && dinoMe.t < now) dinoStep(Math.min(1 / 120, now - dinoMe.t));
     if (!dinoMe.dead && t - dinoLastSend > DINO.sendEvery) {
       dinoLastSend = t;
       socket.volatile.emit('dino:state', { id: dinoGame.id, x: Math.round(dinoMe.x), y: Math.round(dinoMe.y), duck: dinoMe.duck });
@@ -1866,9 +1843,8 @@ function drawDinoHud(ctx, started) {
   ctx.font = '600 14px system-ui, sans-serif';
   ctx.textAlign = 'right';
   if (dinoMe) {
-    const live = dinoMe.dead || dinoGame.done ? ''
-      : ` · Jef'e ${Math.max(0, Math.round((dinoJefNow() - dinoMe.x) / 10))} m · hız ${Math.round(dinoMe.vx / 10)} / ${Math.round(dinoMaxSpeed(dinoElapsed()) / 10)}`;
-    ctx.fillText(`${Math.round(dinoMe.x / 10)} m${live}`, DINO.viewW - 14, 24);
+    const live = dinoMe.dead || dinoGame.done ? '' : ` · hız ${Math.round(dinoMe.vx / 10)}`;
+    ctx.fillText(`${Math.round(dinoJefX(dinoMe.t) / 10)} m${live}`, DINO.viewW - 14, 24);
   }
   ctx.textAlign = 'center';
   ctx.fillStyle = '#eceef4';
@@ -2019,29 +1995,24 @@ function dinoMusicTick() {
 }
 
 // Klavye: oyun açıkken çalışır, yazı alanındayken değil.
-const DINO_KEYS = {
-  hold: { KeyD: 'run', ArrowRight: 'run', KeyW: 'jump', ArrowUp: 'jump', Space: 'jump', KeyS: 'duck', ArrowDown: 'duck' },
-  tap: { Space: 'tap', KeyW: 'jump', ArrowUp: 'jump', KeyS: 'duck', ArrowDown: 'duck' },
-};
+const DINO_KEYS = { KeyW: 'jump', ArrowUp: 'jump', Space: 'jump', KeyS: 'duck', ArrowDown: 'duck' };
 function dinoKey(e, down) {
-  const action = DINO_KEYS[dinoModeNow()][e.code];
+  const action = DINO_KEYS[e.code];
   if (!action || $('games').hidden || $('game-dino').hidden) return;
   if (e.target.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
   e.preventDefault();
-  if (action !== 'tap') dinoKeys[action] = down;
-  else if (down && !e.repeat) dinoTaps.push(performance.now()); // basılı tutunca gelen tekrarlar sayılmaz
+  dinoKeys[action] = down;
 }
 document.addEventListener('keydown', (e) => dinoKey(e, true));
 document.addEventListener('keyup', (e) => dinoKey(e, false));
 addEventListener('blur', () => Object.keys(dinoKeys).forEach((k) => (dinoKeys[k] = false)));
 
 // Telefon: basılı tutulan dokunmatik düğmeler
-for (const [id, action] of [['dino-t-run', 'run'], ['dino-t-jump', 'jump'], ['dino-t-duck', 'duck']]) {
+for (const [id, action] of [['dino-t-jump', 'jump'], ['dino-t-duck', 'duck']]) {
   const b = $(id);
   b.onpointerdown = (e) => {
     b.setPointerCapture(e.pointerId);
-    if (action === 'run' && dinoModeNow() === 'tap') dinoTaps.push(performance.now());
-    else dinoKeys[action] = true;
+    dinoKeys[action] = true;
   };
   b.onpointerup = b.onpointercancel = () => (dinoKeys[action] = false);
   b.oncontextmenu = (e) => e.preventDefault();

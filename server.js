@@ -49,8 +49,9 @@ const DINO_COUNTDOWN = 5000;   // ms; dinozor oyunu başlamadan önce
 const DINO_MAX_TIME = 20 * 60 * 1000; // bundan uzun süren oyun bitmiş sayılır
 // Jef (kusursuz koşan bot) hep azami hızda koşar; azami hız zamanla artar (oyundaki DINO_PACE ile aynı olmalı).
 const DINO_PACE = { runStart: 460, runAccel: 30, runMax: 1400 };
-const DINO_BEHIND = 520; // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
-const DINO_BOARD = 10; // her mod için saklanan en iyi skor sayısı // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
+const DINO_SILENT = 3000; // ms; bu kadar konum göndermeyen oyuncu (sekmesi kapalı, bağlantısı kopmuş) ölmüş sayılır
+const DINO_BOARD = 10; // her mod için saklanan en iyi skor sayısı
+const DINO_BOARD_MODES = ['auto', 'hold', 'tap']; // 'auto' şu anki tek mod; diğerleri eski skorlar // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
 const IMAGE_COOLDOWN = 2000; // ms
 // Dosyanın ilk baytlarıyla gerçekten resim olduğunu doğrularız (uzantıya/türe güvenmeyiz).
@@ -237,7 +238,7 @@ function getRoom(code) {
     if (!histories.has(code)) histories.set(code, []);
     if (!customSfxByRoom.has(code)) customSfxByRoom.set(code, new Map());
     if (!tierListsByRoom.has(code)) tierListsByRoom.set(code, []);
-    if (!dinoBoards.has(code)) dinoBoards.set(code, { hold: [], tap: [] });
+    if (!dinoBoards.has(code)) dinoBoards.set(code, { auto: [], hold: [], tap: [] });
     rooms.set(code, {
       code,
       history: histories.get(code),
@@ -245,7 +246,7 @@ function getRoom(code) {
       tierLists: tierListsByRoom.get(code),
       timing: { target: 10, results: [], race: null }, // süre tahmini: sadece hafızada
       dinoBoard: dinoBoards.get(code),
-      dino: null, // dinozor koşusu: { id, mode, seed, startAt, players: { isim: { dist, dead } }, done, jef }
+      dino: null, // dinozor koşusu: { id, mode, seed, startAt, players: { isim: { dist, dead, seen } }, done, jef }
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -946,9 +947,11 @@ io.on('connection', (socket) => {
   // Engeller tohumdan (seed) herkesin tarayıcısında aynı üretilir. Her oyuncu kendi dinozorunu
   // kendi tarayıcısında oynatır, konumunu sunucu üzerinden diğerlerine yollar.
 
-  // mode: 'hold' (D/→ basılı tutulur) ya da 'tap' (Space'e art arda basılır)
-  socket.on('dino:start', (mode) => {
-    if (!code || !['hold', 'tap'].includes(mode)) return;
+  // Tek mod: hız otomatik, oyuncu sadece zıplar ve eğilir. (Eski 'hold' ve 'tap' modlarının skorları
+  // kayıtta ayrı durur; tıklama modu ileride "Tavus kuşu" oyunu olacak.)
+  socket.on('dino:start', () => {
+    if (!code) return;
+    const mode = 'auto';
     const room = getRoom(code);
     if (room.dino && !room.dino.done && Date.now() - room.dino.startAt < DINO_MAX_TIME) return;
     const by = room.users.get(socket.id).name;
@@ -956,7 +959,7 @@ io.on('connection', (socket) => {
     for (const u of room.users.values()) players[u.name] = { dist: 0, dead: false };
     room.dino = { id: Date.now(), mode, seed: Math.floor(Math.random() * 2 ** 31), startAt: Date.now() + DINO_COUNTDOWN, players, done: false };
     io.to(code).emit('dino', room.dino);
-    postSystem(room, `${by} dinozor koşusu başlattı (${mode === 'tap' ? 'tıklama modu' : 'basılı tut modu'})`);
+    postSystem(room, `${by} dinozor koşusu başlattı`);
   });
 
   socket.on('dino:state', ({ id, x, y, duck } = {}) => {
@@ -965,11 +968,9 @@ io.on('connection', (socket) => {
     const name = room.users.get(socket.id).name;
     const me = room.dino?.id === id && room.dino.players[name];
     if (!me || me.dead) return;
-    me.dist = Math.max(me.dist, x);
+    me.dist = Math.max(me.dist, Math.min(x, dinoJefNow(room.dino))); // Jef'ten ileri gidilemez
+    me.seen = Date.now();
     socket.to(code).volatile.emit('dino:pos', { name, x, y, duck: Boolean(duck) });
-    // Ekranın solundan çıkmayı oyuncunun tarayıcısı denetler; sekmesi kapalı ya da oyunda
-    // olmayan biri ise hiç ölmez, oyun da bitmezdi. O yüzden çok geride kalanı sunucu öldürür.
-    dinoSweep(room, me.dist);
   });
 
   socket.on('dino:dead', ({ id, x } = {}) => {
@@ -1069,17 +1070,21 @@ function dinoJefX(t) {
   return v * full + (a * full * full) / 2 + runMax * (t - full);
 }
 
-// Kameranın (Jef ya da ondan öndeki oyuncu) çok gerisinde kalanları öldürür.
-function dinoSweep(room, leader = 0) {
+const dinoJefNow = (game) => dinoJefX((Date.now() - game.startAt) / 1000);
+
+// Ölmeyi oyuncunun tarayıcısı denetler; sekmesi kapalı ya da bağlantısı kopmuş biri hiç ölmez,
+// oyun da bitmezdi. Bir süredir konum göndermeyen oyuncu, son haber aldığımız yerde ölmüş sayılır.
+function dinoSweep(room) {
   const game = room.dino;
   if (!game || game.done) return;
-  const cam = Math.max(leader, dinoJefX((Date.now() - game.startAt) / 1000));
+  const now = Date.now();
   for (const [name, p] of Object.entries(game.players)) {
-    if (!p.dead && p.dist < cam - DINO_BEHIND) killDino(room, name);
+    const seen = Math.max(p.seen || 0, game.startAt);
+    if (!p.dead && now - seen > DINO_SILENT) killDino(room, name, dinoJefX((seen - game.startAt) / 1000));
   }
 }
 
-// Kimse konum yollamasa da (herkes sekmeyi kapattıysa) kamera ilerler ve oyun biter.
+// Kimse konum yollamasa da (herkes sekmeyi kapattıysa) oyun biter.
 setInterval(() => {
   for (const room of rooms.values()) dinoSweep(room);
 }, 1000);
@@ -1087,9 +1092,9 @@ setInterval(() => {
 // Skorları tabloya ekler. Bilgisayardaki sunucu da canlıyla aynı kaydı kullandığından kaydetmeden önce
 // kayıttakilerle birleştirilir; yoksa her sunucu yalnız kendi hafızasındakini yazıp ötekinin skorlarını siler.
 function mergeDinoBoard(board, from) {
-  for (const mode of ['hold', 'tap']) {
+  for (const mode of DINO_BOARD_MODES) {
     const seen = new Set();
-    board[mode] = [...board[mode], ...(from?.[mode] || [])]
+    board[mode] = [...(board[mode] || []), ...(from?.[mode] || [])]
       .filter((r) => {
         const key = `${r.name}|${r.at}|${r.dist}`;
         return !seen.has(key) && seen.add(key);
@@ -1120,7 +1125,7 @@ function killDino(room, name, x) {
   const player = game?.players[name];
   if (!player || player.dead || game.done) return;
   player.dead = true;
-  if (Number.isFinite(x)) player.dist = Math.max(player.dist, x);
+  if (Number.isFinite(x)) player.dist = Math.max(player.dist, Math.min(x, dinoJefNow(game) + 200));
   const players = Object.entries(game.players);
   if (players.every(([, p]) => p.dead)) {
     game.done = true;
@@ -1151,7 +1156,7 @@ async function loadSaved() {
   }
   for (const { room, kind, data } of rows) {
     if (kind === 'history') histories.set(room, data);
-    if (kind === 'dinoboard') dinoBoards.set(room, data);
+    if (kind === 'dinoboard') dinoBoards.set(room, { auto: [], hold: [], tap: [], ...data });
     if (kind === 'sfx') customSfxByRoom.set(room, new Map(data.map((fx) => [fx.id, { buf: null, label: fx.label, by: fx.by }])));
     if (kind === 'tierlists') {
       tierListsByRoom.set(room, data.map((l) => ({ ...l, cards: new Map(l.cards.map((c) => [c.id, c])) })));

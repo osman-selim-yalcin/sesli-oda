@@ -268,6 +268,7 @@
             <button id="game-tab-tier" class="tab active" role="tab">Tier list</button>
             <button id="game-tab-timing" class="tab" role="tab">Süre tahmini</button>
             <button id="game-tab-dino" class="tab" role="tab">Dinozor</button>
+            <button id="game-tab-peacock" class="tab" role="tab">Tavus kuşu</button>
           </div>
 
           <div id="game-tier">
@@ -355,10 +356,6 @@
             <div class="dino-bar">
               <span id="dino-status" class="muted small"></span>
               <div class="dino-controls">
-                <div id="dino-modes" class="timing-targets">
-                  <button data-mode="hold" class="sm">Basılı tut</button>
-                  <button data-mode="tap" class="sm">Tıklama</button>
-                </div>
                 <button id="dino-music" class="icon sm ghost" title="Müzik ve efektler"><svg class="ic"><use href="#i-volume"></use></svg></button>
                 <button id="dino-start" class="primary sm">Başlat</button>
               </div>
@@ -367,20 +364,18 @@
             <div class="dino-touch">
               <button id="dino-t-duck" type="button">Eğil</button>
               <button id="dino-t-jump" type="button">Zıpla</button>
-              <button id="dino-t-run" type="button">Koş ▶</button>
             </div>
             <p id="dino-help" class="muted small dino-help"></p>
             <ol id="dino-results" class="timing-list dino-results"></ol>
-            <div class="timing-boards">
-              <div>
-                <h2>En iyiler · Basılı tut</h2>
-                <ol id="dino-board-hold" class="timing-list"></ol>
-              </div>
-              <div>
-                <h2>En iyiler · Tıklama</h2>
-                <ol id="dino-board-tap" class="timing-list"></ol>
-              </div>
-            </div>
+            <h2>En iyiler</h2>
+            <ol id="dino-board" class="timing-list dino-results"></ol>
+          </div>
+
+          <!-- Tavus kuşu: yakında (Space'e art arda basarak koşulan yarış) -->
+          <div id="game-peacock" class="peacock" hidden>
+            <div class="peacock-soon">🦚</div>
+            <p><b>Tavus kuşu</b> yakında burada.</p>
+            <p class="muted small">Space'e art arda basarak koşacağın, kimin parmağının daha hızlı olduğunu gösteren bir yarış.</p>
           </div>
         </div>
       </section>

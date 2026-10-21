@@ -418,15 +418,16 @@ button.link:hover { background: none; text-decoration: underline; }
 .dino { display: grid; gap: 10px; }
 .dino-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; }
 .dino-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-.dino-controls .timing-targets { margin-top: 0; }
-#dino-modes button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 .dino-canvas { width: 100%; aspect-ratio: 1100 / 250; display: block; background: var(--panel-2); border-radius: var(--radius-sm); touch-action: none; }
 .dino-touch { display: none; gap: 8px; }
 .dino-touch button { flex: 1; padding: 16px 0; font-size: 16px; font-weight: 600; user-select: none; -webkit-user-select: none; touch-action: none; }
 @media (pointer: coarse) { .dino-touch { display: flex; } .dino-help { display: none; } }
 .dino-help { margin: 0; }
 .dino-results { max-width: 420px; }
-#game-dino { animation: rise-sm .3s ease-out; }
+.peacock { display: grid; justify-items: center; text-align: center; gap: 4px; padding: 40px 16px; }
+.peacock p { margin: 0; }
+.peacock-soon { font-size: 56px; line-height: 1; margin-bottom: 8px; }
+#game-dino, #game-peacock { animation: rise-sm .3s ease-out; }
 .timing-list li.winner { background: rgba(61, 220, 132, .12); box-shadow: inset 0 0 0 1px rgba(61, 220, 132, .35); }
 .timing-boards { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: left; }
 .timing-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
