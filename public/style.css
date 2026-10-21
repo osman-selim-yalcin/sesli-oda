@@ -395,8 +395,7 @@ button.link:hover { background: none; text-decoration: underline; }
 .timing-targets { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 4px; }
 .timing-targets button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 .timing-display { font-size: 64px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; line-height: 1.1; margin-top: 10px; }
-.timing-display.running { color: var(--accent); animation: timing-pulse 1.2s ease-in-out infinite; }
-@keyframes timing-pulse { 50% { opacity: .45; } }
+.timing-display.running { color: var(--accent); } /* hareketsiz: ritmi saniye saymaya yaramasın */
 .timing-diff { min-height: 1.5em; font-weight: 600; color: var(--muted); }
 .timing-diff.great, .timing-val.great { color: var(--speak); }
 .timing-diff.good, .timing-val.good { color: #9be15d; }
@@ -405,6 +404,13 @@ button.link:hover { background: none; text-decoration: underline; }
 .timing-btn { min-width: 200px; padding: 16px 28px; font-size: 18px; border-radius: 999px; }
 .timing-btn.stop { background: var(--danger); border-color: var(--danger); }
 .timing-hint { margin: 0; }
+.race-setup { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.race-setup .timing-targets { margin-top: 0; }
+#race-rounds button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.race-board { width: 100%; max-width: 420px; text-align: left; }
+.race-head { display: flex; align-items: center; gap: 6px; }
+.race-head h2 { flex: 1; min-width: 0; margin: 10px 0; text-transform: none; letter-spacing: 0; font-size: 13px; }
+.timing-list li.winner { background: rgba(61, 220, 132, .12); box-shadow: inset 0 0 0 1px rgba(61, 220, 132, .35); }
 .timing-boards { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: left; }
 .timing-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .timing-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel-2); border-radius: var(--radius-sm); min-width: 0; }

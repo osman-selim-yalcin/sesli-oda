@@ -1092,9 +1092,16 @@ $('game-tab-timing').onclick = () => showGame('timing');
 
 const TIMING_TARGETS = [5, 10, 15, 30, 60];
 const TIMING_BOARD = 10;
-let timing = { target: 10, results: [] };
-let timingRun = null;  // { start, target } süre sayarken
+const RACE_ROUNDS = [3, 5, 10];
+let timing = { target: 10, results: [], race: null };
+let timingRun = null;  // { start, target, round? } süre sayarken; round varsa yarış turu
 let timingLast = null; // kendi son sonucum { elapsed, target }
+let raceRounds = 5;    // yarış başlatırken seçili tur sayısı
+
+// Süren yarış ve bu yarışta benim sıradaki turum (hepsini bitirdiysem tur sayısına eşit).
+const activeRace = () => (timing.race && !timing.race.done ? timing.race : null);
+const myRaceRound = (race) => race.scores[myName]?.length ?? 0;
+const raceTotal = (race, name) => race.scores[name].reduce((sum, ms, i) => sum + Math.abs(ms - race.targets[i] * 1000), 0);
 
 const fmtSeconds = (ms) => (ms / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDiff = (ms) => `${ms >= 0 ? '+' : '−'}${fmtSeconds(Math.abs(ms))} sn`;
@@ -1129,7 +1136,37 @@ function timingRow(name, main, sub, cls) {
 }
 
 function renderTiming() {
-  $('timing-target').textContent = `${timing.target} sn`;
+  const race = activeRace();
+  const round = race ? myRaceRound(race) : 0;
+  const raceOver = race && round >= race.targets.length; // ben bitirdim, diğerleri sürüyor
+  if (race && !raceOver) {
+    $('timing-label').textContent = `Yarış · Tur ${round + 1}/${race.targets.length}`;
+    $('timing-target').textContent = `${race.targets[round]} sn`;
+  } else if (raceOver) {
+    $('timing-label').textContent = 'Yarış';
+    $('timing-target').textContent = 'Bitirdin!';
+  } else {
+    $('timing-label').textContent = 'Hedef';
+    $('timing-target').textContent = `${timing.target} sn`;
+  }
+  $('timing-targets').hidden = Boolean(race);
+  $('race-setup').hidden = Boolean(race);
+
+  const rounds = $('race-rounds');
+  rounds.replaceChildren();
+  for (const n of RACE_ROUNDS) {
+    const b = document.createElement('button');
+    b.className = 'sm' + (n === raceRounds ? ' active' : '');
+    b.textContent = `${n} tur`;
+    b.onclick = () => {
+      raceRounds = n;
+      renderTiming();
+    };
+    rounds.append(b);
+  }
+  $('race-start').disabled = Boolean(timingRun);
+  renderRaceBoard();
+
   const chips = $('timing-targets');
   chips.replaceChildren();
   for (const t of [...TIMING_TARGETS, 'random']) {
@@ -1149,17 +1186,22 @@ function renderTiming() {
     display.textContent = '???';
     display.classList.add('running');
     diffEl.textContent = 'Süre sayıyor… Hedefe geldiğini düşününce durdur.';
-  } else if (timingLast) {
+  } else if (timingLast && !raceOver) {
     const diff = timingLast.elapsed - timingLast.target * 1000;
     const [word, cls] = timingVerdict(diff);
     display.textContent = `${fmtSeconds(timingLast.elapsed)} sn`;
     diffEl.textContent = `${fmtDiff(diff)} · ${word}`;
     diffEl.classList.add(cls);
+  } else if (raceOver) {
+    display.textContent = `${fmtSeconds(raceTotal(race, myName))} sn`;
+    diffEl.textContent = 'Toplam farkın. Diğerleri bekleniyor…';
   } else {
     display.textContent = 'Hazır';
     diffEl.textContent = '';
   }
-  $('timing-btn').textContent = timingRun ? 'Durdur' : 'Başlat';
+  if (timingLast?.round != null && !timingRun && !raceOver) diffEl.textContent += ` · Tur ${timingLast.round + 1}`;
+  $('timing-btn').disabled = Boolean(raceOver);
+  $('timing-btn').textContent = timingRun ? 'Durdur' : race && !raceOver && round > 0 ? 'Sonraki tur' : 'Başlat';
   $('timing-btn').classList.toggle('stop', Boolean(timingRun));
 
   // En iyiler: bu hedefte herkesin en yakın denemesi
@@ -1187,15 +1229,55 @@ function renderTiming() {
   if (!timing.results.length) recent.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz deneme yok.' }));
 }
 
+// Yarış tablosu: bitirenler toplam farka göre, sürenler bitirdikleri tur sayısına göre.
+function renderRaceBoard() {
+  const race = timing.race;
+  $('race-board').hidden = !race;
+  if (!race) return;
+  const n = race.targets.length;
+  $('race-title').textContent = race.done ? 'Yarış bitti' : `Yarış · ${n} tur · ${race.by} başlattı`;
+  $('race-end').hidden = race.done;
+  $('race-close').hidden = !race.done;
+
+  const names = Object.keys(race.scores).filter((name) => race.scores[name].length);
+  names.sort((a, b) => race.scores[b].length - race.scores[a].length || raceTotal(race, a) - raceTotal(race, b));
+  const list = $('race-list');
+  list.replaceChildren();
+  const best = names.length && race.scores[names[0]].length === n ? raceTotal(race, names[0]) : null;
+  names.forEach((name, i) => {
+    const done = race.scores[name].length;
+    const total = raceTotal(race, name);
+    const won = race.done && done === n && total === best;
+    const row = timingRow(name, `${fmtSeconds(total)} sn`, done === n ? (won ? 'Kazandı' : 'Bitirdi') : `${done}/${n} tur`, won ? 'great' : '');
+    row.classList.toggle('winner', won);
+    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: won ? '🏆' : i + 1 }));
+    list.append(row);
+  });
+  if (!names.length) list.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz kimse tur bitirmedi.' }));
+}
+
+$('race-start').onclick = () => socket.emit('race:start', raceRounds);
+confirmButton($('race-end'), 'Emin misin? Tekrar bas', () => socket.emit('race:end'));
+$('race-close').onclick = () => socket.emit('race:close');
+
 function toggleTiming() {
+  const race = activeRace();
   if (!timingRun) {
-    timingRun = { start: performance.now(), target: timing.target };
+    if (race) {
+      const round = myRaceRound(race);
+      if (round >= race.targets.length) return;
+      timingRun = { start: performance.now(), target: race.targets[round], round, raceId: race.id };
+    } else {
+      timingRun = { start: performance.now(), target: timing.target };
+    }
     timingLast = null;
   } else {
     const elapsed = Math.round(performance.now() - timingRun.start); // sunucu da ms'ye yuvarlar
-    timingLast = { elapsed, target: timingRun.target };
+    const { target, round, raceId } = timingRun;
+    timingLast = { elapsed, target, round };
     timingRun = null;
-    socket.emit('timing:result', { elapsed, target: timingLast.target });
+    if (round != null) socket.emit('race:result', { id: raceId, round, elapsed });
+    else socket.emit('timing:result', { elapsed, target });
   }
   renderTiming();
 }
@@ -1210,7 +1292,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 socket.on('timing', (state) => {
+  const prevRace = timing.race?.id;
   timing = state;
+  // Yarış bittiyse ya da yenisi başladıysa yarım kalan tur ve eski sonuç geçersiz.
+  if (timingRun?.raceId && activeRace()?.id !== timingRun.raceId) timingRun = null;
+  if (timing.race?.id !== prevRace || (timingLast?.round != null && !activeRace())) timingLast = null;
   renderTiming();
 });
 

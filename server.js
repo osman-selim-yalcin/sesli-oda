@@ -39,6 +39,7 @@ const TIMING_TARGET_MAX = 120;
 const TIMING_RANDOM = [5, 30]; // "rastgele" hedef bu aralıktan
 const TIMING_RESULTS = 100;    // odada tutulan son deneme sayısı
 const TIMING_COOLDOWN = 1000;  // ms
+const RACE_ROUNDS = [3, 5, 10]; // yarışta seçilebilen tur sayıları
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
 const IMAGE_COOLDOWN = 2000; // ms
 // Dosyanın ilk baytlarıyla gerçekten resim olduğunu doğrularız (uzantıya/türe güvenmeyiz).
@@ -229,7 +230,7 @@ function getRoom(code) {
       history: histories.get(code),
       customSfx: customSfxByRoom.get(code),
       tierLists: tierListsByRoom.get(code),
-      timing: { target: 10, results: [] }, // süre tahmini: sadece hafızada
+      timing: { target: 10, results: [], race: null }, // süre tahmini: sadece hafızada
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -840,6 +841,50 @@ io.on('connection', (socket) => {
     io.to(code).emit('timing', room.timing);
   });
 
+  // Yarış: herkes aynı rastgele hedefleri kendi hızında oynar; toplam farkı en az olan kazanır.
+  // race = { id, by, targets, scores: { isim: [geçen ms, ...] }, done }
+
+  socket.on('race:start', (rounds) => {
+    if (!code || !RACE_ROUNDS.includes(rounds)) return;
+    const room = getRoom(code);
+    if (room.timing.race && !room.timing.race.done) return;
+    const [min, max] = TIMING_RANDOM;
+    const targets = Array.from({ length: rounds }, () => min + Math.floor(Math.random() * (max - min + 1)));
+    const by = room.users.get(socket.id).name;
+    room.timing.race = { id: Date.now(), by, targets, scores: {}, done: false };
+    io.to(code).emit('timing', room.timing);
+    postSystem(room, `${by} ${rounds} turluk süre yarışı başlattı`);
+  });
+
+  socket.on('race:result', ({ id, round, elapsed } = {}) => {
+    if (!code || Date.now() - lastTiming < TIMING_COOLDOWN) return;
+    if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > 10 * 60 * 1000) return;
+    const room = getRoom(code);
+    const race = room.timing.race;
+    if (!race || race.done || race.id !== id) return;
+    const name = room.users.get(socket.id).name;
+    const mine = (race.scores[name] ??= []);
+    if (round !== mine.length || round >= race.targets.length) return;
+    lastTiming = Date.now();
+    mine.push(Math.round(elapsed));
+    if (!checkRaceDone(room)) io.to(code).emit('timing', room.timing);
+  });
+
+  socket.on('race:end', () => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (!room.timing.race || room.timing.race.done) return;
+    finishRace(room, room.users.get(socket.id).name);
+  });
+
+  socket.on('race:close', () => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (!room.timing.race?.done) return;
+    room.timing.race = null;
+    io.to(code).emit('timing', room.timing);
+  });
+
   socket.on('disconnect', () => {
     if (!code) return;
     const room = getRoom(code);
@@ -855,6 +900,7 @@ io.on('connection', (socket) => {
       pendingLeaves.delete(leaveKey);
       const current = rooms.get(roomCode);
       if (current) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
+      if (current) checkRaceDone(current); // yarışı bitirmeyen biri çıktıysa kalanlar beklemesin
     }, REJOIN_GRACE));
     if (room.users.size === 0) {
       rooms.delete(code);
@@ -862,6 +908,35 @@ io.on('connection', (socket) => {
     }
   });
 });
+
+// ---------- Süre yarışı ----------
+
+const raceTotal = (race, name) => race.scores[name].reduce((sum, ms, i) => sum + Math.abs(ms - race.targets[i] * 1000), 0);
+
+// Odadaki herkes bütün turları bitirdiyse yarışı kapatır. Kapattıysa true.
+function checkRaceDone(room) {
+  const race = room.timing.race;
+  if (!race || race.done) return false;
+  const names = [...room.users.values()].map((u) => u.name);
+  if (!names.length || names.some((n) => race.scores[n]?.length !== race.targets.length)) return false;
+  finishRace(room);
+  return true;
+}
+
+// Kazanan, bütün turları tamamlayanlar arasında toplam farkı en az olandır.
+function finishRace(room, endedBy) {
+  const race = room.timing.race;
+  race.done = true;
+  const finished = Object.keys(race.scores).filter((n) => race.scores[n].length === race.targets.length);
+  io.to(room.code).emit('timing', room.timing);
+  const prefix = endedBy ? `${endedBy} yarışı bitirdi. ` : 'Süre yarışı bitti! ';
+  if (!finished.length) return postSystem(room, `${prefix}Bütün turları bitiren olmadı.`);
+  finished.sort((a, b) => raceTotal(race, a) - raceTotal(race, b));
+  const best = raceTotal(race, finished[0]);
+  const winners = finished.filter((n) => raceTotal(race, n) === best);
+  const secs = (best / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  postSystem(room, `${prefix}🏆 Kazanan: ${winners.join(', ')} (toplam ${secs} sn fark)`);
+}
 
 // Kayıtlı durumu hafızaya alır. Okunamazsa kayıt da kapatılır ki boş hafıza eskilerin üstüne yazılmasın.
 async function loadSaved() {

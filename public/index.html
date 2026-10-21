@@ -305,14 +305,28 @@
           <!-- Süre tahmini: sayaç görünmeden hedef süreyi tutturmaya çalış -->
           <div id="game-timing" class="timing" hidden>
             <div class="timing-target">
-              <span class="muted small">Hedef</span>
+              <span id="timing-label" class="muted small">Hedef</span>
               <strong id="timing-target"></strong>
               <div id="timing-targets" class="timing-targets"></div>
+              <!-- Yarış: herkese aynı rastgele hedefler, toplam farkı en az olan kazanır -->
+              <div id="race-setup" class="race-setup">
+                <span class="muted small">Yarış:</span>
+                <div id="race-rounds" class="timing-targets"></div>
+                <button id="race-start" class="sm"><svg class="ic"><use href="#i-trophy"></use></svg>Yarış başlat</button>
+              </div>
             </div>
             <div id="timing-display" class="timing-display">Hazır</div>
             <div id="timing-diff" class="timing-diff"></div>
             <button id="timing-btn" class="primary timing-btn">Başlat</button>
             <p class="muted small timing-hint">Boşluk tuşuyla da başlatıp durdurabilirsin.</p>
+            <div id="race-board" class="race-board" hidden>
+              <div class="race-head">
+                <h2 id="race-title">Yarış</h2>
+                <button id="race-end" class="sm ghost danger">Yarışı bitir</button>
+                <button id="race-close" class="sm ghost">Kapat</button>
+              </div>
+              <ol id="race-list" class="timing-list"></ol>
+            </div>
             <div class="timing-boards">
               <div>
                 <h2>Bu hedefte en iyiler</h2>
