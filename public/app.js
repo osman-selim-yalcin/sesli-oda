@@ -1326,37 +1326,62 @@ socket.on('timing', (state) => {
 // böylece "ekranın solundan çıkma" sınırı herkes için aynıdır. y yukarı doğru artar, zemin 0'dır.
 
 const DINO = {
-  viewW: 900, viewH: 250, groundY: 215, // ekranda zeminin yüksekliği
-  leaderX: 380,         // kamera en öndekini ekranın bu noktasında tutar
+  viewW: 1100, viewH: 250, groundY: 215, // ekranda zeminin yüksekliği
+  leaderX: 420,         // kamera en öndekini (çoğunlukla Jef'i) ekranın bu noktasında tutar
   accel: 800, // birim/sn²; azami hız zamanla artar (DINO_PACE)
   // Bırakınca momentum: yerde hız önce hızlı, sonra yavaş azalır (tam hızdan ~2 sn'de durur);
-  // havada neredeyse hiç azalmaz.
-  coast: 1.0, coastMin: 60, airCoast: 0.15,
-  tapWindow: 700, tapFull: 9, // tıklama modu: saniyede bu kadar basış tam hız
+  // havada azalmaz, iyi zıplayan Jef'ten kopmaz.
+  coast: 1.0, coastMin: 60, airCoast: 0,
+  tapWindow: 700, tapFull: 8, // tıklama modu: saniyede bu kadar basış tam hız
   gravity: 2600, jump: 860, fastFall: 3200,
   w: 40, h: 44, duckW: 54, duckH: 26,
   sendEvery: 50, // ms; konum yayını
 };
 
-// Tempo: kamera kendiliğinden ilerler ve gitgide hızlanır; oyuncuların azami hızı da artar ama hep
-// kameradan hızlı kalır. Sunucudaki DINO_PACE ile aynı olmalı (geride kalanı sunucu da öldürür).
-const DINO_PACE = { camStart: 120, camAccel: 9, camMax: 760, runStart: 460, runAccel: 8, runMax: 900 };
-const dinoCamFull = (DINO_PACE.camMax - DINO_PACE.camStart) / DINO_PACE.camAccel; // sn; kamera bu anda en hızlı
-const dinoCamFullX = DINO_PACE.camStart * dinoCamFull + (DINO_PACE.camAccel * dinoCamFull ** 2) / 2;
-// Başlangıçtan t sn sonra kameranın kendi başına geldiği yer
-function dinoAutoCam(t) {
-  if (t <= 0) return 0;
-  if (t < dinoCamFull) return DINO_PACE.camStart * t + (DINO_PACE.camAccel * t * t) / 2;
-  return dinoCamFullX + DINO_PACE.camMax * (t - dinoCamFull);
-}
-// Kameranın x'e vardığı an (sn): engel aralıkları o andaki hıza göre açılır.
-function dinoTimeAt(x) {
-  const { camStart: v, camAccel: a } = DINO_PACE;
-  if (x < dinoCamFullX) return (-v + Math.sqrt(v * v + 2 * a * x)) / a;
-  return dinoCamFull + (x - dinoCamFullX) / DINO_PACE.camMax;
-}
+// Tempo: azami hız gitgide artar. Jef kusursuz oynayan bottur: hep o anki azami hızda koşar, hiç
+// ölmez; kamera onu izler. Oyuncular en fazla onun hızına çıkabilir, amaç ondan kopmamak.
+// Sunucudaki DINO_PACE ile aynı olmalı (Jef'in çok gerisinde kalanı sunucu da öldürür).
+const DINO_PACE = { runStart: 460, runAccel: 22, runMax: 1200 };
+const dinoFullAt = (DINO_PACE.runMax - DINO_PACE.runStart) / DINO_PACE.runAccel; // sn; bu andan sonra hız sabit
+const dinoFullX = DINO_PACE.runStart * dinoFullAt + (DINO_PACE.runAccel * dinoFullAt ** 2) / 2;
 const dinoMaxSpeed = (t) => Math.min(DINO_PACE.runMax, DINO_PACE.runStart + DINO_PACE.runAccel * Math.max(0, t));
+// Başlangıçtan t sn sonra Jef'in yeri
+function dinoJefX(t) {
+  if (t <= 0) return 0;
+  if (t < dinoFullAt) return DINO_PACE.runStart * t + (DINO_PACE.runAccel * t * t) / 2;
+  return dinoFullX + DINO_PACE.runMax * (t - dinoFullAt);
+}
+// Jef'in x'e vardığı an (sn): engel aralıkları o andaki hıza göre açılır.
+function dinoTimeAt(x) {
+  const { runStart: v, runAccel: a } = DINO_PACE;
+  if (x < dinoFullX) return (-v + Math.sqrt(v * v + 2 * a * x)) / a;
+  return dinoFullAt + (x - dinoFullX) / DINO_PACE.runMax;
+}
+
+// Jef'in x'teki duruşu: üstünden geçilecek engelin tam ortasında tepeye çıkacak şekilde zıplar,
+// yüksek kuşun altından eğilerek geçer.
+function dinoJefPose(x) {
+  const air = (2 * DINO.jump) / DINO.gravity; // havada kalma süresi
+  const pose = { x, y: 0, duck: false };
+  for (const ob of dinoObstacles) {
+    if (ob.x > x + 800) break;
+    if (ob.x + ob.w < x - 800) continue;
+    if (ob.kind === 'bird' && ob.y > 20) {
+      if (x + DINO.duckW > ob.x - 8 && x < ob.x + ob.w + 8) pose.duck = true;
+      continue;
+    }
+    const v = dinoMaxSpeed(dinoTimeAt(ob.x));
+    const from = ob.x + ob.w / 2 - DINO.w / 2 - (v * air) / 2;
+    if (x >= from && x <= from + v * air) {
+      const t = (x - from) / v;
+      pose.y = DINO.jump * t - (DINO.gravity * t * t) / 2;
+    }
+  }
+  return pose;
+}
+const DINO_JEF_COLOR = '#e0b341';
 const dinoElapsed = () => (dinoGame ? (serverNow() - dinoGame.startAt) / 1000 : 0);
+const dinoJefNow = () => (dinoGame?.done ? dinoGame.jef ?? 0 : dinoJefX(dinoElapsed()));
 
 let dinoGame = null;   // sunucudaki oyun: { id, seed, startAt, players, done }
 let dinoMe = null;     // kendi dinozorum: { x, y, vx, vy, duck, dead }
@@ -1446,9 +1471,9 @@ function renderDinoUi() {
   $('dino-help').innerHTML = dinoModeNow() === 'tap'
     ? '<b>Space</b>\'e art arda bas: koş (ne kadar hızlı basarsan o kadar hızlı) · <b>W</b> / <b>↑</b>: zıpla · <b>S</b> / <b>↓</b>: eğil.'
     : '<b>D</b> / <b>→</b> basılı tut: koş · <b>W</b> / <b>↑</b> / boşluk: zıpla · <b>S</b> / <b>↓</b>: eğil.';
-  $('dino-help').innerHTML += ' Bırakınca hemen durmazsın, yavaşlarsın. Engele çarpan ya da ekranın solundan çıkan ölür; kamera en öndekini izler.';
+  $('dino-help').innerHTML += ' Bırakınca hemen durmazsın, yavaşlarsın. Kamera kusursuz koşan bot Jef\'i izler; ondan kopup ekranın solundan çıkan ya da engele çarpan ölür.';
   $('dino-start').textContent = game ? 'Tekrar oyna' : 'Başlat';
-  let status = 'Odadaki herkes birlikte koşar. Başlatınca 5 sn geri sayım olur.';
+  let status = 'Odadaki herkes Jef\'in peşinden koşar. Başlatınca 5 sn geri sayım olur.';
   if (running) {
     const alive = Object.values(game.players).filter((p) => !p.dead).length;
     status = `${game.mode === 'tap' ? 'Tıklama' : 'Basılı tut'} · ${alive}/${Object.keys(game.players).length} kişi hayatta` + (game.players[myName] ? '' : ' · İzliyorsun');
@@ -1461,6 +1486,10 @@ function renderDinoUi() {
   // Koşarken mesafe sunucuyu beklemeden ekrandaki konumlardan gelir.
   const dist = (name, p) => (p.dead || game.done ? p.dist : name === myName ? dinoMe?.x ?? p.dist : dinoOthers.get(name)?.tx ?? p.dist);
   const rows = Object.entries(game.players).map(([name, p]) => [name, { ...p, dist: dist(name, p) }]).sort((a, b) => b[1].dist - a[1].dist);
+  const jef = timingRow('Jef (bot)', `${Math.round(dinoJefNow() / 10)} m`, 'Kusursuz', '');
+  jef.querySelector('.avatar').style.background = DINO_JEF_COLOR;
+  jef.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: '🤖' }));
+  list.append(jef);
   rows.forEach(([name, p], i) => {
     const won = game.done && i === 0 && rows.length > 1;
     const row = timingRow(name, `${Math.round(p.dist / 10)} m`, p.dead ? (won ? 'Kazandı' : 'Öldü') : 'Koşuyor', won ? 'great' : '');
@@ -1513,7 +1542,10 @@ function dinoStep(dt) {
   if (me.vx < target) me.vx = Math.min(target, me.vx + DINO.accel * dt);
   else if (me.y === 0) me.vx = Math.max(target, me.vx - (me.vx * DINO.coast + DINO.coastMin) * dt);
   else me.vx = Math.max(target, me.vx - me.vx * DINO.airCoast * dt);
-  if (dinoKeys.jump && me.y === 0) me.vy = DINO.jump;
+  if (dinoKeys.jump && me.y === 0) {
+    me.vy = DINO.jump;
+    if (dinoSound) Chip.jump(audioCtx);
+  }
   me.duck = dinoKeys.duck;
   me.vy -= (me.duck && me.y > 0 ? DINO.fastFall : DINO.gravity) * dt;
   me.x += me.vx * dt;
@@ -1532,6 +1564,7 @@ function dinoStep(dt) {
 
 function dinoDie() {
   dinoMe.dead = true;
+  if (dinoSound) Chip.die(audioCtx);
   socket.emit('dino:dead', { id: dinoGame.id, x: dinoMe.x });
 }
 
@@ -1554,8 +1587,8 @@ function dinoFrame(t) {
     o.x += (o.tx - o.x) * Math.min(1, dt * 12);
     o.y += (o.ty - o.y) * Math.min(1, dt * 12);
   }
-  // Kamera canlıların en öndekine kilitli, geri gitmez; kimse koşmasa da kendiliğinden ilerler.
-  if (!dinoGame.done) dinoCam = Math.max(dinoCam, dinoAutoCam(dinoElapsed()));
+  // Kamera en öndekine (çoğunlukla Jef) kilitli, geri gitmez. Oyun bitince Jef de durur.
+  dinoCam = Math.max(dinoCam, dinoJefNow());
   for (const [name, p] of Object.entries(dinoGame.players)) {
     if (p.dead) continue;
     const x = name === myName ? dinoMe?.x : dinoOthers.get(name)?.tx;
@@ -1563,11 +1596,13 @@ function dinoFrame(t) {
   }
   dinoFill(dinoCam + DINO.viewW * 2);
   drawDino(started);
+  dinoMusicTick();
   if (started && t - dinoLastList > 300) {
     dinoLastList = t;
     renderDinoUi();
   }
   if (!dinoGame.done) dinoLoop = requestAnimationFrame(dinoFrame); // bittiyse son kare kalır
+  else Chip.stop();
 }
 
 // Sekme açılınca bir kare çiz (oyun yokken ya da bitmişken döngü çalışmıyor).
@@ -1607,8 +1642,9 @@ function drawDino(started) {
     ctx.fillStyle = '#8b92a3';
     ctx.font = '600 16px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Başlat\'a bas, odadaki herkes birlikte koşsun', DINO.viewW / 2, 100);
-    drawOneDino(ctx, myName, { x: 0, y: 0, duck: false }, false, sx, sy);
+    ctx.fillText('Başlat\'a bas, Jef\'in peşinden koşun', DINO.viewW / 2, 100);
+    drawOneDino(ctx, 'Jef 🤖', { x: 80, y: 0, duck: false }, false, sx, sy, 0, DINO_JEF_COLOR);
+    if (myName) drawOneDino(ctx, myName, { x: -40, y: 0, duck: false }, false, sx, sy);
     return;
   }
 
@@ -1637,23 +1673,24 @@ function drawDino(started) {
 
   // Yan yana duranların isimleri üst üste binmesin: yakındakinin ismi bir satır yukarı çıkar.
   const labels = [];
-  const drawOne = (name, d, faded) => {
+  const drawOne = (name, d, faded, color) => {
     let lift = 0;
     while (labels.some((l) => l.lift === lift && Math.abs(l.x - d.x) < 60)) lift++;
     labels.push({ x: d.x, lift });
-    drawOneDino(ctx, name, d, faded, sx, sy, lift * 14);
+    drawOneDino(ctx, name, d, faded, sx, sy, lift * 14, color);
   };
+  drawOne('Jef 🤖', dinoJefPose(dinoJefNow()), false, DINO_JEF_COLOR);
   for (const [name, o] of dinoOthers) drawOne(name, o, dinoGame.players[name]?.dead);
   if (dinoMe) drawOne(myName, dinoMe, dinoMe.dead);
   drawDinoHud(ctx, started);
 }
 
-function drawOneDino(ctx, name, d, faded, sx, sy, lift = 0) {
+function drawOneDino(ctx, name, d, faded, sx, sy, lift = 0, color = avatarColor(name)) {
   const { w, h } = dinoBox(d);
   const x = sx(d.x), y = sy(d.y, h);
   if (x + w < -40 || x > DINO.viewW + 40) return;
   ctx.globalAlpha = faded ? 0.3 : 1;
-  ctx.fillStyle = avatarColor(name);
+  ctx.fillStyle = color;
   const step = d.y === 0 && Math.floor(d.x / 18) % 2;
   if (d.duck && d.y === 0) {
     ctx.fillRect(x, y + 6, w - 14, h - 12);
@@ -1682,8 +1719,9 @@ function drawDinoHud(ctx, started) {
   ctx.font = '600 14px system-ui, sans-serif';
   ctx.textAlign = 'right';
   if (dinoMe) {
-    const speed = dinoMe.dead || dinoGame.done ? '' : ` · hız ${Math.round(dinoMe.vx / 10)} / ${Math.round(dinoMaxSpeed(dinoElapsed()) / 10)}`;
-    ctx.fillText(`${Math.round(dinoMe.x / 10)} m${speed}`, DINO.viewW - 14, 24);
+    const live = dinoMe.dead || dinoGame.done ? ''
+      : ` · Jef'e ${Math.max(0, Math.round((dinoJefNow() - dinoMe.x) / 10))} m · hız ${Math.round(dinoMe.vx / 10)} / ${Math.round(dinoMaxSpeed(dinoElapsed()) / 10)}`;
+    ctx.fillText(`${Math.round(dinoMe.x / 10)} m${live}`, DINO.viewW - 14, 24);
   }
   ctx.textAlign = 'center';
   ctx.fillStyle = '#eceef4';
@@ -1697,6 +1735,140 @@ function drawDinoHud(ctx, started) {
     ctx.font = '700 24px system-ui, sans-serif';
     ctx.fillText('Öldün, diğerlerini izliyorsun', DINO.viewW / 2, 110);
   }
+}
+
+// ---------- Dinozor müziği ----------
+// Dosya yok: chiptune tarayıcıda üretilir. Am-F-C-G üzerine bas, arpej, melodi ve davul; 4 ölçüde bir
+// döner, tempo oyun hızlandıkça artar. Sadece oyun sürerken ve dinozor sekmesi açıkken çalar.
+
+const Chip = (() => {
+  const BASS = [45, 41, 48, 43];
+  const CHORDS = [[69, 72, 76], [65, 69, 72], [72, 76, 79], [67, 71, 74]];
+  const LEAD = [
+    76, null, 74, 76, 72, null, 69, null,
+    72, null, 74, 72, 69, null, 65, 67,
+    67, null, 72, null, 76, 74, 72, null,
+    74, null, 71, null, 67, null, 74, 76,
+  ]; // sekizlikler, ölçü başına 8
+  const hz = (n) => 440 * 2 ** ((n - 69) / 12);
+  let ctx = null, out = null, noise = null, timer = 0, step = 0, next = 0, bpm = () => 140;
+
+  function tone(type, freq, t, dur, vol, slideTo) {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain).connect(out);
+    osc.start(t);
+    osc.stop(t + dur + 0.02);
+  }
+
+  function hit(t, dur, vol, cutoff) {
+    const src = ctx.createBufferSource();
+    src.buffer = noise;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = cutoff;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    src.connect(filter).connect(gain).connect(out);
+    src.start(t);
+    src.stop(t + dur + 0.02);
+  }
+
+  // 16'lık adım: ölçü 16 adım, döngü 4 ölçü
+  function play(s, t, len) {
+    const bar = Math.floor(s / 16) % 4, i = s % 16;
+    if (i === 0 || i === 8 || (bar % 2 && i === 10)) tone('sine', 150, t, 0.16, 0.7, 40); // davul
+    if (i === 4 || i === 12) hit(t, 0.12, 0.22, 1500);                                  // trampet
+    if (i % 2 === 0) hit(t, 0.03, i % 4 === 2 ? 0.07 : 0.03, 7000);                     // zil
+    if (i % 2 === 0) tone('triangle', hz(BASS[bar] + (i % 4 === 2 ? 12 : 0)), t, len * 1.6, 0.3);
+    tone('square', hz(CHORDS[bar][[0, 1, 2, 1][i % 4]]), t, len * 0.8, 0.025);
+    const note = i % 2 === 0 && LEAD[bar * 8 + i / 2];
+    if (note) tone('square', hz(note), t, len * 1.9, 0.06);
+  }
+
+  function schedule() {
+    while (next < ctx.currentTime + 0.12) {
+      const len = 60 / bpm() / 4;
+      play(step, next, len);
+      next += len;
+      step = (step + 1) % 64;
+    }
+  }
+
+  function setup(audio) {
+    if (ctx === audio) return;
+    ctx = audio;
+    out = ctx.createGain();
+    out.gain.value = 0;
+    out.connect(ctx.destination);
+    noise = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
+    const data = noise.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  }
+
+  return {
+    get playing() { return Boolean(timer); },
+    start(audio, tempo) {
+      if (timer || !audio) return;
+      setup(audio);
+      bpm = tempo;
+      out.gain.cancelScheduledValues(ctx.currentTime);
+      out.gain.setTargetAtTime(0.5, ctx.currentTime, 0.05);
+      step = 0;
+      next = ctx.currentTime + 0.05;
+      timer = setInterval(schedule, 25);
+    },
+    stop() {
+      if (!timer) return;
+      clearInterval(timer);
+      timer = 0;
+      out.gain.setTargetAtTime(0, ctx.currentTime, 0.08);
+    },
+    // Efektler müzik kapalıyken de aynı çıkıştan gelir.
+    jump(audio) {
+      if (!audio) return;
+      setup(audio);
+      out.gain.setTargetAtTime(0.5, ctx.currentTime, 0.01);
+      tone('square', 380, ctx.currentTime, 0.12, 0.07, 760);
+    },
+    die(audio) {
+      if (!audio) return;
+      setup(audio);
+      out.gain.setTargetAtTime(0.5, ctx.currentTime, 0.01);
+      tone('sawtooth', 420, ctx.currentTime, 0.5, 0.1, 55);
+    },
+  };
+})();
+
+let dinoSound = true;
+try { dinoSound = localStorage.getItem('dino-sound') !== '0'; } catch {}
+function renderDinoSound() {
+  setIcon($('dino-music'), dinoSound ? 'volume' : 'volume-x');
+  $('dino-music').title = dinoSound ? 'Müziği ve efektleri kapat' : 'Müziği ve efektleri aç';
+}
+renderDinoSound();
+$('dino-music').onclick = () => {
+  dinoSound = !dinoSound;
+  try { localStorage.setItem('dino-sound', dinoSound ? '1' : '0'); } catch {}
+  renderDinoSound();
+};
+
+// Sekme arka plandayken kare çizilmez; müzik de takılarak çalmasın.
+document.addEventListener('visibilitychange', () => document.hidden && Chip.stop());
+
+// Her karede: müzik oyun sürerken, ses açıkken ve dinozor sekmesi görünürken çalar.
+function dinoMusicTick() {
+  const want = dinoSound && audioCtx && dinoGame && !dinoGame.done && $('dino-canvas').offsetParent;
+  if (want && !Chip.playing) {
+    const { runStart, runMax } = DINO_PACE;
+    Chip.start(audioCtx, () => 140 + 50 * ((dinoMaxSpeed(dinoElapsed()) - runStart) / (runMax - runStart)));
+  } else if (!want && Chip.playing) Chip.stop();
 }
 
 // Klavye: oyun açıkken çalışır, yazı alanındayken değil.

@@ -42,9 +42,9 @@ const TIMING_COOLDOWN = 1000;  // ms
 const RACE_ROUNDS = [3, 5, 10]; // yarışta seçilebilen tur sayıları
 const DINO_COUNTDOWN = 5000;   // ms; dinozor oyunu başlamadan önce
 const DINO_MAX_TIME = 20 * 60 * 1000; // bundan uzun süren oyun bitmiş sayılır
-// Kamera kendiliğinden ilerler ve hızlanır (oyundaki DINO_PACE ile aynı olmalı).
-const DINO_PACE = { camStart: 120, camAccel: 9, camMax: 760 };
-const DINO_BEHIND = 480;
+// Jef (kusursuz koşan bot) hep azami hızda koşar; azami hız zamanla artar (oyundaki DINO_PACE ile aynı olmalı).
+const DINO_PACE = { runStart: 460, runAccel: 22, runMax: 1200 };
+const DINO_BEHIND = 520; // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
 const DINO_BOARD = 10; // her mod için saklanan en iyi skor sayısı // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
 const IMAGE_COOLDOWN = 2000; // ms
@@ -240,7 +240,7 @@ function getRoom(code) {
       tierLists: tierListsByRoom.get(code),
       timing: { target: 10, results: [], race: null }, // süre tahmini: sadece hafızada
       dinoBoard: dinoBoards.get(code),
-      dino: null, // dinozor koşusu: { id, mode, seed, startAt, players: { isim: { dist, dead } }, done }
+      dino: null, // dinozor koşusu: { id, mode, seed, startAt, players: { isim: { dist, dead } }, done, jef }
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -988,20 +988,20 @@ function finishRace(room, endedBy) {
 
 // ---------- Dinozor koşusu ----------
 
-// Başlangıçtan t sn sonra kameranın kendi başına geldiği yer
-function dinoAutoCam(t) {
-  const { camStart: v, camAccel: a, camMax } = DINO_PACE;
-  const full = (camMax - v) / a;
+// Başlangıçtan t sn sonra Jef'in yeri
+function dinoJefX(t) {
+  const { runStart: v, runAccel: a, runMax } = DINO_PACE;
+  const full = (runMax - v) / a;
   if (t <= 0) return 0;
   if (t < full) return v * t + (a * t * t) / 2;
-  return v * full + (a * full * full) / 2 + camMax * (t - full);
+  return v * full + (a * full * full) / 2 + runMax * (t - full);
 }
 
-// Kameranın (en öndeki oyuncu ya da kendiliğinden ilerleyen kamera) çok gerisinde kalanları öldürür.
+// Kameranın (Jef ya da ondan öndeki oyuncu) çok gerisinde kalanları öldürür.
 function dinoSweep(room, leader = 0) {
   const game = room.dino;
   if (!game || game.done) return;
-  const cam = Math.max(leader, dinoAutoCam((Date.now() - game.startAt) / 1000));
+  const cam = Math.max(leader, dinoJefX((Date.now() - game.startAt) / 1000));
   for (const [name, p] of Object.entries(game.players)) {
     if (!p.dead && p.dist < cam - DINO_BEHIND) killDino(room, name);
   }
@@ -1022,6 +1022,7 @@ function killDino(room, name, x) {
   const players = Object.entries(game.players);
   if (players.every(([, p]) => p.dead)) {
     game.done = true;
+    game.jef = Math.round(dinoJefX((Date.now() - game.startAt) / 1000));
     players.sort((a, b) => b[1].dist - a[1].dist);
     // Skor tablosu: her mod ayrı, en iyi 10 skor (aynı kişi birden çok kez girebilir)
     const board = room.dinoBoard[game.mode];
@@ -1031,9 +1032,10 @@ function killDino(room, name, x) {
     store.save(room.code, 'dinoboard', () => room.dinoBoard);
     io.to(room.code).emit('dino:board', room.dinoBoard);
     const [winner, { dist }] = players[0];
+    const jef = ` · Jef 🤖 ${Math.round(game.jef / 10)} m`;
     postSystem(room, players.length > 1
-      ? `Dinozor koşusu bitti! 🏆 Kazanan: ${winner} (${Math.round(dist / 10)} m)`
-      : `Dinozor koşusu bitti: ${winner} ${Math.round(dist / 10)} m gitti`);
+      ? `Dinozor koşusu bitti! 🏆 Kazanan: ${winner} (${Math.round(dist / 10)} m)${jef}`
+      : `Dinozor koşusu bitti: ${winner} ${Math.round(dist / 10)} m gitti${jef}`);
   }
   io.to(room.code).emit('dino', game);
 }

@@ -417,7 +417,7 @@ button.link:hover { background: none; text-decoration: underline; }
 .dino-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .dino-controls .timing-targets { margin-top: 0; }
 #dino-modes button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
-.dino-canvas { width: 100%; aspect-ratio: 900 / 250; display: block; background: var(--panel-2); border-radius: var(--radius-sm); touch-action: none; }
+.dino-canvas { width: 100%; aspect-ratio: 1100 / 250; display: block; background: var(--panel-2); border-radius: var(--radius-sm); touch-action: none; }
 .dino-touch { display: none; gap: 8px; }
 .dino-touch button { flex: 1; padding: 16px 0; font-size: 16px; font-weight: 600; user-select: none; -webkit-user-select: none; touch-action: none; }
 @media (pointer: coarse) { .dino-touch { display: flex; } .dino-help { display: none; } }
