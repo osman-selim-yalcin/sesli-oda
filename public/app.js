@@ -1341,7 +1341,7 @@ const DINO = {
 // Tempo: azami hız gitgide artar. Jef kusursuz oynayan bottur: hep o anki azami hızda koşar, hiç
 // ölmez; kamera onu izler. Oyuncular en fazla onun hızına çıkabilir, amaç ondan kopmamak.
 // Sunucudaki DINO_PACE ile aynı olmalı (Jef'in çok gerisinde kalanı sunucu da öldürür).
-const DINO_PACE = { runStart: 460, runAccel: 22, runMax: 1200 };
+const DINO_PACE = { runStart: 460, runAccel: 30, runMax: 1400 };
 const dinoFullAt = (DINO_PACE.runMax - DINO_PACE.runStart) / DINO_PACE.runAccel; // sn; bu andan sonra hız sabit
 const dinoFullX = DINO_PACE.runStart * dinoFullAt + (DINO_PACE.runAccel * dinoFullAt ** 2) / 2;
 const dinoMaxSpeed = (t) => Math.min(DINO_PACE.runMax, DINO_PACE.runStart + DINO_PACE.runAccel * Math.max(0, t));
@@ -1407,22 +1407,23 @@ function seeded(seed) {
   };
 }
 
-// Engelleri ihtiyaç oldukça üretir. İlerledikçe aralar daralır, 2000'den sonra kuşlar da gelir.
+// Engelleri ihtiyaç oldukça üretir. İlerledikçe aralar daralır, 1000'den sonra kuşlar da gelir.
 function dinoFill(untilX) {
   while (dinoNextX < untilX) {
     const r = dinoRng();
     const x = dinoNextX;
     let ob;
-    if (x > 2000 && r < 0.2) ob = { kind: 'bird', y: 36, w: 42, h: 24 };        // yüksek: eğil
-    else if (x > 2000 && r < 0.32) ob = { kind: 'bird', y: 6, w: 42, h: 24 };   // alçak: zıpla
+    if (x > 1000 && r < 0.25) ob = { kind: 'bird', y: 36, w: 42, h: 24 };        // yüksek: eğil
+    else if (x > 1000 && r < 0.4) ob = { kind: 'bird', y: 6, w: 42, h: 24 };     // alçak: zıpla
     else if (r < 0.6) ob = { kind: 'cactus', y: 0, w: 18, h: 38 };
-    else if (r < 0.85) ob = { kind: 'cactus', y: 0, w: 26, h: 52 };
-    else ob = { kind: 'cactus', y: 0, w: 48, h: 38, group: true };
+    else if (r < 0.8) ob = { kind: 'cactus', y: 0, w: 26, h: 52 };
+    else if (r < 0.93) ob = { kind: 'cactus', y: 0, w: 48, h: 38, group: 3 };
+    else ob = { kind: 'cactus', y: 0, w: 64, h: 38, group: 4 };
     dinoObstacles.push({ ...ob, x });
     // Zıplayınca havada geçen sürede (~0,66 sn) alınan yoldan kısa ara bırakılmaz; hız arttıkça aralar da açılır.
     const t = dinoTimeAt(x);
-    const hard = Math.min(1, t / 60);
-    const min = dinoMaxSpeed(t) * 0.66 + 130 - 40 * hard, spread = 380 - 150 * hard;
+    const hard = Math.min(1, t / 45);
+    const min = dinoMaxSpeed(t) * 0.66 + 80 - 30 * hard, spread = 260 - 120 * hard;
     dinoNextX = x + ob.w + min + dinoRng() * spread;
   }
 }
@@ -1654,7 +1655,7 @@ function drawDino(started) {
     const x = sx(ob.x), y = sy(ob.y, ob.h);
     if (ob.kind === 'cactus') {
       ctx.fillStyle = '#3f9b4f';
-      const parts = ob.group ? [[0, 16], [16, 16], [32, 16]] : [[0, ob.w]];
+      const parts = ob.group ? Array.from({ length: ob.group }, (_, i) => [i * 16, 16]) : [[0, ob.w]];
       for (const [px, pw] of parts) {
         const stem = Math.max(6, pw * 0.4);
         ctx.fillRect(x + px + (pw - stem) / 2, y, stem, ob.h);

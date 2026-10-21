@@ -43,7 +43,7 @@ const RACE_ROUNDS = [3, 5, 10]; // yarışta seçilebilen tur sayıları
 const DINO_COUNTDOWN = 5000;   // ms; dinozor oyunu başlamadan önce
 const DINO_MAX_TIME = 20 * 60 * 1000; // bundan uzun süren oyun bitmiş sayılır
 // Jef (kusursuz koşan bot) hep azami hızda koşar; azami hız zamanla artar (oyundaki DINO_PACE ile aynı olmalı).
-const DINO_PACE = { runStart: 460, runAccel: 22, runMax: 1200 };
+const DINO_PACE = { runStart: 460, runAccel: 30, runMax: 1400 };
 const DINO_BEHIND = 520; // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
 const DINO_BOARD = 10; // her mod için saklanan en iyi skor sayısı // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
