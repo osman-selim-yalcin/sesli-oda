@@ -387,6 +387,9 @@ button.link:hover { background: none; text-decoration: underline; }
 .game-head > button { flex-shrink: 0; }
 .tier-title { font-weight: 600; }
 .tierlist-item { cursor: pointer; }
+.tierlist-item > .avatar { width: 32px; height: 32px; font-size: 14px; }
+.tier-owner { margin: -4px 0 10px; }
+#tier-edit.readonly .tier-card { cursor: default; }
 
 /* Süre tahmini */
 .timing { display: grid; justify-items: center; gap: 10px; padding: 6px 0 4px; text-align: center; }
@@ -439,6 +442,7 @@ button.link:hover { background: none; text-decoration: underline; }
 .tier-board { display: grid; gap: 4px; }
 .tier-row { display: flex; align-items: stretch; min-height: 84px; background: var(--panel-2); border-radius: var(--radius-sm); overflow: hidden; }
 .tier-label { width: 84px; flex-shrink: 0; display: grid; place-items: center; padding: 4px; }
+#tier-edit:not(.readonly) .tier-label { cursor: text; }
 .tier-name {
   background: transparent;
   border: 1px solid transparent;
@@ -448,7 +452,8 @@ button.link:hover { background: none; text-decoration: underline; }
   text-align: center;
   padding: 4px;
 }
-.tier-name:hover { border-color: rgba(0, 0, 0, .2); }
+.tier-name:hover, #tier-edit:not(.readonly) .tier-label:hover .tier-name { border-color: rgba(0, 0, 0, .25); background: rgba(255, 255, 255, .25); }
+.tier-name[readonly] { pointer-events: none; }
 .tier-name:focus { background: rgba(255, 255, 255, .5); border-color: rgba(0, 0, 0, .3); outline: none; }
 .tier-items { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; align-content: flex-start; transition: background .12s; }
 .tier-drop.over { background: var(--accent-soft); }

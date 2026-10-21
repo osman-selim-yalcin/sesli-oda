@@ -784,7 +784,8 @@ function renderTopbarNow() {
 }
 
 // ---------- Tier list ----------
-// Tahta herkeste ortak: biri kartı taşıyınca herkeste yer değiştirir.
+// Her liste oluşturanındır; sadece o değiştirir, diğerleri canlı izler. Başkasının listesi
+// "Kendine al" ile kopyalanır: aynı kartlar yerleşmemiş gelir, sıralamayı herkes kendi yapar.
 
 const TIER_COLORS = ['#ff7f7f', '#ffbf7f', '#ffdf7f', '#bfff7f', '#7fbfff', '#a78bfa', '#f0a6e8', '#7fe0d0', '#cbd5e1'];
 const CARD_IMAGE_SIDE = 320;
@@ -795,6 +796,8 @@ let drag = null;          // sürüklenen kart
 let tierRenderPending = false;
 
 const openList = () => tierLists.find((l) => l.id === openListId);
+const isMine = (list) => list.by === myName;
+let focusNewTier = false; // satır ekleyince yeni satırın adı düzenlemeye açılır
 
 function setTierLists(lists) {
   tierLists = lists;
@@ -823,28 +826,62 @@ function renderTierLists() {
 $('tier-edit').addEventListener('focusout', () => setTimeout(() => tierRenderPending && renderTierLists()));
 
 function renderTierHome() {
-  const ol = $('tierlist-list');
-  ol.replaceChildren();
-  for (const list of tierLists) {
-    const placed = list.tiers.reduce((n, t) => n + t.cards.length, 0);
-    const li = document.createElement('li');
-    li.className = 'tierlist-item';
-    li.innerHTML = `
-      <div class="q-text">
-        <div class="q-title"></div>
-        <div class="muted small"></div>
-      </div>
-      <button class="sm">Aç</button>`;
-    li.querySelector('.q-title').textContent = list.title;
-    li.querySelector('.small').textContent = `${list.by} oluşturdu · ${list.cards.length} kart, ${placed} yerleşti`;
-    li.onclick = () => {
-      openListId = list.id;
-      selectedCard = null;
-      renderTierLists();
-    };
-    ol.append(li);
+  const mine = tierLists.filter(isMine);
+  const others = tierLists.filter((l) => !isMine(l));
+  for (const [id, lists] of [['tierlist-mine', mine], ['tierlist-others', others]]) {
+    const ol = $(id);
+    ol.replaceChildren();
+    for (const list of lists) ol.append(tierListItem(list));
+    $(`${id}-head`).hidden = !lists.length;
   }
   $('tierlist-empty').hidden = tierLists.length > 0;
+}
+
+function tierListItem(list) {
+  const placed = list.tiers.reduce((n, t) => n + t.cards.length, 0);
+  const li = document.createElement('li');
+  li.className = 'tierlist-item';
+  li.innerHTML = `
+    <div class="q-text">
+      <div class="q-title"></div>
+      <div class="muted small"></div>
+    </div>`;
+  li.prepend(makeAvatar(list.by));
+  li.querySelector('.q-title').textContent = list.title;
+  // İsimlere ek getirmeyen ifadeler: "ayşe'nin", "ali'nin" gibi ekler isme göre değişir.
+  const who = isMine(list) ? (list.from ? `Senin kopyan · ${list.from} oluşturmuştu` : 'Senin listen') : `${list.by} oluşturdu`;
+  li.querySelector('.small').textContent = `${who} · ${list.cards.length} kart, ${placed} yerleşti`;
+  const open = () => {
+    openListId = list.id;
+    selectedCard = null;
+    renderTierLists();
+  };
+  li.onclick = open;
+  const view = document.createElement('button');
+  view.className = 'sm';
+  view.textContent = isMine(list) ? 'Aç' : 'Gör';
+  li.append(view);
+  if (!isMine(list)) {
+    const take = document.createElement('button');
+    take.className = 'sm primary';
+    take.textContent = 'Kendine al';
+    take.onclick = (e) => {
+      e.stopPropagation();
+      copyTierList(list.id);
+    };
+    li.append(take);
+  }
+  return li;
+}
+
+async function copyTierList(listId) {
+  const res = await emitAck(8000, 'tierlist:copy', listId);
+  if (!res) return toast('Sunucuya ulaşılamadı.');
+  if (res.error) return toast(res.error);
+  openListId = res.id;
+  selectedCard = null;
+  renderTierLists();
+  toast('Liste senin oldu; kartları istediğin gibi sırala.');
 }
 
 function tierCard(card) {
@@ -865,6 +902,7 @@ function tierCard(card) {
     text.textContent = card.text;
     el.append(text);
   }
+  if (!isMine(openList())) return el; // başkasının listesi: sadece izlenir
   const del = document.createElement('button');
   del.className = 'tier-card-del';
   del.title = 'Kartı sil';
@@ -885,7 +923,19 @@ function fillDrop(zone, ids, cards) {
 }
 
 function renderTierBoard(list) {
+  const mine = isMine(list);
   if (document.activeElement !== $('tier-title')) $('tier-title').value = list.title;
+  $('tier-title').readOnly = !mine;
+  $('tier-delete').hidden = !mine;
+  $('tier-copy').hidden = mine;
+  $('tier-add-row').hidden = !mine;
+  $('card-form').hidden = !mine;
+  $('tier-help').hidden = !mine;
+  $('tier-edit').classList.toggle('readonly', !mine);
+  $('tier-pool-head').textContent = mine ? 'Yerleştirilmemiş kartlar' : 'Yerleşmemiş kartlar';
+  $('tier-owner').textContent = mine
+    ? (list.from ? `Senin kopyan (${list.from} oluşturmuştu). Sadece sen değiştirebilirsin, diğerleri canlı izler.` : 'Bu liste senin; sadece sen değiştirebilirsin, diğerleri canlı izler.')
+    : `Sahibi: ${list.by}. Sadece izleyebilirsin; kendi sıralamanı yapmak için "Kendine al"a bas.`;
   const cards = new Map(list.cards.map((c) => [c.id, c]));
   const board = $('tier-board');
   board.replaceChildren();
@@ -900,14 +950,28 @@ function renderTierBoard(list) {
         <button data-act="down" class="icon sm ghost" title="Aşağı taşı">${icon('chevron')}</button>
         <button data-act="remove" class="icon sm ghost" title="Satırı sil (kartlar aşağıya döner)">${icon('x')}</button>
       </div>`;
-    row.querySelector('.tier-label').style.background = TIER_COLORS[i % TIER_COLORS.length];
+    const label = row.querySelector('.tier-label');
+    label.style.background = TIER_COLORS[i % TIER_COLORS.length];
     const name = row.querySelector('.tier-name');
     name.value = tier.name;
-    name.onchange = () => {
-      if (name.value.trim()) socket.emit('tier:rename', { listId: list.id, tierId: tier.id, name: name.value });
-      else name.value = tier.name;
-    };
-    name.onkeydown = (e) => e.key === 'Enter' && name.blur();
+    name.readOnly = !mine;
+    if (mine) {
+      // Renkli kutunun neresine tıklanırsa tıklansın ad düzenlenir; tıklayınca eski ad seçili gelir.
+      label.title = 'Adını değiştirmek için tıkla';
+      label.onclick = (e) => e.target !== name && name.focus();
+      name.onfocus = () => name.select();
+      name.onchange = () => {
+        if (name.value.trim()) socket.emit('tier:rename', { listId: list.id, tierId: tier.id, name: name.value });
+        else name.value = tier.name;
+      };
+      name.onkeydown = (e) => {
+        if (e.key === 'Enter') name.blur();
+        if (e.key === 'Escape') {
+          name.value = tier.name;
+          name.blur();
+        }
+      };
+    }
     const drop = row.querySelector('.tier-drop');
     drop.dataset.tier = tier.id;
     fillDrop(drop, tier.cards, cards);
@@ -918,8 +982,13 @@ function renderTierBoard(list) {
     row.querySelector('[data-act=up]').disabled = i === 0;
     row.querySelector('[data-act=down]').disabled = i === list.tiers.length - 1;
     row.querySelector('[data-act=remove]').disabled = list.tiers.length <= 1;
+    if (!mine) row.querySelector('.tier-row-actions').remove();
     board.append(row);
   });
+  if (focusNewTier && mine) {
+    focusNewTier = false;
+    board.querySelector('.tier-row:last-child .tier-name')?.focus();
+  }
   fillDrop($('tier-pool'), list.pool, cards);
   $('tier-pool').classList.toggle('empty-pool', !list.pool.length);
   $('tier-add-row').disabled = list.tiers.length >= 12;
@@ -1000,7 +1069,7 @@ function endCardDrag(e) {
 
 // Seçili kart varken bir satıra (ya da aşağıdaki alana) dokunmak kartı oraya taşır.
 $('tier-edit').addEventListener('click', (e) => {
-  if (!selectedCard || e.target.closest('.tier-card, button, input')) return;
+  if (!selectedCard || !isMine(openList()) || e.target.closest('.tier-card, button, input')) return;
   let zone = e.target.closest('.tier-drop, .tier-row');
   if (zone?.classList.contains('tier-row')) zone = zone.querySelector('.tier-drop');
   if (!zone) return;
@@ -1032,7 +1101,11 @@ $('tier-title').onchange = () => {
   if ($('tier-title').value.trim()) socket.emit('tierlist:rename', { listId: openListId, title: $('tier-title').value });
 };
 $('tier-title').onkeydown = (e) => e.key === 'Enter' && e.currentTarget.blur();
-$('tier-add-row').onclick = () => socket.emit('tier:add', openListId);
+$('tier-add-row').onclick = () => {
+  focusNewTier = true;
+  socket.emit('tier:add', openListId);
+};
+$('tier-copy').onclick = () => copyTierList(openListId);
 
 // Seçilen resimler kart eklenene kadar bekler; birden fazla seçilirse her biri ayrı kart olur.
 let cardFiles = [];

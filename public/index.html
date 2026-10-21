@@ -276,20 +276,25 @@
               <input id="tierlist-title" maxlength="60" placeholder="Yeni tier list adı (ör. En iyi filmler)" autocomplete="off">
               <button type="submit" class="primary"><svg class="ic"><use href="#i-plus"></use></svg>Oluştur</button>
             </form>
-            <ol id="tierlist-list" class="queue"></ol>
-            <p id="tierlist-empty" class="muted small empty">Henüz tier list yok. Bir isim yazıp oluştur, sonra kartları ekleyin.</p>
+            <h2 id="tierlist-mine-head">Benim listelerim</h2>
+            <ol id="tierlist-mine" class="queue"></ol>
+            <h2 id="tierlist-others-head">Diğerleri · kendine alıp kendi sıralamanı yap</h2>
+            <ol id="tierlist-others" class="queue"></ol>
+            <p id="tierlist-empty" class="muted small empty">Henüz tier list yok. Bir isim yazıp oluştur, kartları ekle; başkaları kendine alıp kendi sıralamasını yapabilir.</p>
           </div>
 
           <div id="tier-edit" hidden>
             <div class="game-head">
               <button id="tier-back" class="ghost sm"><svg class="ic"><use href="#i-back"></use></svg>Listeler</button>
               <input id="tier-title" class="tier-title" maxlength="60" aria-label="Liste adı" autocomplete="off">
+              <button id="tier-copy" class="sm primary">Kendine al</button>
               <button id="tier-delete" class="sm danger">Listeyi sil</button>
             </div>
+            <p id="tier-owner" class="muted small tier-owner"></p>
             <div id="tier-board" class="tier-board"></div>
             <button id="tier-add-row" class="sm ghost tier-add-row"><svg class="ic"><use href="#i-plus"></use></svg>Satır ekle</button>
 
-            <h2>Yerleştirilmemiş kartlar</h2>
+            <h2 id="tier-pool-head">Yerleştirilmemiş kartlar</h2>
             <div id="tier-pool" class="tier-pool tier-drop"></div>
             <form id="card-form" class="card-form">
               <label class="attach card-pick" title="Resim seç (birden fazla seçersen her biri ayrı kart olur)">
@@ -299,7 +304,7 @@
               <input id="card-text" maxlength="60" placeholder="Kart adı (resim isteğe bağlı)" autocomplete="off">
               <button type="submit" class="primary">Kart ekle</button>
             </form>
-            <p class="muted small">Kartları sürükleyip bir satıra bırak. Telefonda karta dokun, sonra satıra dokun. Satır adına tıklayıp değiştirebilirsin.</p>
+            <p id="tier-help" class="muted small">Kartları sürükleyip bir satıra bırak. Telefonda karta dokun, sonra satıra dokun. Satırın renkli kutusuna tıklayıp adını değiştirebilirsin.</p>
           </div>
           </div>
 

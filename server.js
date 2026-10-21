@@ -25,7 +25,8 @@ const CHAT_HISTORY = 50;
 const PLAY_HISTORY = 200; // önceden çalanlar listesinde tutulan şarkı sayısı  // odaya yeni girene gösterilen son mesaj sayısı
 const CHAT_MAX_LENGTH = 500;
 const CHAT_COOLDOWN = 300; // ms
-const TIERLIST_MAX = 10;       // odadaki en fazla tier list
+const TIERLIST_MAX = 50;       // odadaki en fazla tier list
+const TIERLIST_PER_USER = 10;  // bir kişinin en fazla tier listi
 const TIERLIST_TITLE_MAX = 60;
 const TIER_MAX = 12;           // bir listedeki en fazla satır (S, A, B...)
 const TIER_NAME_MAX = 24;
@@ -390,8 +391,9 @@ function playNext(room) {
 }
 
 // ---------- Oyunlar: tier list ----------
-// Odada birden fazla tier list olabilir. Herkes kart ekler (yazı ve/veya resim) ve kartları
-// satırlara sürükler; tahta herkeste ortaktır. Listeler oda boşalınca silinmez, kart resimleri
+// Odada birden fazla tier list olabilir. Her liste oluşturanındır: kartları, satırları ve adı sadece
+// o değiştirir, diğerleri izler. Başkasının listesi şablon gibi kopyalanabilir; kopyada kartlar
+// yerleşmemiş gelir, herkes kendi sıralamasını yapar. Listeler oda boşalınca silinmez, kart resimleri
 // de sunucu yeniden başlayana kadar hafızada durur.
 
 const cardImages = new Map(); // id -> { buf, type }
@@ -399,11 +401,19 @@ let nextTierId = 1; // listeler, satırlar ve kartlar için ortak sayaç
 
 const newTierRow = (name) => ({ id: nextTierId++, name, cards: [] });
 
+// Oda ya da kişi sınırı doluysa hata metni, değilse boş
+function tierListFull(room, by) {
+  if (room.tierLists.length >= TIERLIST_MAX) return `Odada en fazla ${TIERLIST_MAX} tier list olabilir; eskilerden biri silinmeli.`;
+  if (room.tierLists.filter((l) => l.by === by).length >= TIERLIST_PER_USER) return `En fazla ${TIERLIST_PER_USER} tier listin olabilir; birini sil.`;
+  return '';
+}
+
 function tierListView(list) {
   return {
     id: list.id,
     title: list.title,
     by: list.by,
+    from: list.from || null, // kopyalandığı listenin sahibi
     tiers: list.tiers.map((t) => ({ id: t.id, name: t.name, cards: t.cards })),
     pool: list.pool,
     cards: [...list.cards.values()],
@@ -423,15 +433,17 @@ function takeCard(list, cardId) {
   }
 }
 
-function deleteCard(list, cardId) {
+// Kopyalanan listeler aynı resmi paylaşır; resim, odada onu kullanan son kart silinince silinir.
+function deleteCard(room, list, cardId) {
   takeCard(list, cardId);
   const card = list.cards.get(cardId);
-  if (card?.image) {
-    const imageId = card.image.slice('card-img/'.length);
-    cardImages.delete(imageId);
-    store.deleteFile(`cards/${imageId}`);
-  }
   list.cards.delete(cardId);
+  if (!card?.image) return;
+  const shared = room.tierLists.some((l) => [...l.cards.values()].some((c) => c.image === card.image));
+  if (shared) return;
+  const imageId = card.image.slice('card-img/'.length);
+  cardImages.delete(imageId);
+  store.deleteFile(`cards/${imageId}`);
 }
 
 io.on('connection', (socket) => {
@@ -718,12 +730,13 @@ io.on('connection', (socket) => {
     broadcastMedia(code);
   });
 
-  // Tier list olayları listenin kimliğiyle gelir; liste yoksa yok sayılır.
+  // Tier list olayları listenin kimliğiyle gelir; liste yoksa ya da başkasınınsa yok sayılır.
   const withList = (listId, fn) => {
     if (!code) return;
     const room = getRoom(code);
     const list = room.tierLists.find((l) => l.id === listId);
-    if (list && fn(list, room) !== false) broadcastTierLists(room);
+    if (!list || list.by !== room.users.get(socket.id).name) return;
+    if (fn(list, room) !== false) broadcastTierLists(room);
   };
   const cleanText = (text, max) => (typeof text === 'string' ? text.replace(/\s+/g, ' ').trim().slice(0, max) : '');
 
@@ -732,8 +745,9 @@ io.on('connection', (socket) => {
     const room = getRoom(code);
     title = cleanText(title, TIERLIST_TITLE_MAX);
     if (!title) return ack({ error: 'Listeye bir isim ver.' });
-    if (room.tierLists.length >= TIERLIST_MAX) return ack({ error: `En fazla ${TIERLIST_MAX} tier list olabilir; eskilerden birini sil.` });
     const by = room.users.get(socket.id).name;
+    const full = tierListFull(room, by);
+    if (full) return ack({ error: full });
     const list = { id: nextTierId++, title, by, tiers: DEFAULT_TIERS.map(newTierRow), pool: [], cards: new Map() };
     room.tierLists.push(list);
     broadcastTierLists(room);
@@ -741,9 +755,32 @@ io.on('connection', (socket) => {
     ack({ id: list.id });
   });
 
+  // Kendine al: aynı başlık, satır adları ve kartlarla yeni bir liste; kartlar yerleşmemiş gelir.
+  socket.on('tierlist:copy', (listId, ack) => {
+    if (!code || typeof ack !== 'function') return;
+    const room = getRoom(code);
+    const from = room.tierLists.find((l) => l.id === listId);
+    if (!from) return ack({ error: 'Bu liste silinmiş.' });
+    const by = room.users.get(socket.id).name;
+    const full = tierListFull(room, by);
+    if (full) return ack({ error: full });
+    const order = [...from.tiers.flatMap((t) => t.cards), ...from.pool];
+    const list = { id: nextTierId++, title: from.title, by, from: from.by, tiers: from.tiers.map((t) => newTierRow(t.name)), pool: [], cards: new Map() };
+    for (const oldId of order) {
+      const card = from.cards.get(oldId);
+      if (!card) continue;
+      const copy = { ...card, id: nextTierId++ };
+      list.cards.set(copy.id, copy);
+      list.pool.push(copy.id);
+    }
+    room.tierLists.push(list);
+    broadcastTierLists(room);
+    ack({ id: list.id });
+  });
+
   socket.on('tierlist:delete', (listId) => withList(listId, (list, room) => {
-    for (const id of [...list.cards.keys()]) deleteCard(list, id);
     room.tierLists.splice(room.tierLists.indexOf(list), 1);
+    for (const id of [...list.cards.keys()]) deleteCard(room, list, id);
   }));
 
   socket.on('tierlist:rename', ({ listId, title } = {}) => withList(listId, (list) => {
@@ -784,8 +821,10 @@ io.on('connection', (socket) => {
     if (typeof ack !== 'function') return;
     if (!code) return ack({ error: 'Odada değilsin.' });
     if (Date.now() - lastCard < CARD_COOLDOWN) return ack({ error: 'Biraz bekle, çok hızlı ekliyorsun.' });
-    const list = getRoom(code).tierLists.find((l) => l.id === listId);
+    const room = getRoom(code);
+    const list = room.tierLists.find((l) => l.id === listId);
     if (!list) return ack({ error: 'Bu liste silinmiş.' });
+    if (list.by !== room.users.get(socket.id).name) return ack({ error: 'Bu liste senin değil; kendine alıp düzenleyebilirsin.' });
     if (list.cards.size >= CARD_MAX) return ack({ error: `Bir listede en fazla ${CARD_MAX} kart olabilir.` });
     text = cleanText(text, CARD_TEXT_MAX);
     let image = null;
@@ -808,9 +847,9 @@ io.on('connection', (socket) => {
     ack({});
   });
 
-  socket.on('card:remove', ({ listId, cardId } = {}) => withList(listId, (list) => {
+  socket.on('card:remove', ({ listId, cardId } = {}) => withList(listId, (list, room) => {
     if (!list.cards.has(cardId)) return false;
-    deleteCard(list, cardId);
+    deleteCard(room, list, cardId);
   }));
 
   // to: satır kimliği ya da havuz için null; index: o yerdeki sırası.
