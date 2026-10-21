@@ -155,7 +155,7 @@ function watchLevel(source, row, state) {
     let peak = 0;
     for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
     if (peak > SPEAK_THRESHOLD) lastLoud = Date.now();
-    state.speaking = Date.now() - lastLoud < SPEAK_HOLD;
+    state.speaking = !state.silenced?.() && Date.now() - lastLoud < SPEAK_HOLD;
     row.classList.toggle('speaking', state.speaking);
     row.mini?.classList.toggle('speaking', state.speaking);
   }, 100);
@@ -2776,8 +2776,10 @@ $('join-form').onsubmit = async (e) => {
 
   const selfRow = personRow(name, true);
   setStatus(selfRow, localStream ? 'Sen' : 'Sadece dinleyici');
-  if (gateNode) watchLevel(gateNode, selfRow, {});
-  else if (localStream) watchLevel(audioCtx.createMediaStreamSource(localStream), selfRow, {});
+  // Kendi göstergemiz mikrofonu dinler; sessizdeyken karşıya ses gitmediği için yanmasın.
+  const self = { silenced: () => !micOn };
+  if (gateNode) watchLevel(gateNode, selfRow, self);
+  else if (localStream) watchLevel(audioCtx.createMediaStreamSource(localStream), selfRow, self);
   renderMic();
   renderPeopleCount();
   startUsageMeter();
