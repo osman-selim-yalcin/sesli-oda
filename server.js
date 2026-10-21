@@ -1012,6 +1012,36 @@ setInterval(() => {
   for (const room of rooms.values()) dinoSweep(room);
 }, 1000);
 
+// Skorları tabloya ekler. Bilgisayardaki sunucu da canlıyla aynı kaydı kullandığından kaydetmeden önce
+// kayıttakilerle birleştirilir; yoksa her sunucu yalnız kendi hafızasındakini yazıp ötekinin skorlarını siler.
+function mergeDinoBoard(board, from) {
+  for (const mode of ['hold', 'tap']) {
+    const seen = new Set();
+    board[mode] = [...board[mode], ...(from?.[mode] || [])]
+      .filter((r) => {
+        const key = `${r.name}|${r.at}|${r.dist}`;
+        return !seen.has(key) && seen.add(key);
+      })
+      .sort((a, b) => b.dist - a.dist)
+      .slice(0, DINO_BOARD);
+  }
+}
+
+async function addDinoScores(room, mode, scores) {
+  room.dinoBoard[mode].push(...scores);
+  if (store.enabled) {
+    try {
+      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.dinoboard&select=data`);
+      mergeDinoBoard(room.dinoBoard, row?.data);
+    } catch (err) {
+      console.warn('skor tablosu okuma', err.message);
+    }
+  }
+  mergeDinoBoard(room.dinoBoard);
+  store.save(room.code, 'dinoboard', () => room.dinoBoard);
+  io.to(room.code).emit('dino:board', room.dinoBoard);
+}
+
 // Oyuncuyu öldürür; herkes öldüyse oyun biter ve en uzağa giden kazanır.
 function killDino(room, name, x) {
   const game = room.dino;
@@ -1025,12 +1055,8 @@ function killDino(room, name, x) {
     game.jef = Math.round(dinoJefX((Date.now() - game.startAt) / 1000));
     players.sort((a, b) => b[1].dist - a[1].dist);
     // Skor tablosu: her mod ayrı, en iyi 10 skor (aynı kişi birden çok kez girebilir)
-    const board = room.dinoBoard[game.mode];
-    for (const [n, p] of players) if (p.dist > 0) board.push({ name: n, dist: Math.round(p.dist), at: Date.now() });
-    board.sort((a, b) => b.dist - a.dist);
-    board.splice(DINO_BOARD);
-    store.save(room.code, 'dinoboard', () => room.dinoBoard);
-    io.to(room.code).emit('dino:board', room.dinoBoard);
+    const at = Date.now();
+    addDinoScores(room, game.mode, players.filter(([, p]) => p.dist > 0).map(([n, p]) => ({ name: n, dist: Math.round(p.dist), at })));
     const [winner, { dist }] = players[0];
     const jef = ` · Jef 🤖 ${Math.round(game.jef / 10)} m`;
     postSystem(room, players.length > 1
