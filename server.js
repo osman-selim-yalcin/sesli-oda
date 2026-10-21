@@ -40,6 +40,9 @@ const TIMING_RANDOM = [5, 30]; // "rastgele" hedef bu aralıktan
 const TIMING_RESULTS = 100;    // odada tutulan son deneme sayısı
 const TIMING_COOLDOWN = 1000;  // ms
 const RACE_ROUNDS = [3, 5, 10]; // yarışta seçilebilen tur sayıları
+const DINO_COUNTDOWN = 5000;   // ms; dinozor oyunu başlamadan önce
+const DINO_MAX_TIME = 20 * 60 * 1000; // bundan uzun süren oyun bitmiş sayılır
+const DINO_BEHIND = 480; // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
 const IMAGE_COOLDOWN = 2000; // ms
 // Dosyanın ilk baytlarıyla gerçekten resim olduğunu doğrularız (uzantıya/türe güvenmeyiz).
@@ -231,6 +234,7 @@ function getRoom(code) {
       customSfx: customSfxByRoom.get(code),
       tierLists: tierListsByRoom.get(code),
       timing: { target: 10, results: [], race: null }, // süre tahmini: sadece hafızada
+      dino: null, // dinozor koşusu: { id, seed, startAt, players: { isim: { dist, dead } }, done }
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -466,7 +470,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -885,6 +889,44 @@ io.on('connection', (socket) => {
     io.to(code).emit('timing', room.timing);
   });
 
+  // ---------- Dinozor koşusu ----------
+  // Engeller tohumdan (seed) herkesin tarayıcısında aynı üretilir. Her oyuncu kendi dinozorunu
+  // kendi tarayıcısında oynatır, konumunu sunucu üzerinden diğerlerine yollar.
+
+  socket.on('dino:start', () => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (room.dino && !room.dino.done && Date.now() - room.dino.startAt < DINO_MAX_TIME) return;
+    const by = room.users.get(socket.id).name;
+    const players = {};
+    for (const u of room.users.values()) players[u.name] = { dist: 0, dead: false };
+    room.dino = { id: Date.now(), seed: Math.floor(Math.random() * 2 ** 31), startAt: Date.now() + DINO_COUNTDOWN, players, done: false };
+    io.to(code).emit('dino', room.dino);
+    postSystem(room, `${by} dinozor koşusu başlattı`);
+  });
+
+  socket.on('dino:state', ({ id, x, y, duck } = {}) => {
+    if (!code || !Number.isFinite(x) || !Number.isFinite(y)) return;
+    const room = getRoom(code);
+    const name = room.users.get(socket.id).name;
+    const me = room.dino?.id === id && room.dino.players[name];
+    if (!me || me.dead) return;
+    me.dist = Math.max(me.dist, x);
+    socket.to(code).volatile.emit('dino:pos', { name, x, y, duck: Boolean(duck) });
+    // Ekranın solundan çıkmayı oyuncunun tarayıcısı denetler; sekmesi kapalı ya da oyunda
+    // olmayan biri ise hiç ölmez, oyun da bitmezdi. O yüzden çok geride kalanı sunucu öldürür.
+    for (const [other, p] of Object.entries(room.dino.players)) {
+      if (!p.dead && p.dist < me.dist - DINO_BEHIND) killDino(room, other);
+    }
+  });
+
+  socket.on('dino:dead', ({ id, x } = {}) => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (room.dino?.id !== id) return;
+    killDino(room, room.users.get(socket.id).name, x);
+  });
+
   socket.on('disconnect', () => {
     if (!code) return;
     const room = getRoom(code);
@@ -901,6 +943,7 @@ io.on('connection', (socket) => {
       const current = rooms.get(roomCode);
       if (current) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
       if (current) checkRaceDone(current); // yarışı bitirmeyen biri çıktıysa kalanlar beklemesin
+      if (current) killDino(current, user.name);
     }, REJOIN_GRACE));
     if (room.users.size === 0) {
       rooms.delete(code);
@@ -936,6 +979,27 @@ function finishRace(room, endedBy) {
   const winners = finished.filter((n) => raceTotal(race, n) === best);
   const secs = (best / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   postSystem(room, `${prefix}🏆 Kazanan: ${winners.join(', ')} (toplam ${secs} sn fark)`);
+}
+
+// ---------- Dinozor koşusu ----------
+
+// Oyuncuyu öldürür; herkes öldüyse oyun biter ve en uzağa giden kazanır.
+function killDino(room, name, x) {
+  const game = room.dino;
+  const player = game?.players[name];
+  if (!player || player.dead || game.done) return;
+  player.dead = true;
+  if (Number.isFinite(x)) player.dist = Math.max(player.dist, x);
+  const players = Object.entries(game.players);
+  if (players.every(([, p]) => p.dead)) {
+    game.done = true;
+    players.sort((a, b) => b[1].dist - a[1].dist);
+    const [winner, { dist }] = players[0];
+    postSystem(room, players.length > 1
+      ? `Dinozor koşusu bitti! 🏆 Kazanan: ${winner} (${Math.round(dist / 10)} m)`
+      : `Dinozor koşusu bitti: ${winner} ${Math.round(dist / 10)} m gitti`);
+  }
+  io.to(room.code).emit('dino', game);
 }
 
 // Kayıtlı durumu hafızaya alır. Okunamazsa kayıt da kapatılır ki boş hafıza eskilerin üstüne yazılmasın.

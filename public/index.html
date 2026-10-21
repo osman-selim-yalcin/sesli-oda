@@ -267,6 +267,7 @@
           <div class="tabs" role="tablist">
             <button id="game-tab-tier" class="tab active" role="tab">Tier list</button>
             <button id="game-tab-timing" class="tab" role="tab">Süre tahmini</button>
+            <button id="game-tab-dino" class="tab" role="tab">Dinozor</button>
           </div>
 
           <div id="game-tier">
@@ -342,6 +343,25 @@
                 <ol id="timing-recent" class="timing-list"></ol>
               </div>
             </div>
+          </div>
+
+          <!-- Dinozor koşusu: aynı parkurda birlikte koşulur, kamera en öndekini izler -->
+          <div id="game-dino" class="dino" hidden>
+            <div class="dino-bar">
+              <span id="dino-status" class="muted small"></span>
+              <button id="dino-start" class="primary sm">Başlat</button>
+            </div>
+            <canvas id="dino-canvas" class="dino-canvas"></canvas>
+            <div class="dino-touch">
+              <button id="dino-t-duck" type="button">Eğil</button>
+              <button id="dino-t-jump" type="button">Zıpla</button>
+              <button id="dino-t-run" type="button">Koş ▶</button>
+            </div>
+            <p class="muted small dino-help">
+              <b>D</b> / <b>→</b> basılı tut: koş (bırakınca yavaşlarsın) · <b>W</b> / <b>↑</b> / boşluk: zıpla ·
+              <b>S</b> / <b>↓</b>: eğil. Engele çarpan ya da ekranın solundan çıkan ölür; kamera en öndekini izler.
+            </p>
+            <ol id="dino-results" class="timing-list dino-results"></ol>
           </div>
         </div>
       </section>

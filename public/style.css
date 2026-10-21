@@ -412,6 +412,15 @@ button.link:hover { background: none; text-decoration: underline; }
 .race-board { width: 100%; max-width: 420px; text-align: left; }
 .race-head { display: flex; align-items: center; gap: 6px; }
 .race-head h2 { flex: 1; min-width: 0; margin: 10px 0; text-transform: none; letter-spacing: 0; font-size: 13px; }
+.dino { display: grid; gap: 10px; }
+.dino-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; }
+.dino-canvas { width: 100%; aspect-ratio: 900 / 250; display: block; background: var(--panel-2); border-radius: var(--radius-sm); touch-action: none; }
+.dino-touch { display: none; gap: 8px; }
+.dino-touch button { flex: 1; padding: 16px 0; font-size: 16px; font-weight: 600; user-select: none; -webkit-user-select: none; touch-action: none; }
+@media (pointer: coarse) { .dino-touch { display: flex; } .dino-help { display: none; } }
+.dino-help { margin: 0; }
+.dino-results { max-width: 420px; }
+#game-dino { animation: rise-sm .3s ease-out; }
 .timing-list li.winner { background: rgba(61, 220, 132, .12); box-shadow: inset 0 0 0 1px rgba(61, 220, 132, .35); }
 .timing-boards { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; text-align: left; }
 .timing-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }

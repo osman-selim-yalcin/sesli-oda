@@ -194,10 +194,14 @@ function fillAvatar(el) {
     el.append(img);
     return;
   }
+  el.textContent = [...name][0]?.toLocaleUpperCase('tr-TR') || '?';
+  el.style.background = avatarColor(name);
+}
+
+function avatarColor(name) {
   let hash = 2166136261; // FNV-1a: benzer isimler de farklı renge düşsün
   for (const ch of name) hash = Math.imul(hash ^ ch.codePointAt(0), 16777619);
-  el.textContent = [...name][0]?.toLocaleUpperCase('tr-TR') || '?';
-  el.style.background = AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
+  return AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
 }
 
 function setProfile(name, version) {
@@ -1078,13 +1082,17 @@ $('card-form').onsubmit = async (e) => {
 // ---------- Oyun sekmeleri ----------
 
 function showGame(name) {
-  for (const game of ['tier', 'timing']) {
+  for (const game of ['tier', 'timing', 'dino']) {
     $(`game-tab-${game}`).classList.toggle('active', game === name);
     $(`game-${game}`).hidden = game !== name;
   }
 }
 $('game-tab-tier').onclick = () => showGame('tier');
 $('game-tab-timing').onclick = () => showGame('timing');
+$('game-tab-dino').onclick = () => {
+  showGame('dino');
+  dinoKick();
+};
 
 // ---------- Süre tahmini ----------
 // Başlatınca süre ekranda görünmeden sayar; durdurunca geçen süre ve hedeften farkı açılır.
@@ -1312,6 +1320,335 @@ socket.on('timing', (state) => {
   if (timing.race?.id !== prevRace || (timingLast?.round != null && !activeRace())) timingLast = null;
   renderTiming();
 });
+
+// ---------- Dinozor koşusu ----------
+// Dünya birimleriyle çalışır; tuval genişliği ne olursa olsun herkes aynı genişlikte bir alan görür,
+// böylece "ekranın solundan çıkma" sınırı herkes için aynıdır. y yukarı doğru artar, zemin 0'dır.
+
+const DINO = {
+  viewW: 900, viewH: 250, groundY: 215, // ekranda zeminin yüksekliği
+  leaderX: 380,         // kamera en öndekini ekranın bu noktasında tutar
+  maxSpeed: 460, accel: 700, decel: 520, // birim/sn, birim/sn²
+  gravity: 2600, jump: 860, fastFall: 3200,
+  w: 40, h: 44, duckW: 54, duckH: 26,
+  sendEvery: 50, // ms; konum yayını
+};
+
+let dinoGame = null;   // sunucudaki oyun: { id, seed, startAt, players, done }
+let dinoMe = null;     // kendi dinozorum: { x, y, vx, vy, duck, dead }
+let dinoCam = 0;
+let dinoObstacles = []; // { x, y, w, h, kind }
+let dinoRng = null;
+let dinoNextX = 0;
+let dinoLastSend = 0;
+let dinoLoop = 0;
+const dinoOthers = new Map(); // isim -> { x, y, duck, tx, ty }
+const dinoKeys = { run: false, jump: false, duck: false };
+
+// Tohumdan sayı üreten küçük rastgele üreteç (mulberry32): herkes aynı engelleri görür.
+function seeded(seed) {
+  return () => {
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Engelleri ihtiyaç oldukça üretir. İlerledikçe aralar daralır, 2000'den sonra kuşlar da gelir.
+function dinoFill(untilX) {
+  while (dinoNextX < untilX) {
+    const r = dinoRng();
+    const x = dinoNextX;
+    let ob;
+    if (x > 2000 && r < 0.2) ob = { kind: 'bird', y: 36, w: 42, h: 24 };        // yüksek: eğil
+    else if (x > 2000 && r < 0.32) ob = { kind: 'bird', y: 6, w: 42, h: 24 };   // alçak: zıpla
+    else if (r < 0.6) ob = { kind: 'cactus', y: 0, w: 18, h: 38 };
+    else if (r < 0.85) ob = { kind: 'cactus', y: 0, w: 26, h: 52 };
+    else ob = { kind: 'cactus', y: 0, w: 48, h: 38, group: true };
+    dinoObstacles.push({ ...ob, x });
+    const hard = Math.min(1, x / 15000);
+    const min = 420 - 120 * hard, spread = 420 - 180 * hard;
+    dinoNextX = x + ob.w + min + dinoRng() * spread;
+  }
+}
+
+function setDino(game) {
+  const fresh = game?.id !== dinoGame?.id;
+  dinoGame = game;
+  if (fresh) {
+    dinoOthers.clear();
+    dinoObstacles = [];
+    dinoCam = 0;
+    dinoMe = null;
+    if (game) {
+      dinoRng = seeded(game.seed);
+      dinoNextX = 700;
+      dinoFill(DINO.viewW * 2);
+      const mine = game.players[myName];
+      // Sayfayı yenileyen oyuncunun dinozoru kaybolur; oyunda takılı kalmasın diye ölmüş sayılır.
+      if (mine && !mine.dead) {
+        if (serverNow() < game.startAt) dinoMe = { x: 0, y: 0, vx: 0, vy: 0, duck: false, dead: false };
+        else socket.emit('dino:dead', { id: game.id });
+      }
+    }
+  }
+  if (game) for (const name of Object.keys(game.players)) if (name !== myName && !dinoOthers.has(name)) dinoOthers.set(name, { x: 0, y: 0, tx: 0, ty: 0, duck: false });
+  renderDinoUi();
+  if (game && !dinoLoop) dinoLoop = requestAnimationFrame(dinoFrame);
+}
+socket.on('dino', setDino);
+
+socket.on('dino:pos', ({ name, x, y, duck }) => {
+  const o = dinoOthers.get(name);
+  if (!o) return;
+  o.tx = x;
+  o.ty = y;
+  o.duck = duck;
+});
+
+function renderDinoUi() {
+  const game = dinoGame;
+  const running = game && !game.done;
+  $('dino-start').hidden = Boolean(running);
+  $('dino-start').textContent = game ? 'Tekrar oyna' : 'Başlat';
+  let status = 'Odadaki herkes birlikte koşar. Başlatınca 5 sn geri sayım olur.';
+  if (running) {
+    const alive = Object.values(game.players).filter((p) => !p.dead).length;
+    status = `${alive}/${Object.keys(game.players).length} kişi hayatta` + (game.players[myName] ? '' : ' · İzliyorsun');
+  } else if (game) status = 'Oyun bitti.';
+  $('dino-status').textContent = status;
+
+  const list = $('dino-results');
+  list.replaceChildren();
+  if (!game) return;
+  // Koşarken mesafe sunucuyu beklemeden ekrandaki konumlardan gelir.
+  const dist = (name, p) => (p.dead || game.done ? p.dist : name === myName ? dinoMe?.x ?? p.dist : dinoOthers.get(name)?.tx ?? p.dist);
+  const rows = Object.entries(game.players).map(([name, p]) => [name, { ...p, dist: dist(name, p) }]).sort((a, b) => b[1].dist - a[1].dist);
+  rows.forEach(([name, p], i) => {
+    const won = game.done && i === 0 && rows.length > 1;
+    const row = timingRow(name, `${Math.round(p.dist / 10)} m`, p.dead ? (won ? 'Kazandı' : 'Öldü') : 'Koşuyor', won ? 'great' : '');
+    row.classList.toggle('winner', won);
+    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: won ? '🏆' : i + 1 }));
+    list.append(row);
+  });
+}
+
+$('dino-start').onclick = () => socket.emit('dino:start');
+
+function dinoBox(d) {
+  return d.duck && d.y === 0 ? { w: DINO.duckW, h: DINO.duckH } : { w: DINO.w, h: DINO.h };
+}
+
+function dinoStep(dt) {
+  const me = dinoMe;
+  if (dinoKeys.run) me.vx = Math.min(DINO.maxSpeed, me.vx + DINO.accel * dt);
+  else me.vx = Math.max(0, me.vx - DINO.decel * dt);
+  if (dinoKeys.jump && me.y === 0) me.vy = DINO.jump;
+  me.duck = dinoKeys.duck;
+  me.vy -= (me.duck && me.y > 0 ? DINO.fastFall : DINO.gravity) * dt;
+  me.x += me.vx * dt;
+  me.y = Math.max(0, me.y + me.vy * dt);
+  if (me.y === 0) me.vy = Math.max(0, me.vy);
+
+  const { w, h } = dinoBox(me);
+  const pad = 5; // kenarlara sürtünmek affedilir
+  for (const ob of dinoObstacles) {
+    if (ob.x > me.x + w) break;
+    if (ob.x + ob.w < me.x) continue;
+    if (me.x + w - pad > ob.x + pad && me.x + pad < ob.x + ob.w - pad && me.y + pad < ob.y + ob.h - pad && me.y + h - pad > ob.y + pad) return dinoDie();
+  }
+  if (me.x + w < dinoCam - DINO.leaderX) dinoDie();
+}
+
+function dinoDie() {
+  dinoMe.dead = true;
+  socket.emit('dino:dead', { id: dinoGame.id, x: dinoMe.x });
+}
+
+let dinoPrev = 0;
+let dinoLastList = 0;
+function dinoFrame(t) {
+  dinoLoop = 0;
+  if (!dinoGame) return dinoKick();
+  const dt = Math.min(0.05, (t - (dinoPrev || t)) / 1000);
+  dinoPrev = t;
+  const started = serverNow() >= dinoGame.startAt;
+  if (started && dinoMe && !dinoMe.dead && !dinoGame.done) {
+    for (let left = dt; left > 0; left -= 1 / 120) dinoStep(Math.min(left, 1 / 120)); // küçük adımlar: hızlıyken engelin içinden geçilmesin
+    if (!dinoMe.dead && t - dinoLastSend > DINO.sendEvery) {
+      dinoLastSend = t;
+      socket.volatile.emit('dino:state', { id: dinoGame.id, x: Math.round(dinoMe.x), y: Math.round(dinoMe.y), duck: dinoMe.duck });
+    }
+  }
+  for (const o of dinoOthers.values()) {
+    o.x += (o.tx - o.x) * Math.min(1, dt * 12);
+    o.y += (o.ty - o.y) * Math.min(1, dt * 12);
+  }
+  // Kamera canlıların en öndekine kilitli, geri gitmez.
+  for (const [name, p] of Object.entries(dinoGame.players)) {
+    if (p.dead) continue;
+    const x = name === myName ? dinoMe?.x : dinoOthers.get(name)?.tx;
+    if (x != null) dinoCam = Math.max(dinoCam, x);
+  }
+  dinoFill(dinoCam + DINO.viewW * 2);
+  drawDino(started);
+  if (started && t - dinoLastList > 300) {
+    dinoLastList = t;
+    renderDinoUi();
+  }
+  if (!dinoGame.done) dinoLoop = requestAnimationFrame(dinoFrame); // bittiyse son kare kalır
+}
+
+// Sekme açılınca bir kare çiz (oyun yokken ya da bitmişken döngü çalışmıyor).
+function dinoKick() {
+  if (dinoLoop) return;
+  if (dinoGame) dinoLoop = requestAnimationFrame(dinoFrame);
+  else requestAnimationFrame(() => drawDino(false));
+}
+
+function drawDino(started) {
+  const canvas = $('dino-canvas');
+  if (!canvas.offsetParent) return; // sekme kapalı: hesapla ama çizme
+  const dpr = devicePixelRatio || 1;
+  const cssW = canvas.clientWidth;
+  if (canvas.width !== Math.round(cssW * dpr)) {
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round((cssW * DINO.viewH / DINO.viewW) * dpr);
+  }
+  const ctx = canvas.getContext('2d');
+  const k = canvas.width / DINO.viewW;
+  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.clearRect(0, 0, DINO.viewW, DINO.viewH);
+  const left = dinoCam - DINO.leaderX;
+  const sx = (x) => x - left;
+  const sy = (y, h) => DINO.groundY - y - h;
+
+  // Zemin ve kayan çakıllar
+  ctx.fillStyle = '#343946';
+  ctx.fillRect(0, DINO.groundY, DINO.viewW, 2);
+  ctx.fillStyle = '#262a34';
+  for (let gx = Math.floor(left / 37) * 37; gx < left + DINO.viewW; gx += 37) {
+    const n = Math.abs(Math.sin(gx * 12.9898) * 43758.5453) % 1;
+    ctx.fillRect(sx(gx + n * 30), DINO.groundY + 6 + Math.floor(n * 3) * 6, 3 + n * 6, 2);
+  }
+
+  if (!dinoGame) {
+    ctx.fillStyle = '#8b92a3';
+    ctx.font = '600 16px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Başlat\'a bas, odadaki herkes birlikte koşsun', DINO.viewW / 2, 100);
+    drawOneDino(ctx, myName, { x: DINO.leaderX - 20, y: 0, duck: false }, false, sx, sy);
+    return;
+  }
+
+  for (const ob of dinoObstacles) {
+    if (ob.x > left + DINO.viewW) break;
+    if (ob.x + ob.w < left) continue;
+    const x = sx(ob.x), y = sy(ob.y, ob.h);
+    if (ob.kind === 'cactus') {
+      ctx.fillStyle = '#3f9b4f';
+      const parts = ob.group ? [[0, 16], [16, 16], [32, 16]] : [[0, ob.w]];
+      for (const [px, pw] of parts) {
+        const stem = Math.max(6, pw * 0.4);
+        ctx.fillRect(x + px + (pw - stem) / 2, y, stem, ob.h);
+        ctx.fillRect(x + px, y + ob.h * 0.3, 4, ob.h * 0.35);
+        ctx.fillRect(x + px + pw - 4, y + ob.h * 0.2, 4, ob.h * 0.35);
+        ctx.fillRect(x + px, y + ob.h * 0.6, pw, 4);
+      }
+    } else {
+      ctx.fillStyle = '#8b92a3';
+      const flap = Math.floor(performance.now() / 180) % 2;
+      ctx.fillRect(x, y + 8, ob.w, 8);          // gövde
+      ctx.fillRect(x - 6, y + 10, 8, 4);        // gaga
+      ctx.fillRect(x + 12, flap ? y : y + 14, 14, 10); // kanat
+    }
+  }
+
+  // Yan yana duranların isimleri üst üste binmesin: yakındakinin ismi bir satır yukarı çıkar.
+  const labels = [];
+  const drawOne = (name, d, faded) => {
+    let lift = 0;
+    while (labels.some((l) => l.lift === lift && Math.abs(l.x - d.x) < 60)) lift++;
+    labels.push({ x: d.x, lift });
+    drawOneDino(ctx, name, d, faded, sx, sy, lift * 14);
+  };
+  for (const [name, o] of dinoOthers) drawOne(name, o, dinoGame.players[name]?.dead);
+  if (dinoMe) drawOne(myName, dinoMe, dinoMe.dead);
+  drawDinoHud(ctx, started);
+}
+
+function drawOneDino(ctx, name, d, faded, sx, sy, lift = 0) {
+  const { w, h } = dinoBox(d);
+  const x = sx(d.x), y = sy(d.y, h);
+  if (x + w < -40 || x > DINO.viewW + 40) return;
+  ctx.globalAlpha = faded ? 0.3 : 1;
+  ctx.fillStyle = avatarColor(name);
+  const step = d.y === 0 && Math.floor(d.x / 18) % 2;
+  if (d.duck && d.y === 0) {
+    ctx.fillRect(x, y + 6, w - 14, h - 12);
+    ctx.fillRect(x + w - 18, y, 18, 14);
+    ctx.fillRect(x + 8 + (step ? 0 : 10), y + h - 6, 6, 6);
+  } else {
+    ctx.fillRect(x + 4, y + 14, w - 16, h - 24);  // gövde
+    ctx.fillRect(x + w - 20, y, 20, 16);          // kafa
+    ctx.fillRect(x, y + 18, 6, 10);               // kuyruk
+    ctx.fillRect(x + 10, y + h - 10, 6, step ? 10 : 6);
+    ctx.fillRect(x + 22, y + h - 10, 6, step ? 6 : 10);
+  }
+  ctx.fillStyle = '#0b0c10';
+  ctx.fillRect(x + w - 8, y + 4, 3, 3); // göz
+  ctx.globalAlpha = faded ? 0.4 : 0.85;
+  ctx.fillStyle = '#eceef4';
+  ctx.font = '600 12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(name, x + w / 2, y - 6 - lift);
+  ctx.globalAlpha = 1;
+}
+
+// Üstte: mesafe, hız; başta geri sayım, sonda durum
+function drawDinoHud(ctx, started) {
+  ctx.fillStyle = '#8b92a3';
+  ctx.font = '600 14px system-ui, sans-serif';
+  ctx.textAlign = 'right';
+  if (dinoMe) ctx.fillText(`${Math.round(dinoMe.x / 10)} m · hız ${Math.round((dinoMe.vx / DINO.maxSpeed) * 100)}%`, DINO.viewW - 14, 24);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#eceef4';
+  if (!started) {
+    ctx.font = '800 64px system-ui, sans-serif';
+    ctx.fillText(Math.ceil((dinoGame.startAt - serverNow()) / 1000), DINO.viewW / 2, 120);
+  } else if (dinoGame.done) {
+    ctx.font = '800 32px system-ui, sans-serif';
+    ctx.fillText('Oyun bitti', DINO.viewW / 2, 110);
+  } else if (dinoMe?.dead) {
+    ctx.font = '700 24px system-ui, sans-serif';
+    ctx.fillText('Öldün, diğerlerini izliyorsun', DINO.viewW / 2, 110);
+  }
+}
+
+// Klavye: oyun açıkken çalışır, yazı alanındayken değil.
+const DINO_KEYS = { KeyD: 'run', ArrowRight: 'run', KeyW: 'jump', ArrowUp: 'jump', Space: 'jump', KeyS: 'duck', ArrowDown: 'duck' };
+function dinoKey(e, down) {
+  const action = DINO_KEYS[e.code];
+  if (!action || $('games').hidden || $('game-dino').hidden) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
+  e.preventDefault();
+  dinoKeys[action] = down;
+}
+document.addEventListener('keydown', (e) => dinoKey(e, true));
+document.addEventListener('keyup', (e) => dinoKey(e, false));
+addEventListener('blur', () => Object.keys(dinoKeys).forEach((k) => (dinoKeys[k] = false)));
+
+// Telefon: basılı tutulan dokunmatik düğmeler
+for (const [id, action] of [['dino-t-run', 'run'], ['dino-t-jump', 'jump'], ['dino-t-duck', 'duck']]) {
+  const b = $(id);
+  b.onpointerdown = (e) => {
+    b.setPointerCapture(e.pointerId);
+    dinoKeys[action] = true;
+  };
+  b.onpointerup = b.onpointercancel = () => (dinoKeys[action] = false);
+  b.oncontextmenu = (e) => e.preventDefault();
+}
 
 // Silme düğmeleri iki aşamalı: ilk basışta onay ister, birkaç saniye içinde ikinci basış uygular.
 function confirmButton(btn, ask, run) {
@@ -2912,6 +3249,7 @@ function applyJoin(res) {
   for (const el of document.querySelectorAll('.avatar')) fillAvatar(el);
   setTierLists(res.tierLists);
   timing = res.timing;
+  setDino(res.dino);
   renderTiming();
   media = res.media;
   renderQueue();
