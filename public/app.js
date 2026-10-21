@@ -1510,6 +1510,7 @@ function dinoJefPose(x) {
   for (const ob of dinoObstacles) {
     if (ob.x > x + 800) break;
     if (ob.x + ob.w < x - 800) continue;
+    if (ob.top) continue; // en üstteki kuşun altından koşarak geçilir
     if (ob.kind === 'bird' && ob.y > 20) {
       if (x + DINO.duckW > ob.x - 8 && x < ob.x + ob.w + 8) pose.duck = true;
       continue;
@@ -1556,8 +1557,11 @@ function dinoFill(untilX) {
     const r = dinoRng();
     const x = dinoNextX;
     let ob;
-    if (x > 1000 && r < 0.25) ob = { kind: 'bird', y: 36, w: 42, h: 24 };        // yüksek: eğil
-    else if (x > 1000 && r < 0.4) ob = { kind: 'bird', y: 6, w: 42, h: 24 };     // alçak: zıpla
+    if (x > 1000 && r < 0.2) ob = { kind: 'bird', y: 36, w: 42, h: 24 };         // yüksek: eğil
+    else if (x > 1000 && r < 0.32) ob = { kind: 'bird', y: 6, w: 42, h: 24 };    // alçak: zıpla
+    // En üstten inen kuş sürüsü: altından koşarak ya da eğilerek geçilir; en yüksek zıplamanın da
+    // üstüne uzandığı için zıplayan, aşamadan çarpar.
+    else if (x > 1000 && r < 0.42) ob = { kind: 'bird', y: 54, w: 42, h: 160, top: true };
     else if (r < 0.6) ob = { kind: 'cactus', y: 0, w: 18, h: 38 };
     else if (r < 0.8) ob = { kind: 'cactus', y: 0, w: 26, h: 52 };
     else if (r < 0.93) ob = { kind: 'cactus', y: 0, w: 48, h: 38, group: 3 };
@@ -1610,7 +1614,8 @@ function renderDinoUi() {
   const running = game && !game.done;
   $('dino-start').hidden = Boolean(running);
   $('dino-help').innerHTML = '<b>W</b> / <b>↑</b> / boşluk: zıpla · <b>S</b> / <b>↓</b>: eğil (havadayken hızlı iner). '
-    + 'Hız otomatik ve gitgide artar; herkes kusursuz koşan Jef\'in arkasında koşar. Engele çarpan ölür, en uzağa giden kazanır.';
+    + 'Hız otomatik ve gitgide artar; herkes kusursuz koşan Jef\'in arkasında koşar. Engele çarpan ölür, en uzağa giden kazanır. '
+    + 'Gökten inen <b style="color:#d9822b">turuncu kuş sürüsü</b>nün altından koşarak geç; zıplarsan çarparsın.';
   $('dino-start').textContent = game ? 'Tekrar oyna' : 'Başlat';
   let status = 'Odadaki herkes Jef\'in peşinden koşar. Başlatınca 5 sn geri sayım olur.';
   if (running) {
@@ -1787,11 +1792,14 @@ function drawDino(started) {
         ctx.fillRect(x + px, y + ob.h * 0.6, pw, 4);
       }
     } else {
-      ctx.fillStyle = '#8b92a3';
+      ctx.fillStyle = ob.top ? '#d9822b' : '#8b92a3'; // en üstteki kuş turuncu: zıplama uyarısı
       const flap = Math.floor(performance.now() / 180) % 2;
-      ctx.fillRect(x, y + 8, ob.w, 8);          // gövde
-      ctx.fillRect(x - 6, y + 10, 8, 4);        // gaga
-      ctx.fillRect(x + 12, flap ? y : y + 14, 14, 10); // kanat
+      // Sürüde kuşlar alt alta dizilir (en alttaki koşanın hemen üstünde); tek kuşta biri.
+      for (let by = y + ob.h - 24; by >= y - 1; by -= 34) {
+        ctx.fillRect(x, by + 8, ob.w, 8);          // gövde
+        ctx.fillRect(x - 6, by + 10, 8, 4);        // gaga
+        ctx.fillRect(x + 12, flap ? by : by + 14, 14, 10); // kanat
+      }
     }
   }
 
@@ -1875,6 +1883,7 @@ const Chip = (() => {
   ]; // sekizlikler, ölçü başına 8
   const hz = (n) => 440 * 2 ** ((n - 69) / 12);
   let ctx = null, out = null, noise = null, timer = 0, step = 0, next = 0, bpm = () => 140;
+  let level = 0.5; // ana ses seviyesi (kaydırıcıdan)
 
   function tone(type, freq, t, dur, vol, slideTo) {
     const osc = ctx.createOscillator();
@@ -1942,7 +1951,7 @@ const Chip = (() => {
       setup(audio);
       bpm = tempo;
       out.gain.cancelScheduledValues(ctx.currentTime);
-      out.gain.setTargetAtTime(0.5, ctx.currentTime, 0.05);
+      out.gain.setTargetAtTime(level, ctx.currentTime, 0.05);
       step = 0;
       next = ctx.currentTime + 0.05;
       timer = setInterval(schedule, 25);
@@ -1953,17 +1962,21 @@ const Chip = (() => {
       timer = 0;
       out.gain.setTargetAtTime(0, ctx.currentTime, 0.08);
     },
+    setVolume(v) {
+      level = v;
+      if (timer) out.gain.setTargetAtTime(level, ctx.currentTime, 0.03);
+    },
     // Efektler müzik kapalıyken de aynı çıkıştan gelir.
     jump(audio) {
       if (!audio) return;
       setup(audio);
-      out.gain.setTargetAtTime(0.5, ctx.currentTime, 0.01);
+      out.gain.setTargetAtTime(level, ctx.currentTime, 0.01);
       tone('square', 380, ctx.currentTime, 0.12, 0.07, 760);
     },
     die(audio) {
       if (!audio) return;
       setup(audio);
-      out.gain.setTargetAtTime(0.5, ctx.currentTime, 0.01);
+      out.gain.setTargetAtTime(level, ctx.currentTime, 0.01);
       tone('sawtooth', 420, ctx.currentTime, 0.5, 0.1, 55);
     },
   };
@@ -1980,6 +1993,16 @@ $('dino-music').onclick = () => {
   dinoSound = !dinoSound;
   try { localStorage.setItem('dino-sound', dinoSound ? '1' : '0'); } catch {}
   renderDinoSound();
+};
+
+// Ses seviyesi: 0-100; 60 eski sabit seviyeye denk gelir.
+try { $('dino-volume').value = localStorage.getItem('dino-volume') ?? 60; } catch {}
+const applyDinoVolume = () => Chip.setVolume((Number($('dino-volume').value) / 100) * 0.85);
+applyDinoVolume();
+$('dino-volume').oninput = () => {
+  applyDinoVolume();
+  try { localStorage.setItem('dino-volume', $('dino-volume').value); } catch {}
+  if (!dinoSound && Number($('dino-volume').value) > 0) $('dino-music').click(); // kaydırınca ses açılsın
 };
 
 // Sekme arka plandayken kare çizilmez; müzik de takılarak çalmasın.

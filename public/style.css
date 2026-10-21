@@ -417,6 +417,7 @@ button.link:hover { background: none; text-decoration: underline; }
 .race-head h2 { flex: 1; min-width: 0; margin: 10px 0; text-transform: none; letter-spacing: 0; font-size: 13px; }
 .dino { display: grid; gap: 10px; }
 .dino-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; }
+.dino-volume { width: 90px; }
 .dino-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .dino-canvas { width: 100%; aspect-ratio: 1100 / 250; display: block; background: var(--panel-2); border-radius: var(--radius-sm); touch-action: none; }
 .dino-touch { display: none; gap: 8px; }
