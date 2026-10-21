@@ -1150,6 +1150,8 @@ function renderTiming() {
     $('timing-target').textContent = `${timing.target} sn`;
   }
   $('timing-targets').hidden = Boolean(race);
+  $('timing-custom').hidden = Boolean(race);
+  for (const el of $('timing-custom').elements) el.disabled = Boolean(timingRun);
   $('race-setup').hidden = Boolean(race);
 
   const rounds = $('race-rounds');
@@ -1255,6 +1257,17 @@ function renderRaceBoard() {
   });
   if (!names.length) list.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz kimse tur bitirmedi.' }));
 }
+
+// Elle hedef: 3-120 sn arası tam sayı (sunucu da aynı sınırı uygular).
+$('timing-custom').onsubmit = (e) => {
+  e.preventDefault();
+  const input = $('timing-custom-input');
+  const value = Number(input.value);
+  if (!Number.isInteger(value) || value < 3 || value > 120) return toast('Hedef 3 ile 120 sn arasında tam sayı olmalı.');
+  socket.emit('timing:target', value);
+  input.value = '';
+  input.blur(); // boşluk tuşu tekrar oyunu başlatsın
+};
 
 $('race-start').onclick = () => socket.emit('race:start', raceRounds);
 confirmButton($('race-end'), 'Emin misin? Tekrar bas', () => socket.emit('race:end'));

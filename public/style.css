@@ -404,6 +404,8 @@ button.link:hover { background: none; text-decoration: underline; }
 .timing-btn { min-width: 200px; padding: 16px 28px; font-size: 18px; border-radius: 999px; }
 .timing-btn.stop { background: var(--danger); border-color: var(--danger); }
 .timing-hint { margin: 0; }
+.timing-custom { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.timing-custom input { width: 120px; padding: 5px 10px; font-size: 13px; text-align: center; }
 .race-setup { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
 .race-setup .timing-targets { margin-top: 0; }
 #race-rounds button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
