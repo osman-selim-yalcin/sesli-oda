@@ -38,6 +38,10 @@ const DEFAULT_TIERS = ['S', 'A', 'B', 'C', 'D'];
 const TIMING_TARGET_MIN = 3;   // sn; süre tahmini oyununun hedefi
 const TIMING_TARGET_MAX = 120;
 const TIMING_RANDOM = [5, 30]; // "rastgele" hedef bu aralıktan
+const RACE_TARGETS = [3, 10];   // yarış hedefleri bu aralıktan (sn)
+const RACE_COUNTDOWN = 3000;    // ms; her turdan önce ortak geri sayım
+const RACE_REVEAL = 3500;       // ms; tur sonuçları bu kadar görünür, sonra sonraki tur
+const RACE_MISS = 10000;        // ms; durdurmayan o tur için bu kadar fark yemiş sayılır
 const TIMING_RESULTS = 100;    // odada tutulan son deneme sayısı
 const TIMING_COOLDOWN = 1000;  // ms
 const RACE_ROUNDS = [3, 5, 10]; // yarışta seçilebilen tur sayıları
@@ -890,33 +894,37 @@ io.on('connection', (socket) => {
     io.to(code).emit('timing', room.timing);
   });
 
-  // Yarış: herkes aynı rastgele hedefleri kendi hızında oynar; toplam farkı en az olan kazanır.
-  // race = { id, by, targets, scores: { isim: [geçen ms, ...] }, done }
+  // Yarış: turlar herkeste aynı anda başlar (ortak geri sayımdan sonra), herkes sadece durdurur.
+  // Herkes durdurunca ya da süre dolunca tur kapanır, sonuçlar açılır, sonraki tur kendiliğinden gelir.
 
   socket.on('race:start', (rounds) => {
     if (!code || !RACE_ROUNDS.includes(rounds)) return;
     const room = getRoom(code);
     if (room.timing.race && !room.timing.race.done) return;
-    const [min, max] = TIMING_RANDOM;
+    const [min, max] = RACE_TARGETS;
     const targets = Array.from({ length: rounds }, () => min + Math.floor(Math.random() * (max - min + 1)));
     const by = room.users.get(socket.id).name;
-    room.timing.race = { id: Date.now(), by, targets, scores: {}, done: false };
-    io.to(code).emit('timing', room.timing);
+    const players = [...new Set([...room.users.values()].map((u) => u.name))];
+    room.timing.race = {
+      id: Date.now(), by, targets, players, scores: Object.fromEntries(players.map((n) => [n, []])),
+      round: 0, ended: 0, roundStart: 0, revealUntil: null, done: false,
+    };
     postSystem(room, `${by} ${rounds} turluk süre yarışı başlattı`);
+    startRaceRound(room, 0);
   });
 
   socket.on('race:result', ({ id, round, elapsed } = {}) => {
-    if (!code || Date.now() - lastTiming < TIMING_COOLDOWN) return;
-    if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > 10 * 60 * 1000) return;
+    if (!code) return;
     const room = getRoom(code);
     const race = room.timing.race;
-    if (!race || race.done || race.id !== id) return;
+    if (!race || race.done || race.id !== id || round !== race.round || race.revealUntil) return;
     const name = room.users.get(socket.id).name;
-    const mine = (race.scores[name] ??= []);
-    if (round !== mine.length || round >= race.targets.length) return;
-    lastTiming = Date.now();
+    const mine = race.scores[name];
+    if (!mine || mine.length !== round || Date.now() < race.roundStart - 500) return;
+    if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > raceRoundTime(race)) return;
     mine.push(Math.round(elapsed));
-    if (!checkRaceDone(room)) io.to(code).emit('timing', room.timing);
+    io.to(code).emit('timing', room.timing);
+    checkRaceRound(room);
   });
 
   socket.on('race:end', () => {
@@ -986,7 +994,7 @@ io.on('connection', (socket) => {
       pendingLeaves.delete(leaveKey);
       const current = rooms.get(roomCode);
       if (current) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
-      if (current) checkRaceDone(current); // yarışı bitirmeyen biri çıktıysa kalanlar beklemesin
+      if (current) checkRaceRound(current); // çıkan kişi durdurmamışsa kalanlar beklemesin
       if (current) killDino(current, user.name);
     }, REJOIN_GRACE));
     if (room.users.size === 0) {
@@ -998,29 +1006,54 @@ io.on('connection', (socket) => {
 
 // ---------- Süre yarışı ----------
 
-const raceTotal = (race, name) => race.scores[name].reduce((sum, ms, i) => sum + Math.abs(ms - race.targets[i] * 1000), 0);
+const raceTimers = new Map(); // oda kodu -> zamanlayıcı (yarış nesnesi odaya gönderildiği için onun içinde tutulmaz)
+const raceDiff = (race, ms, i) => (ms == null ? RACE_MISS : Math.abs(ms - race.targets[i] * 1000));
+const raceTotal = (race, name) => race.scores[name].slice(0, race.ended).reduce((sum, ms, i) => sum + raceDiff(race, ms, i), 0);
+// Durdurmak için verilen süre: hedefin iki katı + 5 sn
+const raceRoundTime = (race) => race.targets[race.round] * 2000 + 5000;
 
-// Odadaki herkes bütün turları bitirdiyse yarışı kapatır. Kapattıysa true.
-function checkRaceDone(room) {
-  const race = room.timing.race;
-  if (!race || race.done) return false;
-  const names = [...room.users.values()].map((u) => u.name);
-  if (!names.length || names.some((n) => race.scores[n]?.length !== race.targets.length)) return false;
-  finishRace(room);
-  return true;
+function raceTimer(room, ms, fn) {
+  clearTimeout(raceTimers.get(room.code));
+  raceTimers.set(room.code, setTimeout(fn, ms));
 }
 
-// Kazanan, bütün turları tamamlayanlar arasında toplam farkı en az olandır.
+function startRaceRound(room, i) {
+  const race = room.timing.race;
+  Object.assign(race, { round: i, roundStart: Date.now() + RACE_COUNTDOWN, revealUntil: null });
+  io.to(room.code).emit('timing', room.timing);
+  raceTimer(room, RACE_COUNTDOWN + raceRoundTime(race), () => endRaceRound(room));
+}
+
+// Odada olan oyuncuların hepsi durdurduysa tur kapanır.
+function checkRaceRound(room) {
+  const race = room.timing.race;
+  if (!race || race.done || race.revealUntil) return;
+  const here = new Set([...room.users.values()].map((u) => u.name));
+  if (race.players.filter((n) => here.has(n)).every((n) => race.scores[n].length > race.round)) endRaceRound(room);
+}
+
+function endRaceRound(room) {
+  const race = room.timing.race;
+  if (!race || race.done || race.revealUntil) return;
+  for (const n of race.players) if (race.scores[n].length === race.round) race.scores[n].push(null); // durdurmadı
+  race.ended = race.round + 1;
+  race.revealUntil = Date.now() + RACE_REVEAL;
+  if (race.ended === race.targets.length) return finishRace(room);
+  io.to(room.code).emit('timing', room.timing);
+  raceTimer(room, RACE_REVEAL, () => startRaceRound(room, race.round + 1));
+}
+
+// Kazanan, biten turlardaki toplam farkı en az olandır.
 function finishRace(room, endedBy) {
   const race = room.timing.race;
+  clearTimeout(raceTimers.get(room.code));
   race.done = true;
-  const finished = Object.keys(race.scores).filter((n) => race.scores[n].length === race.targets.length);
   io.to(room.code).emit('timing', room.timing);
   const prefix = endedBy ? `${endedBy} yarışı bitirdi. ` : 'Süre yarışı bitti! ';
-  if (!finished.length) return postSystem(room, `${prefix}Bütün turları bitiren olmadı.`);
-  finished.sort((a, b) => raceTotal(race, a) - raceTotal(race, b));
-  const best = raceTotal(race, finished[0]);
-  const winners = finished.filter((n) => raceTotal(race, n) === best);
+  if (!race.ended) return postSystem(room, `${prefix}Biten tur olmadı.`);
+  const ranked = [...race.players].sort((a, b) => raceTotal(race, a) - raceTotal(race, b));
+  const best = raceTotal(race, ranked[0]);
+  const winners = ranked.filter((n) => raceTotal(race, n) === best);
   const secs = (best / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   postSystem(room, `${prefix}🏆 Kazanan: ${winners.join(', ')} (toplam ${secs} sn fark)`);
 }
