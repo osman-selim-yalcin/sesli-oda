@@ -1328,7 +1328,7 @@ socket.on('timing', (state) => {
 const DINO = {
   viewW: 900, viewH: 250, groundY: 215, // ekranda zeminin yüksekliği
   leaderX: 380,         // kamera en öndekini ekranın bu noktasında tutar
-  maxSpeed: 460, accel: 800, // birim/sn, birim/sn²
+  accel: 800, // birim/sn²; azami hız zamanla artar (DINO_PACE)
   // Bırakınca momentum: yerde hız önce hızlı, sonra yavaş azalır (tam hızdan ~2 sn'de durur);
   // havada neredeyse hiç azalmaz.
   coast: 1.0, coastMin: 60, airCoast: 0.15,
@@ -1337,6 +1337,26 @@ const DINO = {
   w: 40, h: 44, duckW: 54, duckH: 26,
   sendEvery: 50, // ms; konum yayını
 };
+
+// Tempo: kamera kendiliğinden ilerler ve gitgide hızlanır; oyuncuların azami hızı da artar ama hep
+// kameradan hızlı kalır. Sunucudaki DINO_PACE ile aynı olmalı (geride kalanı sunucu da öldürür).
+const DINO_PACE = { camStart: 120, camAccel: 9, camMax: 760, runStart: 460, runAccel: 8, runMax: 900 };
+const dinoCamFull = (DINO_PACE.camMax - DINO_PACE.camStart) / DINO_PACE.camAccel; // sn; kamera bu anda en hızlı
+const dinoCamFullX = DINO_PACE.camStart * dinoCamFull + (DINO_PACE.camAccel * dinoCamFull ** 2) / 2;
+// Başlangıçtan t sn sonra kameranın kendi başına geldiği yer
+function dinoAutoCam(t) {
+  if (t <= 0) return 0;
+  if (t < dinoCamFull) return DINO_PACE.camStart * t + (DINO_PACE.camAccel * t * t) / 2;
+  return dinoCamFullX + DINO_PACE.camMax * (t - dinoCamFull);
+}
+// Kameranın x'e vardığı an (sn): engel aralıkları o andaki hıza göre açılır.
+function dinoTimeAt(x) {
+  const { camStart: v, camAccel: a } = DINO_PACE;
+  if (x < dinoCamFullX) return (-v + Math.sqrt(v * v + 2 * a * x)) / a;
+  return dinoCamFull + (x - dinoCamFullX) / DINO_PACE.camMax;
+}
+const dinoMaxSpeed = (t) => Math.min(DINO_PACE.runMax, DINO_PACE.runStart + DINO_PACE.runAccel * Math.max(0, t));
+const dinoElapsed = () => (dinoGame ? (serverNow() - dinoGame.startAt) / 1000 : 0);
 
 let dinoGame = null;   // sunucudaki oyun: { id, seed, startAt, players, done }
 let dinoMe = null;     // kendi dinozorum: { x, y, vx, vy, duck, dead }
@@ -1374,8 +1394,10 @@ function dinoFill(untilX) {
     else if (r < 0.85) ob = { kind: 'cactus', y: 0, w: 26, h: 52 };
     else ob = { kind: 'cactus', y: 0, w: 48, h: 38, group: true };
     dinoObstacles.push({ ...ob, x });
-    const hard = Math.min(1, x / 15000);
-    const min = 420 - 120 * hard, spread = 420 - 180 * hard;
+    // Zıplayınca havada geçen sürede (~0,66 sn) alınan yoldan kısa ara bırakılmaz; hız arttıkça aralar da açılır.
+    const t = dinoTimeAt(x);
+    const hard = Math.min(1, t / 60);
+    const min = dinoMaxSpeed(t) * 0.66 + 130 - 40 * hard, spread = 380 - 150 * hard;
     dinoNextX = x + ob.w + min + dinoRng() * spread;
   }
 }
@@ -1448,6 +1470,22 @@ function renderDinoUi() {
   });
 }
 
+// Kalıcı skor tablosu: her mod için en iyi 10 skor
+function renderDinoBoard(board) {
+  for (const mode of ['hold', 'tap']) {
+    const list = $(`dino-board-${mode}`);
+    list.replaceChildren();
+    (board?.[mode] || []).forEach((r, i) => {
+      const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+      const row = timingRow(r.name, `${Math.round(r.dist / 10)} m`, date, i === 0 ? 'great' : '');
+      row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+      list.append(row);
+    });
+    if (!board?.[mode]?.length) list.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz skor yok.' }));
+  }
+}
+socket.on('dino:board', renderDinoBoard);
+
 $('dino-start').onclick = () => socket.emit('dino:start', dinoMode);
 for (const b of $('dino-modes').children) {
   b.onclick = () => {
@@ -1468,9 +1506,9 @@ function dinoStep(dt) {
     const now = performance.now();
     dinoTaps = dinoTaps.filter((t) => now - t < DINO.tapWindow);
     const rate = dinoTaps.length / (DINO.tapWindow / 1000);
-    target = DINO.maxSpeed * Math.min(1, rate / DINO.tapFull);
+    target = dinoMaxSpeed(dinoElapsed()) * Math.min(1, rate / DINO.tapFull);
   } else {
-    target = dinoKeys.run ? DINO.maxSpeed : 0;
+    target = dinoKeys.run ? dinoMaxSpeed(dinoElapsed()) : 0;
   }
   if (me.vx < target) me.vx = Math.min(target, me.vx + DINO.accel * dt);
   else if (me.y === 0) me.vx = Math.max(target, me.vx - (me.vx * DINO.coast + DINO.coastMin) * dt);
@@ -1516,7 +1554,8 @@ function dinoFrame(t) {
     o.x += (o.tx - o.x) * Math.min(1, dt * 12);
     o.y += (o.ty - o.y) * Math.min(1, dt * 12);
   }
-  // Kamera canlıların en öndekine kilitli, geri gitmez.
+  // Kamera canlıların en öndekine kilitli, geri gitmez; kimse koşmasa da kendiliğinden ilerler.
+  if (!dinoGame.done) dinoCam = Math.max(dinoCam, dinoAutoCam(dinoElapsed()));
   for (const [name, p] of Object.entries(dinoGame.players)) {
     if (p.dead) continue;
     const x = name === myName ? dinoMe?.x : dinoOthers.get(name)?.tx;
@@ -1642,7 +1681,10 @@ function drawDinoHud(ctx, started) {
   ctx.fillStyle = '#8b92a3';
   ctx.font = '600 14px system-ui, sans-serif';
   ctx.textAlign = 'right';
-  if (dinoMe) ctx.fillText(`${Math.round(dinoMe.x / 10)} m · hız ${Math.round((dinoMe.vx / DINO.maxSpeed) * 100)}%`, DINO.viewW - 14, 24);
+  if (dinoMe) {
+    const speed = dinoMe.dead || dinoGame.done ? '' : ` · hız ${Math.round(dinoMe.vx / 10)} / ${Math.round(dinoMaxSpeed(dinoElapsed()) / 10)}`;
+    ctx.fillText(`${Math.round(dinoMe.x / 10)} m${speed}`, DINO.viewW - 14, 24);
+  }
   ctx.textAlign = 'center';
   ctx.fillStyle = '#eceef4';
   if (!started) {
@@ -3286,6 +3328,7 @@ function applyJoin(res) {
   setTierLists(res.tierLists);
   timing = res.timing;
   setDino(res.dino);
+  renderDinoBoard(res.dinoBoard);
   renderTiming();
   media = res.media;
   renderQueue();

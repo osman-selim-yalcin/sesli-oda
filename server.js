@@ -42,7 +42,10 @@ const TIMING_COOLDOWN = 1000;  // ms
 const RACE_ROUNDS = [3, 5, 10]; // yarışta seçilebilen tur sayıları
 const DINO_COUNTDOWN = 5000;   // ms; dinozor oyunu başlamadan önce
 const DINO_MAX_TIME = 20 * 60 * 1000; // bundan uzun süren oyun bitmiş sayılır
-const DINO_BEHIND = 480; // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
+// Kamera kendiliğinden ilerler ve hızlanır (oyundaki DINO_PACE ile aynı olmalı).
+const DINO_PACE = { camStart: 120, camAccel: 9, camMax: 760 };
+const DINO_BEHIND = 480;
+const DINO_BOARD = 10; // her mod için saklanan en iyi skor sayısı // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
 const IMAGE_COOLDOWN = 2000; // ms
 // Dosyanın ilk baytlarıyla gerçekten resim olduğunu doğrularız (uzantıya/türe güvenmeyiz).
@@ -222,18 +225,21 @@ const rooms = new Map();
 const histories = new Map(); // oda kodu -> [{ videoId, title, by, playedAt }]
 const customSfxByRoom = new Map(); // oda kodu -> Map<id, { buf, label, by }>
 const tierListsByRoom = new Map(); // oda kodu -> [tier list] (aşağıda)
+const dinoBoards = new Map(); // oda kodu -> { hold: [{ name, dist, at }], tap: [...] } en iyi skorlar
 
 function getRoom(code) {
   if (!rooms.has(code)) {
     if (!histories.has(code)) histories.set(code, []);
     if (!customSfxByRoom.has(code)) customSfxByRoom.set(code, new Map());
     if (!tierListsByRoom.has(code)) tierListsByRoom.set(code, []);
+    if (!dinoBoards.has(code)) dinoBoards.set(code, { hold: [], tap: [] });
     rooms.set(code, {
       code,
       history: histories.get(code),
       customSfx: customSfxByRoom.get(code),
       tierLists: tierListsByRoom.get(code),
       timing: { target: 10, results: [], race: null }, // süre tahmini: sadece hafızada
+      dinoBoard: dinoBoards.get(code),
       dino: null, // dinozor koşusu: { id, mode, seed, startAt, players: { isim: { dist, dead } }, done }
       users: new Map(),
       current: null,
@@ -470,7 +476,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -916,9 +922,7 @@ io.on('connection', (socket) => {
     socket.to(code).volatile.emit('dino:pos', { name, x, y, duck: Boolean(duck) });
     // Ekranın solundan çıkmayı oyuncunun tarayıcısı denetler; sekmesi kapalı ya da oyunda
     // olmayan biri ise hiç ölmez, oyun da bitmezdi. O yüzden çok geride kalanı sunucu öldürür.
-    for (const [other, p] of Object.entries(room.dino.players)) {
-      if (!p.dead && p.dist < me.dist - DINO_BEHIND) killDino(room, other);
-    }
+    dinoSweep(room, me.dist);
   });
 
   socket.on('dino:dead', ({ id, x } = {}) => {
@@ -984,6 +988,30 @@ function finishRace(room, endedBy) {
 
 // ---------- Dinozor koşusu ----------
 
+// Başlangıçtan t sn sonra kameranın kendi başına geldiği yer
+function dinoAutoCam(t) {
+  const { camStart: v, camAccel: a, camMax } = DINO_PACE;
+  const full = (camMax - v) / a;
+  if (t <= 0) return 0;
+  if (t < full) return v * t + (a * t * t) / 2;
+  return v * full + (a * full * full) / 2 + camMax * (t - full);
+}
+
+// Kameranın (en öndeki oyuncu ya da kendiliğinden ilerleyen kamera) çok gerisinde kalanları öldürür.
+function dinoSweep(room, leader = 0) {
+  const game = room.dino;
+  if (!game || game.done) return;
+  const cam = Math.max(leader, dinoAutoCam((Date.now() - game.startAt) / 1000));
+  for (const [name, p] of Object.entries(game.players)) {
+    if (!p.dead && p.dist < cam - DINO_BEHIND) killDino(room, name);
+  }
+}
+
+// Kimse konum yollamasa da (herkes sekmeyi kapattıysa) kamera ilerler ve oyun biter.
+setInterval(() => {
+  for (const room of rooms.values()) dinoSweep(room);
+}, 1000);
+
 // Oyuncuyu öldürür; herkes öldüyse oyun biter ve en uzağa giden kazanır.
 function killDino(room, name, x) {
   const game = room.dino;
@@ -995,6 +1023,13 @@ function killDino(room, name, x) {
   if (players.every(([, p]) => p.dead)) {
     game.done = true;
     players.sort((a, b) => b[1].dist - a[1].dist);
+    // Skor tablosu: her mod ayrı, en iyi 10 skor (aynı kişi birden çok kez girebilir)
+    const board = room.dinoBoard[game.mode];
+    for (const [n, p] of players) if (p.dist > 0) board.push({ name: n, dist: Math.round(p.dist), at: Date.now() });
+    board.sort((a, b) => b.dist - a.dist);
+    board.splice(DINO_BOARD);
+    store.save(room.code, 'dinoboard', () => room.dinoBoard);
+    io.to(room.code).emit('dino:board', room.dinoBoard);
     const [winner, { dist }] = players[0];
     postSystem(room, players.length > 1
       ? `Dinozor koşusu bitti! 🏆 Kazanan: ${winner} (${Math.round(dist / 10)} m)`
@@ -1016,6 +1051,7 @@ async function loadSaved() {
   }
   for (const { room, kind, data } of rows) {
     if (kind === 'history') histories.set(room, data);
+    if (kind === 'dinoboard') dinoBoards.set(room, data);
     if (kind === 'sfx') customSfxByRoom.set(room, new Map(data.map((fx) => [fx.id, { buf: null, label: fx.label, by: fx.by }])));
     if (kind === 'tierlists') {
       tierListsByRoom.set(room, data.map((l) => ({ ...l, cards: new Map(l.cards.map((c) => [c.id, c])) })));
