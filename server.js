@@ -234,7 +234,7 @@ function getRoom(code) {
       customSfx: customSfxByRoom.get(code),
       tierLists: tierListsByRoom.get(code),
       timing: { target: 10, results: [], race: null }, // süre tahmini: sadece hafızada
-      dino: null, // dinozor koşusu: { id, seed, startAt, players: { isim: { dist, dead } }, done }
+      dino: null, // dinozor koşusu: { id, mode, seed, startAt, players: { isim: { dist, dead } }, done }
       users: new Map(),
       current: null,
       sharer: null, // ekranını paylaşan kişinin soket kimliği
@@ -893,16 +893,17 @@ io.on('connection', (socket) => {
   // Engeller tohumdan (seed) herkesin tarayıcısında aynı üretilir. Her oyuncu kendi dinozorunu
   // kendi tarayıcısında oynatır, konumunu sunucu üzerinden diğerlerine yollar.
 
-  socket.on('dino:start', () => {
-    if (!code) return;
+  // mode: 'hold' (D/→ basılı tutulur) ya da 'tap' (Space'e art arda basılır)
+  socket.on('dino:start', (mode) => {
+    if (!code || !['hold', 'tap'].includes(mode)) return;
     const room = getRoom(code);
     if (room.dino && !room.dino.done && Date.now() - room.dino.startAt < DINO_MAX_TIME) return;
     const by = room.users.get(socket.id).name;
     const players = {};
     for (const u of room.users.values()) players[u.name] = { dist: 0, dead: false };
-    room.dino = { id: Date.now(), seed: Math.floor(Math.random() * 2 ** 31), startAt: Date.now() + DINO_COUNTDOWN, players, done: false };
+    room.dino = { id: Date.now(), mode, seed: Math.floor(Math.random() * 2 ** 31), startAt: Date.now() + DINO_COUNTDOWN, players, done: false };
     io.to(code).emit('dino', room.dino);
-    postSystem(room, `${by} dinozor koşusu başlattı`);
+    postSystem(room, `${by} dinozor koşusu başlattı (${mode === 'tap' ? 'tıklama modu' : 'basılı tut modu'})`);
   });
 
   socket.on('dino:state', ({ id, x, y, duck } = {}) => {

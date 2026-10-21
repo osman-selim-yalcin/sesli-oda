@@ -349,7 +349,13 @@
           <div id="game-dino" class="dino" hidden>
             <div class="dino-bar">
               <span id="dino-status" class="muted small"></span>
-              <button id="dino-start" class="primary sm">Başlat</button>
+              <div class="dino-controls">
+                <div id="dino-modes" class="timing-targets">
+                  <button data-mode="hold" class="sm">Basılı tut</button>
+                  <button data-mode="tap" class="sm">Tıklama</button>
+                </div>
+                <button id="dino-start" class="primary sm">Başlat</button>
+              </div>
             </div>
             <canvas id="dino-canvas" class="dino-canvas"></canvas>
             <div class="dino-touch">
@@ -357,10 +363,7 @@
               <button id="dino-t-jump" type="button">Zıpla</button>
               <button id="dino-t-run" type="button">Koş ▶</button>
             </div>
-            <p class="muted small dino-help">
-              <b>D</b> / <b>→</b> basılı tut: koş (bırakınca yavaşlarsın) · <b>W</b> / <b>↑</b> / boşluk: zıpla ·
-              <b>S</b> / <b>↓</b>: eğil. Engele çarpan ya da ekranın solundan çıkan ölür; kamera en öndekini izler.
-            </p>
+            <p id="dino-help" class="muted small dino-help"></p>
             <ol id="dino-results" class="timing-list dino-results"></ol>
           </div>
         </div>
