@@ -287,11 +287,15 @@
           <div id="tier-edit" hidden>
             <div class="game-head">
               <button id="tier-back" class="ghost sm"><svg class="ic"><use href="#i-back"></use></svg>Listeler</button>
+              <label id="tier-cover-pick" class="tier-cover-pick" title="Kapak resmini değiştir">
+                <span id="tier-cover" class="tier-cover"></span>
+                <input id="tier-cover-file" type="file" accept="image/*" hidden>
+              </label>
               <input id="tier-title" class="tier-title" maxlength="60" aria-label="Liste adı" autocomplete="off">
               <button id="tier-copy" class="sm primary">Kendine al</button>
               <button id="tier-delete" class="sm danger">Listeyi sil</button>
             </div>
-            <p id="tier-owner" class="muted small tier-owner"></p>
+            <p class="muted small tier-owner"><span id="tier-owner"></span> <button id="tier-cover-clear" class="link-btn" hidden>Kapağı kaldır</button></p>
             <div id="tier-board" class="tier-board"></div>
             <button id="tier-add-row" class="sm ghost tier-add-row"><svg class="ic"><use href="#i-plus"></use></svg>Satır ekle</button>
 

@@ -387,7 +387,14 @@ button.link:hover { background: none; text-decoration: underline; }
 .game-head > button { flex-shrink: 0; }
 .tier-title { font-weight: 600; }
 .tierlist-item { cursor: pointer; }
-.tierlist-item > .avatar { width: 32px; height: 32px; font-size: 14px; }
+/* Kapak: listenin kendi resmi, yoksa ilk kart resmi, o da yoksa adının baş harfi */
+.tier-cover { flex-shrink: 0; width: 44px; height: 44px; border-radius: var(--radius-sm); display: grid; place-items: center; overflow: hidden; background: var(--panel-2) center / cover no-repeat; color: #0b0c10; font-weight: 800; font-size: 18px; }
+.tier-cover-pick { flex-shrink: 0; display: grid; position: relative; }
+.tier-cover-pick:not(.disabled) { cursor: pointer; }
+.tier-cover-pick:not(.disabled):hover .tier-cover { outline: 2px solid var(--accent); }
+.tier-cover-pick:not(.disabled)::after { content: '✎'; position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; display: grid; place-items: center; }
+.link-btn { display: inline; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.link-btn:hover { background: none; }
 .tier-owner { margin: -4px 0 10px; }
 #tier-edit.readonly .tier-card { cursor: default; }
 

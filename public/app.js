@@ -92,19 +92,22 @@ function parseVideoId(input) {
 // ---------- Sunucu saati ----------
 // Herkesin aynı saniyeyi çalabilmesi için sunucu ile saat farkını ölçeriz.
 
+// performance.now kesintisiz ve hassastır; Date.now ms adımlı ve sistem saati değişince sıçrar.
 let clockOffset = 0;
-const serverNow = () => Date.now() + clockOffset;
+const localNow = () => performance.timeOrigin + performance.now();
+const serverNow = () => localNow() + clockOffset;
 
 async function syncClock() {
   let best = Infinity;
   for (let i = 0; i < 5; i++) {
-    const t0 = Date.now();
+    const t0 = localNow();
     const server = await emitAck(3000, 'time');
     if (server == null) continue;
-    const rtt = Date.now() - t0;
+    const t1 = localNow();
+    const rtt = t1 - t0;
     if (rtt < best) {
       best = rtt;
-      clockOffset = server + rtt / 2 - Date.now();
+      clockOffset = server + rtt / 2 - t1;
     }
   }
 }
@@ -837,6 +840,15 @@ function renderTierHome() {
   $('tierlist-empty').hidden = tierLists.length > 0;
 }
 
+// Kapak: listenin kendi resmi; yoksa sıradaki ilk kartın resmi; o da yoksa adının baş harfi.
+function fillTierCover(el, list) {
+  const first = [...list.tiers.flatMap((t) => t.cards), ...list.pool].map((id) => list.cards.find((c) => c.id === id)).find((c) => c?.image);
+  const image = list.cover || first?.image;
+  el.style.backgroundImage = image ? `url("${image}")` : '';
+  el.style.backgroundColor = image ? '' : TIER_COLORS[list.id % TIER_COLORS.length];
+  el.textContent = image ? '' : [...list.title.trim()][0]?.toLocaleUpperCase('tr-TR') || '?';
+}
+
 function tierListItem(list) {
   const placed = list.tiers.reduce((n, t) => n + t.cards.length, 0);
   const li = document.createElement('li');
@@ -846,7 +858,10 @@ function tierListItem(list) {
       <div class="q-title"></div>
       <div class="muted small"></div>
     </div>`;
-  li.prepend(makeAvatar(list.by));
+  const cover = document.createElement('span');
+  cover.className = 'tier-cover';
+  fillTierCover(cover, list);
+  li.prepend(cover);
   li.querySelector('.q-title').textContent = list.title;
   // İsimlere ek getirmeyen ifadeler: "ayşe'nin", "ali'nin" gibi ekler isme göre değişir.
   const who = isMine(list) ? (list.from ? `Senin kopyan · ${list.from} oluşturmuştu` : 'Senin listen') : `${list.by} oluşturdu`;
@@ -861,7 +876,14 @@ function tierListItem(list) {
   view.className = 'sm';
   view.textContent = isMine(list) ? 'Aç' : 'Gör';
   li.append(view);
-  if (!isMine(list)) {
+  if (isMine(list)) {
+    const del = document.createElement('button');
+    del.className = 'sm danger';
+    del.textContent = 'Sil';
+    del.addEventListener('click', (e) => e.stopPropagation()); // listeyi açmasın
+    confirmButton(del, 'Emin misin?', () => socket.emit('tierlist:delete', list.id));
+    li.append(del);
+  } else {
     const take = document.createElement('button');
     take.className = 'sm primary';
     take.textContent = 'Kendine al';
@@ -927,6 +949,11 @@ function renderTierBoard(list) {
   if (document.activeElement !== $('tier-title')) $('tier-title').value = list.title;
   $('tier-title').readOnly = !mine;
   $('tier-delete').hidden = !mine;
+  fillTierCover($('tier-cover'), list);
+  $('tier-cover-pick').classList.toggle('disabled', !mine);
+  $('tier-cover-pick').title = mine ? 'Kapak resmini değiştir' : '';
+  $('tier-cover-file').disabled = !mine;
+  $('tier-cover-clear').hidden = !mine || !list.cover;
   $('tier-copy').hidden = mine;
   $('tier-add-row').hidden = !mine;
   $('card-form').hidden = !mine;
@@ -1106,6 +1133,22 @@ $('tier-add-row').onclick = () => {
   socket.emit('tier:add', openListId);
 };
 $('tier-copy').onclick = () => copyTierList(openListId);
+async function setTierCover(data, type) {
+  const res = await emitAck(15000, 'tierlist:cover', { listId: openListId, data, type });
+  if (!res || res.error) toast(res?.error || 'Kapak değiştirilemedi.');
+}
+$('tier-cover-file').onchange = async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    const { blob, type } = await compressImage(file, CARD_IMAGE_SIDE, true);
+    setTierCover(await blob.arrayBuffer(), type);
+  } catch {
+    toast(`Bu resim açılamadı: ${file.name}`);
+  }
+};
+$('tier-cover-clear').onclick = () => setTierCover(null);
 
 // Seçilen resimler kart eklenene kadar bekler; birden fazla seçilirse her biri ayrı kart olur.
 let cardFiles = [];
@@ -1478,7 +1521,7 @@ const DINO = {
   gap: 60,              // oyuncular Jef'in arkasında bu aralıklarla sıralanır
   gravity: 2600, jump: 860, fastFall: 3200,
   w: 40, h: 44, duckW: 54, duckH: 26,
-  sendEvery: 50, // ms; konum yayını
+  sendEvery: 250, // ms; zıplama/eğilme dışında arada bir düzeltme yayını
 };
 
 // Tempo: hız herkes için otomatik ve gitgide artar. Konum kare kare toplanmaz, oyunun başından beri
@@ -1536,7 +1579,11 @@ let dinoRng = null;
 let dinoNextX = 0;
 let dinoLastSend = 0;
 let dinoLoop = 0;
-const dinoOthers = new Map(); // isim -> { x, y, duck, tx, ty }
+// Diğer oyuncuların son anlık durumu: { t (oyun saati), y, vy, duck, hold (zıplama basılı) }. x zamandan
+// hesaplanır, y bu anlık durumdan aynı fizikle sürdürülür; geç gelen paket kimseyi havada asılı bırakmaz.
+// Tahmin tutmayınca (geç gelen zıplama) aradaki fark (err) sıçramak yerine ~50 ms'de söner.
+const dinoOthers = new Map();
+let dinoEvent = false; // zıplama ya da eğilme değişti: hemen gönderilir
 const dinoKeys = { jump: false, duck: false };
 // Oyuncunun sıradaki yeri: oyuncu listesindeki sırası (herkeste aynı)
 const dinoSlot = (game, name) => Object.keys(game.players).indexOf(name) + 1;
@@ -1595,19 +1642,42 @@ function setDino(game) {
       }
     }
   }
-  if (game) for (const name of Object.keys(game.players)) if (name !== myName && !dinoOthers.has(name)) dinoOthers.set(name, { x: 0, y: 0, tx: 0, ty: 0, duck: false });
+  if (game) for (const name of Object.keys(game.players)) if (name !== myName && !dinoOthers.has(name)) dinoOthers.set(name, { t: 0, y: 0, vy: 0, duck: false, hold: false, shownY: 0, err: 0, errAt: 0 });
   renderDinoUi();
   if (game && !dinoLoop) dinoLoop = requestAnimationFrame(dinoFrame);
 }
 socket.on('dino', setDino);
 
-socket.on('dino:pos', ({ name, x, y, duck }) => {
+socket.on('dino:pos', ({ name, t, y, vy, duck, hold }) => {
   const o = dinoOthers.get(name);
-  if (!o) return;
-  o.tx = x;
-  o.ty = y;
-  o.duck = duck;
+  if (!o || t < o.t) return; // sırası karışan eski paket
+  Object.assign(o, { t, y, vy, duck, hold });
+  o.err = o.shownY - dinoSimY(o);
+  o.errAt = performance.now();
 });
+
+// Anlık durumdan şu anki y: dinoStep'in aynısı, zıplama basılı tutulursa yere değince yine zıplar.
+function dinoSimY(o) {
+  let { y, vy } = o;
+  const end = Math.min(dinoElapsed(), o.t + 3);
+  for (let t = o.t; t < end && (y > 0 || vy > 0 || o.hold); t += 1 / 120) {
+    if (o.hold && y === 0) vy = DINO.jump;
+    vy -= (o.duck && y > 0 ? DINO.fastFall : DINO.gravity) / 120;
+    y = Math.max(0, y + vy / 120);
+    if (y === 0) vy = Math.max(0, vy);
+  }
+  return y;
+}
+
+// Diğer oyuncunun şu anki duruşu: x sıradaki yerinden, y son anlık durumdan kendi fiziğimizle.
+function dinoOtherPose(name, o) {
+  const p = dinoGame.players[name];
+  const slotX = DINO.gap * dinoSlot(dinoGame, name);
+  const x = (p?.dead ? p.dist : dinoJefNow()) - slotX;
+  const err = o.err * Math.exp(-(performance.now() - o.errAt) / 50);
+  o.shownY = p?.dead ? 0 : Math.max(0, dinoSimY(o) + err);
+  return { x, y: o.shownY, duck: o.duck };
+}
 
 function renderDinoUi() {
   const game = dinoGame;
@@ -1671,8 +1741,11 @@ function dinoStep(dt) {
   me.vx = dinoMaxSpeed(me.t);
   if (dinoKeys.jump && me.y === 0) {
     me.vy = DINO.jump;
+    dinoEvent = true;
     if (dinoSound) Chip.jump(audioCtx);
   }
+  if (me.duck !== dinoKeys.duck || me.hold !== dinoKeys.jump) dinoEvent = true;
+  me.hold = dinoKeys.jump;
   me.duck = dinoKeys.duck;
   me.vy -= (me.duck && me.y > 0 ? DINO.fastFall : DINO.gravity) * dt;
   me.y = Math.max(0, me.y + me.vy * dt);
@@ -1694,33 +1767,29 @@ function dinoDie() {
   socket.emit('dino:dead', { id: dinoGame.id, x: dinoJefX(dinoMe.t) }); // skor: sıradaki yerden bağımsız
 }
 
-let dinoPrev = 0;
 let dinoLastList = 0;
 function dinoFrame(t) {
   dinoLoop = 0;
   if (!dinoGame) return dinoKick();
-  const dt = Math.min(0.05, (t - (dinoPrev || t)) / 1000);
-  dinoPrev = t;
   const started = serverNow() >= dinoGame.startAt;
   if (started && dinoMe && !dinoMe.dead && !dinoGame.done) {
     // Oyunun saatine yetişene kadar küçük adımlarla ilerle: hızlıyken engelin içinden geçilmesin,
     // takılan kare de oyuncuyu geride bırakmasın.
     const now = Math.min(dinoElapsed(), dinoMe.t + 1);
     while (!dinoMe.dead && dinoMe.t < now) dinoStep(Math.min(1 / 120, now - dinoMe.t));
-    if (!dinoMe.dead && t - dinoLastSend > DINO.sendEvery) {
+    if (!dinoMe.dead && (dinoEvent || t - dinoLastSend > DINO.sendEvery)) {
       dinoLastSend = t;
-      socket.volatile.emit('dino:state', { id: dinoGame.id, x: Math.round(dinoMe.x), y: Math.round(dinoMe.y), duck: dinoMe.duck });
+      const { x, t: mt, y, vy, duck } = dinoMe;
+      const hold = dinoKeys.jump;
+      (dinoEvent ? socket : socket.volatile).emit('dino:state', { id: dinoGame.id, x: Math.round(x), t: mt, y, vy, duck, hold, ev: dinoEvent });
+      dinoEvent = false;
     }
-  }
-  for (const o of dinoOthers.values()) {
-    o.x += (o.tx - o.x) * Math.min(1, dt * 12);
-    o.y += (o.ty - o.y) * Math.min(1, dt * 12);
   }
   // Kamera en öndekine (çoğunlukla Jef) kilitli, geri gitmez. Oyun bitince Jef de durur.
   dinoCam = Math.max(dinoCam, dinoJefNow());
   for (const [name, p] of Object.entries(dinoGame.players)) {
     if (p.dead) continue;
-    const x = name === myName ? dinoMe?.x : dinoOthers.get(name)?.tx;
+    const x = name === myName ? dinoMe?.x : dinoJefNow() - DINO.gap * dinoSlot(dinoGame, name);
     if (x != null) dinoCam = Math.max(dinoCam, x);
   }
   dinoFill(dinoCam + DINO.viewW * 2);
@@ -1812,7 +1881,7 @@ function drawDino(started) {
     drawOneDino(ctx, name, d, faded, sx, sy, lift * 14, color);
   };
   drawOne('Jef 🤖', dinoJefPose(dinoJefNow()), false, DINO_JEF_COLOR);
-  for (const [name, o] of dinoOthers) drawOne(name, o, dinoGame.players[name]?.dead);
+  for (const [name, o] of dinoOthers) drawOne(name, dinoOtherPose(name, o), dinoGame.players[name]?.dead);
   if (dinoMe) drawOne(myName, dinoMe, dinoMe.dead);
   drawDinoHud(ctx, started);
 }

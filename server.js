@@ -419,6 +419,7 @@ function tierListView(list) {
     title: list.title,
     by: list.by,
     from: list.from || null, // kopyalandığı listenin sahibi
+    cover: list.cover || null, // listenin kendi kapak resmi; yoksa ilk kartın resmi gösterilir
     tiers: list.tiers.map((t) => ({ id: t.id, name: t.name, cards: t.cards })),
     pool: list.pool,
     cards: [...list.cards.values()],
@@ -438,17 +439,30 @@ function takeCard(list, cardId) {
   }
 }
 
-// Kopyalanan listeler aynı resmi paylaşır; resim, odada onu kullanan son kart silinince silinir.
+// Kopyalanan listeler aynı resmi paylaşır; resim, odada onu kullanan son kart ya da kapak gidince silinir.
+function dropImage(room, image) {
+  if (!image) return;
+  const used = room.tierLists.some((l) => l.cover === image || [...l.cards.values()].some((c) => c.image === image));
+  if (used) return;
+  const imageId = image.slice('card-img/'.length);
+  cardImages.delete(imageId);
+  store.deleteFile(`cards/${imageId}`);
+}
+
+// Gelen resmi saklar; adresini, uygun değilse null döner.
+function keepImage(data, type) {
+  if (!Buffer.isBuffer(data) || data.length > CARD_IMAGE_MAX_BYTES || !IMAGE_TYPES[type]?.(data)) return null;
+  const imageId = crypto.randomUUID();
+  cardImages.set(imageId, { buf: data, type });
+  store.putFile(`cards/${imageId}`, data, type);
+  return `card-img/${imageId}`;
+}
+
 function deleteCard(room, list, cardId) {
   takeCard(list, cardId);
   const card = list.cards.get(cardId);
   list.cards.delete(cardId);
-  if (!card?.image) return;
-  const shared = room.tierLists.some((l) => [...l.cards.values()].some((c) => c.image === card.image));
-  if (shared) return;
-  const imageId = card.image.slice('card-img/'.length);
-  cardImages.delete(imageId);
-  store.deleteFile(`cards/${imageId}`);
+  dropImage(room, card?.image);
 }
 
 io.on('connection', (socket) => {
@@ -770,7 +784,7 @@ io.on('connection', (socket) => {
     const full = tierListFull(room, by);
     if (full) return ack({ error: full });
     const order = [...from.tiers.flatMap((t) => t.cards), ...from.pool];
-    const list = { id: nextTierId++, title: from.title, by, from: from.by, tiers: from.tiers.map((t) => newTierRow(t.name)), pool: [], cards: new Map() };
+    const list = { id: nextTierId++, title: from.title, by, from: from.by, cover: from.cover || null, tiers: from.tiers.map((t) => newTierRow(t.name)), pool: [], cards: new Map() };
     for (const oldId of order) {
       const card = from.cards.get(oldId);
       if (!card) continue;
@@ -786,7 +800,28 @@ io.on('connection', (socket) => {
   socket.on('tierlist:delete', (listId) => withList(listId, (list, room) => {
     room.tierLists.splice(room.tierLists.indexOf(list), 1);
     for (const id of [...list.cards.keys()]) deleteCard(room, list, id);
+    dropImage(room, list.cover);
   }));
+
+  // Kapak: data null ise kapak kaldırılır (ilk kartın resmine döner).
+  socket.on('tierlist:cover', ({ listId, data, type } = {}, ack) => {
+    if (typeof ack !== 'function') return;
+    if (!code) return ack({ error: 'Odada değilsin.' });
+    if (Date.now() - lastCard < CARD_COOLDOWN) return ack({ error: 'Biraz bekle, çok hızlı ekliyorsun.' });
+    const room = getRoom(code);
+    const list = room.tierLists.find((l) => l.id === listId);
+    if (!list) return ack({ error: 'Bu liste silinmiş.' });
+    if (list.by !== room.users.get(socket.id).name) return ack({ error: 'Bu liste senin değil.' });
+    let cover = null;
+    if (data != null && !(cover = keepImage(data, type))) return ack({ error: 'Bu resim eklenemedi (desteklenmeyen tür ya da çok büyük).' });
+    lastCard = Date.now();
+    withList(listId, (l, room) => {
+      const old = l.cover;
+      l.cover = cover;
+      dropImage(room, old);
+    });
+    ack({});
+  });
 
   socket.on('tierlist:rename', ({ listId, title } = {}) => withList(listId, (list) => {
     title = cleanText(title, TIERLIST_TITLE_MAX);
@@ -833,15 +868,7 @@ io.on('connection', (socket) => {
     if (list.cards.size >= CARD_MAX) return ack({ error: `Bir listede en fazla ${CARD_MAX} kart olabilir.` });
     text = cleanText(text, CARD_TEXT_MAX);
     let image = null;
-    if (data != null) {
-      if (!Buffer.isBuffer(data) || data.length > CARD_IMAGE_MAX_BYTES || !IMAGE_TYPES[type]?.(data)) {
-        return ack({ error: 'Bu resim eklenemedi (desteklenmeyen tür ya da çok büyük).' });
-      }
-      const imageId = crypto.randomUUID();
-      cardImages.set(imageId, { buf: data, type });
-      store.putFile(`cards/${imageId}`, data, type);
-      image = `card-img/${imageId}`;
-    }
+    if (data != null && !(image = keepImage(data, type))) return ack({ error: 'Bu resim eklenemedi (desteklenmeyen tür ya da çok büyük).' });
     if (!text && !image) return ack({ error: 'Karta bir isim yaz ya da resim seç.' });
     lastCard = Date.now();
     withList(listId, (l, room) => {
@@ -962,15 +989,19 @@ io.on('connection', (socket) => {
     postSystem(room, `${by} dinozor koşusu başlattı`);
   });
 
-  socket.on('dino:state', ({ id, x, y, duck } = {}) => {
-    if (!code || !Number.isFinite(x) || !Number.isFinite(y)) return;
+  // Zıplama/eğilme anında (ev) güvenilir, arada düzeltme için volatile gelir. Diğerleri bu anlık
+  // durumdan (oyun saati t, y, dikey hız vy) fiziği kendileri sürdürür; gecikme konumu kaydırmaz.
+  socket.on('dino:state', ({ id, x, t, y, vy, duck, hold, ev } = {}) => {
+    if (!code || ![x, t, y, vy].every(Number.isFinite)) return;
     const room = getRoom(code);
     const name = room.users.get(socket.id).name;
     const me = room.dino?.id === id && room.dino.players[name];
     if (!me || me.dead) return;
     me.dist = Math.max(me.dist, Math.min(x, dinoJefNow(room.dino))); // Jef'ten ileri gidilemez
     me.seen = Date.now();
-    socket.to(code).volatile.emit('dino:pos', { name, x, y, duck: Boolean(duck) });
+    const pos = { name, t, y, vy, duck: Boolean(duck), hold: Boolean(hold) };
+    if (ev) socket.to(code).emit('dino:pos', pos);
+    else socket.to(code).volatile.emit('dino:pos', pos);
   });
 
   socket.on('dino:dead', ({ id, x } = {}) => {
