@@ -4,10 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sesli Oda</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="theme-color" content="#0f1115">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
   <!-- İkon seti: Lucide (lucide.dev, ISC lisansı). Kullanım: <svg class="ic"><use href="#i-mic"></use></svg> -->
@@ -55,7 +55,7 @@
   <main id="join-screen" class="join">
     <form id="join-form" class="card">
       <div class="brand">
-        <img src="favicon.svg" alt="" width="44" height="44">
+        <img src="/favicon.svg" alt="" width="44" height="44">
         <div>
           <h1>Sesli Oda</h1>
           <p class="muted">Arkadaşlarınla konuş, aynı anda YouTube izle/dinle.</p>
@@ -101,7 +101,7 @@
     <!-- Üst çubuk: oda ile oyunlar arasında geçiş. Oyunlardayken müzik ve sesli sohbet sürer. -->
     <header class="topbar">
       <div class="topbar-inner">
-        <span class="topbar-brand"><img src="favicon.svg" alt="" width="22" height="22">Sesli Oda</span>
+        <span class="topbar-brand"><img src="/favicon.svg" alt="" width="22" height="22">Sesli Oda</span>
         <nav class="top-tabs" role="tablist">
           <button id="nav-room" class="top-tab active" role="tab"><svg class="ic"><use href="#i-music"></use></svg>Oda</button>
           <button id="nav-games" class="top-tab" role="tab"><svg class="ic"><use href="#i-trophy"></use></svg>Oyunlar</button>
@@ -268,7 +268,10 @@
             <button id="game-tab-tier" class="tab active" role="tab">Tier list</button>
             <button id="game-tab-timing" class="tab" role="tab">Süre tahmini</button>
             <button id="game-tab-dino" class="tab" role="tab">Dinozor</button>
+            <button id="game-tab-kelime" class="tab" role="tab">Kelime</button>
             <button id="game-tab-peacock" class="tab" role="tab">Tavus kuşu</button>
+            <button id="game-tab-oner" class="tab" role="tab">Oyun öner</button>
+            <button id="bot-toggle" class="sm ghost bot-toggle" title="Bot rastgele oynar; tek başınayken oyunların gidişatını görmek için"></button>
           </div>
 
           <div id="game-tier">
@@ -376,6 +379,66 @@
             <ol id="dino-board" class="timing-list dino-results"></ol>
           </div>
 
+          <!-- Kelime: anlatıcı tahminleri sıcak-soğuk çubuğuna yerleştirir, diğerleri hedef kelimeyi bulmaya çalışır -->
+          <div id="game-kelime" class="kelime" hidden>
+            <div class="kelime-head">
+              <span id="kelime-status" class="muted small"></span>
+              <strong id="kelime-clock" class="kelime-clock"></strong>
+              <button id="kelime-start" class="primary sm">Anlatıcı ol ve başlat</button>
+              <button id="kelime-start-bot" class="sm" hidden>Bot anlatsın</button>
+              <button id="kelime-end" class="sm ghost danger" hidden>Bitir</button>
+              <button id="kelime-close" class="sm ghost" hidden>Kapat</button>
+            </div>
+            <div id="kelime-play" class="kelime-play" hidden>
+              <div id="kelime-scroll" class="kelime-scroll">
+                <div id="kelime-slot" class="kelime-slot"></div>
+                <div id="kelime-track" class="kelime-track"><div class="kelime-thermo"></div></div>
+              </div>
+              <div class="kelime-side">
+                <div id="kelime-turn" class="kelime-turn"></div>
+                <form id="kelime-guess" class="add">
+                  <input id="kelime-guess-input" maxlength="40" placeholder="Tahminini yaz" autocomplete="off">
+                  <button type="submit" class="primary">Gönder</button>
+                </form>
+                <p id="kelime-help" class="muted small"></p>
+                <div id="kelime-results" hidden>
+                  <h2>Puanlar</h2>
+                  <ol id="kelime-scores" class="timing-list"></ol>
+                  <p class="muted small">Hedefe en yakın 10 kelime 10'dan 1'e puan getirir, bilen +15 alır.</p>
+                </div>
+              </div>
+            </div>
+            <details id="kelime-pool-box" class="kelime-pool-box">
+              <summary>Kelime havuzu <span id="kelime-pool-count" class="count"></span></summary>
+              <form id="kelime-pool-form" class="add">
+                <input id="kelime-pool-input" maxlength="2000" placeholder="Kelime ekle (virgülle birden fazla)" autocomplete="off">
+                <button type="submit">Ekle</button>
+              </form>
+              <div id="kelime-pool" class="kelime-pool"></div>
+            </details>
+            <p id="kelime-intro" class="muted small">Başlatan anlatıcı olur ve havuzdan rastgele bir kelime görür. Diğerleri sırayla tahmin yazar; anlatıcı her tahmini 10 saniye içinde çubukta hedefe yakınlığına göre yerleştirir (üst sıcak, alt soğuk). Hedef kelimeyi bulmak için 6 dakika var.</p>
+          </div>
+
+          <!-- Oyun öner: istenen oyun adım adım anlatılır, kaydedilir; site sahibi eklenip eklenmeyeceğine karar verir -->
+          <div id="game-oner" class="oner" hidden>
+            <div class="oner-intro">
+              <h3>Burada olmasını istediğin bir oyun mu var?</h3>
+              <p class="muted small">Adım adım anlat; ne kadar ayrıntılı yazarsan o kadar iyi yapılır. Yazdıkların bu cihazda taslak olarak durur, yarıda bırakıp sonra devam edebilirsin. Gönderilen öneriler aşağıda herkese görünür; eklenip eklenmeyeceğine sonra karar verilir.</p>
+            </div>
+            <ol id="oner-steps" class="oner-steps"></ol>
+            <form id="oner-form" class="oner-form" novalidate>
+              <div id="oner-step" class="oner-step"></div>
+              <p id="oner-error" class="error small" hidden></p>
+              <div class="oner-nav">
+                <button type="button" id="oner-prev" class="ghost">Geri</button>
+                <button type="button" id="oner-clear" class="ghost sm danger">Taslağı temizle</button>
+                <button type="submit" id="oner-next" class="primary">İleri</button>
+              </div>
+            </form>
+            <h2>Gönderilen öneriler <span id="oner-count" class="count"></span></h2>
+            <ol id="oner-list" class="oner-list"></ol>
+          </div>
+
           <!-- Tavus kuşu: yakında (Space'e art arda basarak koşulan yarış) -->
           <div id="game-peacock" class="peacock" hidden>
             <div class="peacock-soon">🦚</div>
@@ -462,7 +525,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="sfx.js"></script>
-  <script src="app.js"></script>
+  <script src="/sfx.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>

@@ -130,7 +130,7 @@ const Sfx = (() => {
     async load(ctx) {
       await Promise.all(SFX_FILES.map(async (id) => {
         try {
-          const res = await fetch(`sfx/${id}.m4a`);
+          const res = await fetch(`/sfx/${id}.m4a`);
           samples.set(id, await ctx.decodeAudioData(await res.arrayBuffer()));
         } catch {}
       }));

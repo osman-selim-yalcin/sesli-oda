@@ -1,6 +1,8 @@
 'use strict';
 
 const $ = (id) => document.getElementById(id);
+// Sunucunun verdiği "card-img/..", "img/.." gibi yollar köke göre: sayfa /oyunlar/tier/3 gibi bir adresteyken de doğru yere gider.
+const abs = (url) => (url && !/^([a-z]+:|\/)/i.test(url) ? `/${url}` : url);
 const DRIFT_LIMIT = 1.5;      // saniye; bundan fazla kayınca yeniden hizalanır
 const VOICE_BITRATE = 32000;  // bps; Opus için konuşma kalitesi yeterli
 const SCREEN_BITRATE = 1000000; // bps; 720p/15fps ekran paylaşımı için yeterli
@@ -193,7 +195,7 @@ function fillAvatar(el) {
   if (version) {
     const img = document.createElement('img');
     img.alt = '';
-    img.src = `avatar/${encodeURIComponent(name)}?v=${version}`;
+    img.src = `/avatar/${encodeURIComponent(name)}?v=${version}`;
     el.append(img);
     return;
   }
@@ -567,7 +569,7 @@ $('gate').oninput = () => {
 // Mikrofonu eşikten geçirip karşıya gidecek akışı hazırlar; olmazsa ham mikrofonu kullanır.
 async function setupMic() {
   try {
-    await audioCtx.audioWorklet.addModule('gate-worklet.js');
+    await audioCtx.audioWorklet.addModule('/gate-worklet.js');
     gateNode = new AudioWorkletNode(audioCtx, 'noise-gate', { outputChannelCount: [1] });
     const dest = audioCtx.createMediaStreamDestination();
     audioCtx.createMediaStreamSource(localStream).connect(gateNode).connect(dest);
@@ -760,8 +762,8 @@ function showTab(name) {
     $(`${tab}-view`).hidden = name !== tab;
   }
 }
-$('tab-queue').onclick = () => showTab('queue');
-$('tab-history').onclick = () => showTab('history');
+$('tab-queue').onclick = () => go(() => showTab('queue'));
+$('tab-history').onclick = () => go(() => showTab('history'));
 
 // ---------- Üst çubuk: oda / oyunlar ----------
 // Oyunlardayken oynatıcı ekrandan çıkarılır ama silinmez; müzik çalmaya devam eder.
@@ -772,11 +774,69 @@ function showPage(page) {
   $('nav-games').classList.toggle('active', games);
   document.querySelector('.media').classList.toggle('away', games);
   $('games').hidden = !games;
+  document.querySelectorAll('.tier-name').forEach(fitTierName);
   renderTopbarNow();
 }
-$('nav-room').onclick = () => showPage('room');
-$('nav-games').onclick = () => showPage('games');
-$('topbar-now').onclick = () => showPage('room');
+$('nav-room').onclick = () => go(() => showPage('room'));
+$('nav-games').onclick = () => go(() => showPage('games'));
+$('topbar-now').onclick = () => go(() => showPage('room'));
+
+// ---------- Gezinme geçmişi ----------
+// Sayfa, sekme, oyun ve açık tier list tarayıcı geçmişine yazılır: geri tuşu siteden çıkmak yerine
+// önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var:
+// / sıra, /gecmis, /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
+
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', peacock: 'tavus', oner: 'oner' };
+
+function viewPath(view) {
+  if (view.page === 'room') return view.tab === 'history' ? '/gecmis' : '/';
+  return `/oyunlar/${GAME_PATHS[view.game]}` + (view.game === 'tier' && view.list != null ? `/${view.list}` : '');
+}
+
+function pathView(path) {
+  const [first, second, third] = path.split('/').filter(Boolean);
+  const view = { page: 'room', tab: first === 'gecmis' ? 'history' : 'queue', game: 'tier', list: null };
+  if (first !== 'oyunlar') return view;
+  view.page = 'games';
+  view.game = GAMES.find((g) => GAME_PATHS[g] === second) || 'tier';
+  if (view.game === 'tier' && /^\d+$/.test(third || '')) view.list = Number(third);
+  return view;
+}
+
+const currentView = () => ({
+  page: $('games').hidden ? 'room' : 'games',
+  tab: $('history-view').hidden ? 'queue' : 'history',
+  game: GAMES.find((g) => !$(`game-${g}`).hidden) || 'tier',
+  list: openListId,
+});
+
+const sameView = (a, b) => a && b && ['page', 'tab', 'game', 'list'].every((k) => a[k] === b[k]);
+
+// Ekranı değiştirir, değiştiyse geçmişe yeni adım ekler.
+function go(fn) {
+  fn();
+  const view = currentView();
+  if (!sameView(view, history.state)) history.pushState(view, '', viewPath(view));
+}
+
+function applyView(view) {
+  if (!view?.page) return;
+  showPage(view.page);
+  showTab(view.tab);
+  openGame(view.game);
+  const list = view.list != null && tierLists.some((l) => l.id === view.list) ? view.list : null;
+  if (list !== openListId) {
+    openListId = list;
+    selectedCard = null;
+    renderTierLists();
+  }
+}
+
+addEventListener('popstate', (e) => {
+  if ($('room-screen').hidden) return;
+  applyView(e.state || pathView(location.pathname));
+});
 
 // Oyunlardayken çalan şarkı üst çubukta görünür.
 function renderTopbarNow() {
@@ -843,7 +903,7 @@ function renderTierHome() {
 // Kapak: listenin kendi resmi; yoksa sıradaki ilk kartın resmi; o da yoksa adının baş harfi.
 function fillTierCover(el, list) {
   const first = [...list.tiers.flatMap((t) => t.cards), ...list.pool].map((id) => list.cards.find((c) => c.id === id)).find((c) => c?.image);
-  const image = list.cover || first?.image;
+  const image = abs(list.cover || first?.image);
   el.style.backgroundImage = image ? `url("${image}")` : '';
   el.style.backgroundColor = image ? '' : TIER_COLORS[list.id % TIER_COLORS.length];
   el.textContent = image ? '' : [...list.title.trim()][0]?.toLocaleUpperCase('tr-TR') || '?';
@@ -866,11 +926,11 @@ function tierListItem(list) {
   // İsimlere ek getirmeyen ifadeler: "ayşe'nin", "ali'nin" gibi ekler isme göre değişir.
   const who = isMine(list) ? (list.from ? `Senin kopyan · ${list.from} oluşturmuştu` : 'Senin listen') : `${list.by} oluşturdu`;
   li.querySelector('.small').textContent = `${who} · ${list.cards.length} kart, ${placed} yerleşti`;
-  const open = () => {
+  const open = () => go(() => {
     openListId = list.id;
     selectedCard = null;
     renderTierLists();
-  };
+  });
   li.onclick = open;
   const view = document.createElement('button');
   view.className = 'sm';
@@ -900,11 +960,25 @@ async function copyTierList(listId) {
   const res = await emitAck(8000, 'tierlist:copy', listId);
   if (!res) return toast('Sunucuya ulaşılamadı.');
   if (res.error) return toast(res.error);
-  openListId = res.id;
-  selectedCard = null;
-  renderTierLists();
+  go(() => {
+    openListId = res.id;
+    selectedCard = null;
+    renderTierLists();
+  });
   toast('Liste senin oldu; kartları istediğin gibi sırala.');
 }
+
+// Satır adı renkli kutuya sığsın: uzadıkça yazı küçülür, sığmayan alt satıra geçer.
+function fitTierName(el) {
+  const n = [...el.value].length;
+  el.classList.toggle('mid', n > 3 && n <= 8);
+  el.classList.toggle('long', n > 8);
+  if (!el.offsetParent) return; // gizliyken ölçülemez; sayfa açılınca yeniden ölçülür
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+}
+
+addEventListener('resize', () => document.querySelectorAll('.tier-name').forEach(fitTierName));
 
 function tierCard(card) {
   const el = document.createElement('div');
@@ -913,7 +987,7 @@ function tierCard(card) {
   el.title = `${card.text || 'Resim'} · ${card.by} ekledi`;
   if (card.image) {
     const img = document.createElement('img');
-    img.src = card.image;
+    img.src = abs(card.image);
     img.alt = card.text;
     img.draggable = false;
     el.append(img);
@@ -970,7 +1044,7 @@ function renderTierBoard(list) {
     const row = document.createElement('div');
     row.className = 'tier-row';
     row.innerHTML = `
-      <div class="tier-label"><input class="tier-name" maxlength="24" aria-label="Satır adı"></div>
+      <div class="tier-label"><textarea class="tier-name" maxlength="24" rows="1" aria-label="Satır adı"></textarea></div>
       <div class="tier-items tier-drop"></div>
       <div class="tier-row-actions">
         <button data-act="up" class="icon sm ghost" title="Yukarı taşı">${icon('up')}</button>
@@ -982,6 +1056,7 @@ function renderTierBoard(list) {
     const name = row.querySelector('.tier-name');
     name.value = tier.name;
     name.readOnly = !mine;
+    name.oninput = () => fitTierName(name);
     if (mine) {
       // Renkli kutunun neresine tıklanırsa tıklansın ad düzenlenir; tıklayınca eski ad seçili gelir.
       label.title = 'Adını değiştirmek için tıkla';
@@ -992,9 +1067,13 @@ function renderTierBoard(list) {
         else name.value = tier.name;
       };
       name.onkeydown = (e) => {
-        if (e.key === 'Enter') name.blur();
+        if (e.key === 'Enter') {
+          e.preventDefault(); // satır adı tek satırdır; uzun olunca sadece görünüşte alta kayar
+          name.blur();
+        }
         if (e.key === 'Escape') {
           name.value = tier.name;
+          fitTierName(name);
           name.blur();
         }
       };
@@ -1012,6 +1091,7 @@ function renderTierBoard(list) {
     if (!mine) row.querySelector('.tier-row-actions').remove();
     board.append(row);
   });
+  board.querySelectorAll('.tier-name').forEach(fitTierName);
   if (focusNewTier && mine) {
     focusNewTier = false;
     board.querySelector('.tier-row:last-child .tier-name')?.focus();
@@ -1115,15 +1195,17 @@ $('tierlist-new').onsubmit = async (e) => {
   if (!res) return toast('Sunucuya ulaşılamadı.');
   if (res.error) return toast(res.error);
   $('tierlist-title').value = '';
-  openListId = res.id;
-  renderTierLists();
+  go(() => {
+    openListId = res.id;
+    renderTierLists();
+  });
 };
 
-$('tier-back').onclick = () => {
+$('tier-back').onclick = () => go(() => {
   openListId = null;
   selectedCard = null;
   renderTierLists();
-};
+});
 $('tier-title').onchange = () => {
   if ($('tier-title').value.trim()) socket.emit('tierlist:rename', { listId: openListId, title: $('tier-title').value });
 };
@@ -1198,18 +1280,18 @@ $('card-form').onsubmit = async (e) => {
 // ---------- Oyun sekmeleri ----------
 
 function showGame(name) {
-  for (const game of ['tier', 'timing', 'dino', 'peacock']) {
+  for (const game of GAMES) {
     $(`game-tab-${game}`).classList.toggle('active', game === name);
     $(`game-${game}`).hidden = game !== name;
   }
 }
-$('game-tab-tier').onclick = () => showGame('tier');
-$('game-tab-timing').onclick = () => showGame('timing');
-$('game-tab-peacock').onclick = () => showGame('peacock');
-$('game-tab-dino').onclick = () => {
-  showGame('dino');
-  dinoKick();
-};
+function openGame(name) {
+  showGame(name);
+  if (name === 'tier') document.querySelectorAll('.tier-name').forEach(fitTierName);
+  if (name === 'kelime') renderKelime();
+  if (name === 'dino') dinoKick();
+}
+for (const game of GAMES) $(`game-tab-${game}`).onclick = () => go(() => openGame(game));
 
 // ---------- Süre tahmini ----------
 // Başlatınca süre ekranda görünmeden sayar; durdurunca geçen süre ve hedeften farkı açılır.
@@ -1510,6 +1592,702 @@ socket.on('timing', (state) => {
   raceShown = '';
   renderTiming();
 });
+
+// ---------- Kelime ----------
+// Anlatıcı hedef kelimeyi görür; diğerleri teker teker tahmin yazar. Her tahminden sonra sıra anlatıcıya
+// geçer, anlatıcı kelimeyi 10 sn içinde sıcak-soğuk çubuğuna sürükler (pos: 0 en alt/soğuk, 1 en üst/sıcak).
+// Çubukta yer kalmayınca kelimelerin oranı bozulmadan çubuk uzar, kaydırılarak görülür.
+
+const KELIME = { row: 30, base: 380, maxH: 6000, top: 10 };
+let kelime = null;       // sunucudaki oyun (hedef kelime sadece anlatıcıya gelir)
+let kelimePool = [];
+let kelimeDrag = null;   // anlatıcının sürüklediği: { id, pos, fromTray, x0, y0, moved }
+let kelimeRemote = null; // diğerlerinde anlatıcının sürüklediği: { id, pos }
+let kelimeSelected = null; // telefonda: dokunulup seçilen kelime, sonra çubuğa dokunulur
+let kelimeTicker = null;
+let kelimeLastEmit = 0;
+
+const kelimeActive = () => (kelime && !kelime.done ? kelime : null);
+const kelimeNarrating = () => Boolean(kelimeActive() && kelime.narrator === myName && kelime.pending);
+// Maviden (soğuk) kırmızıya (sıcak)
+const kelimeTemp = (pos) => `hsl(${Math.round(225 - 225 * pos)} 90% 60%)`;
+const fmtClock = (ms) => {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+// Çubuğun boyu: yan yana iki kelime arasında en az bir satırlık yer kalacak kadar uzar.
+function kelimeHeight(words) {
+  const ps = words.map((w) => w.pos).sort((a, b) => b - a);
+  let h = KELIME.base;
+  for (let i = 1; i < ps.length; i++) {
+    const gap = ps[i - 1] - ps[i];
+    h = Math.max(h, gap > 0 ? KELIME.row / gap : KELIME.maxH);
+  }
+  return Math.min(h, KELIME.maxH);
+}
+
+function kelimeShownPos(w) {
+  if (kelimeDrag?.moved && kelimeDrag.id === w.id) return kelimeDrag.pos;
+  if (kelimeRemote?.id === w.id) return kelimeRemote.pos;
+  return w.pos;
+}
+
+let kelimeH = KELIME.base;
+
+function renderKelimeBar() {
+  const game = kelime;
+  const track = $('kelime-track');
+  const thermo = track.firstElementChild;
+  track.replaceChildren(thermo);
+  if (!game) return;
+  kelimeH = kelimeHeight(game.words.filter((w) => w.pos != null));
+  const shown = game.words
+    .map((w) => ({ w, pos: kelimeShownPos(w) }))
+    .filter((x) => x.pos != null)
+    .sort((a, b) => b.pos - a.pos || a.w.id - b.w.id);
+  const ranks = new Map(game.words.filter((w) => w.pos != null).sort((a, b) => b.pos - a.pos || a.id - b.id).map((w, i) => [w.id, i + 1]));
+  // Etiketler üst üste binmesin diye aşağı itilir; çubuktaki çizgi gerçek yeri gösterir.
+  let prev = -Infinity;
+  let bottom = kelimeH;
+  const grab = kelimeNarrating();
+  for (const { w, pos } of shown) {
+    const y = (1 - pos) * kelimeH;
+    const label = Math.max(y, prev + KELIME.row, KELIME.row / 2);
+    prev = label;
+    bottom = Math.max(bottom, label + KELIME.row / 2);
+    const tick = document.createElement('div');
+    tick.className = 'kelime-tick';
+    tick.style.top = `${y}px`;
+    const chip = kelimeChip(w, ranks.get(w.id));
+    chip.style.top = `${label - 13}px`;
+    chip.style.setProperty('--temp', kelimeTemp(pos));
+    if (kelimeDrag?.moved && kelimeDrag.id === w.id || kelimeRemote?.id === w.id) chip.classList.add('moving');
+    if (grab) chip.classList.add('grab');
+    if (Math.abs(label - y) > 2) {
+      const line = document.createElement('div');
+      line.className = 'kelime-line';
+      const dx = 16, dy = label - y;
+      line.style.top = `${y}px`;
+      line.style.width = `${Math.hypot(dx, dy)}px`;
+      line.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+      track.append(line);
+    }
+    track.append(tick, chip);
+  }
+  track.style.height = `${bottom}px`;
+  track.classList.toggle('placing', grab && kelimeSelected != null);
+}
+
+function kelimeChip(w, rank) {
+  const chip = document.createElement('div');
+  chip.className = 'kelime-word';
+  chip.dataset.id = w.id;
+  if (w.id === kelime.pending) chip.classList.add('new');
+  if (w.id === kelimeSelected) chip.classList.add('selected');
+  const text = document.createElement('b');
+  text.textContent = w.text;
+  const by = document.createElement('span');
+  by.className = 'muted';
+  by.textContent = w.by;
+  chip.append(text, by);
+  if (rank && rank <= KELIME.top) {
+    const r = document.createElement('span');
+    r.className = 'rank';
+    r.textContent = `#${rank}`;
+    chip.append(r);
+  }
+  return chip;
+}
+
+function renderKelime() {
+  const game = kelime;
+  const active = kelimeActive();
+  const narrator = game?.narrator === myName;
+  $('kelime-start').hidden = Boolean(active);
+  $('kelime-start-bot').hidden = Boolean(active) || !botOn;
+  $('kelime-end').hidden = !(active && narrator);
+  $('kelime-close').hidden = !game?.done;
+  $('kelime-play').hidden = !game;
+  $('kelime-intro').hidden = Boolean(game);
+  // Havuz oyun sırasında gizli: hedef kelime içinde.
+  $('kelime-pool-box').hidden = Boolean(active);
+  $('kelime-status').textContent = !game
+    ? 'Havuzdan rastgele bir kelime seçilir, başlatan anlatıcı olur.'
+    : game.done
+      ? `Oyun bitti · Anlatıcı: ${game.narrator}`
+      : narrator ? 'Anlatıcı sensin' : `Anlatıcı: ${game.narrator}`;
+  renderKelimePool();
+  if (!game) {
+    $('kelime-clock').textContent = '';
+    return;
+  }
+
+  const slot = $('kelime-slot');
+  slot.replaceChildren();
+  slot.className = 'kelime-slot' + (game.found ? ' found' : '');
+  if (game.found) slot.append(`🎯 ${game.target}`, kelimeSmall(`· ${game.found} buldu`));
+  else if (game.target) slot.append(`🎯 ${game.target}`, kelimeSmall(game.done ? '· bulunamadı' : '· sadece sen görüyorsun'));
+  else slot.append('🎯 ???');
+
+  renderKelimeTurn();
+  const input = $('kelime-guess-input');
+  const canGuess = active && !narrator && !game.pending;
+  $('kelime-guess').hidden = !active || narrator;
+  input.disabled = !canGuess;
+  $('kelime-guess').querySelector('button').disabled = !canGuess;
+  input.placeholder = game.pending ? 'Anlatıcı yerleştiriyor…' : 'Tahminini yaz';
+  if (canGuess && !$('game-kelime').hidden && document.activeElement === document.body) input.focus();
+  $('kelime-help').textContent = !active
+    ? ''
+    : narrator
+      ? game.pending
+        ? 'Kelimeyi sürükleyip çubuğa bırak (telefonda dokun, sonra çubuğa dokun). Diğer kelimeleri de taşıyabilirsin.'
+        : 'Tahmin bekleniyor. Biri yazınca kelimeyi çubukta yerleştirirsin.'
+      : 'Biri tahmin yazınca anlatıcı onu çubuğa yerleştirir, sonra sıradaki tahmin yazılır. Üst sıcak, alt soğuk.';
+  $('kelime-help').hidden = !active;
+
+  $('kelime-results').hidden = !game.done;
+  if (game.done) {
+    const list = $('kelime-scores');
+    list.replaceChildren();
+    game.scores.forEach((s, i) => {
+      const sub = [s.words.join(', '), s.bonus ? `+${s.bonus} bildi` : ''].filter(Boolean).join(' · ');
+      const li = timingRow(s.name, `${s.points} puan`, sub);
+      li.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+      if (i === 0 && s.points > 0) li.classList.add('winner');
+      list.append(li);
+    });
+    if (!game.scores.length) list.append(Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Kimse tahmin yazmadı.' }));
+  }
+  renderKelimeBar();
+  kelimeTick();
+  clearInterval(kelimeTicker);
+  if (active) kelimeTicker = setInterval(kelimeTick, 250);
+}
+
+const kelimeSmall = (text) => Object.assign(document.createElement('span'), { className: 'muted small', textContent: text });
+
+// Sıradaki kelime ve anlatıcının kalan süresi
+function renderKelimeTurn() {
+  const box = $('kelime-turn');
+  box.replaceChildren();
+  const game = kelimeActive();
+  const w = game?.pending && game.words.find((x) => x.id === game.pending);
+  if (!w) return;
+  const row = document.createElement('div');
+  row.className = 'row';
+  const secs = document.createElement('span');
+  secs.className = 'secs';
+  secs.id = 'kelime-secs';
+  row.append(kelimeSmall(`${w.by} yazdı:`));
+  const chip = kelimeChip(w);
+  chip.style.setProperty('--temp', w.pos == null ? '#888' : kelimeTemp(w.pos));
+  if (game.narrator === myName && w.pos == null) chip.classList.add('grab');
+  row.append(chip, secs);
+  box.append(row);
+  if (game.narrator === myName) {
+    const ok = document.createElement('button');
+    ok.className = 'sm primary';
+    ok.textContent = 'Tamam';
+    ok.disabled = w.pos == null;
+    ok.onclick = () => socket.emit('kelime:turn');
+    const r2 = document.createElement('div');
+    r2.className = 'row';
+    r2.append(ok, kelimeSmall(w.pos == null ? 'Süre dolarsa en alta konur.' : 'İstersen başka kelimeleri de taşı.'));
+    box.append(r2);
+  } else {
+    box.append(kelimeSmall(`${game.narrator} yerleştiriyor…`));
+  }
+}
+
+function kelimeTick() {
+  const game = kelime;
+  if (!game) return;
+  const left = game.done ? 0 : game.endAt - serverNow();
+  $('kelime-clock').textContent = game.done ? '' : fmtClock(left);
+  $('kelime-clock').classList.toggle('low', !game.done && left < 30000);
+  const secs = $('kelime-secs');
+  if (secs && game.turnUntil) secs.textContent = `${Math.max(0, Math.ceil((game.turnUntil - serverNow()) / 1000))} sn`;
+  if (game.done) clearInterval(kelimeTicker);
+}
+
+function renderKelimePool() {
+  $('kelime-pool-count').textContent = kelimePool.length || '';
+  const box = $('kelime-pool');
+  box.replaceChildren();
+  for (const w of kelimePool) {
+    const chip = document.createElement('span');
+    chip.title = `${w.by} ekledi`;
+    chip.textContent = w.text;
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.title = 'Havuzdan çıkar';
+    x.textContent = '×';
+    x.onclick = () => socket.emit('kelime:pool:remove', w.text);
+    chip.append(x);
+    box.append(chip);
+  }
+  if (!kelimePool.length) box.append(kelimeSmall('Havuz boş. Kelime ekleyin; oyun buradan rastgele seçer.'));
+}
+
+// Çubukta ekrandaki y'den konuma (0 alt, 1 üst)
+function kelimePosAt(clientY) {
+  const rect = $('kelime-track').getBoundingClientRect();
+  return Math.min(1, Math.max(0, 1 - (clientY - rect.top) / kelimeH));
+}
+
+function kelimePlace(id, pos) {
+  const w = kelime.words.find((x) => x.id === id);
+  if (w) w.pos = pos; // sunucudan dönmesini beklemeden göster
+  socket.emit('kelime:place', { id, pos });
+}
+
+// Anlatıcı: kelimeyi çubukta ya da yan kutuda tutup sürükler.
+function kelimePointerDown(e) {
+  if (!kelimeNarrating() || e.button > 0) return;
+  const chip = e.target.closest('.kelime-word');
+  if (!chip) {
+    // Seçili kelime varken çubuğa dokunmak onu oraya koyar.
+    if (kelimeSelected != null && e.currentTarget === $('kelime-track')) {
+      kelimePlace(kelimeSelected, kelimePosAt(e.clientY));
+      kelimeSelected = null;
+      renderKelime();
+    }
+    return;
+  }
+  e.preventDefault();
+  kelimeDrag = { id: Number(chip.dataset.id), pos: 0, fromTray: Boolean(chip.closest('#kelime-turn')), x0: e.clientX, y0: e.clientY, y: e.clientY, x: e.clientX, moved: false };
+}
+
+addEventListener('pointermove', (e) => {
+  const d = kelimeDrag;
+  if (!d) return;
+  d.x = e.clientX;
+  d.y = e.clientY;
+  if (!d.moved && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 6) return;
+  d.moved = true;
+  kelimeSelected = null;
+  kelimeDragUpdate();
+});
+
+function kelimeDragUpdate() {
+  const d = kelimeDrag;
+  d.pos = kelimePosAt(d.y);
+  renderKelimeBar();
+  if (performance.now() - kelimeLastEmit > 60) {
+    kelimeLastEmit = performance.now();
+    socket.emit('kelime:drag', { id: d.id, pos: d.pos });
+  }
+}
+
+// Sürüklerken kutunun kenarına gelince kendiliğinden kayar.
+setInterval(() => {
+  const d = kelimeDrag;
+  if (!d?.moved) return;
+  const box = $('kelime-scroll').getBoundingClientRect();
+  const edge = 40;
+  const step = d.y < box.top + edge ? -14 : d.y > box.bottom - edge ? 14 : 0;
+  if (!step || d.x < box.left || d.x > box.right || d.y < box.top - 80 || d.y > box.bottom + 80) return;
+  $('kelime-scroll').scrollTop += step;
+  kelimeDragUpdate();
+}, 30);
+
+addEventListener('pointerup', (e) => {
+  const d = kelimeDrag;
+  if (!d) return;
+  kelimeDrag = null;
+  if (!d.moved) {
+    // Dokunma: seç, sonra çubuğa dokunulunca yerleşir.
+    kelimeSelected = kelimeSelected === d.id ? null : d.id;
+    return renderKelime();
+  }
+  const box = $('kelime-scroll').getBoundingClientRect();
+  const inside = e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top - 40 && e.clientY <= box.bottom + 40;
+  if (inside || !d.fromTray) kelimePlace(d.id, kelimePosAt(e.clientY));
+  else socket.emit('kelime:drag', { id: d.id, pos: null });
+  renderKelime();
+});
+
+addEventListener('pointercancel', () => {
+  if (!kelimeDrag) return;
+  kelimeDrag = null;
+  renderKelime();
+});
+
+$('kelime-track').addEventListener('pointerdown', kelimePointerDown);
+$('kelime-turn').addEventListener('pointerdown', kelimePointerDown);
+
+$('kelime-start').onclick = () => socket.emit('kelime:start', {});
+$('kelime-start-bot').onclick = () => socket.emit('kelime:start', { bot: true });
+$('kelime-end').onclick = () => socket.emit('kelime:end');
+$('kelime-close').onclick = () => socket.emit('kelime:close');
+
+$('kelime-guess').onsubmit = (e) => {
+  e.preventDefault();
+  const input = $('kelime-guess-input');
+  const text = input.value.trim();
+  if (!text) return;
+  socket.emit('kelime:guess', text);
+  input.value = '';
+};
+
+$('kelime-pool-form').onsubmit = (e) => {
+  e.preventDefault();
+  const input = $('kelime-pool-input');
+  if (!input.value.trim()) return;
+  socket.emit('kelime:pool:add', input.value);
+  input.value = '';
+};
+
+function setKelime(game) {
+  const prev = kelime;
+  kelime = game;
+  kelimeRemote = null;
+  if (!game || game.id !== prev?.id || !game.pending) {
+    kelimeDrag = null;
+    kelimeSelected = null;
+  }
+  // Yeni oyun başlayınca çubuğun en üstü (sıcak uç) görünsün.
+  if (game && game.id !== prev?.id) $('kelime-scroll').scrollTop = 0;
+  renderKelime();
+}
+
+socket.on('kelime', setKelime);
+socket.on('kelime:pool', (pool) => {
+  kelimePool = pool;
+  renderKelimePool();
+});
+socket.on('kelime:drag', ({ gameId, id, pos }) => {
+  if (kelime?.id !== gameId) return;
+  kelimeRemote = pos == null ? null : { id, pos };
+  renderKelimeBar();
+});
+
+// ---------- Bot ----------
+// Açıkken yeni başlayan kelime, süre yarışı ve dinozor oyunlarına "Bot 🤖" da katılır ve rastgele oynar.
+
+let botOn = false;
+
+function setBot(on) {
+  botOn = on;
+  $('bot-toggle').textContent = on ? '🤖 Bot var · çıkar' : '🤖 Bot ekle';
+  $('bot-toggle').classList.toggle('on', on);
+  renderKelime();
+}
+$('bot-toggle').onclick = () => socket.emit('bot:set', !botOn);
+socket.on('bot', setBot);
+
+// ---------- Oyun öner ----------
+// İstenen oyun adım adım anlatılır. Yazılanlar bu cihazda taslak olarak durur; gönderilince herkese
+// görünen listeye düşer, site sahibi eklenip eklenmeyeceğine karar verir (durum sunucudaki kayıttan gelir).
+
+const PLAYERS = ['1', '2', '3', '4', '5', '6'];
+const ONER_STEPS = [
+  {
+    title: 'Oyun', head: 'Oyunun kendisi', intro: 'Önce kısaca ne olduğunu anlat.',
+    fields: [
+      { key: 'ad', label: 'Oyunun adı', required: true, max: 60, placeholder: 'ör. Kim Bu?' },
+      { key: 'ozet', label: 'Tek cümlede oyun', required: true, max: 200, placeholder: 'ör. Herkes sırayla bir ünlüyü anlatır, diğerleri bilmeye çalışır.' },
+      { key: 'tur', label: 'Ne tür bir oyun?', type: 'choice', options: ['Kelime', 'Bilgi / quiz', 'Refleks / hız', 'Çizim', 'Strateji', 'Kart / masa', 'Parti / sosyal', 'Diğer'] },
+      { key: 'ilham', label: 'Benzer bildiğin bir oyun ya da link', max: 300, placeholder: 'ör. Gartic, Codenames, bir YouTube videosu…', help: 'Varsa, nasıl bir şey istediğini anlamak çok kolaylaşır.' },
+    ],
+  },
+  {
+    title: 'Oyuncular', head: 'Kimler, nasıl oynuyor?', intro: 'Odada en fazla 6 kişi olabiliyor.',
+    fields: [
+      { row: [
+        { key: 'minOyuncu', label: 'En az kaç kişi?', type: 'choice', options: PLAYERS },
+        { key: 'maxOyuncu', label: 'En fazla kaç kişi?', type: 'choice', options: PLAYERS },
+      ] },
+      { key: 'takim', label: 'Oyuncular nasıl ayrılıyor?', type: 'choice', options: ['Herkes tek başına', 'Takımlar halinde', 'Herkes birlikte (iş birliği)', 'Biri herkese karşı'] },
+      { key: 'roller', label: 'Özel roller var mı?', type: 'textarea', max: 1000, placeholder: 'ör. Her turda biri anlatıcı olur, sırayla döner. Anlatıcı kelimeyi görür, diğerleri görmez.', help: 'Yoksa boş bırak.' },
+      { key: 'ses', label: 'Sesli konuşma ne kadar önemli?', type: 'choice', options: ['Konuşmak şart', 'Konuşmak oyunu güzelleştirir', 'Konuşmaya gerek yok'] },
+    ],
+  },
+  {
+    title: 'Akış', head: 'Oyun nasıl oynanıyor?', intro: 'En önemli kısım. Biri hiç bilmiyormuş gibi adım adım yaz.',
+    fields: [
+      { key: 'baslangic', label: 'Oyun nasıl başlıyor?', type: 'textarea', required: true, max: 1000, placeholder: 'ör. Biri "Başlat"a basar, herkese rastgele bir kart dağıtılır, 3 saniyelik geri sayım olur…' },
+      { key: 'akis', label: 'Bir tur / sıra adım adım nasıl işliyor?', type: 'textarea', required: true, max: 2000, big: true, placeholder: '1. Sıradaki oyuncu …\n2. Diğerleri …\n3. Doğru bilen olursa …\n4. Sonra sıra …', help: 'Kim ne yapıyor, ne zaman sıra geçiyor, doğru/yanlış olunca ne oluyor?' },
+      { key: 'bitis', label: 'Oyun ne zaman ve nasıl bitiyor?', type: 'textarea', required: true, max: 1000, placeholder: 'ör. 5 tur sonunda, ya da biri 30 puana ulaşınca.' },
+      { row: [
+        { key: 'sure', label: 'Bir oyun ne kadar sürsün?', type: 'choice', options: ['2 dk’dan kısa', '2-5 dk', '5-10 dk', '10-20 dk', '20 dk’dan uzun'] },
+        { key: 'turSayisi', label: 'Kaç tur?', max: 200, placeholder: 'ör. 5, ya da herkes bir kez anlatana kadar' },
+      ] },
+    ],
+  },
+  {
+    title: 'Ekran', head: 'Ekran ve kontroller', intro: 'Oynarken ekranda neler olsun, nasıl oynansın?',
+    fields: [
+      { key: 'ekran', label: 'Ekranda neler görünüyor?', type: 'textarea', max: 2000, big: true, placeholder: 'ör. Ortada büyük bir kart, altında kalan süre, sağda puan tablosu. Anlatıcının ekranında gizli kelime görünür, diğerlerinde "???".', help: 'Kimin ekranında ne var, ne gizli? İstersen çizer gibi tarif et.' },
+      { key: 'pc', label: 'Bilgisayarda nasıl oynanıyor?', type: 'textarea', max: 1000, placeholder: 'ör. Yazıp Enter’a basarak tahmin edilir; boşluk tuşu pas geçer.' },
+      { key: 'telefon', label: 'Telefonda nasıl oynanıyor?', type: 'textarea', max: 1000, placeholder: 'ör. Büyük butonlara dokunarak.' },
+      { key: 'zaman', label: 'Süre sınırları var mı?', type: 'textarea', max: 1000, placeholder: 'ör. Her tahmin için 15 sn, tüm oyun 5 dk. Süre bitince sıra geçer.' },
+    ],
+  },
+  {
+    title: 'Puan', head: 'Puan ve kazanma', intro: 'Kim, nasıl kazanıyor?',
+    fields: [
+      { key: 'puan', label: 'Puan nasıl kazanılıyor?', type: 'textarea', required: true, max: 1500, placeholder: 'ör. İlk bilen 3, ikinci 2, üçüncü 1 puan. Anlatan, bilen başına 1 puan alır.', help: 'Puan yoksa onu yaz: ör. "Puan yok, son kalan kazanır."' },
+      { key: 'kazanan', label: 'Kazanan nasıl belirleniyor?', type: 'textarea', max: 1000, placeholder: 'ör. En çok puanı olan. Eşitlikte en hızlı bilen.' },
+      { key: 'skorTablosu', label: 'Skorlar saklansın mı?', type: 'choice', options: ['Kalıcı “en iyiler” listesi olsun', 'Sadece o oyunun sonucu yeter', 'Gerek yok'] },
+    ],
+  },
+  {
+    title: 'Ayrıntı', head: 'İçerik ve özel durumlar', intro: 'Son birkaç şey.',
+    fields: [
+      { key: 'icerik', label: 'Oyunun içeriği nereden geliyor?', type: 'textarea', max: 1500, placeholder: 'ör. Kelimeleri oyuncular bir havuza ekler. / Hazır 500 soru olsun. / Herkes resim yükler.', help: 'Kelimeler, sorular, resimler… Kim ekler, hazır mı gelir?' },
+      { key: 'kenar', label: 'Şunlar olursa ne olsun?', type: 'textarea', max: 1500, placeholder: 'ör. Oyun ortasında biri çıkarsa sırası atlanır. Sonradan gelen izleyici olur.', help: 'Biri oyundan çıkarsa, geç gelirse, sırası gelip bir şey yapmazsa, hile yaparsa…' },
+      { key: 'notlar', label: 'Eklemek istediğin başka bir şey', type: 'textarea', max: 2000, placeholder: 'Ses efektleri, müzik, renkler, aklına gelen her şey.' },
+      { key: 'onem', label: 'Bu oyunu ne kadar istiyorsun?', type: 'choice', options: ['1', '2', '3', '4', '5'], help: '1: olsa fena olmaz · 5: çok istiyorum' },
+    ],
+  },
+];
+const ONER_REVIEW = ONER_STEPS.length; // son adım: gözden geçir ve gönder
+const onerFields = (step) => step.fields.flatMap((f) => f.row || [f]);
+const ONER_ALL = ONER_STEPS.flatMap(onerFields);
+const ONER_STATUS = { bekliyor: 'Bekliyor', eklenecek: 'Eklenecek', eklenmeyecek: 'Eklenmeyecek', eklendi: 'Eklendi' };
+
+let onerDraft = {};
+let onerStep = 0;
+let oneriler = [];
+let onerSending = false;
+try {
+  ({ draft: onerDraft = {}, step: onerStep = 0 } = JSON.parse(localStorage.getItem('oner-draft')) || {});
+} catch {}
+
+function saveOnerDraft() {
+  try { localStorage.setItem('oner-draft', JSON.stringify({ draft: onerDraft, step: onerStep })); } catch {}
+}
+
+function onerField(f) {
+  const wrap = document.createElement('div');
+  wrap.className = 'oner-field';
+  wrap.dataset.key = f.key;
+  const id = `oner-${f.key}`;
+  const label = document.createElement(f.type === 'choice' ? 'span' : 'label');
+  label.className = 'label';
+  label.textContent = f.label;
+  if (f.type !== 'choice') label.htmlFor = id;
+  if (f.required) label.append(Object.assign(document.createElement('span'), { className: 'req', textContent: '*', title: 'Zorunlu' }));
+  wrap.append(label);
+  if (f.help) wrap.append(Object.assign(document.createElement('p'), { className: 'help muted', textContent: f.help }));
+
+  if (f.type === 'choice') {
+    const chips = document.createElement('div');
+    chips.className = 'oner-chips';
+    for (const opt of f.options) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = opt;
+      b.className = onerDraft[f.key] === opt ? 'active' : '';
+      b.onclick = () => {
+        onerDraft[f.key] = onerDraft[f.key] === opt ? '' : opt; // seçiliye tekrar basınca kalkar
+        saveOnerDraft();
+        for (const x of chips.children) x.classList.toggle('active', onerDraft[f.key] === x.textContent);
+      };
+      chips.append(b);
+    }
+    wrap.append(chips);
+    return wrap;
+  }
+  const input = document.createElement(f.type === 'textarea' ? 'textarea' : 'input');
+  input.id = id;
+  input.maxLength = f.max;
+  input.placeholder = f.placeholder || '';
+  input.value = onerDraft[f.key] || '';
+  input.autocomplete = 'off';
+  if (f.type === 'textarea') input.rows = f.big ? 7 : 4;
+  const counter = Object.assign(document.createElement('span'), { className: 'counter muted' });
+  const count = () => {
+    const n = input.value.length;
+    counter.textContent = n > f.max * 0.7 ? `${n}/${f.max}` : '';
+  };
+  input.oninput = () => {
+    onerDraft[f.key] = input.value;
+    wrap.classList.remove('invalid');
+    count();
+    saveOnerDraft();
+  };
+  count();
+  wrap.append(input, counter);
+  return wrap;
+}
+
+function renderOnerSteps() {
+  const list = $('oner-steps');
+  list.replaceChildren();
+  [...ONER_STEPS, { title: 'Gönder' }].forEach((step, i) => {
+    const li = document.createElement('li');
+    li.className = i === onerStep ? 'current' : i < onerStep ? 'done' : '';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.innerHTML = `<b>${i + 1}</b><span></span>`;
+    b.querySelector('span').textContent = step.title;
+    // İleri atlarken araya giren adımların zorunlu alanları da dolu olmalı.
+    b.onclick = () => {
+      if (i > onerStep && !onerValid(onerStep, i)) return;
+      onerGo(i);
+    };
+    li.append(b);
+    list.append(li);
+  });
+}
+
+function renderOner() {
+  renderOnerSteps();
+  const box = $('oner-step');
+  box.replaceChildren();
+  $('oner-error').hidden = true;
+  $('oner-prev').hidden = onerStep === 0;
+  $('oner-next').textContent = onerStep === ONER_REVIEW ? 'Gönder' : onerStep === ONER_REVIEW - 1 ? 'Gözden geçir' : 'İleri';
+  $('oner-next').disabled = onerSending;
+  if (onerStep === ONER_REVIEW) {
+    box.append(Object.assign(document.createElement('h3'), { textContent: 'Gözden geçir ve gönder' }));
+    box.append(Object.assign(document.createElement('p'), { className: 'muted small', textContent: 'Bir şeyi değiştirmek için o bölümün "Düzenle"sine bas.' }));
+    const review = document.createElement('div');
+    review.className = 'oner-review';
+    ONER_STEPS.forEach((step, i) => {
+      const sec = document.createElement('section');
+      sec.append(Object.assign(document.createElement('h4'), { textContent: step.head }));
+      sec.append(onerDl(onerFields(step), onerDraft));
+      const edit = Object.assign(document.createElement('button'), { type: 'button', className: 'sm ghost edit', textContent: 'Düzenle' });
+      edit.onclick = () => onerGo(i);
+      sec.append(edit);
+      review.append(sec);
+    });
+    box.append(review);
+    return;
+  }
+  const step = ONER_STEPS[onerStep];
+  box.append(Object.assign(document.createElement('h3'), { textContent: `${onerStep + 1}. ${step.head}` }));
+  box.append(Object.assign(document.createElement('p'), { className: 'muted small', textContent: step.intro }));
+  for (const f of step.fields) {
+    if (!f.row) {
+      box.append(onerField(f));
+      continue;
+    }
+    const row = document.createElement('div');
+    row.className = 'oner-row';
+    row.append(...f.row.map(onerField));
+    box.append(row);
+  }
+}
+
+// Doldurulan alanların listesi (boşlar "—")
+function onerDl(fields, values) {
+  const dl = document.createElement('dl');
+  for (const f of fields) {
+    dl.append(Object.assign(document.createElement('dt'), { textContent: f.label }));
+    dl.append(Object.assign(document.createElement('dd'), { textContent: values[f.key]?.trim() || '—' }));
+  }
+  return dl;
+}
+
+// from..to-1 arasındaki adımların zorunlu alanları dolu mu? Değilse ilk eksik adıma gider ve gösterir.
+function onerValid(from, to = from + 1) {
+  for (let i = from; i < Math.min(to, ONER_REVIEW); i++) {
+    const missing = onerFields(ONER_STEPS[i]).filter((f) => f.required && !onerDraft[f.key]?.trim());
+    if (!missing.length) continue;
+    if (i !== onerStep) onerGo(i);
+    for (const f of missing) document.querySelector(`.oner-field[data-key="${f.key}"]`)?.classList.add('invalid');
+    $('oner-error').textContent = `Şunları doldurman gerekiyor: ${missing.map((f) => f.label).join(', ')}`;
+    $('oner-error').hidden = false;
+    document.querySelector('.oner-field.invalid input, .oner-field.invalid textarea')?.focus();
+    return false;
+  }
+  return true;
+}
+
+function onerGo(i) {
+  onerStep = i;
+  saveOnerDraft();
+  renderOner();
+  $('oner-steps').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+$('oner-prev').onclick = () => onerGo(Math.max(0, onerStep - 1));
+
+$('oner-clear').onclick = () => {
+  if (!Object.values(onerDraft).some((v) => v?.trim())) return;
+  if (!$('oner-clear').dataset.sure) {
+    // Yanlışlıkla silinmesin: ikinci basışta siler.
+    $('oner-clear').dataset.sure = '1';
+    $('oner-clear').textContent = 'Emin misin? Tekrar bas';
+    setTimeout(() => {
+      delete $('oner-clear').dataset.sure;
+      $('oner-clear').textContent = 'Taslağı temizle';
+    }, 3000);
+    return;
+  }
+  onerDraft = {};
+  onerGo(0);
+};
+
+$('oner-form').onsubmit = async (e) => {
+  e.preventDefault();
+  if (onerStep < ONER_REVIEW) {
+    if (onerValid(onerStep)) onerGo(onerStep + 1);
+    return;
+  }
+  if (!onerValid(0, ONER_REVIEW) || onerSending) return;
+  onerSending = true;
+  $('oner-next').disabled = true;
+  const res = await emitAck(10000, 'oneri:add', onerDraft);
+  onerSending = false;
+  $('oner-next').disabled = false;
+  if (!res) return toast('Sunucuya ulaşılamadı, tekrar dene. Yazdıkların duruyor.');
+  if (res.error) return toast(res.error);
+  onerDraft = {};
+  onerGo(0);
+  toast('Önerin gönderildi, teşekkürler! Aşağıdaki listede görünüyor.');
+};
+
+function renderOneriler() {
+  $('oner-count').textContent = oneriler.length || '';
+  const list = $('oner-list');
+  list.replaceChildren();
+  for (const o of [...oneriler].reverse()) {
+    const li = document.createElement('li');
+    const det = document.createElement('details');
+    det.className = 'oner-item';
+    const sum = document.createElement('summary');
+    sum.append(makeAvatar(o.by));
+    const text = document.createElement('div');
+    text.className = 'q-text';
+    text.append(Object.assign(document.createElement('div'), { className: 'q-title', textContent: o.fields.ad }));
+    const date = new Date(o.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    text.append(Object.assign(document.createElement('div'), { className: 'muted small', textContent: `${o.by} · ${date} · ${o.fields.ozet}` }));
+    sum.append(text, Object.assign(document.createElement('span'), { className: `oner-status ${o.status}`, textContent: ONER_STATUS[o.status] || o.status }));
+    det.append(sum);
+    const body = document.createElement('div');
+    body.className = 'oner-body';
+    if (o.note) body.append(Object.assign(document.createElement('p'), { className: 'oner-note', textContent: o.note }));
+    for (const step of ONER_STEPS) {
+      const fields = onerFields(step).filter((f) => o.fields[f.key]);
+      if (!fields.length) continue;
+      body.append(Object.assign(document.createElement('h4'), { textContent: step.head }), onerDl(fields, o.fields));
+    }
+    if (o.by === myName && o.status === 'bekliyor') {
+      const del = Object.assign(document.createElement('button'), { type: 'button', className: 'sm ghost danger', textContent: 'Önerimi geri çek' });
+      del.style.justifySelf = 'start';
+      del.onclick = () => socket.emit('oneri:remove', o.id);
+      body.append(del);
+    }
+    det.append(body);
+    li.append(det);
+    list.append(li);
+  }
+  if (!oneriler.length) list.append(Object.assign(document.createElement('li'), { className: 'muted small empty', textContent: 'Henüz öneri yok. İlk sen yaz!' }));
+}
+
+socket.on('oneriler', (list) => {
+  oneriler = list;
+  renderOneriler();
+});
+
+renderOner();
 
 // ---------- Dinozor koşusu ----------
 // Dünya birimleriyle çalışır; tuval genişliği ne olursa olsun herkes aynı genişlikte bir alan görür,
@@ -2183,13 +2961,13 @@ function renderChatMessage({ from, name, text, image, ts, system }) {
   content.append(who, when, body);
   if (image) {
     const link = document.createElement('a');
-    link.href = image;
+    link.href = abs(image);
     link.target = '_blank';
     link.rel = 'noopener';
     const img = document.createElement('img');
     img.className = 'chat-img';
     img.alt = `${name} fotoğraf gönderdi`;
-    img.src = image;
+    img.src = abs(image);
     // Resim yüklenince boyu değişir; alttaysak aşağıda kalalım.
     img.onload = () => nearBottom && (list.scrollTop = list.scrollHeight);
     link.append(img);
@@ -2440,9 +3218,9 @@ function startNative(stream) {
 let recWorkletReady = null;
 
 async function startMp3(input) {
-  recWorkletReady ??= audioCtx.audioWorklet.addModule('rec-worklet.js');
+  recWorkletReady ??= audioCtx.audioWorklet.addModule('/rec-worklet.js');
   await recWorkletReady;
-  const worker = new Worker('mp3-worker.js');
+  const worker = new Worker('/mp3-worker.js');
   worker.postMessage({ type: 'start', sampleRate: audioCtx.sampleRate, kbps: 160 });
   // Çıkışı yok: hiçbir yere bağlanmadan sadece dinler.
   const tap = new AudioWorkletNode(audioCtx, 'pcm-tap', {
@@ -3273,7 +4051,7 @@ function renderCustomSfx() {
 async function setCustomSfx(list) {
   customSfx = list;
   renderCustomSfx();
-  await Promise.all(list.map((fx) => Sfx.addCustom(audioCtx, fx.id, `sfx-custom/${encodeURIComponent(ROOM)}/${fx.id}`).catch(() => {})));
+  await Promise.all(list.map((fx) => Sfx.addCustom(audioCtx, fx.id, `/sfx-custom/${encodeURIComponent(ROOM)}/${fx.id}`).catch(() => {})));
 }
 
 socket.on('sfx:list', setCustomSfx);
@@ -3387,7 +4165,7 @@ async function searchYouTube(q) {
   $('search-results').replaceChildren();
   let data;
   try {
-    const res = await fetch(`search?q=${encodeURIComponent(q)}`);
+    const res = await fetch(`/search?q=${encodeURIComponent(q)}`);
     data = await res.json();
   } catch {
     data = { error: 'Arama yapılamadı.' };
@@ -3425,15 +4203,9 @@ $('search-close').onclick = () => {
 
 // ---------- Giriş / çıkış ----------
 
-// Herkese açık tek oda "genel"; giriş ekranında kimlerin içeride olduğunu gösteririz.
-// Gizli odaya arayüzde bir yol yok, sadece linkle girilir: /#gizli=şifre. Aynı şifreli linke
-// gelenler genel odadan ayrı bir odada buluşur.
-const secret = (new URLSearchParams(location.hash.slice(1)).get('gizli') || '')
-  .trim().toLocaleLowerCase('tr-TR').slice(0, 24);
-const ROOM = secret ? `gizli-${secret}` : 'genel';
-
-// Önceden çalanlar her oda için ayrı saklanır (genel oda eski anahtarı kullanmaya devam eder).
-const historyKey = () => (ROOM === 'genel' ? 'history' : `history:${ROOM}`);
+// Tek oda var: "genel"; giriş ekranında kimlerin içeride olduğunu gösteririz.
+const ROOM = 'genel';
+const historyKey = () => 'history';
 
 // ---------- Hesap ----------
 // Giriş yapınca sunucunun verdiği oturum anahtarı tarayıcıda saklanır; çıkış yapılana kadar
@@ -3592,22 +4364,14 @@ $('avatar-remove').onclick = $('profile-remove').onclick = async () => {
   renderAccount();
 };
 
-if (secret) {
-  $('room-status').textContent = 'Gizli oda';
-  $('join-btn').textContent = 'Gizli odaya katıl';
-} else {
-  fetch('/status')
-    .then((r) => r.json())
-    .then(({ names, max }) => {
-      $('room-status').textContent = names.length
-        ? `Şu an odada (${names.length}/${max}): ${names.join(', ')}`
-        : 'Oda şu an boş.';
-    })
-    .catch(() => {});
-}
-
-// Açık sekmeye gizli link yapıştırılınca sadece # değişir, sayfa yenilenmez; oda yeniden seçilsin.
-addEventListener('hashchange', () => location.reload());
+fetch('/status')
+  .then((r) => r.json())
+  .then(({ names, max }) => {
+    $('room-status').textContent = names.length
+      ? `Şu an odada (${names.length}/${max}): ${names.join(', ')}`
+      : 'Oda şu an boş.';
+  })
+  .catch(() => {});
 
 $('join-form').onsubmit = async (e) => {
   e.preventDefault();
@@ -3665,10 +4429,6 @@ $('join-form').onsubmit = async (e) => {
 
   $('join-screen').hidden = true;
   $('room-screen').hidden = false;
-  if (secret) {
-    document.title = `Gizli oda · ${document.title}`;
-    toast('Gizli odadasın; sadece linki bilenler girebilir');
-  }
 
   const selfRow = personRow(name, true);
   setStatus(selfRow, localStream ? 'Sen' : 'Sadece dinleyici');
@@ -3681,6 +4441,9 @@ $('join-form').onsubmit = async (e) => {
   startUsageMeter();
 
   applyJoin(res);
+  // Yenilenen ya da linkle açılan sayfa adresteki ekranda açılır.
+  applyView(history.state?.page ? history.state : pathView(location.pathname));
+  history.replaceState(currentView(), '', viewPath(currentView()));
   sfxLoaded.then(() => Sfx.join(audioCtx, sfxBus));
 
   // YouTube yüklenemese de oda çalışır; oynatıcı hazır olunca video başlar.
@@ -3712,18 +4475,23 @@ function applyJoin(res) {
   startRaceTicker();
   setDino(res.dino);
   renderDinoBoard(res.dinoBoard);
+  setBot(Boolean(res.bot));
+  oneriler = res.oneriler || [];
+  renderOneriler();
+  kelimePool = res.kelimePool || [];
+  setKelime(res.kelime);
   renderTiming();
   media = res.media;
   renderQueue();
   applyMedia();
 }
 
-const inviteLink = () => (secret ? `${location.origin}/#gizli=${encodeURIComponent(secret)}` : location.origin);
+const inviteLink = () => location.origin;
 
 $('copy-link').onclick = async () => {
   try {
     await navigator.clipboard.writeText(inviteLink());
-    toast(secret ? 'Gizli oda linki kopyalandı' : 'Davet linki kopyalandı');
+    toast('Davet linki kopyalandı');
   } catch {
     toast(inviteLink());
   }

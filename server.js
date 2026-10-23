@@ -52,6 +52,39 @@ const DINO_PACE = { runStart: 460, runAccel: 30, runMax: 1400 };
 const DINO_SILENT = 3000; // ms; bu kadar konum göndermeyen oyuncu (sekmesi kapalı, bağlantısı kopmuş) ölmüş sayılır
 const DINO_BOARD = 10; // her mod için saklanan en iyi skor sayısı
 const DINO_BOARD_MODES = ['auto', 'hold', 'tap']; // 'auto' şu anki tek mod; diğerleri eski skorlar // en öndekinin bu kadar gerisinde kalan ölür (oyundaki ekran payı + gecikme payı)
+const KELIME_TIME = 6 * 60 * 1000; // ms; tahmin edenlerin hedef kelimeyi bulmak için toplam süresi
+const KELIME_TURN = 10000;       // ms; anlatıcının gelen kelimeyi yerleştirme süresi
+const KELIME_MAX_LENGTH = 40;
+const KELIME_POOL_MAX = 1000;    // odanın kelime havuzundaki en fazla kelime
+const KELIME_WORDS_MAX = 200;    // bir oyunda yazılabilecek en fazla tahmin
+const KELIME_TOP = 10;           // puan alan ilk kelime sayısı (1. kelime 10 puan, 10. kelime 1 puan)
+const KELIME_BONUS = 15;         // hedef kelimeyi bilene
+const KELIME_RECENT = 20;        // son çıkan bu kadar kelime tekrar seçilmez (havuz yeterliyse)
+// Bot: tek başına oynarken oyunların gidişatını görmek için rastgele oynar (iyi oynamaz).
+// Adında emoji olduğu için hiçbir hesabın adıyla çakışmaz.
+const BOT = 'Bot 🤖';
+const BOT_WORDS = ['ev', 'deniz', 'kitap', 'araba', 'güneş', 'kedi', 'ağaç', 'su', 'ateş', 'telefon', 'müzik', 'okul', 'yol',
+  'kahve', 'çay', 'bulut', 'yağmur', 'kar', 'dağ', 'şehir', 'para', 'zaman', 'rüya', 'oyun', 'film', 'renk', 'ışık', 'gece',
+  'sabah', 'yemek', 'ekmek', 'elma', 'balık', 'kuş', 'köpek', 'çiçek', 'masa', 'kapı', 'pencere', 'saat', 'ayakkabı', 'şapka',
+  'tren', 'uçak', 'gemi', 'futbol', 'şarkı', 'resim', 'kalem', 'defter', 'bilgisayar', 'internet', 'yaz', 'kış', 'bahar',
+  'sonbahar', 'dost', 'aile', 'bebek', 'doktor', 'hastane', 'market', 'pazar', 'tatil', 'plaj', 'orman', 'nehir', 'göl'];
+const rand = (min, max) => min + Math.random() * (max - min);
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
+// Oyun önerileri: alan adı -> en fazla uzunluk (istemcideki formla aynı alanlar)
+const ONERI_FIELDS = {
+  ad: 60, ozet: 200, tur: 40, ilham: 300,
+  minOyuncu: 2, maxOyuncu: 2, takim: 60, roller: 1000, ses: 60,
+  baslangic: 1000, akis: 2000, bitis: 1000, sure: 20, turSayisi: 200,
+  ekran: 2000, pc: 1000, telefon: 1000, zaman: 1000,
+  puan: 1500, kazanan: 1000, skorTablosu: 60,
+  icerik: 1500, kenar: 1500, notlar: 2000, onem: 2,
+};
+const ONERI_REQUIRED = ['ad', 'ozet', 'baslangic', 'akis', 'bitis', 'puan'];
+const ONERI_STATUS = ['bekliyor', 'eklenecek', 'eklenmeyecek', 'eklendi', 'silindi'];
+const ONERI_PER_USER = 20;      // bir kişinin bekleyen en fazla önerisi
+const ONERI_COOLDOWN = 20000;   // ms
+const ONERI_REFRESH = 60000;    // ms; kayıttaki durum değişiklikleri bu aralıkla okunur
 const IMAGE_MAX_BYTES = 3 * 1024 * 1024; // istemci zaten küçültüp gönderir
 const IMAGE_COOLDOWN = 2000; // ms
 // Dosyanın ilk baytlarıyla gerçekten resim olduğunu doğrularız (uzantıya/türe güvenmeyiz).
@@ -66,6 +99,8 @@ const app = express();
 // Efekt kayıtları değişmez; tarayıcı bir kez indirip saklasın.
 app.use('/sfx', express.static(path.join(__dirname, 'public/sfx'), { maxAge: '30d' }));
 app.use(express.static(path.join(__dirname, 'public')));
+// Sayfanın ekranları kendi adresinde açılır (/gecmis, /oyunlar/kelime ...); hepsi aynı sayfadır.
+app.get(/^\/(gecmis|oyunlar)(\/[\w-]*)*\/?$/, (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 accounts.setup(app, { imageTypes: IMAGE_TYPES, onProfile: (name, avatar) => io.emit('profile', { name, avatar }) });
 
 // ICE sunucuları: STUN herkese yeter, ama mobil hat ve bazı modemlerde (CGNAT) doğrudan
@@ -232,6 +267,8 @@ const histories = new Map(); // oda kodu -> [{ videoId, title, by, playedAt }]
 const customSfxByRoom = new Map(); // oda kodu -> Map<id, { buf, label, by }>
 const tierListsByRoom = new Map(); // oda kodu -> [tier list] (aşağıda)
 const dinoBoards = new Map(); // oda kodu -> { hold: [{ name, dist, at }], tap: [...] } en iyi skorlar
+const kelimePools = new Map(); // oda kodu -> [{ text, by }] kelime oyununun havuzu
+const oneriler = []; // oyun önerileri (tek oda var): [{ id, by, at, fields, status, note, updatedAt }]
 
 function getRoom(code) {
   if (!rooms.has(code)) {
@@ -239,6 +276,7 @@ function getRoom(code) {
     if (!customSfxByRoom.has(code)) customSfxByRoom.set(code, new Map());
     if (!tierListsByRoom.has(code)) tierListsByRoom.set(code, []);
     if (!dinoBoards.has(code)) dinoBoards.set(code, { auto: [], hold: [], tap: [] });
+    if (!kelimePools.has(code)) kelimePools.set(code, []);
     rooms.set(code, {
       code,
       history: histories.get(code),
@@ -246,6 +284,10 @@ function getRoom(code) {
       tierLists: tierListsByRoom.get(code),
       timing: { target: 10, results: [], race: null }, // süre tahmini: sadece hafızada
       dinoBoard: dinoBoards.get(code),
+      kelimePool: kelimePools.get(code),
+      kelime: null, // kelime oyunu (aşağıda); hedef kelime sadece anlatıcıya gider
+      kelimeRecent: [],
+      bot: false, // açıkken yeni başlayan oyunlara Bot da katılır
       dino: null, // dinozor koşusu: { id, mode, seed, startAt, players: { isim: { dist, dead, seen } }, done, jef }
       users: new Map(),
       current: null,
@@ -471,14 +513,13 @@ io.on('connection', (socket) => {
   socket.on('time', (ack) => typeof ack === 'function' && ack(Date.now()));
 
   // İsim hesaptan gelir; herkes kendi hesabıyla girer.
-  socket.on('join', ({ room: roomCode, token, clientId } = {}, ack) => {
+  socket.on('join', ({ token, clientId } = {}, ack) => {
     if (typeof ack !== 'function' || code) return;
-    roomCode = String(roomCode || '').trim().toLowerCase().slice(0, 32);
+    const roomCode = 'genel'; // tek oda var
     clientId = String(clientId || '').slice(0, 64);
     const account = accounts.accountByToken(token);
     if (!account) return ack({ error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true });
     const { name } = account;
-    if (!roomCode) return ack({ error: 'Oda kodu gerekli.' });
 
     const room = getRoom(roomCode);
 
@@ -507,7 +548,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -933,6 +974,7 @@ io.on('connection', (socket) => {
     const targets = Array.from({ length: rounds }, () => min + Math.floor(Math.random() * (max - min + 1)));
     const by = room.users.get(socket.id).name;
     const players = [...new Set([...room.users.values()].map((u) => u.name))];
+    if (room.bot) players.push(BOT);
     room.timing.race = {
       id: Date.now(), by, targets, players, scores: Object.fromEntries(players.map((n) => [n, []])),
       round: 0, ended: 0, roundStart: 0, revealUntil: null, done: false,
@@ -984,8 +1026,10 @@ io.on('connection', (socket) => {
     const by = room.users.get(socket.id).name;
     const players = {};
     for (const u of room.users.values()) players[u.name] = { dist: 0, dead: false };
+    if (room.bot) players[BOT] = { dist: 0, dead: false };
     room.dino = { id: Date.now(), mode, seed: Math.floor(Math.random() * 2 ** 31), startAt: Date.now() + DINO_COUNTDOWN, players, done: false };
     io.to(code).emit('dino', room.dino);
+    if (room.bot) dinoBot(room, room.dino);
     postSystem(room, `${by} dinozor koşusu başlattı`);
   });
 
@@ -1011,6 +1055,158 @@ io.on('connection', (socket) => {
     killDino(room, room.users.get(socket.id).name, x);
   });
 
+  socket.on('bot:set', (on) => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (room.bot === Boolean(on)) return;
+    room.bot = Boolean(on);
+    io.to(code).emit('bot', room.bot);
+    kelimeBotLater(room); // oyun sürerken eklenirse sırası gelince katılır
+    postSystem(room, `${room.users.get(socket.id).name} botu ${room.bot ? 'ekledi; yeni başlayan oyunlara katılır' : 'çıkardı'}`);
+  });
+
+  // ---------- Oyun önerileri ----------
+
+  let lastOneri = 0;
+  socket.on('oneri:add', (data, ack) => {
+    if (!code || typeof ack !== 'function' || !data || typeof data !== 'object') return;
+    const by = getRoom(code).users.get(socket.id).name;
+    if (Date.now() - lastOneri < ONERI_COOLDOWN) return ack({ error: 'Biraz bekleyip tekrar gönder.' });
+    if (oneriler.filter((o) => o.by === by && o.status === 'bekliyor').length >= ONERI_PER_USER) {
+      return ack({ error: `En fazla ${ONERI_PER_USER} bekleyen önerin olabilir.` });
+    }
+    const fields = {};
+    for (const [key, max] of Object.entries(ONERI_FIELDS)) {
+      const value = typeof data[key] === 'string' ? data[key].trim().slice(0, max) : '';
+      if (value) fields[key] = value;
+    }
+    const missing = ONERI_REQUIRED.filter((k) => !fields[k]);
+    if (missing.length) return ack({ error: 'Zorunlu alanlar boş.', missing });
+    lastOneri = Date.now();
+    const now = Date.now();
+    oneriler.push({ id: crypto.randomUUID(), by, at: now, fields, status: 'bekliyor', note: '', updatedAt: now });
+    saveOneriler();
+    io.emit('oneriler', oneriView());
+    ack({ ok: true });
+  });
+
+  // Kişi sadece kendi bekleyen önerisini geri çekebilir.
+  socket.on('oneri:remove', (id) => {
+    if (!code) return;
+    const by = getRoom(code).users.get(socket.id).name;
+    const o = oneriler.find((x) => x.id === id);
+    if (!o || o.by !== by || o.status !== 'bekliyor') return;
+    Object.assign(o, { status: 'silindi', updatedAt: Date.now() });
+    saveOneriler();
+    io.emit('oneriler', oneriView());
+  });
+
+  // ---------- Kelime ----------
+  // Anlatıcı hedef kelimeyi görür; diğerleri teker teker tahmin yazar, anlatıcı her tahmini
+  // sıcak-soğuk çubuğuna yerleştirir (pos: 0 en soğuk, 1 en sıcak). Sıra anlatıcıdayken tahmin yazılamaz.
+
+  const kelimeGame = (fn) => (...args) => {
+    if (!code) return;
+    const room = getRoom(code);
+    const game = room.kelime;
+    if (!game || game.done) return;
+    fn(game, room, room.users.get(socket.id).name, ...args);
+  };
+
+  socket.on('kelime:pool:add', (text) => {
+    if (!code || typeof text !== 'string') return;
+    const room = getRoom(code);
+    const by = room.users.get(socket.id).name;
+    const have = new Set(room.kelimePool.map((w) => kelimeKey(w.text)));
+    let added = 0;
+    for (const raw of text.split(/[,\n]/)) {
+      const word = kelimeClean(raw);
+      if (!word || have.has(kelimeKey(word)) || room.kelimePool.length >= KELIME_POOL_MAX) continue;
+      have.add(kelimeKey(word));
+      room.kelimePool.push({ text: word, by });
+      added++;
+    }
+    if (!added) return;
+    saveKelimePool(room);
+    io.to(code).emit('kelime:pool', room.kelimePool);
+  });
+
+  socket.on('kelime:pool:remove', (text) => {
+    if (!code || typeof text !== 'string') return;
+    const room = getRoom(code);
+    const i = room.kelimePool.findIndex((w) => w.text === text);
+    if (i < 0) return;
+    room.kelimePool.splice(i, 1);
+    saveKelimePool(room);
+    io.to(code).emit('kelime:pool', room.kelimePool);
+  });
+
+  // Başlatan anlatıcı olur; bot açıksa anlatıcı bot da olabilir.
+  socket.on('kelime:start', ({ bot } = {}) => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (room.kelime && !room.kelime.done) return;
+    if (!room.kelimePool.length) return socket.emit('notice', 'Önce havuza kelime ekleyin.');
+    const starter = room.users.get(socket.id).name;
+    const narrator = bot && room.bot ? BOT : starter;
+    if (new Set([...room.users.values()].map((u) => u.name)).size + (room.bot ? 1 : 0) < 2) {
+      return socket.emit('notice', 'Kelime için en az iki kişi gerekli; tek başınaysan botu ekle.');
+    }
+    const fresh = room.kelimePool.filter((w) => !room.kelimeRecent.includes(kelimeKey(w.text)));
+    const pick = (fresh.length ? fresh : room.kelimePool)[Math.floor(Math.random() * (fresh.length || room.kelimePool.length))];
+    const keep = Math.min(KELIME_RECENT, room.kelimePool.length - 1);
+    room.kelimeRecent = keep > 0 ? [...room.kelimeRecent, kelimeKey(pick.text)].slice(-keep) : [];
+    room.kelime = {
+      id: Date.now(), narrator, target: pick.text, endAt: Date.now() + KELIME_TIME,
+      words: [], pending: null, turnUntil: null, found: null, done: false, scores: null,
+    };
+    kelimeTimer(room, 'game', KELIME_TIME, () => finishKelime(room, 'Süre doldu.'));
+    sendKelime(room);
+    kelimeBotLater(room);
+    postSystem(room, narrator === starter ? `${narrator} kelime oyununu başlattı; anlatıcı o.` : `${starter} kelime oyununu başlattı; anlatıcı ${BOT}.`);
+  });
+
+  socket.on('kelime:guess', kelimeGame((game, room, name, text) => {
+    const error = kelimeGuess(room, name, text);
+    if (error) socket.emit('notice', error);
+  }));
+
+  // Anlatıcı sürüklerken kelimenin yeri diğerlerine anlık gider (kaydedilmez).
+  socket.on('kelime:drag', kelimeGame((game, room, name, { id, pos } = {}) => {
+    if (name !== game.narrator || !game.pending || !(pos === null || Number.isFinite(pos))) return;
+    // pos null: sürükleme bırakıldı, kelime yerleştirilmedi
+    socket.to(code).volatile.emit('kelime:drag', { gameId: game.id, id, pos: pos === null ? null : Math.min(1, Math.max(0, pos)) });
+  }));
+
+  // Sıra anlatıcıdayken gelen kelime de eskiler de yerleştirilebilir.
+  socket.on('kelime:place', kelimeGame((game, room, name, { id, pos } = {}) => {
+    if (name !== game.narrator || !game.pending || !Number.isFinite(pos)) return;
+    const w = game.words.find((x) => x.id === id);
+    if (!w) return;
+    w.pos = Math.min(1, Math.max(0, pos));
+    sendKelime(room);
+  }));
+
+  // Gelen kelime yerleştirildiyse anlatıcı sırayı süre dolmadan bitirebilir.
+  socket.on('kelime:turn', kelimeGame((game, room, name) => {
+    if (name !== game.narrator || !game.pending) return;
+    if (game.words.find((w) => w.id === game.pending).pos == null) return;
+    endKelimeTurn(room);
+  }));
+
+  socket.on('kelime:end', kelimeGame((game, room, name) => {
+    if (name !== game.narrator) return;
+    finishKelime(room, `${name} kelime oyununu bitirdi.`);
+  }));
+
+  socket.on('kelime:close', () => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (!room.kelime?.done) return;
+    room.kelime = null;
+    sendKelime(room);
+  });
+
   socket.on('disconnect', () => {
     if (!code) return;
     const room = getRoom(code);
@@ -1028,8 +1224,12 @@ io.on('connection', (socket) => {
       if (current) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
       if (current) checkRaceRound(current); // çıkan kişi durdurmamışsa kalanlar beklemesin
       if (current) killDino(current, user.name);
+      if (current?.kelime && !current.kelime.done && current.kelime.narrator === user.name) {
+        finishKelime(current, `Anlatıcı ${user.name} ayrıldı, kelime oyunu bitti.`);
+      }
     }, REJOIN_GRACE));
     if (room.users.size === 0) {
+      clearKelimeTimers(code);
       rooms.delete(code);
       deleteRoomImages(code);
     }
@@ -1054,6 +1254,16 @@ function startRaceRound(room, i) {
   Object.assign(race, { round: i, roundStart: Date.now() + RACE_COUNTDOWN, revealUntil: null });
   io.to(room.code).emit('timing', room.timing);
   raceTimer(room, RACE_COUNTDOWN + raceRoundTime(race), () => endRaceRound(room));
+  // Bot hedefin ±1,5 sn yakınında durdurur.
+  if (race.scores[BOT]) {
+    const elapsed = Math.max(300, race.targets[i] * 1000 + rand(-1500, 1500));
+    setTimeout(() => {
+      if (room.timing.race !== race || race.done || race.round !== i || race.revealUntil || race.scores[BOT].length !== i) return;
+      race.scores[BOT].push(Math.round(elapsed));
+      io.to(room.code).emit('timing', room.timing);
+      checkRaceRound(room);
+    }, RACE_COUNTDOWN + elapsed);
+  }
 }
 
 // Odada olan oyuncuların hepsi durdurduysa tur kapanır.
@@ -1061,6 +1271,7 @@ function checkRaceRound(room) {
   const race = room.timing.race;
   if (!race || race.done || race.revealUntil) return;
   const here = new Set([...room.users.values()].map((u) => u.name));
+  here.add(BOT);
   if (race.players.filter((n) => here.has(n)).every((n) => race.scores[n].length > race.round)) endRaceRound(room);
 }
 
@@ -1090,6 +1301,174 @@ function finishRace(room, endedBy) {
   postSystem(room, `${prefix}🏆 Kazanan: ${winners.join(', ')} (toplam ${secs} sn fark)`);
 }
 
+// ---------- Oyun önerileri ----------
+// Durumları (eklenecek / eklenmeyecek / eklendi) site sahibi kayıttan değiştirir. Hem bilgisayardaki hem canlı
+// sunucu aynı kaydı kullandığından yazmadan önce kayıttakiyle birleştirilir: her öneride en son değişen sürüm kalır.
+// Silinen öneri de "silindi" olarak kalır, yoksa birleştirmede geri gelirdi.
+
+const oneriView = () => oneriler.filter((o) => o.status !== 'silindi');
+
+function mergeOneriler(from) {
+  if (!Array.isArray(from)) return false;
+  let changed = false;
+  for (const o of from) {
+    const i = oneriler.findIndex((x) => x.id === o.id);
+    if (i < 0) oneriler.push(o);
+    else if ((o.updatedAt || 0) > (oneriler[i].updatedAt || 0)) oneriler[i] = o;
+    else continue;
+    changed = true;
+  }
+  oneriler.sort((a, b) => a.at - b.at);
+  return changed;
+}
+
+async function readOneriler() {
+  if (!store.enabled) return false;
+  try {
+    const [row] = await store.select('room_state', 'room=eq.genel&kind=eq.oneriler&select=data');
+    return mergeOneriler(row?.data);
+  } catch (err) {
+    console.warn('öneri okuma', err.message);
+    return false;
+  }
+}
+
+async function saveOneriler() {
+  await readOneriler();
+  store.save('genel', 'oneriler', () => oneriler);
+}
+
+setInterval(async () => {
+  if (await readOneriler()) io.emit('oneriler', oneriView());
+}, ONERI_REFRESH);
+
+// ---------- Kelime ----------
+
+const kelimeClean = (text) => String(text).replace(/\s+/g, ' ').trim().slice(0, KELIME_MAX_LENGTH);
+// Karşılaştırma büyük/küçük harfe ve Türkçe i/ı'ya duyarsız değil: "Işık" = "ışık", ama "isik" değil.
+const kelimeKey = (text) => kelimeClean(text).toLocaleLowerCase('tr');
+const saveKelimePool = (room) => store.save(room.code, 'kelimeler', () => room.kelimePool);
+
+// Hedef kelime oyun bitene kadar sadece anlatıcıya gönderilir.
+function kelimeView(game, name) {
+  if (!game) return null;
+  if (game.done || name === game.narrator) return game;
+  return { ...game, target: null };
+}
+
+function sendKelime(room) {
+  for (const [id, user] of room.users) io.to(id).emit('kelime', kelimeView(room.kelime, user.name));
+}
+
+const kelimeTimers = new Map(); // `${oda}:${tür}` -> zamanlayıcı
+
+function kelimeTimer(room, kind, ms, fn) {
+  const key = `${room.code}:${kind}`;
+  clearTimeout(kelimeTimers.get(key));
+  kelimeTimers.set(key, setTimeout(() => {
+    kelimeTimers.delete(key);
+    if (rooms.get(room.code) === room) fn();
+  }, ms));
+}
+
+function clearKelimeTimers(code) {
+  for (const kind of ['game', 'turn', 'bot']) {
+    clearTimeout(kelimeTimers.get(`${code}:${kind}`));
+    kelimeTimers.delete(`${code}:${kind}`);
+  }
+}
+
+// Tahmin: hedefse oyun biter, değilse sıra anlatıcıya geçer. Hata varsa açıklamasını döner.
+function kelimeGuess(room, name, text) {
+  const game = room.kelime;
+  if (!game || game.done || name === game.narrator || game.pending || typeof text !== 'string') return null;
+  const word = kelimeClean(text);
+  if (!word) return null;
+  if (kelimeKey(word) === kelimeKey(game.target)) {
+    game.found = name;
+    finishKelime(room, `🎉 ${name} kelimeyi buldu!`);
+    return null;
+  }
+  if (game.words.some((w) => kelimeKey(w.text) === kelimeKey(word))) return 'Bu kelime zaten yazıldı.';
+  if (game.words.length >= KELIME_WORDS_MAX) return null;
+  const w = { id: game.words.length + 1, text: word, by: name, pos: null };
+  game.words.push(w);
+  game.pending = w.id;
+  game.turnUntil = Date.now() + KELIME_TURN;
+  kelimeTimer(room, 'turn', KELIME_TURN, () => endKelimeTurn(room));
+  sendKelime(room);
+  kelimeBotLater(room);
+  return null;
+}
+
+// Bot sırası gelince birkaç saniye "düşünüp" rastgele oynar: anlatıcıysa gelen kelimeyi rastgele bir yere koyar,
+// tahminciyse rastgele bir kelime yazar (arada bir de hedefi tutturur ki oyunun bitişi de görülsün).
+function kelimeBotLater(room) {
+  const game = room.kelime;
+  if (!room.bot || !game || game.done) return;
+  const narrating = game.narrator === BOT;
+  if (narrating !== Boolean(game.pending)) return; // sıra botta değil
+  kelimeTimer(room, 'bot', rand(1500, narrating ? 4000 : 6000), () => {
+    if (room.kelime !== game || game.done || !room.bot) return;
+    if (narrating) {
+      const w = game.words.find((x) => x.id === game.pending);
+      if (!w) return;
+      w.pos = Math.random();
+      return endKelimeTurn(room);
+    }
+    if (game.pending) return;
+    const used = new Set(game.words.map((w) => kelimeKey(w.text)));
+    const lucky = Date.now() - game.id > 30000 && Math.random() < 0.08;
+    const options = [...BOT_WORDS, ...room.kelimePool.map((w) => w.text)].filter((t) => !used.has(kelimeKey(t)) && kelimeKey(t) !== kelimeKey(game.target));
+    kelimeGuess(room, BOT, lucky || !options.length ? game.target : pick(options));
+  });
+}
+
+// Süresinde yerleştirilmeyen kelime çubuğun en altına (en soğuk yere) konur; anlatıcı sonra taşıyabilir.
+function endKelimeTurn(room) {
+  const game = room.kelime;
+  if (!game || game.done || !game.pending) return;
+  clearTimeout(kelimeTimers.get(`${room.code}:turn`));
+  const w = game.words.find((x) => x.id === game.pending);
+  if (w.pos == null) w.pos = 0;
+  game.pending = null;
+  game.turnUntil = null;
+  sendKelime(room);
+  kelimeBotLater(room);
+}
+
+// Çubukta en üstteki (hedefe en yakın) 10 kelime 10'dan 1'e puan getirir; bilen 15 puan daha alır.
+function kelimeScores(game) {
+  const placed = game.words.filter((w) => w.pos != null).sort((a, b) => b.pos - a.pos || a.id - b.id);
+  const scores = new Map();
+  const add = (name) => scores.get(name) || scores.set(name, { name, points: 0, words: [], bonus: 0 }).get(name);
+  for (const w of game.words) if (w.by !== game.narrator) add(w.by);
+  placed.slice(0, KELIME_TOP).forEach((w, i) => {
+    const s = add(w.by);
+    s.points += KELIME_TOP - i;
+    s.words.push(w.text);
+  });
+  if (game.found) {
+    const s = add(game.found);
+    s.bonus = KELIME_BONUS;
+    s.points += KELIME_BONUS;
+  }
+  return [...scores.values()].sort((a, b) => b.points - a.points);
+}
+
+function finishKelime(room, reason) {
+  const game = room.kelime;
+  if (!game || game.done) return;
+  clearKelimeTimers(room.code);
+  const pending = game.words.find((w) => w.id === game.pending);
+  if (pending && pending.pos == null) pending.pos = 0;
+  Object.assign(game, { done: true, pending: null, turnUntil: null, endedAt: Date.now() });
+  game.scores = kelimeScores(game);
+  sendKelime(room);
+  const best = game.scores[0];
+  postSystem(room, `${reason} Kelime: ${game.target}` + (best?.points ? ` · 🏆 ${best.name} (${best.points} puan)` : ''));
+}
+
 // ---------- Dinozor koşusu ----------
 
 // Başlangıçtan t sn sonra Jef'in yeri
@@ -1102,6 +1481,26 @@ function dinoJefX(t) {
 }
 
 const dinoJefNow = (game) => dinoJefX((Date.now() - game.startAt) / 1000);
+
+// Bot engellere bakmaz: rastgele aralıklarla zıplar, 8-45 sn arası bir anda ölür.
+function dinoBot(room, game) {
+  const dieAt = game.startAt + rand(8000, 45000);
+  const slot = Object.keys(game.players).indexOf(BOT) + 1;
+  const step = () => {
+    const me = game.players[BOT];
+    if (room.dino !== game || game.done || me.dead || rooms.get(room.code) !== room) return;
+    const now = Date.now();
+    const t = (now - game.startAt) / 1000;
+    me.seen = now;
+    if (now >= dieAt) return killDino(room, BOT, dinoJefX(t) - 60 * slot);
+    if (t > 0) {
+      me.dist = Math.max(me.dist, dinoJefX(t) - 60 * slot);
+      io.to(room.code).emit('dino:pos', { name: BOT, t, y: 0, vy: 860, duck: false, hold: false }); // DINO.jump
+    }
+    setTimeout(step, rand(400, 1600));
+  };
+  setTimeout(step, Math.max(0, game.startAt - Date.now()) + 500);
+}
 
 // Ölmeyi oyuncunun tarayıcısı denetler; sekmesi kapalı ya da bağlantısı kopmuş biri hiç ölmez,
 // oyun da bitmezdi. Bir süredir konum göndermeyen oyuncu, son haber aldığımız yerde ölmüş sayılır.
@@ -1164,7 +1563,7 @@ function killDino(room, name, x) {
     players.sort((a, b) => b[1].dist - a[1].dist);
     // Skor tablosu: her mod ayrı, en iyi 10 skor (aynı kişi birden çok kez girebilir)
     const at = Date.now();
-    addDinoScores(room, game.mode, players.filter(([, p]) => p.dist > 0).map(([n, p]) => ({ name: n, dist: Math.round(p.dist), at })));
+    addDinoScores(room, game.mode, players.filter(([n, p]) => p.dist > 0 && n !== BOT).map(([n, p]) => ({ name: n, dist: Math.round(p.dist), at })));
     const [winner, { dist }] = players[0];
     const jef = ` · Jef 🤖 ${Math.round(game.jef / 10)} m`;
     postSystem(room, players.length > 1
@@ -1187,6 +1586,8 @@ async function loadSaved() {
   }
   for (const { room, kind, data } of rows) {
     if (kind === 'history') histories.set(room, data);
+    if (kind === 'kelimeler') kelimePools.set(room, data);
+    if (kind === 'oneriler') mergeOneriler(data);
     if (kind === 'dinoboard') dinoBoards.set(room, { auto: [], hold: [], tap: [], ...data });
     if (kind === 'sfx') customSfxByRoom.set(room, new Map(data.map((fx) => [fx.id, { buf: null, label: fx.label, by: fx.by }])));
     if (kind === 'tierlists') {
