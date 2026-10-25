@@ -383,6 +383,10 @@ button.link:hover { background: none; text-decoration: underline; }
 /* Oyunlardayken oynatıcı ekrandan çıkar ama çalmaya devam eder */
 .media.away { position: absolute; left: -10000px; top: 0; width: 800px; }
 .games-panel { margin-top: 0; }
+.members .panel { margin-top: 0; }
+.members-title { margin: 0; flex: 1; font-size: 18px; }
+.members-list .p-status { white-space: normal; }
+.member-badge { flex-shrink: 0; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--text); }
 .games-panel > .tabs { overflow-x: auto; scrollbar-width: none; }
 .games-panel > .tabs .tab { flex-shrink: 0; white-space: nowrap; }
 .bot-toggle { flex-shrink: 0; margin: 4px 0 4px auto; white-space: nowrap; }
@@ -420,8 +424,110 @@ button.link:hover { background: none; text-decoration: underline; }
 .timing-hint { margin: 0; }
 .timing-custom { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .timing-custom input { width: 120px; padding: 5px 10px; font-size: 13px; text-align: center; }
-.race-setup { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
-.race-setup .timing-targets { margin-top: 0; }
+/* Radyo: mavi zemin üstünde dönen uydu küresi, ortada seçim halkası; sol altta yer listesi ve çalar, sağda butonlar */
+.radio { --rg-blue: #2412f5; --rg-green: #50f08c; --rg-card: #0d0d10; position: relative; height: calc(100dvh - 92px); min-height: 540px; border-radius: var(--radius); overflow: hidden; background: var(--rg-blue); color: #fff; }
+#radio-map { position: absolute; inset: 0; } /* MapLibre'nin kendi .maplibregl-map kuralı position: relative yapmasın */
+.radio-map .maplibregl-canvas { outline: none; }
+.radio-map .maplibregl-ctrl-attrib { background: rgba(0, 0, 0, .35); color: rgba(255, 255, 255, .7); font-size: 10px; }
+.radio-map .maplibregl-ctrl-attrib a { color: inherit; }
+.radio-ring { position: absolute; left: 50%; top: 50%; width: 88px; height: 88px; margin: -44px 0 0 -44px; border: 2px solid rgba(255, 255, 255, .55); border-radius: 50%; pointer-events: none; transition: border-color .2s; }
+.radio-ring.on { border-color: #fff; }
+
+.radio-side { position: absolute; left: 14px; bottom: 14px; width: min(340px, calc(100% - 28px)); display: grid; gap: 10px; z-index: 2; }
+.radio-card { background: var(--rg-card); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0, 0, 0, .35); }
+/* Sabit boy: küre çevrildikçe listedeki istasyon sayısı değişse de panel zıplamaz, liste içinde kayar */
+.radio-place > :not(.radio-list) { flex-shrink: 0; }
+.radio-place { display: flex; flex-direction: column; height: min(400px, calc(100dvh - 380px)); min-height: 250px; }
+.radio-place-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--rg-blue); }
+.radio-badge { flex-shrink: 0; display: grid; place-items: center; min-width: 36px; height: 36px; padding: 0 6px; border-radius: 18px; background: #fff; color: #000; font-weight: 600; font-size: 16px; }
+.radio-place-name { display: grid; min-width: 0; }
+.radio-place-name strong { font-size: 24px; font-weight: 400; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.radio-place-name span { min-height: 1.3em; font-size: 15px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.radio-tabs { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.radio-tabs button { display: grid; justify-items: center; gap: 3px; padding: 9px 4px 8px; border: none; border-radius: 0; background: none; color: #ddd; font-size: 12px; }
+.radio-tabs button .ic { width: 22px; height: 22px; }
+.radio-tabs button:hover { background: rgba(255, 255, 255, .05); color: #fff; }
+.radio-tabs button.active { color: var(--rg-green); }
+.radio-search { flex-shrink: 0; width: calc(100% - 20px); margin: 10px 10px 0; }
+.radio-list { flex: 1; min-height: 0; list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; overscroll-behavior: contain; }
+.radio-row { display: flex; align-items: center; }
+.radio-row-main { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; justify-items: start; gap: 1px; padding: 7px 8px 7px 16px; border: none; border-radius: 0; background: none; color: #fff; text-align: left; }
+.radio-row-main:hover { background: rgba(255, 255, 255, .06); }
+.radio-row-main strong { max-width: 100%; font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.radio-row-main .small { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.radio-row.playing .radio-row-main strong { color: var(--rg-green); }
+.radio-row.playing .radio-row-main strong::before { content: '▶ '; font-size: 11px; }
+.radio-row-fav { opacity: 0; margin-right: 6px; }
+.radio-row:hover .radio-row-fav, .radio-row-fav.on { opacity: 1; }
+.radio-empty { padding: 12px 16px; }
+
+.radio-player { padding: 14px 16px 12px; display: grid; gap: 8px; }
+.radio-player-top { display: flex; align-items: flex-start; gap: 10px; }
+.radio-player-name { flex: 1; min-width: 0; display: grid; }
+.radio-player-name strong { color: var(--rg-green); font-size: 19px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.radio-player-name span { font-size: 13px; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.radio-controls { display: flex; align-items: center; gap: 6px; }
+.radio-icon { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: none; background: none; color: #fff; }
+.radio-icon:hover { background: rgba(255, 255, 255, .08); }
+.radio-icon .ic { width: 20px; height: 20px; }
+.radio-icon.big .ic { width: 28px; height: 28px; }
+.radio-icon.on { color: var(--rg-green); }
+.radio-icon.on .ic { fill: currentColor; }
+.radio-vol { flex: 1; min-width: 60px; accent-color: var(--rg-green); }
+.radio-player-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.radio-now-status { font-size: 12px; color: #aaa; min-height: 16px; }
+.radio-shuffle { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border: 1px solid rgba(80, 240, 140, .45); border-radius: 999px; background: none; color: var(--rg-green); font-size: 13px; font-weight: 600; }
+.radio-shuffle:hover { background: rgba(80, 240, 140, .1); }
+.radio-shuffle .ic { width: 16px; height: 16px; }
+.radio-now-status.playing { color: var(--rg-green); }
+.radio-now-status.error { color: #ff6b6b; }
+
+.radio-tools { position: absolute; right: 14px; bottom: 14px; display: grid; gap: 10px; z-index: 2; }
+.radio-tools button { display: grid; place-items: center; width: 46px; height: 46px; padding: 0; border: none; border-radius: 10px; background: rgba(13, 13, 16, .55); color: #fff; backdrop-filter: blur(6px); }
+.radio-tools button:hover { background: rgba(13, 13, 16, .8); }
+.radio-tools .ic { width: 22px; height: 22px; }
+.radio-zoom { display: grid; border-radius: 10px; overflow: hidden; }
+.radio-zoom button { border-radius: 0; }
+
+/* Eşini bul: taşlar döner; kapalı yüz desenli, açık yüzde renkli sayı */
+.memory { display: grid; gap: 12px; }
+.memory-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 32px; }
+.memory-head #memory-status { flex: 1; min-width: 0; }
+/* Tahta ekrana sığsın: genişlik, yüksekliğe göre (satır/sütun oranıyla) sınırlanır */
+.memory-board { display: grid; grid-template-columns: repeat(var(--cols, 10), minmax(0, 1fr)); gap: 6px; width: 100%; max-width: min(640px, calc((100vh - 280px) * var(--cols, 10) / var(--rows, 8))); justify-self: center; }
+.memory-tile { aspect-ratio: 1; padding: 0; border: none; background: none; perspective: 600px; min-width: 0; }
+.memory-tile:hover, .memory-tile:disabled { background: none; }
+.memory-tile:disabled { opacity: 1; }
+.memory-inner { position: relative; display: block; width: 100%; height: 100%; transition: transform .35s ease; transform-style: preserve-3d; }
+.memory-tile.open .memory-inner { transform: rotateY(180deg); }
+.memory-back, .memory-face { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 8px; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.memory-back { background: repeating-linear-gradient(45deg, #2a3150 0 6px, #232842 6px 12px); border: 1px solid var(--line-2); }
+.memory-tile.can:hover .memory-back { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(108, 140, 255, .35); }
+.memory-face { transform: rotateY(180deg); background: #f4f1ea; border: 3px solid var(--c, #888); color: var(--c, #888); font-weight: 800; font-size: clamp(15px, 3.2vw, 28px); }
+.memory-tile.taken .memory-face { opacity: .3; }
+.memory-tile.miss .memory-face { box-shadow: 0 0 0 2px var(--danger); }
+.memory-scores { width: 100%; max-width: 720px; justify-self: center; }
+.memory-scores li.memory-turn { box-shadow: inset 0 0 0 1px var(--accent); }
+.memory-help { margin: 0; }
+.memory-chip { display: inline-flex; align-items: center; gap: 2px; min-width: 30px; height: 28px; padding: 0 4px 0 10px; justify-content: center; border-radius: 8px; background: #f4f1ea; color: var(--c, #222); border: 2px solid var(--c, var(--line-2)); font-weight: 700; font-size: 13px; }
+.memory-chip:not(:has(button)) { padding-right: 10px; }
+.memory-chip-x { padding: 0 4px; border: none; background: none; color: #666; font-size: 15px; line-height: 1; }
+.memory-chip-x:hover { background: none; color: var(--danger); }
+.memory-plus { min-width: 30px; font-weight: 700; }
+
+/* Grup oyunlarının lobisi: kurulur, girilir/çıkılır, kuran başlatır */
+.lobby { display: grid; gap: 10px; padding: 12px 14px; background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.lobby.open { border-color: rgba(108, 140, 255, .55); box-shadow: inset 0 0 0 1px rgba(108, 140, 255, .2); }
+.lobby p { margin: 0; }
+.timing > .lobby { justify-self: stretch; text-align: left; }
+.lobby-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lobby-players { display: flex; flex-wrap: wrap; gap: 6px; }
+.lobby-player { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: var(--panel-3); font-size: 13px; }
+.lobby-player.me { box-shadow: inset 0 0 0 1px var(--accent); }
+.lobby-player .avatar { width: 22px; height: 22px; font-size: 10px; }
+.lobby-player .small { font-size: 11px; }
+.lobby-opts, .lobby-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tab.lobby-open::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px; vertical-align: 2px; border-radius: 50%; background: var(--speak); }
 #race-rounds button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 .race-board { width: 100%; max-width: 420px; text-align: left; }
 .race-head { display: flex; align-items: center; gap: 6px; }
@@ -441,37 +547,63 @@ button.link:hover { background: none; text-decoration: underline; }
 .kelime-head #kelime-status { flex: 1; min-width: 0; }
 .kelime-clock { font-variant-numeric: tabular-nums; font-size: 18px; }
 .kelime-clock.low { color: var(--danger); }
-.kelime-play { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
-.kelime-scroll { max-height: 62vh; overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 8px 4px; background: var(--panel-2); border-radius: var(--radius-sm); }
+.kelime-lobby { display: grid; gap: 12px; padding: 12px; background: var(--panel-2); border-radius: var(--radius-sm); }
+.kelime-roles { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.kelime-role { min-width: 150px; padding: 10px 14px; font-weight: 600; }
+.kelime-role.on { background: var(--accent); border-color: transparent; color: #fff; }
+.kelime-players { display: flex; flex-wrap: wrap; gap: 6px; }
+.kelime-players:empty { display: none; }
+.kelime-player { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--panel-3); font-size: 13px; }
+.kelime-player i { width: 10px; height: 10px; border-radius: 50%; background: var(--who); }
+.kelime-player .muted { font-size: 12px; }
+.kelime-pick { display: grid; gap: 8px; }
+.kelime-pick p { margin: 0; }
+.kelime-pick-tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.kelime-chosen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 16px; }
+.kelime-chosen b { color: #ff7676; }
+.kelime-play { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.kelime-main { display: grid; gap: 10px; }
+.kelime-scroll { height: 75vh; min-height: 320px; overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 8px 4px; background: var(--panel-2); border-radius: var(--radius-sm); }
+.kelime-guess { width: min(100%, 420px); justify-self: center; }
 .kelime-slot { display: flex; align-items: center; gap: 8px; min-height: 40px; margin-bottom: 6px; padding: 6px 10px; border: 2px dashed rgba(255, 70, 70, .55); border-radius: var(--radius-sm); font-weight: 700; color: #ff7676; }
 .kelime-slot.found { border-style: solid; background: rgba(255, 70, 70, .14); color: var(--text); }
 .kelime-slot .muted { font-weight: 400; }
-.kelime-track { position: relative; min-height: 380px; }
+.kelime-track { position: relative; min-height: 300px; }
 .kelime-track.placing { cursor: crosshair; }
 .kelime-thermo { position: absolute; left: 6px; top: 0; bottom: 0; width: 18px; border-radius: 9px; background: linear-gradient(to bottom, #ff2d2d, #ff8a3d 25%, #c46bd6 50%, #5a8cff 75%, #1f5bff); }
-.kelime-tick { position: absolute; left: 2px; width: 26px; height: 2px; margin-top: -1px; background: #fff; border-radius: 1px; pointer-events: none; }
+.kelime-tick { position: absolute; left: 2px; width: 26px; height: 3px; margin-top: -1px; background: #fff; border-radius: 1px; pointer-events: none; }
 .kelime-line { position: absolute; left: 28px; height: 2px; margin-top: -1px; background: rgba(255, 255, 255, .35); transform-origin: 0 50%; pointer-events: none; }
-.kelime-word { position: absolute; left: 44px; right: 0; height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 8px; background: var(--panel-3); border-left: 4px solid var(--temp, #888); font-size: 14px; white-space: nowrap; overflow: hidden; user-select: none; -webkit-user-select: none; }
+.kelime-word { position: absolute; left: 44px; right: 0; height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: 8px; background: color-mix(in srgb, var(--who, #888) 22%, var(--panel-3)); border-left: 4px solid var(--who, #888); font-size: 14px; white-space: nowrap; overflow: hidden; user-select: none; -webkit-user-select: none; }
 .kelime-word b { overflow: hidden; text-overflow: ellipsis; }
-.kelime-word .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.kelime-word .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; color: var(--who, var(--muted)); }
 .kelime-word .rank { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); }
-.kelime-word.new { box-shadow: inset 0 0 0 1px var(--accent); }
 .kelime-word.moving { box-shadow: 0 0 0 2px var(--accent); z-index: 2; }
 .kelime-word.selected { box-shadow: 0 0 0 2px #ffbf5f; }
 .kelime-word.grab { cursor: grab; touch-action: none; }
 .kelime-side { display: grid; gap: 10px; align-content: start; }
 .kelime-turn { display: grid; gap: 8px; padding: 10px; background: var(--panel-2); border-radius: var(--radius-sm); min-height: 44px; }
 .kelime-turn:empty { display: none; }
-.kelime-turn .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.kelime-turn .secs { font-variant-numeric: tabular-nums; font-weight: 700; color: #ffbf5f; }
-.kelime-turn .kelime-word { position: static; display: inline-flex; max-width: 100%; }
+.kelime-turn .row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
+.kelime-turn .secs { flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 700; color: #ffbf5f; }
+.kelime-turn .kelime-word { position: static; flex: 1; min-width: 0; }
+.kelime-trash { padding: 14px 10px; border: 2px dashed var(--line-2); border-radius: var(--radius-sm); text-align: center; color: var(--muted); font-size: 13px; }
+.kelime-trash.over { border-color: var(--danger); color: var(--danger); background: rgba(255, 70, 70, .1); }
+.kelime-trash.armed { border-color: #ffbf5f; color: var(--text); cursor: pointer; }
 .kelime-help { margin: 0; }
+.kelime-countdown { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; align-content: center; gap: 8px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 96px; font-weight: 800; font-variant-numeric: tabular-nums; pointer-events: none; text-align: center; padding: 16px; }
+.kelime-countdown small { font-size: 18px; font-weight: 500; opacity: .85; }
+.kelime-countdown b { font-size: clamp(36px, 9vw, 72px); color: #ff7676; overflow-wrap: anywhere; }
 .kelime-pool-box summary { cursor: pointer; color: var(--muted); font-weight: 600; font-size: 13px; }
 .kelime-pool-box[open] summary { margin-bottom: 8px; }
+.attach.kelime-file { display: inline-flex; width: auto; height: auto; align-self: stretch; padding: 0 12px; border-color: var(--line); background: var(--panel-2); color: var(--text); font-size: 13px; white-space: nowrap; }
 .kelime-pool { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; max-height: 240px; overflow-y: auto; }
 .kelime-pool span { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; background: var(--panel-2); border-radius: 999px; font-size: 13px; }
 .kelime-pool button { padding: 0 6px; border: none; background: none; color: var(--muted); font-size: 15px; line-height: 1.4; }
 #kelime-intro { margin: 0; }
+#kelime-pool-form { flex-wrap: wrap; }
+#kelime-pool-form input { flex: 1 1 180px; min-width: 0; }
+.kelime .timing-list li { flex-wrap: wrap; }
+.kelime .timing-list li > .small { flex-basis: 100%; padding-left: 48px; overflow-wrap: anywhere; }
 /* Oyun öner */
 .oner { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .oner-step, .oner-form, .oner-list, .oner-review, .oner-body { grid-template-columns: minmax(0, 1fr); }
@@ -892,6 +1024,14 @@ details.usage[open] summary span::after { content: '▾'; }
   .tier-row-actions { opacity: 1; }
   .timing-boards { grid-template-columns: minmax(0, 1fr); }
   .kelime-play { grid-template-columns: minmax(0, 1fr); }
+  .memory-board { max-width: none; gap: 4px; }
+  .radio { height: calc(100dvh - 160px); min-height: 480px; }
+  .radio-side { left: 8px; right: 8px; bottom: 8px; width: auto; }
+  .radio-place-head { padding: 10px 12px; }
+  .radio-place-name strong { font-size: 19px; }
+  .radio-place { height: 36dvh; min-height: 200px; }
+  .radio-tools { top: 10px; right: 8px; bottom: auto; }
+  .radio-tools button { width: 40px; height: 40px; }
   .oner-row { grid-template-columns: minmax(0, 1fr); }
   .oner-form { padding: 12px; }
   .oner-review dl, .oner-item dl { grid-template-columns: minmax(0, 1fr); }
@@ -899,7 +1039,8 @@ details.usage[open] summary span::after { content: '▾'; }
   .oner-steps button span { display: none; }
   .oner-steps li { min-width: 0; }
   .kelime-side { order: -1; }
-  .kelime-scroll { max-height: 55vh; }
+  .kelime-scroll { height: 62vh; }
+  .kelime-role { flex: 1; min-width: 0; }
   .timing-display { font-size: 52px; }
   .side .chat { height: 420px; flex: none; }
   /* Telefonda araç çubuğu (mikrofon vs.) ekranın altında hep görünür */

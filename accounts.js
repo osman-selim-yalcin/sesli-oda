@@ -14,8 +14,10 @@ const PASSWORD_MAX = 200;
 const AVATAR_MAX_BYTES = 200 * 1024; // istemci 256 px'e küçültüp gönderir (~15 KB)
 const LOGIN_FAIL_MAX = 10;           // bu kadar yanlış şifreden sonra...
 const LOGIN_FAIL_WINDOW = 10 * 60 * 1000; // ...bu süre beklenir
+const SEEN_SAVE_EVERY = 60 * 1000;        // son görülme en fazla dakikada bir kaydedilir
+const ADMINS = new Set(['osyalcin']); // üyeler listesini görebilen hesaplar
 
-const accounts = new Map(); // anahtar (küçük harfli ad) -> { name, passHash, avatar }
+const accounts = new Map(); // anahtar (küçük harfli ad) -> { name, passHash, avatar, createdAt, lastSeen }
 const sessions = new Map(); // oturum özeti -> anahtar
 const avatarCache = new Map(); // anahtar -> { buf, type }
 const loginFails = new Map(); // ip -> { count, since }
@@ -51,8 +53,10 @@ function accountByToken(token) {
 
 async function load() {
   if (!store.enabled) return;
-  const rows = await store.select('accounts', 'select=id,name,pass_hash,avatar');
-  for (const r of rows) accounts.set(r.id, { name: r.name, passHash: r.pass_hash, avatar: r.avatar });
+  const rows = await store.select('accounts', 'select=id,name,pass_hash,avatar,created_at,last_seen');
+  for (const r of rows) {
+    accounts.set(r.id, { name: r.name, passHash: r.pass_hash, avatar: r.avatar, createdAt: Date.parse(r.created_at), lastSeen: Date.parse(r.last_seen) || 0 });
+  }
   const sess = await store.select('sessions', 'select=token_hash,account_id');
   for (const s of sess) sessions.set(s.token_hash, s.account_id);
   console.log(`Hesaplar: ${accounts.size} hesap, ${sessions.size} oturum yüklendi.`);
@@ -63,14 +67,27 @@ async function newSession(key) {
   const hash = sha256(token);
   await store.insert('sessions', { token_hash: hash, account_id: key });
   sessions.set(hash, key);
+  seen(key);
   return token;
 }
 
+// Siteye her girişte (sayfa açılınca ya da odaya katılınca) son görülme güncellenir.
+function seen(key) {
+  const a = accounts.get(key);
+  if (!a) return;
+  const saved = a.lastSeen;
+  a.lastSeen = Date.now();
+  if (a.lastSeen - saved < SEEN_SAVE_EVERY) return;
+  store.update('accounts', `id=${eq(key)}`, { last_seen: new Date(a.lastSeen).toISOString() })
+    .catch((err) => console.warn('son görülme', err.message));
+}
+
 const bearer = (req) => req.get('authorization')?.replace(/^Bearer /, '') || '';
-const me = (a) => ({ name: a.name, avatar: a.avatar });
+const me = (a, key) => ({ name: a.name, avatar: a.avatar, admin: ADMINS.has(key) });
 
 // onProfile(ad, sürüm): profil resmi değişince odadakilere haber vermek için.
-function setup(app, { imageTypes, onProfile }) {
+// online(): şu an odada olanların adları.
+function setup(app, { imageTypes, onProfile, online }) {
   app.set('trust proxy', 1); // Render'ın vekil sunucusu: req.ip gerçek adres olsun
   const json = express.json({ limit: '4kb' });
   const fail = (res, status, error) => res.status(status).json({ error });
@@ -98,12 +115,12 @@ function setup(app, { imageTypes, onProfile }) {
     if (!NAME_RE.test(name)) return fail(res, 400, 'Kullanıcı adı 2-24 karakter olmalı; harf, rakam, boşluk, nokta, tire kullanılabilir.');
     if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) return fail(res, 400, `Şifre en az ${PASSWORD_MIN} karakter olmalı.`);
     if (accounts.has(key)) return fail(res, 409, 'Bu kullanıcı adı alınmış. Senin hesabınsa "Giriş yap"ı seç.');
-    const account = { name, passHash: await hashPassword(password), avatar: null };
+    const account = { name, passHash: await hashPassword(password), avatar: null, createdAt: Date.now(), lastSeen: 0 };
     if (accounts.has(key)) return fail(res, 409, 'Bu kullanıcı adı alınmış.');
     try {
       await store.insert('accounts', { id: key, name, pass_hash: account.passHash });
       accounts.set(key, account);
-      res.json({ token: await newSession(key), ...me(account) });
+      res.json({ token: await newSession(key), ...me(account, key) });
     } catch (err) {
       console.warn('kayıt olma', err.message);
       fail(res, 500, 'Hesap açılamadı, biraz sonra tekrar dene.');
@@ -119,7 +136,7 @@ function setup(app, { imageTypes, onProfile }) {
       return fail(res, 401, 'Kullanıcı adı ya da şifre yanlış.');
     }
     try {
-      res.json({ token: await newSession(key), ...me(account) });
+      res.json({ token: await newSession(key), ...me(account, key) });
     } catch (err) {
       console.warn('giriş', err.message);
       fail(res, 500, 'Giriş yapılamadı, biraz sonra tekrar dene.');
@@ -129,7 +146,28 @@ function setup(app, { imageTypes, onProfile }) {
   app.get('/auth/me', (req, res) => {
     const a = accountByToken(bearer(req));
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
-    res.json(me(a));
+    seen(a.key);
+    res.json(me(a, a.key));
+  });
+
+  // Üyeler: sadece yönetici görür. En yeni hesap en üstte.
+  app.get('/admin/members', (req, res) => {
+    const a = accountByToken(bearer(req));
+    if (!a) return fail(res, 401, 'Oturum kapanmış.');
+    if (!ADMINS.has(a.key)) return fail(res, 403, 'Bu sayfayı sadece yönetici görebilir.');
+    const here = new Set(online());
+    const devices = new Map();
+    for (const key of sessions.values()) devices.set(key, (devices.get(key) || 0) + 1);
+    const members = [...accounts].map(([key, m]) => ({
+      name: m.name,
+      admin: ADMINS.has(key),
+      createdAt: m.createdAt,
+      lastSeen: m.lastSeen,
+      devices: devices.get(key) || 0,
+      online: here.has(m.name),
+    }));
+    members.sort((x, y) => y.createdAt - x.createdAt);
+    res.json({ members });
   });
 
   app.post('/auth/logout', (req, res) => {
@@ -188,4 +226,4 @@ function setup(app, { imageTypes, onProfile }) {
   });
 }
 
-module.exports = { setup, load, accountByToken, profiles };
+module.exports = { setup, load, accountByToken, profiles, seen };

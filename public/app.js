@@ -769,16 +769,25 @@ $('tab-history').onclick = () => go(() => showTab('history'));
 // Oyunlardayken oynatıcı ekrandan çıkarılır ama silinmez; müzik çalmaya devam eder.
 
 function showPage(page) {
-  const games = page === 'games';
-  $('nav-room').classList.toggle('active', !games);
-  $('nav-games').classList.toggle('active', games);
-  document.querySelector('.media').classList.toggle('away', games);
-  $('games').hidden = !games;
+  if (page === 'members' && !account?.admin) page = 'room';
+  $('nav-room').classList.toggle('active', page === 'room');
+  $('nav-games').classList.toggle('active', page === 'games');
+  $('nav-members').classList.toggle('active', page === 'members');
+  $('nav-radio').classList.toggle('active', page === 'radio');
+  document.querySelector('.media').classList.toggle('away', page !== 'room');
+  $('games').hidden = page !== 'games';
+  $('members').hidden = page !== 'members';
+  $('radio').hidden = page !== 'radio';
+  if (page === 'members') loadMembers();
+  if (page === 'radio') openRadioPage();
+  else syncRadioAudio();
   document.querySelectorAll('.tier-name').forEach(fitTierName);
   renderTopbarNow();
 }
 $('nav-room').onclick = () => go(() => showPage('room'));
 $('nav-games').onclick = () => go(() => showPage('games'));
+$('nav-members').onclick = () => go(() => showPage('members'));
+$('nav-radio').onclick = () => go(() => showPage('radio'));
 $('topbar-now').onclick = () => go(() => showPage('room'));
 
 // ---------- Gezinme geçmişi ----------
@@ -786,10 +795,12 @@ $('topbar-now').onclick = () => go(() => showPage('room'));
 // önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var:
 // / sıra, /gecmis, /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
+  if (view.page === 'members') return '/uyeler';
+  if (view.page === 'radio') return '/radyo';
   if (view.page === 'room') return view.tab === 'history' ? '/gecmis' : '/';
   return `/oyunlar/${GAME_PATHS[view.game]}` + (view.game === 'tier' && view.list != null ? `/${view.list}` : '');
 }
@@ -797,6 +808,8 @@ function viewPath(view) {
 function pathView(path) {
   const [first, second, third] = path.split('/').filter(Boolean);
   const view = { page: 'room', tab: first === 'gecmis' ? 'history' : 'queue', game: 'tier', list: null };
+  if (first === 'uyeler') view.page = 'members';
+  if (first === 'radyo') view.page = 'radio';
   if (first !== 'oyunlar') return view;
   view.page = 'games';
   view.game = GAMES.find((g) => GAME_PATHS[g] === second) || 'tier';
@@ -805,7 +818,7 @@ function pathView(path) {
 }
 
 const currentView = () => ({
-  page: $('games').hidden ? 'room' : 'games',
+  page: !$('members').hidden ? 'members' : !$('radio').hidden ? 'radio' : $('games').hidden ? 'room' : 'games',
   tab: $('history-view').hidden ? 'queue' : 'history',
   game: GAMES.find((g) => !$(`game-${g}`).hidden) || 'tier',
   list: openListId,
@@ -842,9 +855,47 @@ addEventListener('popstate', (e) => {
 function renderTopbarNow() {
   const btn = $('topbar-now');
   const title = media?.current?.title;
-  btn.hidden = !title || $('games').hidden;
+  btn.hidden = !title || !document.querySelector('.media').classList.contains('away');
   if (title) setIcon(btn, 'music', title);
 }
+
+// ---------- Üyeler ----------
+// Açılmış bütün hesaplar; sadece yönetici hesabında üst çubukta görünür.
+
+const DATE_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const fmtDate = (ms) => (ms ? DATE_FMT.format(ms) : '—');
+
+async function loadMembers() {
+  const res = await api('GET', '/admin/members');
+  $('members-list').replaceChildren();
+  $('members-empty').hidden = !res.error && res.members.length > 0;
+  if (res.error) {
+    $('members-count').textContent = '';
+    $('members-empty').textContent = res.error;
+    return;
+  }
+  $('members-empty').textContent = 'Henüz hesap yok.';
+  const here = res.members.filter((m) => m.online).length;
+  $('members-count').textContent = `${res.members.length} hesap · ${here} odada`;
+  for (const m of res.members) {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div class="p-info">
+        <div class="p-name"><span class="p-label"></span></div>
+        <div class="p-status"></div>
+      </div>
+      <span class="member-badge" hidden></span>`;
+    li.prepend(makeAvatar(m.name));
+    li.querySelector('.p-label').textContent = m.name + (m.name === myName ? ' (sen)' : '') + (m.admin ? ' · yönetici' : '');
+    li.querySelector('.p-status').textContent =
+      `Katıldı: ${fmtDate(m.createdAt)} · Son giriş: ${m.online ? 'şu an odada' : fmtDate(m.lastSeen)} · ${m.devices} cihazda açık`;
+    const badge = li.querySelector('.member-badge');
+    badge.hidden = !m.online;
+    badge.textContent = 'Odada';
+    $('members-list').append(li);
+  }
+}
+$('members-refresh').onclick = loadMembers;
 
 // ---------- Tier list ----------
 // Her liste oluşturanındır; sadece o değiştirir, diğerleri canlı izler. Başkasının listesi
@@ -1289,6 +1340,7 @@ function openGame(name) {
   showGame(name);
   if (name === 'tier') document.querySelectorAll('.tier-name').forEach(fitTierName);
   if (name === 'kelime') renderKelime();
+  if (name === 'memory') renderMemory();
   if (name === 'dino') dinoKick();
 }
 for (const game of GAMES) $(`game-tab-${game}`).onclick = () => go(() => openGame(game));
@@ -1303,7 +1355,6 @@ const RACE_ROUNDS = [3, 5, 10];
 let timing = { target: 10, results: [], race: null };
 let timingRun = null;  // serbest modda süre sayarken { start, target }
 let timingLast = null; // serbest modda kendi son sonucum { elapsed, target }
-let raceRounds = 5;    // yarış başlatırken seçili tur sayısı
 let raceLocal = null;  // yarışta bu turun süresi: { id, round, start }; ekranda "???" çıktığı an başlar
 
 // Yarışta turlar herkeste aynı anda başlar; sunucu turu, başlangıç anını ve sonuçların açılışını belirler.
@@ -1357,21 +1408,7 @@ function renderTiming() {
   $('timing-targets').hidden = Boolean(race);
   $('timing-custom').hidden = Boolean(race);
   for (const el of $('timing-custom').elements) el.disabled = Boolean(timingRun);
-  $('race-setup').hidden = Boolean(race);
-
-  const rounds = $('race-rounds');
-  rounds.replaceChildren();
-  for (const n of RACE_ROUNDS) {
-    const b = document.createElement('button');
-    b.className = 'sm' + (n === raceRounds ? ' active' : '');
-    b.textContent = `${n} tur`;
-    b.onclick = () => {
-      raceRounds = n;
-      renderTiming();
-    };
-    rounds.append(b);
-  }
-  $('race-start').disabled = Boolean(timingRun);
+  renderLobby('race');
   renderRaceBoard();
 
   const chips = $('timing-targets');
@@ -1472,7 +1509,7 @@ function renderRaceRound(race, display, diffEl) {
     btn.textContent = 'Sonraki tur geliyor…';
   } else {
     display.textContent = '???';
-    diffEl.textContent = 'İzliyorsun; bu yarış başladığında odada değildin.';
+    diffEl.textContent = 'İzliyorsun; bu yarışın lobisinde değildin.';
     btn.textContent = 'İzliyorsun';
   }
 }
@@ -1484,7 +1521,7 @@ function renderRaceBoard() {
   if (!race) return;
   const n = race.targets.length;
   $('race-title').textContent = race.done ? 'Yarış bitti' : `Yarış · ${n} tur · ${race.by} başlattı`;
-  $('race-end').hidden = race.done;
+  $('race-end').hidden = race.done || !race.players.includes(myName);
   $('race-close').hidden = !race.done;
 
   const names = [...race.players].sort((a, b) => raceTotal(race, a) - raceTotal(race, b));
@@ -1542,7 +1579,6 @@ $('timing-custom').onsubmit = (e) => {
   input.blur(); // boşluk tuşu tekrar oyunu başlatsın
 };
 
-$('race-start').onclick = () => socket.emit('race:start', raceRounds);
 confirmButton($('race-end'), 'Emin misin? Tekrar bas', () => socket.emit('race:end'));
 $('race-close').onclick = () => socket.emit('race:close');
 
@@ -1594,21 +1630,27 @@ socket.on('timing', (state) => {
 });
 
 // ---------- Kelime ----------
-// Anlatıcı hedef kelimeyi görür; diğerleri teker teker tahmin yazar. Her tahminden sonra sıra anlatıcıya
-// geçer, anlatıcı kelimeyi 10 sn içinde sıcak-soğuk çubuğuna sürükler (pos: 0 en alt/soğuk, 1 en üst/sıcak).
+// Oyun kurulunca herkes "anlat" ya da "bil" seçer. Her tur bir anlatıcı hedef kelimeyi seçer; bilenler tahmin
+// yazar, anlatıcı her kelimeyi 10 sn içinde sıcak-soğuk çubuğuna sürükler (pos: 0 en alt/soğuk, 1 en üst/sıcak).
+// Yerleştirilmeyi bekleyen 4 kelime varsa yeni tahmin yazılamaz. Herkes bir kez anlatınca oyun biter.
 // Çubukta yer kalmayınca kelimelerin oranı bozulmadan çubuk uzar, kaydırılarak görülür.
 
-const KELIME = { row: 30, base: 380, maxH: 6000, top: 10 };
+const KELIME = { row: 30, maxH: 6000, top: 15, queue: 4, cooldown: 5000, countdown: 3000, rolls: 6, players: 6 };
 let kelime = null;       // sunucudaki oyun (hedef kelime sadece anlatıcıya gelir)
 let kelimePool = [];
 let kelimeDrag = null;   // anlatıcının sürüklediği: { id, pos, fromTray, x0, y0, moved }
 let kelimeRemote = null; // diğerlerinde anlatıcının sürüklediği: { id, pos }
-let kelimeSelected = null; // telefonda: dokunulup seçilen kelime, sonra çubuğa dokunulur
+let kelimeSelected = null; // telefonda: dokunulup seçilen kelime, sonra çubuğa (ya da çöpe) dokunulur
 let kelimeTicker = null;
 let kelimeLastEmit = 0;
 
-const kelimeActive = () => (kelime && !kelime.done ? kelime : null);
-const kelimeNarrating = () => Boolean(kelimeActive() && kelime.narrator === myName && kelime.pending);
+const kelimeActive = () => (kelime && kelime.phase !== 'done' ? kelime : null);
+const kelimePlaying = () => kelime?.phase === 'play' && serverNow() >= kelime.startAt;
+const kelimeNarrating = () => Boolean(kelimePlaying() && kelime.narrator === myName);
+const kelimeMe = () => kelime?.players.find((p) => p.name === myName);
+const kelimeColor = (name) => kelime?.players.find((p) => p.name === name)?.color || '#888';
+const kelimeUnplaced = () => (kelime?.phase === 'play' ? kelime.words.filter((w) => w.pos == null) : []);
+const kelimeLast = () => kelime?.rounds.at(-1);
 // Maviden (soğuk) kırmızıya (sıcak)
 const kelimeTemp = (pos) => `hsl(${Math.round(225 - 225 * pos)} 90% 60%)`;
 const fmtClock = (ms) => {
@@ -1616,13 +1658,14 @@ const fmtClock = (ms) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
-// Çubuğun boyu: yan yana iki kelime arasında en az bir satırlık yer kalacak kadar uzar.
+// Çubuğun boyu: en az kutunun boyu kadar; yan yana iki kelime arasında en az bir satırlık yer kalacak kadar uzar.
 function kelimeHeight(words) {
   const ps = words.map((w) => w.pos).sort((a, b) => b - a);
-  let h = KELIME.base;
+  let h = Math.max(300, $('kelime-scroll').clientHeight - 64);
   for (let i = 1; i < ps.length; i++) {
+    // Aynı yerdeki kelimeler (ör. süresi dolup en alta konanlar) etiketleri itilerek sıralanır, çubuğu uzatmaz.
     const gap = ps[i - 1] - ps[i];
-    h = Math.max(h, gap > 0 ? KELIME.row / gap : KELIME.maxH);
+    if (gap > 0) h = Math.max(h, KELIME.row / gap);
   }
   return Math.min(h, KELIME.maxH);
 }
@@ -1633,7 +1676,7 @@ function kelimeShownPos(w) {
   return w.pos;
 }
 
-let kelimeH = KELIME.base;
+let kelimeH = 300;
 
 function renderKelimeBar() {
   const game = kelime;
@@ -1646,7 +1689,9 @@ function renderKelimeBar() {
     .map((w) => ({ w, pos: kelimeShownPos(w) }))
     .filter((x) => x.pos != null)
     .sort((a, b) => b.pos - a.pos || a.w.id - b.w.id);
-  const ranks = new Map(game.words.filter((w) => w.pos != null).sort((a, b) => b.pos - a.pos || a.id - b.id).map((w, i) => [w.id, i + 1]));
+  // Bulunan kelime 1. sayılır, çubuktakiler ondan sonra gelir.
+  const offset = game.phase !== 'play' && kelimeLast()?.found ? 1 : 0;
+  const ranks = new Map(game.words.filter((w) => w.pos != null).sort((a, b) => b.pos - a.pos || a.id - b.id).map((w, i) => [w.id, i + 1 + offset]));
   // Etiketler üst üste binmesin diye aşağı itilir; çubuktaki çizgi gerçek yeri gösterir.
   let prev = -Infinity;
   let bottom = kelimeH;
@@ -1659,9 +1704,9 @@ function renderKelimeBar() {
     const tick = document.createElement('div');
     tick.className = 'kelime-tick';
     tick.style.top = `${y}px`;
+    tick.style.background = kelimeTemp(pos);
     const chip = kelimeChip(w, ranks.get(w.id));
     chip.style.top = `${label - 13}px`;
-    chip.style.setProperty('--temp', kelimeTemp(pos));
     if (kelimeDrag?.moved && kelimeDrag.id === w.id || kelimeRemote?.id === w.id) chip.classList.add('moving');
     if (grab) chip.classList.add('grab');
     if (Math.abs(label - y) > 2) {
@@ -1683,7 +1728,7 @@ function kelimeChip(w, rank) {
   const chip = document.createElement('div');
   chip.className = 'kelime-word';
   chip.dataset.id = w.id;
-  if (w.id === kelime.pending) chip.classList.add('new');
+  chip.style.setProperty('--who', kelimeColor(w.by));
   if (w.id === kelimeSelected) chip.classList.add('selected');
   const text = document.createElement('b');
   text.textContent = w.text;
@@ -1704,112 +1749,176 @@ function renderKelime() {
   const game = kelime;
   const active = kelimeActive();
   const narrator = game?.narrator === myName;
-  $('kelime-start').hidden = Boolean(active);
-  $('kelime-start-bot').hidden = Boolean(active) || !botOn;
-  $('kelime-end').hidden = !(active && narrator);
-  $('kelime-close').hidden = !game?.done;
-  $('kelime-play').hidden = !game;
+  const me = kelimeMe();
+  const play = game?.phase === 'play';
+  const last = kelimeLast();
+  $('kelime-stop').hidden = !(play && narrator);
+  $('kelime-end').hidden = !(active && me);
+  $('kelime-close').hidden = game?.phase !== 'done';
   $('kelime-intro').hidden = Boolean(game);
-  // Havuz oyun sırasında gizli: hedef kelime içinde.
-  $('kelime-pool-box').hidden = Boolean(active);
+  $('game-kelime').querySelector('.kelime-head').hidden = !game;
+  // Havuz tur sırasında gizli: hedef kelime içinde olabilir.
+  $('kelime-pool-box').hidden = play;
+  const total = game?.players.length;
   $('kelime-status').textContent = !game
-    ? 'Havuzdan rastgele bir kelime seçilir, başlatan anlatıcı olur.'
-    : game.done
-      ? `Oyun bitti · Anlatıcı: ${game.narrator}`
-      : narrator ? 'Anlatıcı sensin' : `Anlatıcı: ${game.narrator}`;
+    ? ''
+    : game.phase === 'done'
+      ? 'Oyun bitti'
+      : game.phase === 'pick'
+        ? `${game.round}/${total}. tur hazırlanıyor · anlatıcı ${game.narrator}`
+        : `${game.round}/${total}. tur · ` + (narrator ? 'Anlatıcı sensin' : `Anlatıcı: ${game.narrator}`);
   renderKelimePool();
+  renderLobby('kelime');
+  renderKelimeLobby();
+  // Çubuk tur sırasında, sonra da sıradaki tur başlayana kadar (son turun hali) görünür.
+  $('kelime-play').hidden = !game || !(play || last);
   if (!game) {
     $('kelime-clock').textContent = '';
+    $('kelime-countdown').hidden = true;
+    clearInterval(kelimeTicker);
     return;
   }
 
   const slot = $('kelime-slot');
   slot.replaceChildren();
-  slot.className = 'kelime-slot' + (game.found ? ' found' : '');
-  if (game.found) slot.append(`🎯 ${game.target}`, kelimeSmall(`· ${game.found} buldu`));
-  else if (game.target) slot.append(`🎯 ${game.target}`, kelimeSmall(game.done ? '· bulunamadı' : '· sadece sen görüyorsun'));
+  const shownFound = play ? null : last?.found;
+  slot.className = 'kelime-slot' + (shownFound ? ' found' : '');
+  if (!play && last) slot.append(`🎯 ${last.target}`, kelimeSmall(last.found ? `· ${last.found} buldu` : '· bulunamadı'));
+  else if (game.target) slot.append(`🎯 ${game.target}`, kelimeSmall('· sadece sen görüyorsun'));
   else slot.append('🎯 ???');
 
   renderKelimeTurn();
-  const input = $('kelime-guess-input');
-  const canGuess = active && !narrator && !game.pending;
-  $('kelime-guess').hidden = !active || narrator;
-  input.disabled = !canGuess;
-  $('kelime-guess').querySelector('button').disabled = !canGuess;
-  input.placeholder = game.pending ? 'Anlatıcı yerleştiriyor…' : 'Tahminini yaz';
-  if (canGuess && !$('game-kelime').hidden && document.activeElement === document.body) input.focus();
-  $('kelime-help').textContent = !active
+  $('kelime-guess').hidden = !play || narrator || !me;
+  $('kelime-trash').hidden = !(play && narrator);
+  $('kelime-trash').classList.toggle('armed', kelimeSelected != null);
+  $('kelime-help').textContent = !play
     ? ''
     : narrator
-      ? game.pending
-        ? 'Kelimeyi sürükleyip çubuğa bırak (telefonda dokun, sonra çubuğa dokun). Diğer kelimeleri de taşıyabilirsin.'
-        : 'Tahmin bekleniyor. Biri yazınca kelimeyi çubukta yerleştirirsin.'
-      : 'Biri tahmin yazınca anlatıcı onu çubuğa yerleştirir, sonra sıradaki tahmin yazılır. Üst sıcak, alt soğuk.';
-  $('kelime-help').hidden = !active;
+      ? 'Gelen kelimeyi sürükleyip çubuğa bırak (telefonda dokun, sonra çubuğa dokun). Yanlış yazılmışsa çöpe at. Çubuktaki kelimeleri de taşıyabilirsin.'
+      : me
+        ? `Tahmin yaz; anlatıcı onu çubuğa yerleştirir (üst sıcak, alt soğuk). İki tahmin arasında en az ${KELIME.cooldown / 1000} sn olmalı; bekleyen ${KELIME.queue} kelime varsa anlatıcıyı beklersin.`
+        : 'Bu oyunu izliyorsun; bitince yeni oyuna katılabilirsin.';
+  $('kelime-help').hidden = !play;
 
-  $('kelime-results').hidden = !game.done;
-  if (game.done) {
-    const list = $('kelime-scores');
-    list.replaceChildren();
-    game.scores.forEach((s, i) => {
-      const sub = [s.words.join(', '), s.bonus ? `+${s.bonus} bildi` : ''].filter(Boolean).join(' · ');
-      const li = timingRow(s.name, `${s.points} puan`, sub);
-      li.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
-      if (i === 0 && s.points > 0) li.classList.add('winner');
-      list.append(li);
-    });
-    if (!game.scores.length) list.append(Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Kimse tahmin yazmadı.' }));
+  $('kelime-results').hidden = play || !last;
+  if (!play && last) {
+    $('kelime-round-title').textContent = `${last.no}. tur · anlatıcı ${last.narrator}`;
+    kelimeScoreList($('kelime-scores'), last.scores, (s) => [s.narrator ? 'anlatıcı' : '', s.words.join(', ')].filter(Boolean).join(' · '));
+    kelimeScoreList($('kelime-totals'), game.totals, () => '', game.phase === 'done');
   }
   renderKelimeBar();
   kelimeTick();
   clearInterval(kelimeTicker);
-  if (active) kelimeTicker = setInterval(kelimeTick, 250);
+  if (play) kelimeTicker = setInterval(kelimeTick, 250);
+}
+
+function kelimeScoreList(list, scores, sub, crown) {
+  list.replaceChildren();
+  scores.forEach((s, i) => {
+    const li = timingRow(s.name, `${s.points > 0 ? '+' : ''}${s.points} puan`, sub(s));
+    li.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+    if (crown && i === 0 && s.points > 0) li.classList.add('winner');
+    list.append(li);
+  });
+}
+
+// Tur arası: oyuncular, puanları ve anlatıcının kelime seçimi
+function renderKelimeLobby() {
+  const game = kelime;
+  const pick = game?.phase === 'pick';
+  $('kelime-lobby').hidden = !pick;
+  if (!pick) return;
+  const narrator = game.narrator === myName;
+  const guessers = game.players.filter((p) => p.name !== game.narrator);
+
+  const list = $('kelime-players');
+  list.replaceChildren();
+  for (const p of game.players) {
+    const chip = document.createElement('span');
+    chip.className = 'kelime-player';
+    chip.style.setProperty('--who', p.color);
+    const total = game.totals.find((t) => t.name === p.name);
+    const role = p.name === game.narrator ? 'anlatıcı' : game.narrated.includes(p.name) ? 'anlattı' : 'bilen';
+    chip.append(document.createElement('i'), p.name, kelimeSmall([role, total && `${total.points} puan`].filter(Boolean).join(' · ')));
+    list.append(chip);
+  }
+
+  const ready = guessers.length > 0;
+  $('kelime-pick-msg').textContent = !ready
+    ? 'Bilen kalmadı.'
+    : narrator
+      ? game.target ? 'Hazırsan başlat; kelime 3 saniye sadece sende görünür, sonra herkeste 3, 2, 1.' : 'Hedef kelimeyi kendin yaz ya da havuzdan rastgele çek.'
+      : `${game.narrator} kelimesini seçiyor…`;
+  const choosing = narrator && ready;
+  $('kelime-pick-tools').hidden = !choosing;
+  const left = KELIME.rolls - game.rolls;
+  $('kelime-roll').textContent = game.rolls ? `Başka rastgele (${left} hak)` : 'Rastgele';
+  $('kelime-roll').disabled = left <= 0;
+  if (!choosing) $('kelime-word-form').hidden = true;
+  $('kelime-chosen').hidden = !(choosing && game.target);
+  $('kelime-chosen-word').textContent = game.target || '';
 }
 
 const kelimeSmall = (text) => Object.assign(document.createElement('span'), { className: 'muted small', textContent: text });
 
-// Sıradaki kelime ve anlatıcının kalan süresi
+// Yerleştirilmeyi bekleyen kelimeler ve her birinin kalan süresi
 function renderKelimeTurn() {
   const box = $('kelime-turn');
   box.replaceChildren();
-  const game = kelimeActive();
-  const w = game?.pending && game.words.find((x) => x.id === game.pending);
-  if (!w) return;
-  const row = document.createElement('div');
-  row.className = 'row';
-  const secs = document.createElement('span');
-  secs.className = 'secs';
-  secs.id = 'kelime-secs';
-  row.append(kelimeSmall(`${w.by} yazdı:`));
-  const chip = kelimeChip(w);
-  chip.style.setProperty('--temp', w.pos == null ? '#888' : kelimeTemp(w.pos));
-  if (game.narrator === myName && w.pos == null) chip.classList.add('grab');
-  row.append(chip, secs);
-  box.append(row);
-  if (game.narrator === myName) {
-    const ok = document.createElement('button');
-    ok.className = 'sm primary';
-    ok.textContent = 'Tamam';
-    ok.disabled = w.pos == null;
-    ok.onclick = () => socket.emit('kelime:turn');
-    const r2 = document.createElement('div');
-    r2.className = 'row';
-    r2.append(ok, kelimeSmall(w.pos == null ? 'Süre dolarsa en alta konur.' : 'İstersen başka kelimeleri de taşı.'));
-    box.append(r2);
-  } else {
-    box.append(kelimeSmall(`${game.narrator} yerleştiriyor…`));
+  const waiting = kelimeUnplaced();
+  if (!waiting.length) return;
+  const narrator = kelime.narrator === myName;
+  box.append(kelimeSmall(narrator ? `Yerleştir (${waiting.length}/${KELIME.queue}) · süresi dolan en alta konur` : `${kelime.narrator} yerleştiriyor (${waiting.length}/${KELIME.queue})…`));
+  for (const w of waiting) {
+    const row = document.createElement('div');
+    row.className = 'row';
+    const chip = kelimeChip(w);
+    if (narrator) chip.classList.add('grab');
+    const secs = document.createElement('span');
+    secs.className = 'secs kelime-secs';
+    secs.dataset.until = w.until;
+    row.append(chip, secs);
+    box.append(row);
   }
 }
 
 function kelimeTick() {
   const game = kelime;
   if (!game) return;
-  const left = game.done ? 0 : game.endAt - serverNow();
-  $('kelime-clock').textContent = game.done ? '' : fmtClock(left);
-  $('kelime-clock').classList.toggle('low', !game.done && left < 30000);
-  const secs = $('kelime-secs');
-  if (secs && game.turnUntil) secs.textContent = `${Math.max(0, Math.ceil((game.turnUntil - serverNow()) / 1000))} sn`;
-  if (game.done) clearInterval(kelimeTicker);
+  const now = serverNow();
+  const play = game.phase === 'play';
+  const left = play ? Math.min(game.endAt - now, game.endAt - game.startAt) : 0;
+  $('kelime-clock').textContent = play ? fmtClock(left) : '';
+  $('kelime-clock').classList.toggle('low', play && left < 30000);
+  for (const secs of document.querySelectorAll('.kelime-secs')) secs.textContent = `${Math.max(0, Math.ceil((secs.dataset.until - now) / 1000))} sn`;
+
+  // Tur başında: anlatıcı kelimesini görür, sonra herkeste 3, 2, 1
+  const cd = $('kelime-countdown');
+  const toStart = play ? game.startAt - now : 0;
+  cd.hidden = toStart <= 0 || $('game-kelime').hidden;
+  if (!cd.hidden) {
+    cd.replaceChildren();
+    if (toStart > KELIME.countdown) {
+      const say = (t) => Object.assign(document.createElement('small'), { textContent: t });
+      if (game.target) cd.append(say('Kelimen'), Object.assign(document.createElement('b'), { textContent: game.target }));
+      else cd.append(say(`${game.narrator} kelimesine bakıyor…`));
+    } else cd.append(String(Math.ceil(toStart / 1000)));
+  }
+
+  // Tahmin: bekleyen kelime sınırı ve iki tahmin arasındaki süre
+  const input = $('kelime-guess-input');
+  const button = $('kelime-guess').querySelector('button');
+  if (play && kelimeMe() && game.narrator !== myName) {
+    const wait = (game.lastGuess[myName] || 0) + KELIME.cooldown - now;
+    const reason = toStart > 0 ? 'Başlamak üzere…'
+      : kelimeUnplaced().length >= KELIME.queue ? 'Anlatıcı kelimeleri yerleştiriyor…'
+        : wait > 0 ? `${Math.ceil(wait / 1000)} sn sonra yeni tahmin…` : '';
+    const was = input.disabled;
+    input.disabled = button.disabled = Boolean(reason);
+    input.placeholder = reason || 'Tahminini yaz';
+    if (was && !reason && !$('game-kelime').hidden && document.activeElement === document.body) input.focus();
+  }
+  if (!play || now > game.endAt) clearInterval(kelimeTicker);
 }
 
 function renderKelimePool() {
@@ -1828,7 +1937,7 @@ function renderKelimePool() {
     chip.append(x);
     box.append(chip);
   }
-  if (!kelimePool.length) box.append(kelimeSmall('Havuz boş. Kelime ekleyin; oyun buradan rastgele seçer.'));
+  if (!kelimePool.length) box.append(kelimeSmall('Havuz boş. Kelime ekleyin ya da dosyadan yükleyin; "rastgele" buradan seçer.'));
 }
 
 // Çubukta ekrandaki y'den konuma (0 alt, 1 üst)
@@ -1842,6 +1951,16 @@ function kelimePlace(id, pos) {
   if (w) w.pos = pos; // sunucudan dönmesini beklemeden göster
   socket.emit('kelime:place', { id, pos });
 }
+
+function kelimeTrash(id) {
+  kelime.words = kelime.words.filter((x) => x.id !== id);
+  socket.emit('kelime:trash', id);
+}
+
+const kelimeOverTrash = (x, y) => {
+  const r = $('kelime-trash').getBoundingClientRect();
+  return !$('kelime-trash').hidden && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+};
 
 // Anlatıcı: kelimeyi çubukta ya da yan kutuda tutup sürükler.
 function kelimePointerDown(e) {
@@ -1868,6 +1987,7 @@ addEventListener('pointermove', (e) => {
   if (!d.moved && Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 6) return;
   d.moved = true;
   kelimeSelected = null;
+  $('kelime-trash').classList.toggle('over', kelimeOverTrash(d.x, d.y));
   kelimeDragUpdate();
 });
 
@@ -1897,37 +2017,62 @@ addEventListener('pointerup', (e) => {
   const d = kelimeDrag;
   if (!d) return;
   kelimeDrag = null;
+  $('kelime-trash').classList.remove('over');
   if (!d.moved) {
-    // Dokunma: seç, sonra çubuğa dokunulunca yerleşir.
+    // Dokunma: seç, sonra çubuğa ya da çöpe dokunulunca oraya gider.
     kelimeSelected = kelimeSelected === d.id ? null : d.id;
     return renderKelime();
   }
   const box = $('kelime-scroll').getBoundingClientRect();
   const inside = e.clientX >= box.left && e.clientX <= box.right && e.clientY >= box.top - 40 && e.clientY <= box.bottom + 40;
-  if (inside || !d.fromTray) kelimePlace(d.id, kelimePosAt(e.clientY));
-  else socket.emit('kelime:drag', { id: d.id, pos: null });
+  if (kelimeOverTrash(e.clientX, e.clientY)) kelimeTrash(d.id);
+  else if (inside || !d.fromTray) kelimePlace(d.id, kelimePosAt(e.clientY));
+  if (!inside) socket.emit('kelime:drag', { id: d.id, pos: null });
   renderKelime();
 });
 
 addEventListener('pointercancel', () => {
   if (!kelimeDrag) return;
   kelimeDrag = null;
+  $('kelime-trash').classList.remove('over');
   renderKelime();
 });
 
 $('kelime-track').addEventListener('pointerdown', kelimePointerDown);
 $('kelime-turn').addEventListener('pointerdown', kelimePointerDown);
+$('kelime-trash').onclick = () => {
+  if (kelimeSelected == null || !kelimeNarrating()) return;
+  kelimeTrash(kelimeSelected);
+  kelimeSelected = null;
+  renderKelime();
+};
 
-$('kelime-start').onclick = () => socket.emit('kelime:start', {});
-$('kelime-start-bot').onclick = () => socket.emit('kelime:start', { bot: true });
+$('kelime-stop').onclick = () => socket.emit('kelime:stop');
 $('kelime-end').onclick = () => socket.emit('kelime:end');
 $('kelime-close').onclick = () => socket.emit('kelime:close');
+$('kelime-roll').onclick = () => {
+  $('kelime-word-form').hidden = true;
+  socket.emit('kelime:roll');
+};
+$('kelime-write').onclick = () => {
+  $('kelime-word-form').hidden = false;
+  $('kelime-word-input').focus();
+};
+$('kelime-word-form').onsubmit = (e) => {
+  e.preventDefault();
+  const text = $('kelime-word-input').value.trim();
+  if (!text) return;
+  socket.emit('kelime:word', text);
+  $('kelime-word-input').value = '';
+  $('kelime-word-form').hidden = true;
+};
+$('kelime-begin').onclick = () => socket.emit('kelime:begin');
 
 $('kelime-guess').onsubmit = (e) => {
   e.preventDefault();
   const input = $('kelime-guess-input');
   const text = input.value.trim();
-  if (!text) return;
+  if (!text || input.disabled) return;
   socket.emit('kelime:guess', text);
   input.value = '';
 };
@@ -1940,16 +2085,26 @@ $('kelime-pool-form').onsubmit = (e) => {
   input.value = '';
 };
 
+// Her satırda (ya da virgülle ayrılmış) bir kelime olan metin dosyası
+$('kelime-pool-file').onchange = async () => {
+  const file = $('kelime-pool-file').files[0];
+  $('kelime-pool-file').value = '';
+  if (!file) return;
+  if (file.size > 1e6) return toast('Dosya çok büyük.');
+  socket.emit('kelime:pool:add', await file.text());
+};
+
 function setKelime(game) {
   const prev = kelime;
   kelime = game;
   kelimeRemote = null;
-  if (!game || game.id !== prev?.id || !game.pending) {
+  if (!game || game.id !== prev?.id || game.phase !== 'play' || game.round !== prev?.round) {
     kelimeDrag = null;
     kelimeSelected = null;
   }
-  // Yeni oyun başlayınca çubuğun en üstü (sıcak uç) görünsün.
-  if (game && game.id !== prev?.id) $('kelime-scroll').scrollTop = 0;
+  if (kelimeSelected != null && !game.words.some((w) => w.id === kelimeSelected)) kelimeSelected = null;
+  // Yeni tur başlayınca çubuğun en üstü (sıcak uç) görünsün.
+  if (game?.phase === 'play' && (game.id !== prev?.id || prev?.phase !== 'play')) $('kelime-scroll').scrollTop = 0;
   renderKelime();
 }
 
@@ -1964,6 +2119,697 @@ socket.on('kelime:drag', ({ gameId, id, pos }) => {
   renderKelimeBar();
 });
 
+// ---------- Eşini bul ----------
+// Sırası gelen iki taş açar; sayı ve renk aynıysa çifti alır ve yeniden oynar. Kapalı taşların yüzü
+// sunucudan gelmez. Tahta oyun başında bir kez kurulur, sonra taşlar sadece açılıp kapanır (dönme animasyonu için).
+
+// Renkler sunucudaki MEMORY_COLORS sırasıyla aynı; sınırlar da sunucuyla aynı.
+const MEMORY = {
+  colors: {
+    yesil: ['Yeşil', '#2fb344'], turuncu: ['Turuncu', '#f08c00'], mavi: ['Mavi', '#1c7ed6'], kirmizi: ['Kırmızı', '#e03131'],
+    mor: ['Mor', '#9c36b5'], pembe: ['Pembe', '#e64980'], sari: ['Sarı', '#d4a000'], turkuaz: ['Turkuaz', '#15aabf'],
+    kahve: ['Kahverengi', '#8b5a2b'], siyah: ['Siyah', '#222222'],
+  },
+  maxNumber: 30, pairs: [2, 60],
+};
+// Sütun sayısı: tahta kareye yakın (biraz geniş) olsun, mümkünse son satır yarım kalmasın.
+function memoryCols(count) {
+  const ideal = Math.sqrt(count * 1.25);
+  let best = 4;
+  let bestScore = Infinity;
+  for (let c = 4; c <= 12; c++) {
+    const score = (count % c ? 3 : 0) + Math.abs(c - ideal);
+    if (score < bestScore) [best, bestScore] = [c, score];
+  }
+  return best;
+}
+let memory = null;
+let memoryBoardId = null;
+let memoryTicker = null;
+
+const memoryActive = () => (memory && !memory.done ? memory : null);
+const memoryCurrent = () => memory?.players[memory.turn];
+const memoryMyTurn = () => Boolean(memoryActive() && memoryCurrent() === myName && !memory.revealUntil);
+
+function renderMemory() {
+  const game = memory;
+  const active = memoryActive();
+  const playing = game?.players.includes(myName);
+  const current = memoryCurrent();
+  renderLobby('memory');
+  $('memory-end').hidden = !(active && playing);
+  $('memory-close').hidden = !game?.done;
+  $('memory-board').hidden = !game;
+  $('game-memory').querySelector('.memory-head').hidden = !game;
+  const left = game ? game.tiles.filter((t) => !t.owner).length / 2 : 0;
+  $('memory-status').textContent = !game ? ''
+    : game.done ? (left ? 'Oyun bitti' : 'Tüm çiftler bulundu')
+      : (current === myName ? (game.open.length === 1 ? 'Sıra sende: bir taş daha aç' : 'Sıra sende: iki taş aç') : `Sıra: ${current}`)
+        + ` · ${left} çift kaldı` + (playing ? '' : ' · İzliyorsun');
+  if (!game) {
+    $('memory-scores').replaceChildren();
+    clearInterval(memoryTicker);
+    return;
+  }
+  renderMemoryBoard();
+
+  const list = $('memory-scores');
+  list.replaceChildren();
+  const solo = game.players.length === 1;
+  const ranked = game.done ? [...game.players].sort((a, b) => game.scores[b] - game.scores[a]) : game.players;
+  const best = Math.max(...game.players.map((n) => game.scores[n]));
+  ranked.forEach((name, i) => {
+    const turn = !game.done && name === current;
+    const sub = [`${game.moves[name]} hamle`, turn ? 'sırada' : ''].filter(Boolean).join(' · ');
+    const row = timingRow(name, `${game.scores[name]} çift`, sub, turn ? 'good' : '');
+    if (game.done && !solo && best > 0 && game.scores[name] === best) row.classList.add('winner');
+    row.classList.toggle('memory-turn', turn);
+    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: game.done && !solo ? i + 1 : '' }));
+    list.append(row);
+  });
+  if (game.done && solo && !left) {
+    const secs = Math.round((game.endedAt - game.startedAt) / 1000);
+    list.append(Object.assign(document.createElement('li'), { className: 'muted', textContent: `🎉 ${game.moves[myName] ?? game.moves[game.players[0]]} hamlede, ${fmtClock(secs * 1000)} sürede bitti.` }));
+  }
+  memoryTick();
+  clearInterval(memoryTicker);
+  if (active) memoryTicker = setInterval(memoryTick, 250);
+}
+
+function renderMemoryBoard() {
+  const game = memory;
+  const board = $('memory-board');
+  if (memoryBoardId !== game.id) {
+    memoryBoardId = game.id;
+    board.replaceChildren();
+    const cols = memoryCols(game.tiles.length);
+    board.style.setProperty('--cols', cols);
+    board.style.setProperty('--rows', Math.ceil(game.tiles.length / cols));
+    for (const t of game.tiles) {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'memory-tile';
+      tile.dataset.id = t.id;
+      tile.innerHTML = '<span class="memory-inner"><span class="memory-back"></span><span class="memory-face"></span></span>';
+      tile.onclick = () => {
+        if (!memoryMyTurn() || memory.open.includes(t.id) || memory.tiles[t.id].owner) return;
+        socket.emit('memory:flip', t.id);
+      };
+      board.append(tile);
+    }
+  }
+  const mine = memoryMyTurn();
+  for (const tile of board.children) {
+    const t = game.tiles[Number(tile.dataset.id)];
+    const open = Boolean(t.c);
+    tile.classList.toggle('open', open);
+    tile.classList.toggle('taken', Boolean(t.owner));
+    tile.classList.toggle('miss', Boolean(game.revealUntil) && game.open.includes(t.id));
+    tile.classList.toggle('can', mine && !open);
+    tile.disabled = !mine || open;
+    tile.title = t.owner ? `${t.owner} buldu` : '';
+    const face = tile.querySelector('.memory-face');
+    if (open) {
+      face.textContent = t.n;
+      face.style.setProperty('--c', MEMORY.colors[t.c][1]);
+    }
+  }
+}
+
+function memoryTick() {
+  const game = memoryActive();
+  $('memory-clock').textContent = game?.turnUntil && !game.revealUntil ? `${Math.max(0, Math.ceil((game.turnUntil - serverNow()) / 1000))} sn` : '';
+  $('memory-clock').classList.toggle('low', Boolean(game?.turnUntil) && game.turnUntil - serverNow() < 5000);
+  if (!game) clearInterval(memoryTicker);
+}
+
+confirmButton($('memory-end'), 'Emin misin? Tekrar bas', () => socket.emit('memory:end'));
+$('memory-close').onclick = () => socket.emit('memory:close');
+
+function setMemory(game) {
+  memory = game;
+  renderMemory();
+}
+socket.on('memory', setMemory);
+
+// ---------- Radyo ----------
+// Uydu görüntülü dönen bir dünya küresi; yeşil noktalar radyo olan yerler (aynı şehirdeki istasyonlar tek nokta).
+// Küre çevrilince ortadaki halkanın altına gelen yer seçilir, istasyonları sol altta listelenir; birine basınca
+// odanın ortak radyosu o olur. Ses sadece Radyo sayfasındayken çalar (o sırada YouTube sende kısılır), sayfadan
+// çıkınca yayın indirilmeyi de bırakır. Harita kütüphanesi (MapLibre) ve istasyon listesi sayfa ilk açılınca yüklenir.
+
+const RADIO_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/5.6.0/';
+const RADIO_IMAGERY = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'; // anahtar istemez
+const RADIO_RING = 44;      // px; halkanın yarıçapı, bu alana giren en yakın yer seçilir
+const RADIO_IDLE = 8000;    // ms; başkası radyo açınca, küreyi bu kadar süredir çevirmeyenin küresi oraya döner
+const RADIO_FOCUS = 5;      // radyo açılınca kürenin yakınlaştığı seviye (şehir ve çevresi görünür)
+let radio = null;           // odada çalan istasyon: { id, name, cc, country, state, tags, url, codec, bitrate, lat, lon, by }
+let radioMap = null;
+let radioMapLoading = null;
+let radioState = '';        // '', 'loading', 'playing', 'error'
+let radioPaused = false;    // sadece bende duraklatıldı
+let radioPlaces = [];       // [{ i, lat, lon, cc, title, country, stations }]
+const radioById = new Map(); // id -> { id, name, cc, lat, lon, tags, state, place }
+let radioPlace = null;      // halkanın altındaki yer
+let radioTab = 'explore';
+let radioTouchedAt = 0;
+let radioFavs = [];
+try {
+  radioFavs = JSON.parse(localStorage.getItem('radio-favs')) || [];
+} catch {}
+
+const radioPage = () => !$('radio').hidden;
+const radioFlag = (cc) => (/^[A-Z]{2}$/.test(cc || '') ? String.fromCodePoint(...[...cc].map((c) => 127397 + c.charCodeAt(0))) : '🌐');
+const radioRegions = new Intl.DisplayNames(['tr'], { type: 'region' });
+const radioCountry = (cc) => {
+  try {
+    return cc ? radioRegions.of(cc) : '';
+  } catch {
+    return cc;
+  }
+};
+const radioSmall = (text) => Object.assign(document.createElement('span'), { className: 'muted small', textContent: text });
+
+function loadAsset(url) {
+  return new Promise((resolve, reject) => {
+    const el = url.endsWith('.css')
+      ? Object.assign(document.createElement('link'), { rel: 'stylesheet', href: url })
+      : Object.assign(document.createElement('script'), { src: url });
+    el.onload = resolve;
+    el.onerror = () => reject(new Error('Harita yüklenemedi.'));
+    document.head.append(el);
+  });
+}
+
+// Aynı şehirdeki istasyonlar tek yer olur (şehri bilinmeyenler ≈10 km'lik karelere göre); yerin adı şehir, yoksa ülke.
+function radioGroup(rows) {
+  const byKey = new Map();
+  for (const [id, name, cc, lat, lon, tags, state] of rows) {
+    const key = state ? `${cc}:${state}` : `${Math.round(lat * 10)}:${Math.round(lon * 10)}`;
+    let place = byKey.get(key);
+    if (!place) byKey.set(key, (place = { i: byKey.size, cc, stations: [] }));
+    const station = { id, name, cc, lat, lon, tags, state, place };
+    place.stations.push(station);
+    radioById.set(id, station);
+  }
+  radioPlaces = [...byKey.values()];
+  for (const p of radioPlaces) {
+    p.lat = p.stations.reduce((sum, s) => sum + s.lat, 0) / p.stations.length;
+    p.lon = p.stations.reduce((sum, s) => sum + s.lon, 0) / p.stations.length;
+    const counts = new Map();
+    for (const s of p.stations) if (s.state) counts.set(s.state, (counts.get(s.state) || 0) + 1);
+    p.country = radioCountry(p.cc);
+    p.title = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] || p.country || 'Bilinmeyen yer';
+    p.stations.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
+  }
+}
+
+function radioMapReady() {
+  radioMapLoading ||= (async () => {
+    await Promise.all([loadAsset(`${RADIO_LIB}maplibre-gl.min.css`), loadAsset(`${RADIO_LIB}maplibre-gl.min.js`)]);
+    const res = await fetch('/radio/stations');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Radyo listesi alınamadı.');
+    radioGroup(await res.json());
+    const start = radio && radioById.get(radio.id)?.place;
+    radioMap = new maplibregl.Map({
+      container: 'radio-map',
+      center: start ? [start.lon, start.lat] : [32, 39],
+      zoom: start ? 1.6 : 0.9, // başta küre uzaktan görünsün
+      maxZoom: 12,
+      attributionControl: false,
+      style: {
+        version: 8,
+        projection: { type: 'globe' },
+        sources: {
+          sat: { type: 'raster', tiles: [RADIO_IMAGERY], tileSize: 256, maxzoom: 17, attribution: 'Uydu görüntüsü © Esri, Maxar, Earthstar Geographics' },
+          places: {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: radioPlaces.map((p) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [p.lon, p.lat] }, properties: { i: p.i, n: p.stations.length } })) },
+          },
+        },
+        layers: [
+          { id: 'sat', type: 'raster', source: 'sat' },
+          {
+            id: 'places', type: 'circle', source: 'places',
+            paint: {
+              'circle-color': '#50f08c',
+              'circle-opacity': 0.9,
+              // Çok istasyonlu yerler biraz daha büyük; yakınlaştıkça hepsi büyür
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, ['min', 3.2, ['+', 1.4, ['*', 0.12, ['get', 'n']]]], 6, ['min', 8, ['+', 3.5, ['*', 0.25, ['get', 'n']]]]],
+            },
+          },
+          { id: 'selected', type: 'circle', source: 'places', filter: ['==', ['get', 'i'], -1], paint: { 'circle-color': '#ffffff', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3.5, 6, 7] } },
+          { id: 'playing', type: 'circle', source: 'places', filter: ['==', ['get', 'i'], -1], paint: { 'circle-color': '#50f08c', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 4, 6, 8], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } },
+        ],
+      },
+    });
+    radioMap.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-left'); // sağ alttaki butonlarla çakışmasın
+    await new Promise((resolve) => radioMap.once('load', resolve));
+    let pending = false;
+    radioMap.on('move', () => {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        pending = false;
+        radioPickCenter();
+      });
+    });
+    radioMap.on('idle', radioPickCenter); // ani zıplama ya da uçuştan sonra çizim bitince bir kez daha bak
+    // Sadece kişinin kendi çevirmesi sayılır (radyo değişince yapılan uçuş değil)
+    for (const ev of ['dragstart', 'zoomstart', 'rotatestart']) radioMap.on(ev, (e) => e.originalEvent && (radioTouchedAt = Date.now()));
+    radioMap.on('click', 'places', (e) => {
+      radioTouchedAt = Date.now();
+      radioMap.easeTo({ center: e.features[0].geometry.coordinates, duration: 700 });
+    });
+    radioMap.on('mouseenter', 'places', () => (radioMap.getCanvas().style.cursor = 'pointer'));
+    radioMap.on('mouseleave', 'places', () => (radioMap.getCanvas().style.cursor = ''));
+    renderRadioPlaying();
+    radioPickCenter();
+  })();
+  radioMapLoading.catch((err) => {
+    radioMapLoading = null;
+    toast(err.message || 'Harita yüklenemedi.');
+  });
+  return radioMapLoading;
+}
+
+// Halkanın içine düşen yerlerden merkeze en yakını seçilir; halka boşsa son seçilen kalır.
+function radioPickCenter() {
+  const box = radioMap.getContainer();
+  const x = box.clientWidth / 2;
+  const y = box.clientHeight / 2;
+  let best = null;
+  let bestDist = Infinity;
+  for (const f of radioMap.queryRenderedFeatures([[x - RADIO_RING, y - RADIO_RING], [x + RADIO_RING, y + RADIO_RING]], { layers: ['places'] })) {
+    const p = radioMap.project(f.geometry.coordinates);
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d < bestDist) [best, bestDist] = [radioPlaces[f.properties.i], d];
+  }
+  if (!best || best === radioPlace) return;
+  radioPlace = best;
+  radioMap.setFilter('selected', ['==', ['get', 'i'], best.i]);
+  $('radio').querySelector('.radio-ring').classList.add('on');
+  renderRadioPlace();
+}
+
+function renderRadioPlace() {
+  const p = radioPlace;
+  $('radio-place-count').textContent = p ? p.stations.length : '–';
+  $('radio-place-title').textContent = p ? p.title : 'Dünyayı çevir';
+  $('radio-place-sub').textContent = p ? `${radioFlag(p.cc)} ${p.title === p.country ? '' : p.country}`.trim() : 'Halkayı yeşil bir noktanın üstüne getir';
+  if (radioTab === 'explore') renderRadioList();
+}
+
+function radioStationsForTab() {
+  if (radioTab === 'favs') return radioFavs.map((id) => radioById.get(id)).filter(Boolean);
+  if (radioTab === 'search') {
+    const q = $('radio-search').value.trim().toLocaleLowerCase('tr');
+    if (q.length < 2) return [];
+    const out = [];
+    for (const s of radioById.values()) {
+      const hay = `${s.name} ${s.state} ${s.place.country} ${s.tags}`.toLocaleLowerCase('tr');
+      if (hay.includes(q) && out.push(s) >= 60) break;
+    }
+    return out;
+  }
+  return radioPlace?.stations || [];
+}
+
+function renderRadioList() {
+  const list = $('radio-list');
+  list.replaceChildren();
+  const stations = radioStationsForTab();
+  for (const s of stations) {
+    const li = document.createElement('li');
+    li.className = 'radio-row' + (radio?.id === s.id ? ' playing' : '');
+    const play = document.createElement('button');
+    play.className = 'radio-row-main';
+    const name = Object.assign(document.createElement('strong'), { textContent: s.name });
+    const sub = radioTab === 'explore' ? s.tags : [`${radioFlag(s.cc)} ${s.state || s.place.country}`, s.tags].filter(Boolean).join(' · ');
+    play.append(name, radioSmall(sub || ' '));
+    play.onclick = () => {
+      if (radio?.id !== s.id) socket.emit('radio:play', s.id);
+      else if (radioPaused) radioSetPaused(false);
+    };
+    const fav = document.createElement('button');
+    fav.className = 'radio-icon radio-row-fav' + (radioFavs.includes(s.id) ? ' on' : '');
+    fav.title = radioFavs.includes(s.id) ? 'Favorilerden çıkar' : 'Favorilere ekle';
+    fav.innerHTML = '<svg class="ic"><use href="#i-heart"></use></svg>';
+    fav.onclick = () => radioToggleFav(s.id);
+    li.append(play, fav);
+    list.append(li);
+  }
+  if (!stations.length) {
+    const empty = { explore: 'Küreyi çevir; halkanın altına gelen yerin radyoları burada listelenir.', favs: 'Henüz favorin yok. Bir istasyonun yanındaki ♥ ile ekle.', search: 'En az iki harf yaz.' }[radioTab];
+    list.append(Object.assign(document.createElement('li'), { className: 'radio-empty muted small', textContent: radioTab === 'search' && $('radio-search').value.trim().length >= 2 ? 'Sonuç yok.' : empty }));
+  }
+}
+
+function radioToggleFav(id) {
+  radioFavs = radioFavs.includes(id) ? radioFavs.filter((x) => x !== id) : [...radioFavs, id];
+  try {
+    localStorage.setItem('radio-favs', JSON.stringify(radioFavs));
+  } catch {}
+  renderRadioList();
+  renderRadioPlayer();
+}
+
+function renderRadioPlayer() {
+  const status = { loading: 'Bağlanıyor…', playing: '● Canlı', error: 'Yayın açılmadı' }[radioState] || '';
+  $('radio-now-name').textContent = radio ? radio.name : 'Radyo kapalı';
+  $('radio-now-sub').textContent = radio
+    ? [[radio.state, radio.country].filter(Boolean).join(', '), `${radio.by} açtı`].join(' · ')
+    : 'Listeden bir istasyona bas, herkeste açılsın';
+  $('radio-now-status').textContent = radio && radioPaused ? 'Sende duraklatıldı' : radio ? status : '';
+  $('radio-now-status').className = `radio-now-status ${radioPaused ? '' : radioState}`;
+  $('radio-fav').hidden = !radio;
+  $('radio-fav').classList.toggle('on', Boolean(radio && radioFavs.includes(radio.id)));
+  $('radio-stop').hidden = !radio;
+  const playing = radio && !radioPaused;
+  $('radio-toggle').querySelector('use').setAttribute('href', playing ? '#i-pause' : '#i-play');
+  const siblings = radio && radioById.get(radio.id)?.place.stations.length > 1;
+  $('radio-prev').disabled = $('radio-next').disabled = !siblings;
+}
+
+// Çalan istasyonun yeri kürede beyaz halkalı nokta olur.
+function renderRadioPlaying() {
+  if (!radioMap) return;
+  const place = radio && radioById.get(radio.id)?.place;
+  radioMap.setFilter('playing', ['==', ['get', 'i'], place ? place.i : -1]);
+}
+
+function radioFlyTo(place, force) {
+  if (!radioMap || !place) return;
+  if (!force && Date.now() - radioTouchedAt < RADIO_IDLE) return;
+  radioMap.flyTo({ center: [place.lon, place.lat], zoom: Math.max(radioMap.getZoom(), RADIO_FOCUS), duration: 2000 });
+}
+
+async function openRadioPage() {
+  renderRadioPlayer();
+  renderRadioList();
+  syncRadioAudio();
+  try {
+    await radioMapReady();
+  } catch {
+    return;
+  }
+  radioMap.resize();
+}
+
+// Yayın sadece Radyo sayfasındayken (ve kişi duraklatmadıysa) indirilir ve çalar.
+function syncRadioAudio() {
+  const audio = $('radio-audio');
+  if (!radioPage() || !radio || radioPaused) {
+    if (audio.dataset.id) {
+      audio.pause();
+      audio.removeAttribute('src');
+      audio.load();
+      delete audio.dataset.id;
+    }
+    radioState = '';
+    renderRadioPlayer();
+    return;
+  }
+  if (audio.dataset.id !== radio.id) {
+    audio.dataset.id = radio.id;
+    audio.src = radio.url;
+    radioState = 'loading';
+  }
+  if (audio.paused) {
+    audio.play().catch((err) => {
+      if (err.name === 'NotAllowedError') toast('Tarayıcı sesi engelledi; radyoyu duymak için sayfaya bir kez tıkla.');
+    });
+  }
+  renderRadioPlayer();
+}
+
+function radioSetPaused(paused) {
+  radioPaused = paused;
+  syncRadioAudio();
+}
+
+const radioAudio = $('radio-audio');
+radioAudio.addEventListener('playing', () => {
+  radioState = 'playing';
+  renderRadioPlayer();
+});
+radioAudio.addEventListener('waiting', () => {
+  radioState = 'loading';
+  renderRadioPlayer();
+});
+radioAudio.addEventListener('error', () => {
+  if (!radioAudio.dataset.id) return; // sayfadan çıkınca bilerek durduruldu
+  radioState = 'error';
+  renderRadioPlayer();
+  toast('Bu radyonun yayını açılmadı; başka bir istasyon seç.');
+});
+// Engellenen ilk çalma, sayfaya ilk tıklamada yeniden denenir.
+document.addEventListener('pointerdown', () => {
+  if (radioPage() && radio && !radioPaused && radioAudio.paused && radioState !== 'error') radioAudio.play().catch(() => {});
+});
+
+// Radyo sesi kişiye özel; YouTube gibi biri konuşurken kısılır (duck).
+let radioVolume = 70;
+try {
+  radioVolume = Number(localStorage.getItem('radio-volume') ?? 70);
+} catch {}
+$('radio-vol').value = radioVolume;
+$('radio-vol').oninput = () => {
+  radioVolume = Number($('radio-vol').value);
+  try {
+    localStorage.setItem('radio-volume', radioVolume);
+  } catch {}
+};
+setInterval(() => {
+  radioAudio.volume = Math.min(1, (radioVolume / 100) * duck);
+}, 100);
+
+// Önceki / sonraki: çalan istasyonun yerindeki listede gezer (herkeste değişir).
+function radioStep(dir) {
+  const stations = radio && radioById.get(radio.id)?.place.stations;
+  if (!stations || stations.length < 2) return;
+  const i = stations.findIndex((s) => s.id === radio.id);
+  socket.emit('radio:play', stations[(i + dir + stations.length) % stations.length].id);
+}
+
+$('radio-toggle').onclick = () => {
+  if (radio) return radioSetPaused(!radioPaused);
+  const first = radioPlace?.stations[0];
+  if (first) socket.emit('radio:play', first.id);
+};
+$('radio-prev').onclick = () => radioStep(-1);
+$('radio-next').onclick = () => radioStep(1);
+$('radio-fav').onclick = () => radio && radioToggleFav(radio.id);
+$('radio-random').onclick = () => socket.emit('radio:random');
+$('radio-shuffle').onclick = () => socket.emit('radio:random');
+confirmButton($('radio-stop'), 'Herkeste kapat?', () => socket.emit('radio:stop'));
+$('radio-zoom-in').onclick = () => radioMap?.zoomIn();
+$('radio-zoom-out').onclick = () => radioMap?.zoomOut();
+$('radio-locate').onclick = () => {
+  if (!navigator.geolocation) return toast('Tarayıcın konum vermiyor.');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      radioTouchedAt = Date.now();
+      radioMap?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 6, duration: 2000 });
+    },
+    () => toast('Konum alınamadı.'),
+    { timeout: 10000 },
+  );
+};
+for (const tab of $('radio').querySelectorAll('.radio-tabs button')) {
+  tab.onclick = () => {
+    radioTab = tab.dataset.tab;
+    for (const b of $('radio').querySelectorAll('.radio-tabs button')) b.classList.toggle('active', b === tab);
+    $('radio-search').hidden = radioTab !== 'search';
+    if (radioTab === 'search') $('radio-search').focus();
+    renderRadioList();
+  };
+}
+$('radio-search').oninput = renderRadioList;
+
+function setRadio(station) {
+  const changed = station?.id !== radio?.id;
+  radio = station;
+  if (changed) {
+    radioState = '';
+    radioPaused = false; // yeni istasyon herkeste çalar
+  }
+  syncRadioAudio();
+  renderRadioList();
+  renderRadioPlaying();
+  // Kendi açtığım radyoya ekran her zaman odaklanır; başkasınınkine, küreyi o an çevirmiyorsam
+  if (changed && radio && radioPage()) radioFlyTo(radioById.get(radio.id)?.place, radio.by === myName);
+}
+socket.on('radio', setRadio);
+
+// ---------- Lobi ----------
+// Grup oyunları lobiyle başlar: biri lobi kurar, isteyen girer ya da çıkar, kuran başlatınca oyun lobideki
+// ekiple başlar. Oyun sürerken lobi kutusu gizlenir; lobide olmayanlar oyunu izler.
+
+let lobbies = {}; // oyun -> { game, host, players, opts }
+const BOT_NAME = 'Bot 🤖'; // sunucudaki BOT ile aynı
+const LOBBY = {
+  race: {
+    title: 'Süre yarışı', tab: 'timing', running: () => Boolean(activeRace()), last: () => timing.race,
+    hint: 'Lobidekilere aynı rastgele hedefler gelir, turlar herkeste aynı anda başlar; toplam farkı en az olan kazanır.',
+  },
+  dino: {
+    title: 'Dinozor koşusu', tab: 'dino', running: () => Boolean(dinoGame && !dinoGame.done), last: () => dinoGame,
+    hint: 'Lobidekiler Jef\'in peşinden birlikte koşar; başlatınca 5 sn geri sayım olur.',
+  },
+  memory: {
+    title: 'Eşini bul', tab: 'memory', running: () => Boolean(memoryActive()), last: () => memory,
+    hint: 'Sırayla iki taş açılır, eşini bulan yeniden oynar. Tek başına da oynanabilir.',
+  },
+  kelime: {
+    title: 'Kelime', tab: 'kelime', running: () => Boolean(kelimeActive()), last: () => kelime,
+    hint: 'Biri anlatır, diğerleri bilir; herkes bir kez anlatır. 2-6 kişi.',
+  },
+};
+
+const lobbyButton = (text, cls, onclick) => Object.assign(document.createElement('button'), { type: 'button', className: cls, textContent: text, onclick });
+const lobbyEmit = (event, game, extra) => socket.emit(event, { game, ...extra });
+
+function renderLobby(game) {
+  const box = $(`lobby-${game}`);
+  const def = LOBBY[game];
+  const lobby = lobbies[game];
+  box.replaceChildren();
+  box.hidden = def.running();
+  $(`game-tab-${def.tab}`).classList.toggle('lobby-open', Boolean(lobby) && box.hidden === false);
+  if (box.hidden) return;
+
+  const head = document.createElement('div');
+  head.className = 'lobby-head';
+  const title = document.createElement('strong');
+  title.textContent = lobby ? `${def.title} lobisi` : def.title;
+  head.append(title);
+  box.append(head);
+
+  if (!lobby) {
+    box.classList.remove('open');
+    box.append(Object.assign(document.createElement('p'), { className: 'muted small', textContent: def.hint }));
+    const row = document.createElement('div');
+    row.className = 'lobby-actions';
+    row.append(lobbyButton('Lobi kur', 'primary', () => lobbyEmit('lobby:open', game)));
+    if (def.last()) row.append(lobbyButton('Aynı ekiple lobi kur', '', () => lobbyEmit('lobby:open', game, { again: true })));
+    box.append(row);
+    return;
+  }
+
+  box.classList.add('open');
+  const mine = lobby.players.includes(myName);
+  const host = lobby.host === myName;
+  head.append(kelimeSmall(`${lobby.players.length} kişi · ${lobby.host} kurdu`));
+
+  const list = document.createElement('div');
+  list.className = 'lobby-players';
+  for (const name of lobby.players) {
+    const chip = document.createElement('span');
+    chip.className = 'lobby-player' + (name === myName ? ' me' : '');
+    chip.append(makeAvatar(name), name);
+    if (name === lobby.host) chip.append(kelimeSmall('kurucu'));
+    if (name === lobby.opts.narrator) chip.append(kelimeSmall('🎙️ anlatıcı'));
+    list.append(chip);
+  }
+  box.append(list);
+
+  // Oyunun ayarları
+  if (game === 'race') {
+    const row = document.createElement('div');
+    row.className = 'lobby-opts';
+    row.append(kelimeSmall('Tur:'));
+    for (const n of RACE_ROUNDS) {
+      const b = lobbyButton(`${n} tur`, 'sm' + (n === lobby.opts.rounds ? ' active' : ''), () => lobbyEmit('lobby:opts', game, { rounds: n }));
+      b.disabled = !host;
+      row.append(b);
+    }
+    box.append(row);
+  }
+  if (game === 'memory') box.append(...memoryLobbyOpts(lobby, host));
+  if (game === 'kelime') {
+    const row = document.createElement('div');
+    row.className = 'lobby-opts';
+    const seat = lobby.opts.narrator;
+    if (seat) {
+      row.append(kelimeSmall(`🎙️ İlk anlatıcı: ${seat}`));
+      if (mine && (seat === myName || seat === BOT_NAME)) row.append(lobbyButton('Bırak', 'sm ghost', () => lobbyEmit('lobby:opts', game, { narrator: null })));
+    } else {
+      if (mine) row.append(lobbyButton('🎙️ İlk ben anlatayım', 'sm', () => lobbyEmit('lobby:opts', game, { narrator: 'me' })));
+      if (mine && lobby.players.includes(BOT_NAME)) row.append(lobbyButton('Bot anlatsın', 'sm', () => lobbyEmit('lobby:opts', game, { narrator: 'bot' })));
+      row.append(kelimeSmall(`Kimse seçmezse ${lobby.host} anlatır.`));
+    }
+    box.append(row);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'lobby-actions';
+  if (host) {
+    actions.append(lobbyButton(`Başlat (${lobby.players.length} kişi)`, 'primary', () => lobbyEmit('lobby:start', game)));
+    actions.append(lobbyButton('Lobiden çık', 'ghost', () => lobbyEmit('lobby:leave', game)));
+    actions.append(lobbyButton('Lobiyi kapat', 'ghost danger', () => lobbyEmit('lobby:cancel', game)));
+  } else if (mine) {
+    actions.append(lobbyButton('Lobiden çık', '', () => lobbyEmit('lobby:leave', game)));
+    actions.append(kelimeSmall(`${lobby.host} başlatınca oyun bu ekiple başlar.`));
+  } else {
+    actions.append(lobbyButton('Lobiye katıl', 'primary', () => lobbyEmit('lobby:join', game)));
+    actions.append(kelimeSmall('Katılmazsan oyunu izlersin.'));
+  }
+  box.append(actions);
+}
+
+// Eşini bul tahtası: kurucu sayı ve renk ekleyip çıkarır; her sayı-renk ikilisinden iki taş olur.
+function memoryLobbyOpts(lobby, host) {
+  const { numbers, colors } = lobby.opts;
+  const pairs = numbers.length * colors.length;
+  const set = (opts) => lobbyEmit('lobby:opts', 'memory', { numbers, colors, ...opts });
+  const fits = (n, c) => n * c >= MEMORY.pairs[0] && n * c <= MEMORY.pairs[1];
+  const chip = (label, color, onRemove) => {
+    const el = document.createElement('span');
+    el.className = 'memory-chip';
+    if (color) el.style.setProperty('--c', color);
+    el.append(label);
+    if (host && onRemove) el.append(lobbyButton('×', 'memory-chip-x', onRemove));
+    return el;
+  };
+  const plus = (title, onclick, ok) => {
+    const b = lobbyButton('+', 'sm memory-plus', onclick);
+    b.title = title;
+    b.disabled = !ok;
+    return b;
+  };
+
+  const numRow = document.createElement('div');
+  numRow.className = 'lobby-opts';
+  numRow.append(kelimeSmall('Sayılar:'));
+  for (const n of numbers) {
+    numRow.append(chip(String(n), null, fits(numbers.length - 1, colors.length) ? () => set({ numbers: numbers.filter((x) => x !== n) }) : null));
+  }
+  const nextNumber = [...Array(MEMORY.maxNumber + 1).keys()].find((n) => !numbers.includes(n));
+  if (host) numRow.append(plus('Sayı ekle', () => set({ numbers: [...numbers, nextNumber] }), nextNumber != null && fits(numbers.length + 1, colors.length)));
+
+  const colorRow = document.createElement('div');
+  colorRow.className = 'lobby-opts';
+  colorRow.append(kelimeSmall('Renkler:'));
+  for (const c of colors) {
+    colorRow.append(chip(MEMORY.colors[c][0], MEMORY.colors[c][1], fits(numbers.length, colors.length - 1) ? () => set({ colors: colors.filter((x) => x !== c) }) : null));
+  }
+  const nextColor = Object.keys(MEMORY.colors).find((c) => !colors.includes(c));
+  if (host) colorRow.append(plus('Renk ekle', () => set({ colors: [...colors, nextColor] }), nextColor && fits(numbers.length, colors.length + 1)));
+
+  const note = kelimeSmall(`${pairs} çift · ${pairs * 2} taş` + (host ? ` (en çok ${MEMORY.pairs[1] * 2} taş)` : ''));
+  return [numRow, colorRow, note];
+}
+
+function renderLobbies() {
+  for (const game of Object.keys(LOBBY)) renderLobby(game);
+}
+
+socket.on('lobbies', (state) => {
+  lobbies = state || {};
+  renderLobbies();
+});
+
 // ---------- Bot ----------
 // Açıkken yeni başlayan kelime, süre yarışı ve dinozor oyunlarına "Bot 🤖" da katılır ve rastgele oynar.
 
@@ -1974,6 +2820,7 @@ function setBot(on) {
   $('bot-toggle').textContent = on ? '🤖 Bot var · çıkar' : '🤖 Bot ekle';
   $('bot-toggle').classList.toggle('on', on);
   renderKelime();
+  renderLobbies();
 }
 $('bot-toggle').onclick = () => socket.emit('bot:set', !botOn);
 socket.on('bot', setBot);
@@ -2460,12 +3307,11 @@ function dinoOtherPose(name, o) {
 function renderDinoUi() {
   const game = dinoGame;
   const running = game && !game.done;
-  $('dino-start').hidden = Boolean(running);
+  renderLobby('dino');
   $('dino-help').innerHTML = '<b>W</b> / <b>↑</b> / boşluk: zıpla · <b>S</b> / <b>↓</b>: eğil (havadayken hızlı iner). '
     + 'Hız otomatik ve gitgide artar; herkes kusursuz koşan Jef\'in arkasında koşar. Engele çarpan ölür, en uzağa giden kazanır. '
     + 'Gökten inen <b style="color:#d9822b">turuncu kuş sürüsü</b>nün altından koşarak geç; zıplarsan çarparsın.';
-  $('dino-start').textContent = game ? 'Tekrar oyna' : 'Başlat';
-  let status = 'Odadaki herkes Jef\'in peşinden koşar. Başlatınca 5 sn geri sayım olur.';
+  let status = 'Lobi kurulup başlatılınca lobidekiler Jef\'in peşinden koşar.';
   if (running) {
     const alive = Object.values(game.players).filter((p) => !p.dead).length;
     status = `${alive}/${Object.keys(game.players).length} kişi hayatta` + (game.players[myName] ? '' : ' · İzliyorsun');
@@ -2505,7 +3351,6 @@ function renderDinoBoard(board) {
 }
 socket.on('dino:board', renderDinoBoard);
 
-$('dino-start').onclick = () => socket.emit('dino:start');
 
 function dinoBox(d) {
   return d.duck && d.y === 0 ? { w: DINO.duckW, h: DINO.duckH } : { w: DINO.w, h: DINO.h };
@@ -2618,7 +3463,7 @@ function drawDino(started) {
     ctx.fillStyle = '#8b92a3';
     ctx.font = '600 16px system-ui, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('Başlat\'a bas, Jef\'in peşinden koşun', DINO.viewW / 2, 100);
+    ctx.fillText('Lobi kur, birlikte Jef\'in peşinden koşun', DINO.viewW / 2, 100);
     drawOneDino(ctx, 'Jef 🤖', { x: 80, y: 0, duck: false }, false, sx, sy, 0, DINO_JEF_COLOR);
     if (myName) drawOneDino(ctx, myName, { x: -40, y: 0, duck: false }, false, sx, sy);
     return;
@@ -4003,7 +4848,7 @@ setInterval(() => {
   const target = talking ? DUCK_LEVEL : 1;
   // Kısma hızlı, geri açma yavaş: konuşma aralarında müzik inip çıkmasın.
   duck = target < duck ? Math.max(target, duck - 0.2) : Math.min(target, duck + 0.04);
-  const vol = musicVolume();
+  const vol = radioPage() ? 0 : musicVolume(); // Radyo sayfasındayken radyo duyulur, YouTube kısılır
   if (vol !== appliedVolume) {
     player.setVolume(vol);
     xPlayer.setVolume(vol);
@@ -4259,6 +5104,7 @@ function renderAccount() {
   $('profile-name').textContent = account.name;
   $('profile-avatar').replaceChildren(makeAvatar(account.name));
   $('topbar-avatar').replaceChildren(makeAvatar(account.name));
+  $('nav-members').hidden = !account.admin;
   for (const id of ['avatar-change', 'profile-change']) $(id).textContent = account.avatar ? 'Resmi değiştir' : 'Resim ekle';
   for (const id of ['avatar-remove', 'profile-remove']) $(id).hidden = !account.avatar;
 }
@@ -4294,7 +5140,7 @@ async function signIn() {
     return false;
   }
   saveToken(res.token);
-  account = { name: res.name, avatar: res.avatar };
+  account = { name: res.name, avatar: res.avatar, admin: res.admin };
   $('password').value = $('password2').value = '';
   try {
     localStorage.setItem('name', res.name);
@@ -4480,6 +5326,10 @@ function applyJoin(res) {
   renderOneriler();
   kelimePool = res.kelimePool || [];
   setKelime(res.kelime);
+  setMemory(res.memory);
+  setRadio(res.radio);
+  lobbies = res.lobbies || {};
+  renderLobbies();
   renderTiming();
   media = res.media;
   renderQueue();
