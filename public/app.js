@@ -13,6 +13,7 @@ let iceServers = [];
 let localStream = null;       // ham mikrofon
 let sendStream = null;        // ses eşiğinden geçmiş, karşıya giden ses
 let gateNode = null;
+let micSource = null;          // mikrofonu ses eşiğine bağlayan düğüm (cihaz değişince yenilenir)
 let screenStream = null;      // kendi ekran paylaşımımız
 let sharerId = null;          // odada ekranını paylaşan kişi
 let micOn = true;
@@ -141,6 +142,8 @@ function setupAudio() {
   const wake = () => audioCtx.state !== 'running' && audioCtx.resume().catch(() => {});
   document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && wake());
   document.addEventListener('pointerdown', wake);
+  // Bluetooth kulaklık takılıp çıkınca tarayıcı ses altyapısını durdurabilir; hemen sürdür.
+  audioCtx.onstatechange = () => audioCtx.state !== 'closed' && wake();
 }
 
 // ---------- Konuşma göstergesi ----------
@@ -257,7 +260,11 @@ function addPeer(id, name, muted) {
   gain.connect(voiceBus);
 
   const peer = { name, muted, pc: null, audio, gain, source: null, pendingIce: [], row, speaking: false, localMuted: false, badSince: null, retries: 0 };
-  const applyGain = () => (gain.gain.value = peer.localMuted ? 0 : vol.value / 100);
+  const applyGain = () => {
+    gain.gain.value = peer.localMuted ? 0 : vol.value / 100;
+    audio.volume = peer.localMuted ? 0 : vol.value / 100; // medya öğesinden çalarken
+  };
+  peer.applyGain = applyGain;
   vol.oninput = applyGain;
 
   // Kişiyi sadece kendin için susturma (karşı taraf bunu görmez).
@@ -382,11 +389,21 @@ function createPc(id) {
       return;
     }
     peer.audio.srcObject = stream;
-    peer.audio.play().catch(() => {});
     peer.source?.disconnect();
-    peer.source = audioCtx.createMediaStreamSource(stream);
-    peer.source.connect(peer.gain);
-    watchLevel(peer.source, peer.row, peer);
+    peer.source = null;
+    try {
+      peer.source = audioCtx.createMediaStreamSource(stream);
+      peer.source.connect(peer.gain);
+      watchLevel(peer.source, peer.row, peer);
+      peer.audio.muted = true;
+    } catch (err) {
+      // Bazı tarayıcılar (ör. Firefox, Bluetooth kulaklıkta örnekleme hızı farklıyken) sesi
+      // Web Audio'ya vermez; o zaman ses doğrudan medya öğesinden çalar.
+      console.warn('ses Web Audio üzerinden çalınamıyor, doğrudan çalınıyor', err);
+      peer.audio.muted = false;
+      peer.applyGain();
+    }
+    peer.audio.play().catch(() => {});
   };
 
   pc.onconnectionstatechange = () => {
@@ -572,7 +589,8 @@ async function setupMic() {
     await audioCtx.audioWorklet.addModule('/gate-worklet.js');
     gateNode = new AudioWorkletNode(audioCtx, 'noise-gate', { outputChannelCount: [1] });
     const dest = audioCtx.createMediaStreamDestination();
-    audioCtx.createMediaStreamSource(localStream).connect(gateNode).connect(dest);
+    micSource = audioCtx.createMediaStreamSource(localStream);
+    micSource.connect(gateNode).connect(dest);
     gateNode.port.onmessage = ({ data }) => {
       $('meter-fill').style.width = `${meterPct(data.db)}%`;
       $('meter-fill').classList.toggle('open', data.open);
@@ -581,10 +599,86 @@ async function setupMic() {
     renderGate();
   } catch (err) {
     console.warn('ses eşiği kullanılamıyor', err);
+    gateNode = null;
+    micSource = null;
     sendStream = localStream;
     $('gate-btn').hidden = true;
   }
 }
+
+const MIC_CONSTRAINTS = {
+  audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+};
+
+// Kulaklık (özellikle Bluetooth) takılıp çıkınca mikrofon eski cihazda kalır ya da kopar.
+// Varsayılan mikrofonu yeniden açıp karşıya giden sese bağlar; bağlantılar kopmaz.
+let micSwapping = null;
+async function refreshMic() {
+  if (!localStream || micSwapping) return micSwapping;
+  micSwapping = (async () => {
+    let fresh;
+    try {
+      fresh = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+    } catch (err) {
+      console.warn('mikrofon yeniden açılamadı', err);
+      return;
+    }
+    const old = localStream;
+    const newTrack = fresh.getAudioTracks()[0];
+    const oldTrack = old.getAudioTracks()[0];
+    if (oldTrack?.readyState === 'live' && oldTrack.getSettings().deviceId === newTrack.getSettings().deviceId
+        && oldTrack.label === newTrack.label) {
+      fresh.getTracks().forEach((t) => t.stop()); // aynı cihaz, değişen bir şey yok
+      return;
+    }
+    localStream = fresh;
+    watchMicTrack();
+    let swapped = false;
+    if (gateNode) {
+      try {
+        const src = audioCtx.createMediaStreamSource(fresh);
+        micSource?.disconnect();
+        src.connect(gateNode);
+        micSource = src;
+        swapped = true;
+      } catch (err) {
+        console.warn('yeni mikrofon ses eşiğine bağlanamadı, eşiksiz gönderiliyor', err);
+        gateNode.port.onmessage = null;
+        micSource?.disconnect();
+        gateNode = null;
+        micSource = null;
+        $('gate-btn').hidden = true;
+      }
+    }
+    if (!swapped) {
+      sendStream = fresh;
+      newTrack.enabled = micOn;
+      for (const peer of peers.values()) {
+        const senders = peer.pc?.getSenders() ?? [];
+        const sender = senders.find((s) => s.track === oldTrack)
+          ?? senders.find((s) => s.track?.kind === 'audio' && !peer.screenSenders?.includes(s));
+        sender?.replaceTrack(newTrack).catch(() => {});
+      }
+    }
+    old.getTracks().forEach((t) => t.stop());
+  })().finally(() => (micSwapping = null));
+  return micSwapping;
+}
+
+function watchMicTrack() {
+  const track = localStream?.getAudioTracks()[0];
+  if (track) track.onended = () => refreshMic();
+}
+
+let deviceTimer = null;
+navigator.mediaDevices?.addEventListener?.('devicechange', () => {
+  clearTimeout(deviceTimer);
+  // Bluetooth cihazı birkaç adımda bağlanır; ortalık durulunca bak.
+  deviceTimer = setTimeout(() => {
+    audioCtx?.state === 'suspended' && audioCtx.resume().catch(() => {});
+    refreshMic();
+  }, 800);
+});
 
 // ---------- Ekran paylaşımı ----------
 // Tek seferde bir kişi paylaşabilir. Görüntü 720p/15fps ve kişi başı ~1 Mbps ile sınırlı;
@@ -4282,9 +4376,13 @@ async function startRecording(withMusic) {
 
   if (sendStream) {
     // Gönderilen akıştan alınır: mikrofon kapalıyken kayda da ses girmez.
-    const mine = audioCtx.createMediaStreamSource(sendStream);
-    mine.connect(limiter);
-    recCleanup.push(() => mine.disconnect());
+    try {
+      const mine = audioCtx.createMediaStreamSource(sendStream);
+      mine.connect(limiter);
+      recCleanup.push(() => mine.disconnect());
+    } catch (err) {
+      console.warn('kendi sesin kayda eklenemedi', err);
+    }
   }
 
   if ($('rec-format').value === 'mp3') {
@@ -5500,9 +5598,8 @@ $('join-form').onsubmit = async (e) => {
   const sfxLoaded = Sfx.load(audioCtx);
 
   try {
-    localStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
-    });
+    localStream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+    watchMicTrack();
   } catch {
     localStream = null;
     $('mic-note').textContent = 'Mikrofona erişilemedi; sadece dinleyebilirsin.';
@@ -5544,8 +5641,12 @@ $('join-form').onsubmit = async (e) => {
   setStatus(selfRow, localStream ? 'Sen' : 'Sadece dinleyici');
   // Kendi göstergemiz mikrofonu dinler; sessizdeyken karşıya ses gitmediği için yanmasın.
   const self = { silenced: () => !micOn };
-  if (gateNode) watchLevel(gateNode, selfRow, self);
-  else if (localStream) watchLevel(audioCtx.createMediaStreamSource(localStream), selfRow, self);
+  try {
+    if (gateNode) watchLevel(gateNode, selfRow, self);
+    else if (localStream) watchLevel(audioCtx.createMediaStreamSource(localStream), selfRow, self);
+  } catch (err) {
+    console.warn('konuşma göstergesi kurulamadı', err); // oda yine de açılır
+  }
   renderMic();
   renderPeopleCount();
   startUsageMeter();
