@@ -281,6 +281,7 @@
             <button id="game-tab-dino" class="tab" role="tab">Dinozor</button>
             <button id="game-tab-kelime" class="tab" role="tab">Kelime</button>
             <button id="game-tab-memory" class="tab" role="tab">Eşini bul</button>
+            <button id="game-tab-klotski" class="tab" role="tab">Kaydırmaca</button>
             <button id="game-tab-peacock" class="tab" role="tab">Tavus kuşu</button>
             <button id="game-tab-oner" class="tab" role="tab">Oyun öner</button>
             <button id="bot-toggle" class="sm ghost bot-toggle" title="Bot rastgele oynar; tek başınayken oyunların gidişatını görmek için"></button>
@@ -497,6 +498,35 @@
             </form>
             <h2>Gönderilen öneriler <span id="oner-count" class="count"></span></h2>
             <ol id="oner-list" class="oner-list"></ol>
+          </div>
+
+          <!-- Kaydırmaca (Klotski): parçaları kaydırıp büyük kareyi alttaki çıkışa götür; tek başına oynanır -->
+          <div id="game-klotski" class="klotski" hidden>
+            <div id="klotski-levels" class="klotski-levels"></div>
+            <div class="klotski-play">
+              <div class="klotski-wrap">
+                <div id="klotski-board" class="klotski-board"></div>
+                <div id="klotski-done" class="klotski-done" hidden>
+                  <strong>Çıktı! 🎉</strong>
+                  <span id="klotski-done-text"></span>
+                  <button id="klotski-next" class="primary sm">Sonraki bölüm</button>
+                </div>
+              </div>
+              <div class="klotski-side">
+                <div class="klotski-stats">
+                  <div><span class="muted small">Süre</span><strong id="klotski-time">0:00</strong></div>
+                  <div><span class="muted small">Hamle</span><strong id="klotski-moves">0</strong></div>
+                  <div><span class="muted small">En az</span><strong id="klotski-min"></strong></div>
+                </div>
+                <div class="klotski-btns">
+                  <button id="klotski-undo" class="sm">Geri al</button>
+                  <button id="klotski-reset" class="sm danger">Baştan</button>
+                </div>
+                <h2>Rekorlar <span id="klotski-level-name" class="muted small"></span></h2>
+                <ol id="klotski-best" class="timing-list"></ol>
+              </div>
+            </div>
+            <p class="muted small memory-help">Parçaları parmağınla ya da fareyle sürükle. Kırmızı büyük kareyi alttaki çıkışa (alt orta) getirince bölüm biter. Aynı parçayı art arda ne kadar sürüklersen sürükle tek hamle sayılır. Rekorlarda en az hamle, eşitse en kısa süre öne geçer.</p>
           </div>
 
           <!-- Tavus kuşu: yakında (Space'e art arda basarak koşulan yarış) -->

@@ -795,8 +795,8 @@ $('topbar-now').onclick = () => go(() => showPage('room'));
 // önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var:
 // / sıra, /gecmis, /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   if (view.page === 'members') return '/uyeler';
@@ -1341,6 +1341,7 @@ function openGame(name) {
   if (name === 'tier') document.querySelectorAll('.tier-name').forEach(fitTierName);
   if (name === 'kelime') renderKelime();
   if (name === 'memory') renderMemory();
+  if (name === 'klotski') renderKlotski();
   if (name === 'dino') dinoKick();
 }
 for (const game of GAMES) $(`game-tab-${game}`).onclick = () => go(() => openGame(game));
@@ -2292,6 +2293,227 @@ function renderMemoryRanks() {
 socket.on('memory:board', (board) => {
   memoryRanks = board;
   renderMemoryRanks();
+});
+
+// ---------- Kaydırmaca (Klotski) ----------
+// Tek başına oynanır, tahta tarayıcıda. Parça sürüklendikçe yarım kare geçince bir kare kayar (boş yoksa durur),
+// böylece köşe dönen yollar da tek sürüklemede yapılır. Aynı parçanın art arda adımları tek hamle sayılır.
+// Bitince adımlar sunucuya gider; sunucu yeniden oynatıp doğrular ve rekor tablosuna ekler.
+
+let klotskiLevels = [];
+let klotskiRanks = {};
+let klotski = null; // { level, pieces: [{ x, y, w, h, big, el }], steps: [[k, dx, dy]], start, done, ms }
+let klotskiTimer = null;
+
+const klotskiLevelKey = 'klotskiLevel';
+const klotskiSolvedKey = 'klotskiSolved';
+const klotskiStore = (key, value) => {
+  try {
+    if (value === undefined) return JSON.parse(localStorage.getItem(key));
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch { return null; }
+};
+
+function setKlotskiLevels({ levels, board }) {
+  klotskiLevels = levels || [];
+  klotskiRanks = board || {};
+  if (!klotski) {
+    const saved = klotskiStore(klotskiLevelKey);
+    klotskiLoad(klotskiLevels.find((l) => l.id === saved) || klotskiLevels[0]);
+  }
+  renderKlotski();
+}
+
+function klotskiParse(rows) {
+  const pieces = [];
+  const seen = new Set();
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 4; x++) {
+    const c = rows[y][x];
+    if (c === '.' || seen.has(c)) continue;
+    seen.add(c);
+    let w = 1, h = 1;
+    while (rows[y][x + w] === c) w++;
+    while (rows[y + h]?.[x] === c) h++;
+    pieces.push({ x, y, w, h, big: w === 2 && h === 2 });
+  }
+  return pieces;
+}
+
+function klotskiLoad(level) {
+  if (!level) return;
+  clearInterval(klotskiTimer);
+  klotskiTimer = null;
+  klotski = { level, pieces: klotskiParse(level.rows), steps: [], start: 0, done: false, ms: 0 };
+  klotskiStore(klotskiLevelKey, level.id);
+  const board = $('klotski-board');
+  board.classList.remove('won');
+  board.replaceChildren(...klotski.pieces.map((p, k) => {
+    const el = document.createElement('div');
+    el.className = 'klotski-piece' + (p.big ? ' big' : '');
+    el.append(document.createElement('i'));
+    el.style.setProperty('--w', p.w);
+    el.style.setProperty('--h', p.h);
+    el.addEventListener('pointerdown', (e) => klotskiGrab(e, k));
+    p.el = el;
+    return el;
+  }));
+  klotskiPlace();
+  $('klotski-done').hidden = true;
+}
+
+function klotskiPlace() {
+  for (const p of klotski.pieces) {
+    p.el.style.setProperty('--x', p.x);
+    p.el.style.setProperty('--y', p.y);
+  }
+}
+
+const klotskiMoves = () => {
+  let moves = 0, last = -1;
+  for (const [k] of klotski.steps) {
+    if (k !== last) moves++;
+    last = k;
+  }
+  return moves;
+};
+
+function klotskiCan(k, dx, dy) {
+  const p = klotski.pieces[k];
+  const nx = p.x + dx, ny = p.y + dy;
+  if (nx < 0 || ny < 0 || nx + p.w > 4 || ny + p.h > 5) return false;
+  return !klotski.pieces.some((q, i) => i !== k && nx < q.x + q.w && q.x < nx + p.w && ny < q.y + q.h && q.y < ny + p.h);
+}
+
+function klotskiStep(k, dx, dy) {
+  if (klotski.done || !klotskiCan(k, dx, dy)) return false;
+  const p = klotski.pieces[k];
+  p.x += dx;
+  p.y += dy;
+  const last = klotski.steps.at(-1);
+  // Aynı parça geri dönerse son adımı silmek yeterli (hamle sayısı şişmesin)
+  if (last && last[0] === k && last[1] === -dx && last[2] === -dy) klotski.steps.pop();
+  else klotski.steps.push([k, dx, dy]);
+  if (!klotski.start) {
+    klotski.start = Date.now();
+    klotskiTimer = setInterval(renderKlotskiStats, 250);
+  }
+  klotskiPlace();
+  if (p.big && p.x === 1 && p.y === 3) klotskiWon();
+  renderKlotskiStats();
+  return true;
+}
+
+function klotskiGrab(e, k) {
+  if (!klotski || klotski.done) return;
+  e.preventDefault();
+  const el = klotski.pieces[k].el;
+  const rect = $('klotski-board').getBoundingClientRect();
+  const cw = (rect.width - 20) / 4, ch = (rect.height - 20) / 5;
+  let ox = e.clientX, oy = e.clientY;
+  el.classList.add('drag');
+  try { el.setPointerCapture(e.pointerId); } catch {}
+  const move = (ev) => {
+    // Birden çok kare birden geçildiyse hepsini sırayla dene; önce daha çok çekilen yön
+    for (let guard = 0; guard < 8; guard++) {
+      const dx = (ev.clientX - ox) / cw, dy = (ev.clientY - oy) / ch;
+      const tries = [];
+      if (Math.abs(dx) >= .5) tries.push([Math.sign(dx), 0, Math.abs(dx)]);
+      if (Math.abs(dy) >= .5) tries.push([0, Math.sign(dy), Math.abs(dy)]);
+      tries.sort((a, b) => b[2] - a[2]);
+      const done = tries.find(([sx, sy]) => klotskiStep(k, sx, sy));
+      if (!done) break;
+      ox += done[0] * cw;
+      oy += done[1] * ch;
+    }
+  };
+  const up = () => {
+    el.classList.remove('drag');
+    el.removeEventListener('pointermove', move);
+    el.removeEventListener('pointerup', up);
+    el.removeEventListener('pointercancel', up);
+  };
+  el.addEventListener('pointermove', move);
+  el.addEventListener('pointerup', up);
+  el.addEventListener('pointercancel', up);
+}
+
+function klotskiWon() {
+  klotski.done = true;
+  klotski.ms = Date.now() - klotski.start;
+  clearInterval(klotskiTimer);
+  klotskiTimer = null;
+  const moves = klotskiMoves();
+  const solved = klotskiStore(klotskiSolvedKey) || {};
+  solved[klotski.level.id] = true;
+  klotskiStore(klotskiSolvedKey, solved);
+  socket.emit('klotski:win', { level: klotski.level.id, steps: klotski.steps, ms: klotski.ms });
+  $('klotski-board').classList.add('won');
+  const perfect = moves <= klotski.level.min ? ' · en kısa yol!' : '';
+  $('klotski-done-text').textContent = `${moves} hamle · ${fmtClock(Math.round(klotski.ms / 1000) * 1000)}${perfect}`;
+  const i = klotskiLevels.indexOf(klotski.level);
+  $('klotski-next').hidden = i === klotskiLevels.length - 1;
+  setTimeout(() => {
+    if (klotski.done) $('klotski-done').hidden = false;
+  }, 250);
+  renderKlotski();
+}
+
+function renderKlotskiStats() {
+  if (!klotski) return;
+  const ms = klotski.done ? klotski.ms : klotski.start ? Date.now() - klotski.start : 0;
+  $('klotski-time').textContent = fmtClock(Math.floor(ms / 1000) * 1000);
+  $('klotski-moves').textContent = klotskiMoves();
+  $('klotski-min').textContent = klotski.level.min;
+  $('klotski-undo').disabled = klotski.done || !klotski.steps.length;
+}
+
+function renderKlotski() {
+  if (!klotski) return;
+  const solved = klotskiStore(klotskiSolvedKey) || {};
+  $('klotski-levels').replaceChildren(...klotskiLevels.map((l, i) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'sm ghost' });
+    b.append(`${i + 1}. ${l.name}`);
+    if (solved[l.id]) b.append(Object.assign(document.createElement('span'), { className: 'ok', textContent: '✓' }));
+    b.classList.toggle('active', l === klotski.level);
+    b.onclick = () => {
+      klotskiLoad(l);
+      renderKlotski();
+    };
+    return b;
+  }));
+  $('klotski-level-name').textContent = klotski.level.name;
+  const best = $('klotski-best');
+  best.replaceChildren(...(klotskiRanks[klotski.level.id] || []).map((r, i) => {
+    const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    return memoryRankRow(r.name, `${r.moves} hamle`, `${fmtClock(Math.round(r.ms / 1000) * 1000)} · ${date}`, i);
+  }));
+  if (!best.children.length) best.append(memoryEmpty('Bu bölümü bitiren yok.'));
+  renderKlotskiStats();
+}
+
+$('klotski-reset').onclick = () => klotski && klotskiLoad(klotski.level);
+$('klotski-undo').onclick = () => {
+  if (!klotski || klotski.done) return;
+  // Son hamlenin tamamı (aynı parçanın art arda adımları) geri alınır
+  const k = klotski.steps.at(-1)?.[0];
+  while (klotski.steps.length && klotski.steps.at(-1)[0] === k) {
+    const [, dx, dy] = klotski.steps.pop();
+    klotski.pieces[k].x -= dx;
+    klotski.pieces[k].y -= dy;
+  }
+  klotskiPlace();
+  renderKlotskiStats();
+};
+$('klotski-next').onclick = () => {
+  const next = klotskiLevels[klotskiLevels.indexOf(klotski.level) + 1];
+  if (next) {
+    klotskiLoad(next);
+    renderKlotski();
+  }
+};
+socket.on('klotski:board', (board) => {
+  klotskiRanks = board;
+  renderKlotski();
 });
 
 // ---------- Radyo ----------
@@ -5369,6 +5591,7 @@ function applyJoin(res) {
   kelimePool = res.kelimePool || [];
   setKelime(res.kelime);
   memoryRanks = res.memoryBoard || memoryRanks;
+  if (res.klotski) setKlotskiLevels(res.klotski);
   setMemory(res.memory);
   setRadio(res.radio);
   lobbies = res.lobbies || {};

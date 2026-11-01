@@ -295,6 +295,7 @@ const tierListsByRoom = new Map(); // oda kodu -> [tier list] (aşağıda)
 const dinoBoards = new Map(); // oda kodu -> { hold: [{ name, dist, at }], tap: [...] } en iyi skorlar
 const memoryLogs = new Map(); // oda kodu -> [{ at, pairs, ms, full, players: [{ name, pairs, moves }] }] biten Eşini Bul oyunları
 const kelimePools = new Map(); // oda kodu -> [{ text, by }] kelime oyununun havuzu
+const klotskiLogs = new Map(); // oda kodu -> [{ level, name, moves, ms, at }] bitirilen Kaydırmaca bulmacaları
 const oneriler = []; // oyun önerileri (tek oda var): [{ id, by, at, fields, status, note, updatedAt }]
 
 function getRoom(code) {
@@ -305,6 +306,7 @@ function getRoom(code) {
     if (!dinoBoards.has(code)) dinoBoards.set(code, { auto: [], hold: [], tap: [] });
     if (!kelimePools.has(code)) kelimePools.set(code, []);
     if (!memoryLogs.has(code)) memoryLogs.set(code, []);
+    if (!klotskiLogs.has(code)) klotskiLogs.set(code, []);
     rooms.set(code, {
       code,
       history: histories.get(code),
@@ -317,6 +319,7 @@ function getRoom(code) {
       kelimeRecent: [],
       memory: null, // eşini bul (aşağıda)
       memoryLog: memoryLogs.get(code),
+      klotskiLog: klotskiLogs.get(code),
       radio: null, // odada çalan radyo istasyonu
       memorySeen: new Map(),
       lobbyOpts: {}, // oyun -> son başlatılan lobinin ayarları
@@ -583,7 +586,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), memoryBoard: memoryBoard(room), radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -1040,6 +1043,14 @@ io.on('connection', (socket) => {
     delete room.lobbies[game];
     sendLobbies(room);
   }));
+
+  // ---------- Kaydırmaca ----------
+
+  socket.on('klotski:win', ({ level, steps, ms } = {}) => {
+    if (!code || typeof level !== 'string' || !Array.isArray(steps) || steps.length > 5000) return;
+    const room = getRoom(code);
+    klotskiWin(room, room.users.get(socket.id).name, level, steps, ms);
+  });
 
   // ---------- Eşini bul ----------
 
@@ -2107,6 +2118,110 @@ function finishMemory(room, reason) {
   postSystem(room, `${prefix}Eşini Bul bitti! ` + (best ? `🏆 ${winners.join(', ')} (${best} çift)` : 'Kimse çift bulamadı.'));
 }
 
+// ---------- Kaydırmaca (Klotski) ----------
+// 4×5 tahtada parçalar kaydırılır; büyük kare alttaki çıkışa (alt orta) gelince bulmaca biter. Oyun tarayıcıda
+// oynanır; bitince adımlar sunucuya gelir, sunucu her adımı yeniden oynatıp doğrular ve hamleyi kendisi sayar
+// (aynı parçanın art arda adımları tek hamle). Tablo: her bölümde herkesin en iyisi, en az hamle, eşitse en kısa süre.
+// Harfler parçaları ayırır (aynı harf aynı parça), '.' boş. En az hamleler çözücüyle hesaplandı.
+const KLOTSKI_LEVELS = [
+  { id: 'isinma', name: 'Isınma', min: 21, rows: ['HHII', 'aBBb', 'aBBb', 'cdef', 'g..h'] },
+  { id: 'kolay', name: 'Kolay', min: 26, rows: ['aBBc', 'dBBe', 'fHHg', 'hIIi', 'j..k'] },
+  { id: 'kalabalik', name: 'Kalabalık', min: 28, rows: ['aBBb', 'aBBb', 'cdef', 'gijk', 'l..m'] },
+  { id: 'yatay', name: 'Yatay yollar', min: 49, rows: ['aBBb', 'aBBb', 'HHII', 'cdef', 'g..h'] },
+  { id: 'uzun', name: 'Uzun yol', min: 70, rows: ['aBBb', 'aBBb', 'cdef', 'cHHf', 'g..h'] },
+  { id: 'klasik', name: 'Klasik', min: 81, rows: ['aBBb', 'aBBb', 'cHHd', 'cefd', 'g..h'] },
+  { id: 'usta', name: 'Usta işi', min: 103, rows: ['aBBc', 'aBBc', 'HHII', 'dJJe', 'f..g'] },
+];
+const KLOTSKI_LOG = 3000;
+const KLOTSKI_BOARD = 10;
+
+// Satırlardan parçalar: [{ x, y, w, h, big }]
+function klotskiPieces(rows) {
+  const pieces = [];
+  const seen = new Set();
+  for (let y = 0; y < 5; y++) for (let x = 0; x < 4; x++) {
+    const c = rows[y][x];
+    if (c === '.' || seen.has(c)) continue;
+    seen.add(c);
+    let w = 1, h = 1;
+    while (rows[y][x + w] === c) w++;
+    while (rows[y + h]?.[x] === c) h++;
+    pieces.push({ x, y, w, h, big: w === 2 && h === 2 });
+  }
+  return pieces;
+}
+
+// Adımlar [parça no, dx, dy] (birer kare). Geçersizse null, bitmiyorsa da null; geçerliyse hamle sayısı.
+function klotskiReplay(level, steps) {
+  const pieces = klotskiPieces(level.rows);
+  let moves = 0, last = -1;
+  for (const step of steps) {
+    if (!Array.isArray(step)) return null;
+    const [k, dx, dy] = step;
+    const p = pieces[k];
+    if (!p || Math.abs(dx) + Math.abs(dy) !== 1) return null;
+    const nx = p.x + dx, ny = p.y + dy;
+    if (nx < 0 || ny < 0 || nx + p.w > 4 || ny + p.h > 5) return null;
+    const hit = pieces.some((q, i) => i !== k && nx < q.x + q.w && q.x < nx + p.w && ny < q.y + q.h && q.y < ny + p.h);
+    if (hit) return null;
+    p.x = nx;
+    p.y = ny;
+    if (k !== last) moves++;
+    last = k;
+  }
+  const big = pieces.find((p) => p.big);
+  return big.x === 1 && big.y === 3 ? moves : null;
+}
+
+function klotskiWin(room, name, levelId, steps, ms) {
+  const level = KLOTSKI_LEVELS.find((l) => l.id === levelId);
+  if (!level || name === BOT) return;
+  const moves = klotskiReplay(level, steps);
+  if (moves == null) return;
+  ms = Math.max(Math.round(Number(ms) || 0), steps.length * 40);
+  room.klotskiLog.push({ level: level.id, name, moves, ms, at: Date.now() });
+  saveKlotski(room);
+}
+
+function mergeKlotskiLog(log, from) {
+  const seen = new Set();
+  const all = [...log, ...(from || [])].filter((r) => {
+    const key = `${r.at}|${r.name}|${r.level}`;
+    return !seen.has(key) && seen.add(key);
+  });
+  all.sort((a, b) => a.at - b.at);
+  log.splice(0, log.length, ...all.slice(-KLOTSKI_LOG));
+}
+
+function klotskiBoard(room) {
+  const best = {}; // bölüm -> isim -> en iyi
+  for (const r of room.klotskiLog) {
+    const per = (best[r.level] ||= {});
+    const old = per[r.name];
+    if (!old || r.moves < old.moves || (r.moves === old.moves && r.ms < old.ms)) per[r.name] = r;
+  }
+  const board = {};
+  for (const [level, per] of Object.entries(best)) {
+    board[level] = Object.values(per).sort((a, b) => a.moves - b.moves || a.ms - b.ms).slice(0, KLOTSKI_BOARD);
+  }
+  return board;
+}
+
+// Bilgisayardaki sunucu da aynı kaydı kullanır; kaydetmeden önce kayıttakilerle birleştirilir.
+async function saveKlotski(room) {
+  if (store.enabled) {
+    try {
+      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.klotskiboard&select=data`);
+      mergeKlotskiLog(room.klotskiLog, row?.data);
+    } catch (err) {
+      console.warn('kaydırmaca tablosu okuma', err.message);
+    }
+  }
+  mergeKlotskiLog(room.klotskiLog);
+  store.save(room.code, 'klotskiboard', () => room.klotskiLog);
+  io.to(room.code).emit('klotski:board', klotskiBoard(room));
+}
+
 // ---------- Eşini bul skor tablosu ----------
 // Biten her oyun kayda girer (hiç hamle yapılmadıysa girmez). Tablolar kayıttan hesaplanır:
 // tek başına rekorlar (tahta büyüklüğüne göre, en az hamle, eşitse en kısa süre) ve
@@ -2295,6 +2410,7 @@ async function loadSaved() {
     if (kind === 'history') histories.set(room, data);
     if (kind === 'kelimeler') kelimePools.set(room, data);
     if (kind === 'memoryboard') memoryLogs.set(room, data);
+    if (kind === 'klotskiboard') klotskiLogs.set(room, data);
     if (kind === 'oneriler') mergeOneriler(data);
     if (kind === 'dinoboard') dinoBoards.set(room, { auto: [], hold: [], tap: [], ...data });
     if (kind === 'sfx') customSfxByRoom.set(room, new Map(data.map((fx) => [fx.id, { buf: null, label: fx.label, by: fx.by }])));
