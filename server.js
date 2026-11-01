@@ -293,6 +293,7 @@ const histories = new Map(); // oda kodu -> [{ videoId, title, by, playedAt }]
 const customSfxByRoom = new Map(); // oda kodu -> Map<id, { buf, label, by }>
 const tierListsByRoom = new Map(); // oda kodu -> [tier list] (aşağıda)
 const dinoBoards = new Map(); // oda kodu -> { hold: [{ name, dist, at }], tap: [...] } en iyi skorlar
+const memoryLogs = new Map(); // oda kodu -> [{ at, pairs, ms, full, players: [{ name, pairs, moves }] }] biten Eşini Bul oyunları
 const kelimePools = new Map(); // oda kodu -> [{ text, by }] kelime oyununun havuzu
 const oneriler = []; // oyun önerileri (tek oda var): [{ id, by, at, fields, status, note, updatedAt }]
 
@@ -303,6 +304,7 @@ function getRoom(code) {
     if (!tierListsByRoom.has(code)) tierListsByRoom.set(code, []);
     if (!dinoBoards.has(code)) dinoBoards.set(code, { auto: [], hold: [], tap: [] });
     if (!kelimePools.has(code)) kelimePools.set(code, []);
+    if (!memoryLogs.has(code)) memoryLogs.set(code, []);
     rooms.set(code, {
       code,
       history: histories.get(code),
@@ -314,6 +316,7 @@ function getRoom(code) {
       kelime: null, // kelime oyunu (aşağıda); hedef kelime sadece anlatıcıya gider
       kelimeRecent: [],
       memory: null, // eşini bul (aşağıda)
+      memoryLog: memoryLogs.get(code),
       radio: null, // odada çalan radyo istasyonu
       memorySeen: new Map(),
       lobbyOpts: {}, // oyun -> son başlatılan lobinin ayarları
@@ -580,7 +583,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), memoryBoard: memoryBoard(room), radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -2090,6 +2093,7 @@ function finishMemory(room, reason) {
   Object.assign(game, { done: true, open: [], revealUntil: null, turnUntil: null, endedAt: Date.now() });
   sendMemory(room);
   const left = game.tiles.filter((t) => !t.owner).length / 2;
+  logMemory(room, game, !left);
   const secs = Math.round((game.endedAt - game.startedAt) / 1000);
   const time = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
   const prefix = reason ? `${reason} ` : '';
@@ -2101,6 +2105,65 @@ function finishMemory(room, reason) {
   const best = game.scores[ranked[0]];
   const winners = ranked.filter((n) => game.scores[n] === best);
   postSystem(room, `${prefix}Eşini Bul bitti! ` + (best ? `🏆 ${winners.join(', ')} (${best} çift)` : 'Kimse çift bulamadı.'));
+}
+
+// ---------- Eşini bul skor tablosu ----------
+// Biten her oyun kayda girer (hiç hamle yapılmadıysa girmez). Tablolar kayıttan hesaplanır:
+// tek başına rekorlar (tahta büyüklüğüne göre, en az hamle, eşitse en kısa süre) ve
+// birden çok kişiyle oynananlarda kazanma sayıları. Bot tablolara girmez.
+const MEMORY_LOG = 3000; // saklanan en fazla oyun
+const MEMORY_BOARD = 10; // her tabloda gösterilen sıra
+
+function mergeMemoryLog(log, from) {
+  const seen = new Set();
+  const all = [...log, ...(from || [])].filter((g) => {
+    const key = `${g.at}|${g.players.map((p) => p.name).join(',')}`;
+    return !seen.has(key) && seen.add(key);
+  });
+  all.sort((a, b) => a.at - b.at);
+  log.splice(0, log.length, ...all.slice(-MEMORY_LOG));
+}
+
+function memoryBoard(room) {
+  const solo = {}; // çift sayısı -> en iyi denemeler
+  const wins = new Map();
+  for (const g of room.memoryLog) {
+    const humans = g.players.filter((p) => p.name !== BOT);
+    if (g.players.length === 1) {
+      if (g.full && humans.length) (solo[g.pairs] ||= []).push({ name: humans[0].name, moves: humans[0].moves, ms: g.ms, at: g.at });
+      continue;
+    }
+    const best = Math.max(...g.players.map((p) => p.pairs));
+    for (const p of humans) {
+      const w = wins.get(p.name) || wins.set(p.name, { name: p.name, wins: 0, games: 0, pairs: 0 }).get(p.name);
+      w.games++;
+      w.pairs += p.pairs;
+      if (best > 0 && p.pairs === best) w.wins++;
+    }
+  }
+  for (const k of Object.keys(solo)) solo[k] = solo[k].sort((a, b) => a.moves - b.moves || a.ms - b.ms).slice(0, MEMORY_BOARD);
+  const winList = [...wins.values()].sort((a, b) => b.wins - a.wins || a.games - b.games || b.pairs - a.pairs).slice(0, MEMORY_BOARD);
+  return { solo, wins: winList };
+}
+
+async function logMemory(room, game, full) {
+  if (!Object.values(game.moves).some(Boolean)) return;
+  room.memoryLog.push({
+    at: game.endedAt, pairs: game.tiles.length / 2, ms: game.endedAt - game.startedAt, full,
+    players: game.players.map((name) => ({ name, pairs: game.scores[name], moves: game.moves[name] })),
+  });
+  // Bilgisayardaki sunucu da aynı kaydı kullanır; kaydetmeden önce kayıttakilerle birleştirilir.
+  if (store.enabled) {
+    try {
+      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.memoryboard&select=data`);
+      mergeMemoryLog(room.memoryLog, row?.data);
+    } catch (err) {
+      console.warn('eşini bul tablosu okuma', err.message);
+    }
+  }
+  mergeMemoryLog(room.memoryLog);
+  store.save(room.code, 'memoryboard', () => room.memoryLog);
+  io.to(room.code).emit('memory:board', memoryBoard(room));
 }
 
 // ---------- Dinozor koşusu ----------
@@ -2231,6 +2294,7 @@ async function loadSaved() {
   for (const { room, kind, data } of rows) {
     if (kind === 'history') histories.set(room, data);
     if (kind === 'kelimeler') kelimePools.set(room, data);
+    if (kind === 'memoryboard') memoryLogs.set(room, data);
     if (kind === 'oneriler') mergeOneriler(data);
     if (kind === 'dinoboard') dinoBoards.set(room, { auto: [], hold: [], tap: [], ...data });
     if (kind === 'sfx') customSfxByRoom.set(room, new Map(data.map((fx) => [fx.id, { buf: null, label: fx.label, by: fx.by }])));

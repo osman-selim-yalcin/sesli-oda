@@ -2247,10 +2247,52 @@ confirmButton($('memory-end'), 'Emin misin? Tekrar bas', () => socket.emit('memo
 $('memory-close').onclick = () => socket.emit('memory:close');
 
 function setMemory(game) {
+  const size = game?.tiles.length / 2;
+  if (size && memory?.id !== game.id) memorySize = size; // rekorlarda son oynanan tahta seçili olsun
   memory = game;
   renderMemory();
+  renderMemoryRanks();
 }
 socket.on('memory', setMemory);
+
+// Kalıcı tablolar: tek başına bitirilen oyunlar tahta büyüklüğüne göre (en az hamle, eşitse en kısa süre)
+// ve birden çok kişiyle oynananlarda kazanma sayısı. Sunucu hesaplar.
+let memoryRanks = { solo: {}, wins: [] };
+let memorySize = null; // rekorlarda seçili tahta (çift sayısı)
+
+function memoryRankRow(name, main, sub, i) {
+  const row = timingRow(name, main, sub, i === 0 ? 'great' : '');
+  row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+  return row;
+}
+const memoryEmpty = (text) => Object.assign(document.createElement('li'), { className: 'muted small', textContent: text });
+
+function renderMemoryRanks() {
+  const sizes = Object.keys(memoryRanks.solo).map(Number).sort((a, b) => a - b);
+  if (!sizes.includes(memorySize)) memorySize = sizes.includes(40) ? 40 : sizes[0] ?? null;
+  $('memory-sizes').replaceChildren(...(sizes.length > 1 ? sizes : []).map((n) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'sm ghost', textContent: `${n} çift` });
+    b.classList.toggle('active', n === memorySize);
+    b.onclick = () => {
+      memorySize = n;
+      renderMemoryRanks();
+    };
+    return b;
+  }));
+  const best = $('memory-best');
+  best.replaceChildren(...(memoryRanks.solo[memorySize] || []).map((r, i) => {
+    const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    return memoryRankRow(r.name, `${r.moves} hamle`, `${fmtClock(Math.round(r.ms / 1000) * 1000)} · ${sizes.length === 1 ? `${memorySize} çift · ` : ''}${date}`, i);
+  }));
+  if (!best.children.length) best.append(memoryEmpty('Tek başına bitirilen oyun yok.'));
+  const wins = $('memory-wins');
+  wins.replaceChildren(...memoryRanks.wins.map((w, i) => memoryRankRow(w.name, `${w.wins} galibiyet`, `${w.games} oyun · ${w.pairs} çift`, i)));
+  if (!wins.children.length) wins.append(memoryEmpty('Birlikte oynanan oyun yok.'));
+}
+socket.on('memory:board', (board) => {
+  memoryRanks = board;
+  renderMemoryRanks();
+});
 
 // ---------- Radyo ----------
 // Uydu görüntülü dönen bir dünya küresi; yeşil noktalar radyo olan yerler (aynı şehirdeki istasyonlar tek nokta).
@@ -5326,6 +5368,7 @@ function applyJoin(res) {
   renderOneriler();
   kelimePool = res.kelimePool || [];
   setKelime(res.kelime);
+  memoryRanks = res.memoryBoard || memoryRanks;
   setMemory(res.memory);
   setRadio(res.radio);
   lobbies = res.lobbies || {};
