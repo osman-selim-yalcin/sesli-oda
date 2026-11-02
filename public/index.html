@@ -282,6 +282,7 @@
             <button id="game-tab-kelime" class="tab" role="tab">Kelime</button>
             <button id="game-tab-memory" class="tab" role="tab">Eşini bul</button>
             <button id="game-tab-klotski" class="tab" role="tab">Kaydırmaca</button>
+            <button id="game-tab-sayi" class="tab" role="tab">Sayı bulmaca</button>
             <button id="game-tab-peacock" class="tab" role="tab">Tavus kuşu</button>
             <button id="game-tab-oner" class="tab" role="tab">Oyun öner</button>
             <button id="bot-toggle" class="sm ghost bot-toggle" title="Bot rastgele oynar; tek başınayken oyunların gidişatını görmek için"></button>
@@ -478,6 +479,58 @@
               </section>
             </div>
             <p class="muted small memory-help">Taşlarda sayılar ve renkler var; lobiyi kuran hangi sayıların ve renklerin olacağını + ve × ile seçer, her sayı-renk ikilisinden iki taş olur. Sırası gelen iki taş açar: sayı ve renk aynıysa çifti alır ve yeniden oynar, değilse taşlar kapanır ve sıra geçer. Her hamle için 15 saniye var. Taş kalmayınca en çok çift toplayan kazanır.</p>
+          </div>
+
+          <!-- Sayı bulmaca: iki kişi birbirinin gizli sayısını +/- ipuçlarıyla bulmaya çalışır -->
+          <div id="game-sayi" class="sayi" hidden>
+            <div class="memory-head">
+              <span id="sayi-status" class="muted small"></span>
+              <button id="sayi-end" class="sm ghost danger" hidden>Oyunu bitir</button>
+              <button id="sayi-close" class="sm ghost" hidden>Kapat</button>
+            </div>
+            <div id="lobby-sayi" class="lobby"></div>
+            <form id="sayi-secret" class="sayi-secret" hidden>
+              <strong>Sayını tut</strong>
+              <span class="muted small">Rakibin bu sayıyı bulmaya çalışacak. Rakamlar farklı olmalı, 0 ile başlayamaz.</span>
+              <div class="sayi-entry" data-for="sayi-secret-input">
+                <div class="sayi-slots"></div>
+                <input id="sayi-secret-input" class="sayi-hidden-input" inputmode="numeric" autocomplete="off" aria-label="Gizli sayın">
+              </div>
+              <span id="sayi-secret-error" class="error small"></span>
+              <button type="submit" class="primary">Sayımı tuttum</button>
+            </form>
+            <p id="sayi-wait" class="muted small sayi-wait" hidden></p>
+            <div id="sayi-play" class="sayi-play" hidden>
+              <div class="sayi-top">
+                <div class="sayi-code">
+                  <div id="sayi-code" class="sayi-code-box"></div>
+                  <span id="sayi-code-label" class="muted small"></span>
+                </div>
+                <div class="sayi-sure">
+                  <span class="muted small">Emin oldukların</span>
+                  <div id="sayi-sure" class="sayi-sure-slots"></div>
+                </div>
+              </div>
+              <div class="sayi-board">
+                <div class="sayi-col-head muted small"><span>Tahminlerin</span><span>Bilgi</span></div>
+                <form id="sayi-guess" class="sayi-row sayi-guess-row">
+                  <div class="sayi-entry" data-for="sayi-guess-input">
+                    <div class="sayi-slots"></div>
+                    <input id="sayi-guess-input" class="sayi-hidden-input" inputmode="numeric" enterkeyhint="send" autocomplete="off" aria-label="Tahminin">
+                  </div>
+                  <span id="sayi-guess-hint" class="muted small"></span>
+                </form>
+                <ol id="sayi-mine" class="sayi-list"></ol>
+              </div>
+              <div id="sayi-digits" class="sayi-digits"></div>
+              <p class="muted small sayi-help">Rakamlara basarak işaretle: ✗ yok, ✓ var, ? emin değilim. İşaretler ve emin olduklarına yazdıkların sadece sende görünür.</p>
+              <button id="sayi-opp-toggle" type="button" class="sm"></button>
+              <div id="sayi-opp" class="sayi-board" hidden>
+                <div class="sayi-col-head muted small"><span id="sayi-opp-title"></span><span>Bilgi</span></div>
+                <ol id="sayi-theirs" class="sayi-list"></ol>
+              </div>
+            </div>
+            <p class="muted small memory-help">İki kişi oynar (tek başına oynarsan sayıyı bilgisayar tutar; bot açıksa rakibin bot olur). Lobiyi kuran kaç basamakla oynanacağını seçer (1-10). Herkes gizli bir sayı tutar: rakamları farklı, 0 ile başlamaz. Sırayla rakibin sayısını tahmin edersiniz; tahmindeki rakam sayıda varsa ve yeri doğruysa +, yeri yanlışsa - olarak sayılır (+1 -2 gibi), sayıda olmayan rakamlardan bahsedilmez. Önce başlayan bulursa rakibine bir son hak kalır; o da bulursa berabere.</p>
           </div>
 
           <!-- Oyun öner: istenen oyun adım adım anlatılır, kaydedilir; site sahibi eklenip eklenmeyeceğine karar verir -->

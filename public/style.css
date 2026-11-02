@@ -1149,3 +1149,70 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- Sayı bulmaca ---------- */
+.lobby-opts button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.sayi { display: grid; gap: 12px; }
+.sayi-secret { display: grid; gap: 10px; justify-items: center; text-align: center; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); width: 100%; max-width: 520px; justify-self: center; }
+.sayi-wait { text-align: center; margin: 0; }
+.sayi-play { display: grid; gap: 14px; width: 100%; max-width: 620px; justify-self: center; }
+.sayi-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.sayi-code { display: grid; gap: 4px; }
+.sayi-code-box { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--text); color: var(--bg); font-size: 17px; font-weight: 600; width: fit-content; }
+.sayi-code-box .sayi-num { letter-spacing: .12em; font-weight: 800; }
+.sayi-sure { display: grid; gap: 6px; justify-items: end; }
+.sayi-sure[hidden] { display: none; }
+.sayi-sure-slots { display: flex; gap: 6px; justify-content: flex-end; max-width: 100%; }
+.sayi-sure-slot { width: 34px; min-width: 0; flex: 0 1 34px; height: 42px; padding: 0; text-align: center; font-size: 22px; font-weight: 800; color: #ffad3b; background: transparent; border: none; border-bottom: 3px solid #ffad3b; border-radius: 0; font-variant-numeric: tabular-nums; }
+.sayi-sure-slot:focus { box-shadow: none; background: rgba(255, 173, 59, .12); }
+.sayi-board { border: 1px solid var(--line-2); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
+.sayi-board[hidden] { display: none; }
+.sayi-col-head { display: grid; grid-template-columns: 1fr 110px; padding: 6px 14px; border-bottom: 1px solid var(--line); }
+.sayi-col-head span:last-child, .sayi-info { text-align: center; }
+.sayi-row { display: grid; grid-template-columns: 1fr 110px; align-items: center; gap: 8px; padding: 8px 14px; }
+.sayi-guess-row { border-bottom: 1px solid var(--line-2); background: var(--panel-2); }
+.sayi-guess-row[hidden] { display: none; }
+.sayi-list { list-style: none; margin: 0; padding: 4px 0; max-height: 46vh; overflow-y: auto; }
+.sayi-list .sayi-row + .sayi-row { border-top: 1px solid var(--line); }
+.sayi-list .sayi-row.found { background: rgba(61, 220, 132, .1); }
+.sayi-empty { padding: 10px 14px; }
+.sayi-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.sayi-i { min-width: 22px; text-align: right; }
+.sayi-num { font-size: 22px; font-weight: 700; letter-spacing: .14em; font-variant-numeric: tabular-nums; word-break: break-all; }
+.sayi-info { font-size: 17px; font-variant-numeric: tabular-nums; border-left: 1px solid var(--line-2); align-self: stretch; display: grid; place-items: center; }
+.sayi-entry { position: relative; cursor: text; }
+.sayi-slots { display: flex; gap: 6px; }
+.sayi-slot { flex: 0 1 30px; min-width: 14px; height: 40px; display: grid; place-items: center; font-size: 24px; font-weight: 800; border-bottom: 3px solid var(--accent); font-variant-numeric: tabular-nums; }
+.sayi-slot.caret { border-bottom-color: var(--text); animation: sayi-blink 1s steps(2) infinite; }
+@keyframes sayi-blink { 50% { border-bottom-color: var(--accent); } }
+.sayi-hidden-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: none; padding: 0; caret-color: transparent; font-size: 16px; }
+.sayi-guess-row #sayi-guess-hint { text-align: center; font-size: 12px; line-height: 1.3; }
+.sayi-guess-row #sayi-guess-hint.error { color: var(--danger); }
+.sayi-digits { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; padding: 6px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line); }
+.sayi-digits[hidden] { display: none; }
+.sayi-digit { position: relative; height: 52px; padding: 0; font-size: 22px; font-weight: 700; display: grid; place-items: center; }
+.sayi-digit small { position: absolute; top: 2px; right: 5px; font-size: 13px; }
+.sayi-digit.mark-x { color: var(--muted); background: var(--danger-soft); border-color: var(--danger); }
+.sayi-digit.mark-x small { color: var(--danger); }
+.sayi-digit.mark-v { background: rgba(61, 220, 132, .14); border-color: var(--speak); }
+.sayi-digit.mark-v small { color: var(--speak); }
+.sayi-digit.mark-q { background: rgba(255, 173, 59, .14); border-color: #ffad3b; }
+.sayi-digit.mark-q small { color: #ffad3b; }
+.sayi-num .mark-x, .sayi-slot.mark-x { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--danger); opacity: .55; }
+.sayi-num .mark-v, .sayi-slot.mark-v { color: var(--speak); }
+.sayi-num .mark-q, .sayi-slot.mark-q { color: #ffad3b; }
+.sayi-help { margin: 0; }
+.sayi-help[hidden] { display: none; }
+#sayi-opp-toggle { justify-self: center; }
+#sayi-opp-toggle[hidden] { display: none; }
+@media (max-width: 520px) {
+  .sayi-col-head, .sayi-row { grid-template-columns: 1fr 76px; padding-left: 10px; padding-right: 10px; }
+  .sayi-num { font-size: 19px; letter-spacing: .08em; }
+  .sayi-slots { gap: 4px; }
+  .sayi-slot { font-size: 20px; }
+  .sayi-sure-slot { font-size: 19px; }
+  .sayi-sure-slots { gap: 4px; }
+  .sayi-sure, .sayi-code { flex: 1 1 100%; justify-items: start; }
+  .sayi-sure-slots { justify-content: flex-start; }
+  .sayi-digit { height: 46px; font-size: 18px; }
+}

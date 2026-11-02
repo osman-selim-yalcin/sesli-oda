@@ -318,6 +318,7 @@ function getRoom(code) {
       kelime: null, // kelime oyunu (aşağıda); hedef kelime sadece anlatıcıya gider
       kelimeRecent: [],
       memory: null, // eşini bul (aşağıda)
+      sayi: null, // sayı bulmaca (aşağıda); gizli sayılar sadece sahibine gider
       memoryLog: memoryLogs.get(code),
       klotskiLog: klotskiLogs.get(code),
       radio: null, // odada çalan radyo istasyonu
@@ -586,7 +587,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -1000,6 +1001,8 @@ io.on('connection', (socket) => {
   socket.on('lobby:join', lobbyAction((room, name, game) => {
     const lobby = room.lobbies[game];
     if (!lobby || lobby.players.includes(name)) return;
+    // Lobi doluysa ve botsa içeride, bot yerini insana bırakır.
+    if (lobby.players.length >= LOBBY_GAMES[game].max && lobby.players.includes(BOT)) lobby.players = lobby.players.filter((n) => n !== BOT);
     if (lobby.players.length >= LOBBY_GAMES[game].max) return lobbyError(`Lobi dolu (en fazla ${LOBBY_GAMES[game].max} kişi).`);
     lobby.players.push(name);
     sendLobbies(room);
@@ -1008,10 +1011,11 @@ io.on('connection', (socket) => {
   socket.on('lobby:leave', lobbyAction((room, name, game) => leaveLobby(room, game, name)));
 
   // Kurallar: tur sayısı (yarış) kuranındır; kelimede anlatıcı koltuğunu lobideki herkes alabilir.
-  socket.on('lobby:opts', lobbyAction((room, name, game, { rounds, narrator, numbers, colors }) => {
+  socket.on('lobby:opts', lobbyAction((room, name, game, { rounds, narrator, numbers, colors, digits }) => {
     const lobby = room.lobbies[game];
     if (!lobby?.players.includes(name)) return;
     if (game === 'race' && name === lobby.host && RACE_ROUNDS.includes(rounds)) lobby.opts.rounds = rounds;
+    if (game === 'sayi' && name === lobby.host && Number.isInteger(digits) && digits >= SAYI_DIGITS[0] && digits <= SAYI_DIGITS[1]) lobby.opts.digits = digits;
     if (game === 'memory' && name === lobby.host) {
       const set = memoryBoard(numbers ?? lobby.opts.numbers, colors ?? lobby.opts.colors);
       if (!set) return;
@@ -1074,6 +1078,32 @@ io.on('connection', (socket) => {
     if (!room.memory?.done) return;
     room.memory = null;
     sendMemory(room);
+  });
+
+  // ---------- Sayı bulmaca ----------
+
+  const sayiAction = (fn) => (value) => {
+    if (!code || typeof value !== 'string') return;
+    const room = getRoom(code);
+    fn(room, room.users.get(socket.id).name, value);
+  };
+  socket.on('sayi:secret', sayiAction(sayiSecret));
+  socket.on('sayi:guess', sayiAction(sayiGuess));
+
+  socket.on('sayi:end', () => {
+    if (!code) return;
+    const room = getRoom(code);
+    const name = room.users.get(socket.id).name;
+    if (!room.sayi || room.sayi.done || !room.sayi.players.includes(name)) return;
+    finishSayi(room, [], `${name} oyunu bitirdi.`);
+  });
+
+  socket.on('sayi:close', () => {
+    if (!code) return;
+    const room = getRoom(code);
+    if (!room.sayi?.done) return;
+    room.sayi = null;
+    sendSayi(room);
   });
 
   // ---------- Radyo ----------
@@ -1206,6 +1236,7 @@ io.on('connection', (socket) => {
     }
     sendLobbies(room);
     if (!room.bot) kelimeLeft(room, BOT);
+    if (!room.bot) sayiLeft(room, BOT);
     kelimeBotLater(room);
     postSystem(room, `${room.users.get(socket.id).name} botu ${room.bot ? 'ekledi; lobilere katılır' : 'çıkardı'}`);
   });
@@ -1379,11 +1410,13 @@ io.on('connection', (socket) => {
       if (current) killDino(current, user.name);
       if (current) kelimeLeft(current, user.name);
       if (current) memoryLeft(current, user.name);
+      if (current) sayiLeft(current, user.name);
       if (current) for (const game of Object.keys(current.lobbies)) leaveLobby(current, game, user.name);
     }, REJOIN_GRACE));
     if (room.users.size === 0) {
       clearKelimeTimers(code);
       clearMemoryTimers(code);
+      clearTimeout(sayiTimers.get(code));
       rooms.delete(code);
       deleteRoomImages(code);
     }
@@ -1406,6 +1439,7 @@ function gameRunning(room, game) {
   if (game === 'race') return Boolean(room.timing.race && !room.timing.race.done);
   if (game === 'dino') return Boolean(room.dino && !room.dino.done && Date.now() - room.dino.startAt < DINO_MAX_TIME);
   if (game === 'memory') return Boolean(room.memory && !room.memory.done);
+  if (game === 'sayi') return Boolean(room.sayi && !room.sayi.done);
   return Boolean(room.kelime && room.kelime.phase !== 'done');
 }
 
@@ -1414,6 +1448,7 @@ function lastPlayers(room, game) {
   const names = game === 'race' ? room.timing.race?.players
     : game === 'dino' ? room.dino && Object.keys(room.dino.players)
       : game === 'memory' ? room.memory?.players
+      : game === 'sayi' ? room.sayi?.players
         : room.kelime?.players.map((p) => p.name);
   const here = lobbyHere(room);
   return (names || []).filter((n) => here.has(n));
@@ -1438,6 +1473,7 @@ const LOBBY_GAMES = {
   race: { label: 'süre yarışı', min: 1, max: MAX_USERS + 1, opts: { rounds: 5 }, start: (room, by, players, opts) => startRace(room, by, players, opts.rounds) },
   dino: { label: 'dinozor', min: 1, max: MAX_USERS + 1, opts: {}, start: (room, by, players) => startDino(room, by, players) },
   memory: { label: 'Eşini Bul', min: 1, max: MAX_USERS + 1, opts: { numbers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], colors: ['yesil', 'turuncu', 'mavi', 'kirmizi'] }, start: (room, by, players, opts) => startMemory(room, by, players, opts) },
+  sayi: { label: 'Sayı bulmaca', min: 1, max: 2, opts: { digits: 4 }, start: (room, by, players, opts) => startSayi(room, by, players, opts) },
   kelime: { label: 'kelime', min: 2, max: KELIME_PLAYERS, opts: { narrator: null }, start: (room, by, players, opts) => startKelime(room, by, players, opts.narrator) },
 };
 
@@ -2116,6 +2152,194 @@ function finishMemory(room, reason) {
   const best = game.scores[ranked[0]];
   const winners = ranked.filter((n) => game.scores[n] === best);
   postSystem(room, `${prefix}Eşini Bul bitti! ` + (best ? `🏆 ${winners.join(', ')} (${best} çift)` : 'Kimse çift bulamadı.'));
+}
+
+// ---------- Sayı bulmaca ----------
+// İki kişi birbirinin gizli sayısını bulmaya çalışır (tek başına oynanırsa sayıyı bilgisayar tutar). Sayı 1-10
+// basamaklı, rakamları farklı, 0 ile başlamaz. Tahminin yerini bilen rakamları +, sayıda olup yeri yanlış olanları -
+// diye sayılır; sayıda olmayan rakamlardan bahsedilmez. Sırayla tahmin edilir; önce başlayan bulursa ötekinin
+// bir son hakkı olur (o da bulursa berabere). Gizli sayılar sadece sahibine gider, oyun bitince herkese açılır.
+
+const SAYI_DIGITS = [1, 10];
+const SAYI_CPU = 'Bilgisayar';
+const sayiTimers = new Map(); // oda kodu -> bot zamanlayıcısı
+
+const sayiValid = (s, n) => typeof s === 'string' && s.length === n && /^[1-9]\d*$/.test(s) && new Set(s).size === n;
+
+function sayiScore(secret, guess) {
+  let plus = 0;
+  let minus = 0;
+  for (let i = 0; i < guess.length; i++) {
+    if (secret[i] === guess[i]) plus++;
+    else if (secret.includes(guess[i])) minus++;
+  }
+  return { plus, minus };
+}
+
+function sayiRandom(n) {
+  const first = String(Math.floor(rand(1, 10)));
+  return first + shuffle([...'0123456789'].filter((d) => d !== first)).slice(0, n - 1).join('');
+}
+
+// Botun tahmini: hatırladığı bilgilerle çelişmeyen bir sayı. Az basamakta hepsini tarar, çok basamakta
+// rastgele başlayıp rakam değiştirerek çelişkiyi en aza indirir (bulamazsa en yakınını söyler).
+// Bot her bilgiyi hatırlamaz (insana karşı fazla güçlü olmasın): her eski tahmini %35 ihtimalle unutur.
+function sayiBotGuess(n, all) {
+  const tried = new Set(all.map((h) => h.guess));
+  const history = all.filter(() => Math.random() > 0.35);
+  const cost = (c) => history.reduce((sum, h) => {
+    const s = sayiScore(c, h.guess);
+    return sum + Math.abs(s.plus - h.plus) + Math.abs(s.minus - h.minus);
+  }, 0);
+  if (n <= 5) {
+    const all = [];
+    const walk = (prefix) => {
+      if (prefix.length === n) return all.push(prefix);
+      for (const d of '0123456789') if (!prefix.includes(d) && !(d === '0' && !prefix)) walk(prefix + d);
+    };
+    walk('');
+    const ok = all.filter((c) => !tried.has(c) && !cost(c));
+    return ok.length ? pick(ok) : pick(all.filter((c) => !tried.has(c)));
+  }
+  let best = null;
+  let bestCost = Infinity;
+  for (let restart = 0; restart < 8 && bestCost; restart++) {
+    let cur = sayiRandom(n).split('');
+    let curCost = cost(cur.join(''));
+    for (let step = 0; step < 1500 && curCost; step++) {
+      const next = [...cur];
+      const i = Math.floor(Math.random() * n);
+      if (Math.random() < 0.5) {
+        const j = Math.floor(Math.random() * n);
+        [next[i], next[j]] = [next[j], next[i]];
+      } else {
+        const free = [...'0123456789'].filter((d) => !next.includes(d));
+        if (!free.length) continue;
+        next[i] = pick(free);
+      }
+      if (next[0] === '0') continue;
+      const c = cost(next.join(''));
+      if (c <= curCost) [cur, curCost] = [next, c];
+    }
+    const s = cur.join('');
+    if (curCost < bestCost && !tried.has(s)) [best, bestCost] = [s, curCost];
+  }
+  return best || sayiRandom(n);
+}
+
+// Herkese oyun gider; gizli sayılardan sadece kendininki (bitince hepsi).
+function sayiView(game, name) {
+  if (!game) return null;
+  const { secrets, ...rest } = game;
+  return {
+    ...rest,
+    ready: Object.fromEntries(game.players.map((p) => [p, Boolean(secrets[p])])),
+    secrets: game.done ? secrets : (secrets[name] ? { [name]: secrets[name] } : {}),
+  };
+}
+
+function sendSayi(room) {
+  for (const [id, user] of room.users) io.to(id).emit('sayi', sayiView(room.sayi, user.name));
+}
+
+// Bir oyuncunun bulmaya çalıştığı sayının sahibi
+const sayiTarget = (game, name) => (game.players.length === 1 ? SAYI_CPU : game.players.find((p) => p !== name));
+
+function startSayi(room, by, players, { digits }) {
+  clearTimeout(sayiTimers.get(room.code));
+  const secrets = {};
+  if (players.length === 1) secrets[SAYI_CPU] = sayiRandom(digits);
+  if (players.includes(BOT)) secrets[BOT] = sayiRandom(digits);
+  room.sayi = {
+    id: Date.now(), digits, players, secrets, phase: 'secret', turn: 0, lastChance: false,
+    guesses: Object.fromEntries(players.map((p) => [p, []])), winners: [], startedAt: Date.now(), endedAt: null, done: false, reason: null,
+  };
+  postSystem(room, players.length > 1 ? `${by} Sayı bulmaca başlattı (${digits} basamak): ${players.join(' – ')}` : `${by} tek başına Sayı bulmaca oynuyor (${digits} basamak)`);
+  sayiMaybePlay(room);
+}
+
+// Herkes sayısını tutunca tahminler başlar.
+function sayiMaybePlay(room) {
+  const game = room.sayi;
+  if (game.phase === 'secret' && game.players.every((p) => game.secrets[p] || game.players.length === 1)) {
+    game.phase = 'play';
+    game.startedAt = Date.now();
+  }
+  sendSayi(room);
+  sayiBotLater(room);
+}
+
+function sayiSecret(room, name, secret) {
+  const game = room.sayi;
+  if (!game || game.done || game.phase !== 'secret' || !game.players.includes(name) || game.players.length === 1) return;
+  if (!sayiValid(secret, game.digits)) return;
+  game.secrets[name] = secret;
+  sayiMaybePlay(room);
+}
+
+function sayiGuess(room, name, guess) {
+  const game = room.sayi;
+  if (!game || game.done || game.phase !== 'play' || game.players[game.turn] !== name || !sayiValid(guess, game.digits)) return;
+  const score = sayiScore(game.secrets[sayiTarget(game, name)], guess);
+  const mine = game.guesses[name];
+  mine.push({ guess, ...score, at: Date.now() });
+  const found = score.plus === game.digits;
+  if (game.players.length === 1) {
+    if (found) return finishSayi(room, [name]);
+    return sendSayi(room);
+  }
+  const other = sayiTarget(game, name);
+  if (game.lastChance) return finishSayi(room, found ? [...game.players] : [other]);
+  if (found) {
+    if (game.guesses[other].length < mine.length) {
+      game.lastChance = true;
+      game.turn = game.players.indexOf(other);
+      postSystem(room, `${name} sayıyı ${mine.length}. tahminde buldu! ${other} için son hak.`);
+      sendSayi(room);
+      return sayiBotLater(room);
+    }
+    return finishSayi(room, [name]);
+  }
+  game.turn = game.players.indexOf(other);
+  sendSayi(room);
+  sayiBotLater(room);
+}
+
+function sayiBotLater(room) {
+  const game = room.sayi;
+  if (!game || game.done || game.phase !== 'play' || game.players[game.turn] !== BOT || !room.bot) return;
+  clearTimeout(sayiTimers.get(room.code));
+  sayiTimers.set(room.code, setTimeout(() => {
+    sayiTimers.delete(room.code);
+    if (room.sayi !== game || game.done || game.players[game.turn] !== BOT || rooms.get(room.code) !== room) return;
+    sayiGuess(room, BOT, sayiBotGuess(game.digits, game.guesses[BOT]));
+  }, rand(1500, 3000)));
+}
+
+// Oyunculardan biri ayrılırsa oyun biter, kalan kazanır.
+function sayiLeft(room, name) {
+  const game = room.sayi;
+  if (!game || game.done || !game.players.includes(name)) return;
+  const rest = game.players.filter((p) => p !== name);
+  finishSayi(room, game.phase === 'play' ? rest : [], `${name} ayrıldı.`);
+}
+
+function finishSayi(room, winners, reason) {
+  const game = room.sayi;
+  if (!game || game.done) return;
+  clearTimeout(sayiTimers.get(room.code));
+  Object.assign(game, { done: true, winners, endedAt: Date.now(), reason: reason || null });
+  sendSayi(room);
+  const prefix = reason ? `${reason} ` : '';
+  if (game.players.length === 1) {
+    const [name] = game.players;
+    const n = game.guesses[name].length;
+    const secs = Math.round((game.endedAt - game.startedAt) / 1000);
+    return postSystem(room, winners.length ? `${name} ${game.digits} basamaklı sayıyı ${n} tahminde, ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} sürede buldu 🎉` : `${prefix}Sayı bulmaca bitti; sayı ${game.secrets[SAYI_CPU]} idi.`);
+  }
+  if (winners.length === 2) return postSystem(room, `${prefix}Sayı bulmaca berabere! İkisi de ${game.guesses[winners[0]].length} tahminde buldu.`);
+  if (winners.length === 1) return postSystem(room, `${prefix}Sayı bulmaca bitti: 🏆 ${winners[0]} (${game.guesses[winners[0]].length} tahmin)`);
+  postSystem(room, `${prefix}Sayı bulmaca bitti.`);
 }
 
 // ---------- Kaydırmaca (Klotski) ----------

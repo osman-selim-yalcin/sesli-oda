@@ -889,8 +889,8 @@ $('topbar-now').onclick = () => go(() => showPage('room'));
 // önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var:
 // / sıra, /gecmis, /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   if (view.page === 'members') return '/uyeler';
@@ -1436,6 +1436,7 @@ function openGame(name) {
   if (name === 'kelime') renderKelime();
   if (name === 'memory') renderMemory();
   if (name === 'klotski') renderKlotski();
+  if (name === 'sayi') renderSayi();
   if (name === 'dino') dinoKick();
 }
 for (const game of GAMES) $(`game-tab-${game}`).onclick = () => go(() => openGame(game));
@@ -2389,6 +2390,293 @@ socket.on('memory:board', (board) => {
   renderMemoryRanks();
 });
 
+// ---------- Sayı bulmaca ----------
+// Gizli sayıyı +/- ipuçlarıyla bulma. Tahminler klavyeyle yazılır (ekranda tuş takımı yok); kutulara basınca
+// telefonda klavye açılır. Rakam işaretleri (✗ ✓ ?) ve "emin oldukların" sadece bu tarayıcıda, oyuna göre saklanır.
+
+let sayi = null;
+let sayiOppOpen = false;
+const SAYI_CPU = 'Bilgisayar'; // sunucudaki SAYI_CPU ile aynı
+const SAYI_MARKS = ['', 'x', 'v', 'q'];
+const SAYI_MARK_TEXT = { x: '✗', v: '✓', q: '?' };
+const sayiNotesKey = () => `sayiNotes:${myName}`;
+
+const sayiPlaying = () => Boolean(sayi && sayi.players.includes(myName));
+const sayiActive = () => (sayi && !sayi.done ? sayi : null);
+const sayiOther = (name) => (sayi.players.length === 1 ? SAYI_CPU : sayi.players.find((p) => p !== name));
+
+function sayiNotes() {
+  let notes = null;
+  try { notes = JSON.parse(localStorage.getItem(sayiNotesKey())); } catch {}
+  if (!sayi) return { id: null, sure: [], marks: {} };
+  if (notes?.id !== sayi.id) notes = { id: sayi.id, sure: [], marks: {} };
+  return notes;
+}
+function sayiSaveNotes(notes) {
+  try { localStorage.setItem(sayiNotesKey(), JSON.stringify(notes)); } catch {}
+}
+
+// Yazılanı kurala uydurur: sadece rakam, tekrar yok, başta 0 yok, en çok n hane.
+function sayiClean(value, n) {
+  let out = '';
+  let msg = '';
+  for (const ch of value) {
+    if (!/\d/.test(ch)) continue;
+    if (!out && ch === '0') { msg = '0 en başa gelemez.'; continue; }
+    if (out.includes(ch)) { msg = `${ch} zaten var; aynı rakam iki kez olamaz.`; continue; }
+    if (out.length < n) out += ch;
+  }
+  return { out, msg };
+}
+
+const sayiInfo = (g) => (g.plus === sayi.digits ? `+${g.plus} 🎉` : [g.plus && `+${g.plus}`, g.minus && `-${g.minus}`].filter(Boolean).join(' ') || '0');
+
+function sayiDigitsEl(text, marks) {
+  const wrap = document.createElement('span');
+  wrap.className = 'sayi-num';
+  for (const d of text) {
+    const s = document.createElement('span');
+    s.textContent = d;
+    if (marks?.[d]) s.className = `mark-${marks[d]}`;
+    wrap.append(s);
+  }
+  return wrap;
+}
+
+function sayiListRows(list, guesses, marks) {
+  list.replaceChildren(...guesses.map((g, i) => {
+    const li = document.createElement('li');
+    li.className = 'sayi-row' + (g.plus === sayi.digits ? ' found' : '');
+    const left = document.createElement('span');
+    left.className = 'sayi-left';
+    left.append(Object.assign(document.createElement('span'), { className: 'muted small sayi-i', textContent: `${i + 1}.` }), sayiDigitsEl(g.guess, marks));
+    li.append(left, Object.assign(document.createElement('strong'), { className: 'sayi-info', textContent: sayiInfo(g) }));
+    return li;
+  }));
+  if (!guesses.length) list.append(Object.assign(document.createElement('li'), { className: 'muted small sayi-empty', textContent: 'Henüz tahmin yok.' }));
+}
+
+// Gizli input'un değeri kutucuklarda görünür.
+function sayiSlots(input) {
+  const box = input.closest('.sayi-entry').querySelector('.sayi-slots');
+  const n = sayi?.digits || 0;
+  const focused = document.activeElement === input;
+  const marks = sayiNotes().marks;
+  if (box.children.length !== n) box.replaceChildren(...Array.from({ length: n }, () => document.createElement('span')));
+  [...box.children].forEach((slot, i) => {
+    const d = input.value[i] || '';
+    slot.textContent = d;
+    slot.className = 'sayi-slot' + (d && marks[d] ? ` mark-${marks[d]}` : '') + (focused && i === Math.min(input.value.length, n - 1) ? ' caret' : '');
+  });
+}
+
+function sayiBindEntry(input, onMsg) {
+  input.addEventListener('input', () => {
+    const { out, msg } = sayiClean(input.value, sayi?.digits || 0);
+    input.value = out;
+    onMsg(msg);
+    sayiSlots(input);
+  });
+  input.addEventListener('focus', () => sayiSlots(input));
+  input.addEventListener('blur', () => sayiSlots(input));
+}
+
+sayiBindEntry($('sayi-secret-input'), (msg) => { $('sayi-secret-error').textContent = msg; });
+sayiBindEntry($('sayi-guess-input'), (msg) => { if (msg) sayiGuessHint(msg, true); else renderSayiHint(); });
+
+let sayiHintTimer = null;
+function sayiGuessHint(text, warn) {
+  $('sayi-guess-hint').textContent = text;
+  $('sayi-guess-hint').classList.toggle('error', Boolean(warn));
+  clearTimeout(sayiHintTimer);
+  if (warn) sayiHintTimer = setTimeout(renderSayiHint, 2500);
+}
+function renderSayiHint() {
+  const game = sayiActive();
+  if (!game || game.phase !== 'play') return;
+  const turn = game.players[game.turn];
+  sayiGuessHint(turn === myName ? (game.lastChance ? 'Son hakkın! Yaz, Enter' : 'Sıra sende: yaz, Enter') : `Sıra ${turn}'de; sen yazmaya başlayabilirsin`);
+}
+
+$('sayi-secret').onsubmit = (e) => {
+  e.preventDefault();
+  const v = $('sayi-secret-input').value;
+  if (v.length !== sayi?.digits) return ($('sayi-secret-error').textContent = `${sayi?.digits} basamak yaz.`);
+  socket.emit('sayi:secret', v);
+};
+
+$('sayi-guess').onsubmit = (e) => {
+  e.preventDefault();
+  const game = sayiActive();
+  const input = $('sayi-guess-input');
+  if (!game || game.phase !== 'play') return;
+  if (game.players[game.turn] !== myName) return sayiGuessHint(`Sıra ${game.players[game.turn]}'de.`, true);
+  if (input.value.length !== game.digits) return sayiGuessHint(`${game.digits} basamak yaz.`, true);
+  if (game.guesses[myName].some((g) => g.guess === input.value)) return sayiGuessHint('Bunu zaten denedin.', true);
+  socket.emit('sayi:guess', input.value);
+  input.value = '';
+  sayiSlots(input);
+};
+
+// Klavyeden yazılan rakamlar, başka bir yere yazmıyorsan tahmin kutusuna gider.
+document.addEventListener('keydown', (e) => {
+  if ($('games').hidden || $('game-sayi').hidden || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.closest?.('input, textarea, select, [contenteditable=""], [contenteditable="true"]')) return;
+  const input = !$('sayi-secret').hidden ? $('sayi-secret-input') : !$('sayi-guess').hidden && !$('sayi-play').hidden ? $('sayi-guess-input') : null;
+  if (!input || !(/^\d$/.test(e.key) || e.key === 'Backspace' || e.key === 'Enter')) return;
+  e.preventDefault();
+  input.focus();
+  if (e.key === 'Enter') return input.form.requestSubmit();
+  input.value = e.key === 'Backspace' ? input.value.slice(0, -1) : input.value + e.key;
+  input.dispatchEvent(new Event('input'));
+});
+for (const entry of document.querySelectorAll('.sayi-entry')) entry.onclick = () => $(entry.dataset.for).focus();
+
+function renderSayiTools() {
+  const notes = sayiNotes();
+  const n = sayi.digits;
+  // Emin oldukların: her basamağa bir rakam
+  const sure = $('sayi-sure');
+  if (sure.children.length !== n || sure.dataset.id !== String(sayi.id)) {
+    sure.dataset.id = sayi.id;
+    sure.replaceChildren(...Array.from({ length: n }, (_, i) => {
+      const box = document.createElement('input');
+      box.className = 'sayi-sure-slot';
+      box.inputMode = 'numeric';
+      box.autocomplete = 'off';
+      box.setAttribute('aria-label', `${i + 1}. basamak`);
+      box.oninput = () => {
+        box.value = box.value.replace(/\D/g, '').slice(-1);
+        const notes = sayiNotes();
+        notes.sure[i] = box.value;
+        sayiSaveNotes(notes);
+        if (box.value) sure.children[i + 1]?.focus();
+      };
+      box.onkeydown = (e) => {
+        if (e.key === 'Backspace' && !box.value) sure.children[i - 1]?.focus();
+        if (e.key === 'ArrowLeft') sure.children[i - 1]?.focus();
+        if (e.key === 'ArrowRight') sure.children[i + 1]?.focus();
+      };
+      box.onfocus = () => box.select();
+      return box;
+    }));
+  }
+  [...sure.children].forEach((box, i) => {
+    if (document.activeElement !== box) box.value = notes.sure[i] || '';
+  });
+  // Rakam şeridi: bastıkça boş → ✗ → ✓ → ? → boş
+  const strip = $('sayi-digits');
+  if (!strip.children.length) {
+    strip.replaceChildren(...[...'1234567890'].map((d) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sayi-digit';
+      b.dataset.d = d;
+      b.onclick = () => {
+        const notes = sayiNotes();
+        const next = SAYI_MARKS[(SAYI_MARKS.indexOf(notes.marks[d] || '') + 1) % SAYI_MARKS.length];
+        if (next) notes.marks[d] = next;
+        else delete notes.marks[d];
+        sayiSaveNotes(notes);
+        renderSayi();
+      };
+      return b;
+    }));
+  }
+  for (const b of strip.children) {
+    const mark = notes.marks[b.dataset.d] || '';
+    b.className = 'sayi-digit' + (mark ? ` mark-${mark}` : '');
+    b.innerHTML = '';
+    b.append(b.dataset.d, Object.assign(document.createElement('small'), { textContent: SAYI_MARK_TEXT[mark] || '' }));
+  }
+}
+
+function renderSayi() {
+  const game = sayi;
+  renderLobby('sayi');
+  const playing = sayiPlaying();
+  const active = sayiActive();
+  $('game-sayi').querySelector('.memory-head').hidden = !game;
+  $('sayi-end').hidden = !(active && playing);
+  $('sayi-close').hidden = !game?.done;
+  const secretPhase = Boolean(active && active.phase === 'secret');
+  $('sayi-secret').hidden = !(secretPhase && playing && !game.ready[myName]);
+  const waiting = secretPhase ? game.players.filter((p) => !game.ready[p]) : [];
+  $('sayi-wait').hidden = !(secretPhase && $('sayi-secret').hidden);
+  $('sayi-wait').textContent = waiting.length ? `${waiting.join(', ')} sayısını tutuyor…` : '';
+  $('sayi-play').hidden = !game || secretPhase;
+  if (!game) return;
+
+  const turn = game.players[game.turn];
+  $('sayi-status').textContent = game.done
+    ? (game.reason ? `${game.reason} ` : '') + (game.winners.length === 2 ? 'Berabere!' : game.winners.length ? `🏆 ${game.winners[0]} kazandı` : 'Oyun bitti')
+    : secretPhase ? `${game.digits} basamak · sayılar tutuluyor`
+      : `${game.digits} basamak · ${game.lastChance ? 'son hak: ' : 'sıra: '}${turn === myName ? 'sende' : turn}`;
+  if (secretPhase) {
+    sayiSlots($('sayi-secret-input'));
+    return;
+  }
+
+  // Kimin gözünden: oynuyorsan senin, izliyorsan ilk oyuncunun tahminleri
+  const viewer = playing ? myName : game.players[0];
+  const other = sayiOther(viewer);
+  const notes = playing ? sayiNotes() : { sure: [], marks: {} };
+  const code = $('sayi-code');
+  code.replaceChildren();
+  if (playing && game.players.length > 1) {
+    code.append('Senin sayın: ', sayiDigitsEl(game.secrets[myName] || ''));
+    $('sayi-code-label').textContent = game.done ? `${other}'in sayısı: ${game.secrets[other]}` : 'rakibinin bulmaya çalıştığı sayı';
+  } else {
+    code.append(`${other}: `, sayiDigitsEl(game.done ? game.secrets[other] || '' : '?'.repeat(game.digits)));
+    $('sayi-code-label').textContent = playing ? 'bulmaya çalıştığın sayı' : `${viewer}'in tahminleri aşağıda`;
+  }
+  $('game-sayi').querySelector('.sayi-sure').hidden = !playing;
+  $('sayi-digits').hidden = !playing;
+  $('game-sayi').querySelector('.sayi-help').hidden = !playing;
+  $('sayi-guess').hidden = !(playing && active);
+  if (playing) renderSayiTools();
+  if (playing && active) {
+    sayiSlots($('sayi-guess-input'));
+    renderSayiHint();
+  }
+  sayiListRows($('sayi-mine'), game.guesses[viewer], notes.marks);
+
+  const two = game.players.length > 1;
+  const theirs = two ? game.guesses[other] : [];
+  $('sayi-opp-toggle').hidden = !two;
+  $('sayi-opp-toggle').textContent = `${sayiOppOpen ? '▾' : '▸'} ${playing ? 'Rakibin' : `${other}'in`} tahminleri (${theirs.length})`;
+  $('sayi-opp').hidden = !(two && sayiOppOpen);
+  if (two && sayiOppOpen) {
+    $('sayi-opp-title').textContent = playing ? `${other} senin sayını arıyor` : `${other}, ${viewer}'in sayısını arıyor`;
+    sayiListRows($('sayi-theirs'), theirs);
+  }
+}
+
+$('sayi-opp-toggle').onclick = () => {
+  sayiOppOpen = !sayiOppOpen;
+  renderSayi();
+};
+confirmButton($('sayi-end'), 'Emin misin? Tekrar bas', () => socket.emit('sayi:end'));
+$('sayi-close').onclick = () => socket.emit('sayi:close');
+
+function setSayi(game) {
+  const fresh = game && sayi?.id !== game.id;
+  const wasTurn = sayiActive()?.phase === 'play' && sayi.players[sayi.turn] === myName;
+  sayi = game;
+  if (fresh) {
+    $('sayi-secret-input').value = '';
+    $('sayi-guess-input').value = '';
+    $('sayi-secret-error').textContent = '';
+    $('sayi-sure').replaceChildren();
+    sayiOppOpen = false;
+  }
+  renderSayi();
+  // Sıra bana geçince (sayfa açıksa) tahmin kutusuna odaklan
+  const nowTurn = sayiActive()?.phase === 'play' && sayi.players[sayi.turn] === myName;
+  if (nowTurn && !wasTurn && !$('games').hidden && !$('game-sayi').hidden && !document.activeElement?.closest?.('input, textarea')) $('sayi-guess-input').focus({ preventScroll: true });
+}
+socket.on('sayi', setSayi);
+
 // ---------- Kaydırmaca (Klotski) ----------
 // Tek başına oynanır, tahta tarayıcıda. Parça sürüklendikçe yarım kare geçince bir kare kayar (boş yoksa durur),
 // böylece köşe dönen yollar da tek sürüklemede yapılır. Aynı parçanın art arda adımları tek hamle sayılır.
@@ -3019,6 +3307,10 @@ const LOBBY = {
     title: 'Eşini bul', tab: 'memory', running: () => Boolean(memoryActive()), last: () => memory,
     hint: 'Sırayla iki taş açılır, eşini bulan yeniden oynar. Tek başına da oynanabilir.',
   },
+  sayi: {
+    title: 'Sayı bulmaca', tab: 'sayi', running: () => Boolean(sayiActive()), last: () => sayi,
+    hint: 'İki kişi birbirinin sayısını bulmaya çalışır. Tek başına başlatırsan sayıyı bilgisayar tutar; bot açıksa rakibin bot olur.',
+  },
   kelime: {
     title: 'Kelime', tab: 'kelime', running: () => Boolean(kelimeActive()), last: () => kelime,
     hint: 'Biri anlatır, diğerleri bilir; herkes bir kez anlatır. 2-6 kişi.',
@@ -3085,6 +3377,17 @@ function renderLobby(game) {
     box.append(row);
   }
   if (game === 'memory') box.append(...memoryLobbyOpts(lobby, host));
+  if (game === 'sayi') {
+    const row = document.createElement('div');
+    row.className = 'lobby-opts';
+    row.append(kelimeSmall('Basamak:'));
+    for (let n = 1; n <= 10; n++) {
+      const b = lobbyButton(String(n), 'sm' + (n === lobby.opts.digits ? ' active' : ''), () => lobbyEmit('lobby:opts', game, { digits: n }));
+      b.disabled = !host;
+      row.append(b);
+    }
+    box.append(row);
+  }
   if (game === 'kelime') {
     const row = document.createElement('div');
     row.className = 'lobby-opts';
@@ -5694,6 +5997,7 @@ function applyJoin(res) {
   memoryRanks = res.memoryBoard || memoryRanks;
   if (res.klotski) setKlotskiLevels(res.klotski);
   setMemory(res.memory);
+  setSayi(res.sayi);
   setRadio(res.radio);
   lobbies = res.lobbies || {};
   renderLobbies();
