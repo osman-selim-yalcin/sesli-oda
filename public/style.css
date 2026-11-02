@@ -1155,7 +1155,7 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .sayi { display: grid; gap: 12px; }
 .sayi-secret { display: grid; gap: 10px; justify-items: center; text-align: center; padding: 18px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); width: 100%; max-width: 520px; justify-self: center; }
 .sayi-wait { text-align: center; margin: 0; }
-.sayi-play { display: grid; gap: 14px; width: 100%; max-width: 620px; justify-self: center; }
+.sayi-play { display: grid; gap: 14px; width: 100%; }
 .sayi-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .sayi-code { display: grid; gap: 4px; }
 .sayi-code-box { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-sm); background: var(--text); color: var(--bg); font-size: 17px; font-weight: 600; width: fit-content; }
@@ -1172,8 +1172,11 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .sayi-row { display: grid; grid-template-columns: 1fr 110px; align-items: center; gap: 8px; padding: 8px 14px; }
 .sayi-guess-row { border-bottom: 1px solid var(--line-2); background: var(--panel-2); }
 .sayi-guess-row[hidden] { display: none; }
-.sayi-list { list-style: none; margin: 0; padding: 4px 0; max-height: 46vh; overflow-y: auto; }
-.sayi-list .sayi-row + .sayi-row { border-top: 1px solid var(--line); }
+.sayi-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sayi-list .sayi-row { border-bottom: 1px solid var(--line); padding-top: 6px; padding-bottom: 6px; }
+.sayi-list .sayi-row:nth-child(odd) { border-right: 1px solid var(--line-2); }
+.sayi-list .sayi-row:nth-last-child(1), .sayi-list .sayi-row:nth-last-child(2):nth-child(odd) { border-bottom: none; }
+.sayi-empty { grid-column: 1 / -1; }
 .sayi-list .sayi-row.found { background: rgba(61, 220, 132, .1); }
 .sayi-empty { padding: 10px 14px; }
 .sayi-left { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
@@ -1207,6 +1210,10 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 #sayi-opp-toggle[hidden] { display: none; }
 @media (max-width: 520px) {
   .sayi-col-head, .sayi-row { grid-template-columns: 1fr 76px; padding-left: 10px; padding-right: 10px; }
+  .sayi-list .sayi-row { grid-template-columns: 1fr 52px; padding-left: 6px; padding-right: 6px; gap: 4px; }
+  .sayi-list .sayi-num { font-size: 17px; letter-spacing: .04em; }
+  .sayi-list .sayi-info { font-size: 14px; }
+  .sayi-list .sayi-i { min-width: 16px; }
   .sayi-num { font-size: 19px; letter-spacing: .08em; }
   .sayi-slots { gap: 4px; }
   .sayi-slot { font-size: 20px; }
@@ -1216,3 +1223,5 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   .sayi-sure-slots { justify-content: flex-start; }
   .sayi-digit { height: 46px; font-size: 18px; }
 }
+.sayi-col-head { display: flex; justify-content: space-between; }
+.sayi-col-head span:last-child { display: none; }
