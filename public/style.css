@@ -1482,17 +1482,18 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .mantik-cat-row span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
 .mantik-row { text-align: right; white-space: nowrap; padding: 0 8px 0 4px !important; border-top: 1px solid var(--line); }
 .mantik-table tbody tr:nth-child(4n + 1) .mantik-row { border-top: 2px solid var(--line-2); }
-.mantik-td { padding: 0; width: 36px; height: 36px; border: 1px solid var(--line); }
+.mantik-td { padding: 0; width: var(--mc, 36px); height: var(--mc, 36px); border: 1px solid var(--line); }
 .mantik-table tbody tr:nth-child(4n + 1) .mantik-td { border-top: 2px solid var(--line-2); }
 .mantik-table tbody tr.end .mantik-td { border-bottom: 2px solid var(--line-2); }
 .mantik-td.end { border-right: 2px solid var(--line-2); }
 .mantik-td.start { border-left: 2px solid var(--line-2); }
-.mantik-cell { width: 36px; height: 36px; min-width: 30px; padding: 0; border: none; border-radius: 0; background: transparent; font-size: 16px; font-weight: 800; display: grid; place-items: center; }
+.mantik-cell { width: var(--mc, 36px); height: var(--mc, 36px); min-width: 0; padding: 0; border: none; border-radius: 0; background: transparent; font-size: calc(var(--mc, 36px) * .46); font-weight: 800; display: grid; place-items: center; }
 .mantik-cell:hover:not(:disabled) { background: var(--panel-2); border: none; }
 .mantik-cell:active:not(:disabled) { transform: none; }
 .mantik-cell:disabled { opacity: 1; cursor: default; }
 .mantik-cell.mark-x { color: var(--danger); background: var(--danger-soft); }
 .mantik-cell.mark-v { color: var(--speak); background: rgba(61, 220, 132, .18); }
+.mantik-cell.mark-q { color: #ffad3b; background: rgba(255, 173, 59, .14); }
 .mantik-col.hl, .mantik-row.hl { color: var(--text); background: var(--accent-soft); }
 .mantik-td.hl { background: rgba(107, 140, 255, .07); }
 .mantik-cell.auto { opacity: .6; }
@@ -1519,7 +1520,18 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .mantik-sol tr:last-child td { border-bottom: none; }
 #mantik-rules-pop, #mantik-tools-pop { width: min(400px, calc(100vw - 32px)); }
 @media (max-width: 600px) {
-  .mantik-td, .mantik-cell { width: 30px; height: 30px; }
   .mantik-clue { font-size: 14px; padding: 5px 6px; }
-  .mantik-row { padding: 0 6px 0 2px !important; }
+  .mantik-table { font-size: 12px; }
+  .mantik-row { padding: 0 4px 0 2px !important; max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
+  .mantik.zor .mantik-row { max-width: 58px; font-size: 11px; }
+  .mantik-sheet { width: 100%; table-layout: fixed; font-size: 13px; }
+  .mantik-sheet th:first-child { width: 64px; }
+  .mantik-sheet th { font-size: 10px; padding-right: 4px; overflow: hidden; text-overflow: ellipsis; }
+  .mantik-sheet th.mantik-sheet-name { font-size: 13px; padding-right: 6px; }
+  .mantik-sheet td { padding: 3px 4px 3px 0; }
+  .mantik-sheet select { min-width: 0; padding: 6px 4px; font-size: 13px; }
+  .mantik-cat-row { width: 16px; font-size: 10px; }
+  .mantik-cat-col { font-size: 10px; }
+  .mantik-col { height: 78px; }
+  .mantik-col span { max-height: 74px; }
 }

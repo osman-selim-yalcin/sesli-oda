@@ -9,7 +9,7 @@ let mantikClock = 0; // sunucu saati - bu saat
 let mantikTick = null;
 let mantikUndo = []; // not değişikliklerinden önceki haller (JSON), en çok 100
 let mantikMsgTimer = null;
-const MANTIK_CYCLE = { '': 'x', x: 'v', v: '' };
+const MANTIK_CYCLE = { '': 'x', x: 'v', v: 'q', q: '' }; // q = ? (emin değilim notu; doldurma ve kontrol saymaz)
 const mantikNotesKey = () => `mantikNotes:${myName}`;
 const MANTIK_AUTO_KEY = 'mantikAutoFill'; // eski 'mantikAutoX' sadece ✗ koyuyordu; yeni ayar varsayılan açık
 
@@ -61,11 +61,12 @@ function mantikPairKey(a, av, b, bv) {
 function mantikFill(own) {
   const marks = { ...own };
   const k = mantik.cats.length;
-  const get = (a, av, b, bv) => marks[mantikPairKey(a, av, b, bv)] || '';
+  // ? işareti boş sayılır; kesin çıkan bir sonuç ?'in yerine (soluk) görünür.
+  const get = (a, av, b, bv) => { const m = marks[mantikPairKey(a, av, b, bv)]; return m === 'q' ? '' : m || ''; };
   let changed = true;
   const set = (a, av, b, bv, m) => {
     const key = mantikPairKey(a, av, b, bv);
-    if (!marks[key]) { marks[key] = m; changed = true; }
+    if (!marks[key] || marks[key] === 'q') { marks[key] = m; changed = true; }
   };
   for (let round = 0; changed && round < 30; round++) {
     changed = false;
@@ -289,8 +290,8 @@ function renderMantikGrid(marks, editable, own = marks) {
         for (let cv = 0; cv < 4; cv++) {
           const mark = marks[mantikKey(r, c, rv, cv)] || '';
           const td = mantikCell('td', 'mantik-td' + (cv === 0 ? ' start' : cv === 3 ? ' end' : ''));
-          const auto = mark && !own[mantikKey(r, c, rv, cv)];
-          const b = mantikCell('button', `mantik-cell${mark ? ` mark-${mark}` : ''}${auto ? ' auto' : ''}`, mark === 'x' ? '✗' : mark === 'v' ? '✓' : '');
+          const auto = mark && own[mantikKey(r, c, rv, cv)] !== mark;
+          const b = mantikCell('button', `mantik-cell${mark ? ` mark-${mark}` : ''}${auto ? ' auto' : ''}`, { x: '✗', v: '✓', q: '?' }[mark] || '');
           b.type = 'button';
           b.dataset.col = String((c - 1) * 4 + cv);
           b.title = `${game.cats[r].values[rv]} – ${game.cats[c].values[cv]}`;
@@ -320,7 +321,26 @@ function renderMantikGrid(marks, editable, own = marks) {
   });
   table.addEventListener('pointerleave', clear);
   $('mantik-grid').replaceChildren(table);
+  mantikFit();
 }
+
+// Hücre boyu kutunun genişliğine göre seçilir (36 px'e kadar), tablo telefonda da yana kaymadan sığar.
+function mantikFit() {
+  const table = $('mantik-grid').querySelector('.mantik-table');
+  const box = $('mantik-grid').parentElement;
+  if (!table || !box.clientWidth) return;
+  table.style.removeProperty('--mc');
+  const cols = (mantik.cats.length - 1) * 4;
+  const label = table.querySelector('.mantik-cat-row').offsetWidth + table.querySelector('.mantik-row').offsetWidth;
+  let size = Math.max(16, Math.min(36, Math.floor((box.clientWidth - label - 4) / cols)));
+  table.style.setProperty('--mc', `${size}px`);
+  // Kenar çizgileri de yer kaplar: taşıyorsa biraz daha küçült.
+  for (let i = 0; i < 4 && size > 16 && box.scrollWidth > box.clientWidth; i++) {
+    size = Math.max(16, size - Math.ceil((box.scrollWidth - box.clientWidth) / cols));
+    table.style.setProperty('--mc', `${size}px`);
+  }
+}
+addEventListener('resize', () => { if (!$('mantik-grid-box').hidden) mantikFit(); });
 
 // Bitince çözüm: her kişi bir satır (zorda ev sırasıyla).
 function renderMantikSolution() {
@@ -355,6 +375,7 @@ function renderMantik() {
   renderMantikTimer();
   if (!game) return;
 
+  $('game-mantik').classList.toggle('zor', game.level === 'zor'); // telefonda daha kısa satır başlıkları
   const levelName = game.level === 'zor' ? 'Zor' : 'Kolay';
   $('mantik-status').textContent = game.done
     ? (game.reason ? `${game.reason} ` : '') + (game.winners.length > 1 ? 'Berabere!' : game.winners.length ? `🏆 ${game.winners[0]} kazandı` : 'Oyun bitti')
