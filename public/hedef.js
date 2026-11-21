@@ -240,7 +240,7 @@ function renderHedef() {
   if (active && !hedefTicker) hedefTicker = setInterval(hedefTick, 250);
   hedefTick();
 
-  $('hedef-status').textContent = game.done ? `${game.rounds} tur bitti`
+  $('hedef-status').textContent = game.done ? (game.reason ? `${game.round + 1}/${game.rounds} turda bitti` : `${game.rounds} tur bitti`)
     : game.phase === 'play' ? `${game.round + 1}/${game.rounds}. tur` + (playing ? '' : ' · izliyorsun')
       : `${game.round + 1}/${game.rounds}. tur bitti`;
   renderHedefBoard(game);
