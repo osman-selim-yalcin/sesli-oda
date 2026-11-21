@@ -1426,6 +1426,10 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .hedef-question .hedef-target strong { font-size: 34px; padding: 6px 18px; }
 .hedef-question .hedef-tiles { min-height: 0; gap: 6px; }
 .hedef-question .hedef-tile { display: inline-grid; place-items: center; min-width: 48px; height: 44px; font-size: 19px; padding: 0 8px; }
+.hedef-records { display: grid; gap: 10px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+.hedef-records-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hedef-records-tabs { display: flex; gap: 6px; margin-left: auto; }
+.hedef-records-tabs .active { background: var(--accent-soft); border-color: var(--accent); }
 .hedef-next-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
 .hedef-next-row button { min-width: 140px; }
 @media (max-width: 640px) {
@@ -1478,17 +1482,28 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .mantik-cat-row span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
 .mantik-row { text-align: right; white-space: nowrap; padding: 0 8px 0 4px !important; border-top: 1px solid var(--line); }
 .mantik-table tbody tr:nth-child(4n + 1) .mantik-row { border-top: 2px solid var(--line-2); }
-.mantik-td { padding: 0; width: 32px; height: 32px; border: 1px solid var(--line); }
+.mantik-td { padding: 0; width: 36px; height: 36px; border: 1px solid var(--line); }
 .mantik-table tbody tr:nth-child(4n + 1) .mantik-td { border-top: 2px solid var(--line-2); }
 .mantik-table tbody tr.end .mantik-td { border-bottom: 2px solid var(--line-2); }
 .mantik-td.end { border-right: 2px solid var(--line-2); }
 .mantik-td.start { border-left: 2px solid var(--line-2); }
-.mantik-cell { width: 32px; height: 32px; min-width: 30px; padding: 0; border: none; border-radius: 0; background: transparent; font-size: 16px; font-weight: 800; display: grid; place-items: center; }
+.mantik-cell { width: 36px; height: 36px; min-width: 30px; padding: 0; border: none; border-radius: 0; background: transparent; font-size: 16px; font-weight: 800; display: grid; place-items: center; }
 .mantik-cell:hover:not(:disabled) { background: var(--panel-2); border: none; }
 .mantik-cell:active:not(:disabled) { transform: none; }
 .mantik-cell:disabled { opacity: 1; cursor: default; }
 .mantik-cell.mark-x { color: var(--danger); background: var(--danger-soft); }
 .mantik-cell.mark-v { color: var(--speak); background: rgba(61, 220, 132, .18); }
+.mantik-col.hl, .mantik-row.hl { color: var(--text); background: var(--accent-soft); }
+.mantik-td.hl { background: rgba(107, 140, 255, .07); }
+.mantik-cell.auto { opacity: .6; }
+.mantik-sheet-box { display: grid; gap: 6px; }
+.mantik-sheet { border-collapse: collapse; font-size: 14px; }
+.mantik-sheet th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 0 8px 6px 0; white-space: nowrap; }
+.mantik-sheet th.mantik-sheet-name { font-size: 14px; text-transform: none; letter-spacing: 0; color: var(--text); padding: 3px 12px 3px 0; }
+.mantik-sheet td { padding: 3px 8px 3px 0; }
+.mantik-sheet select { display: block; width: 100%; min-width: 120px; margin: 0; padding: 6px 8px; font-size: 14px; border-radius: var(--radius-sm); text-align: left; }
+.mantik-sheet td { vertical-align: middle; }
+.mantik-sheet select.empty { color: var(--muted); }
 .mantik-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
 .mantik-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-right: auto; cursor: pointer; }
 .mantik-auto input { width: auto; margin: 0; padding: 0; accent-color: var(--accent); }

@@ -10,6 +10,8 @@ let hedef = null;
 let hedefLocal = null; // bu turdaki kendi adımlarım: { key, vals, used, steps, sel, op }
 let hedefTicker = null;
 let hedefSending = false;
+let hedefRecords = null; // kalıcı puan tablosu: { 3: [{ name, points, at }], 5: [...], 7: [...] }
+let hedefRecordTab = null; // gösterilen tur sayısı; seçilmediyse son oyununki ya da 5
 
 const hedefActive = () => (hedef && !hedef.done ? hedef : null);
 const hedefPlaying = () => Boolean(hedefActive() && hedef.players.includes(myName) && !hedef.left.includes(myName));
@@ -236,9 +238,38 @@ function renderHedefResult(game) {
   $('hedef-solution').replaceChildren(...last.solution.map(hedefStepEl));
 }
 
+// Puan tablosu oyun sürmezken görünür; sekmeler 3 / 5 / 7 tur.
+function renderHedefRecords() {
+  const box = $('hedef-records');
+  box.hidden = Boolean(hedefActive()) || !hedefRecords;
+  if (box.hidden) return;
+  const tab = hedefRecordTab || hedef?.rounds || 5;
+  $('hedef-records-tabs').replaceChildren(...HEDEF_ROUNDS.map((n) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'sm' + (n === tab ? ' active' : ''), textContent: `${n} tur` });
+    b.onclick = () => { hedefRecordTab = n; renderHedefRecords(); };
+    return b;
+  }));
+  const rows = hedefRecords[tab] || [];
+  const list = $('hedef-records-list');
+  list.replaceChildren(...rows.map((r, i) => {
+    const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    const row = timingRow(r.name, `${r.points} puan`, date, i === 0 ? 'great' : '');
+    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1 }));
+    if (hedef?.done && r.at === hedef.id) row.classList.add('winner'); // az önce biten oyun
+    return row;
+  }));
+  if (!rows.length) list.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: `${tab} turluk oyunda henüz puan yok. Sonuna kadar oynanan oyunlar buraya girer.` }));
+}
+function setHedefRecords(board) {
+  hedefRecords = board || null;
+  renderHedefRecords();
+}
+socket.on('hedef:board', setHedefRecords);
+
 function renderHedef() {
   const game = hedef;
   renderLobby('hedef');
+  renderHedefRecords();
   const playing = hedefPlaying();
   const active = hedefActive();
   $('hedef-end').hidden = !(active && playing);

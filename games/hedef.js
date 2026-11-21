@@ -20,10 +20,59 @@ let postSystem;
 let rand;
 let pick;
 let BOT;
+let store;
 const timers = new Map(); // oda kodu -> { round, bot }
+const BOARD = 10; // puan tablosunda her tur sayısı için en iyi 10 oyun
+const boards = new Map(); // oda kodu -> { 3: [{ name, points, at }], 5: [...], 7: [...] } kalıcı puan tablosu
 
 function init(deps) {
-  ({ io, rooms, postSystem, rand, pick, BOT } = deps);
+  ({ io, rooms, postSystem, rand, pick, BOT, store } = deps);
+}
+
+// ---------- Puan tablosu ----------
+// Sonuna kadar oynanan her oyunun toplam puanı, tur sayısına göre ayrı tabloya girer (aynı kişi birden çok kez
+// girebilir). Bilgisayardaki sunucu da canlıyla aynı kaydı kullandığından kaydetmeden önce kayıttakiyle birleştirilir.
+const emptyBoard = () => Object.fromEntries(ROUNDS.map((n) => [n, []]));
+const board = (code) => {
+  if (!boards.has(code)) boards.set(code, emptyBoard());
+  return boards.get(code);
+};
+
+function mergeBoard(into, from) {
+  for (const n of ROUNDS) {
+    const seen = new Set();
+    into[n] = [...(into[n] || []), ...(from?.[n] || [])]
+      .filter((r) => {
+        const key = `${r.name}|${r.at}|${r.points}`;
+        return !seen.has(key) && seen.add(key);
+      })
+      .sort((a, b) => b.points - a.points || a.at - b.at)
+      .slice(0, BOARD);
+  }
+}
+
+// Sunucu açılırken kayıttan gelir.
+function loadBoard(code, data) {
+  const b = emptyBoard();
+  mergeBoard(b, data);
+  boards.set(code, b);
+}
+
+async function addScores(room, rounds, scores) {
+  if (!scores.length) return;
+  const b = board(room.code);
+  b[rounds].push(...scores);
+  if (store.enabled) {
+    try {
+      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.hedefboard&select=data`);
+      mergeBoard(b, row?.data);
+    } catch (err) {
+      console.warn('hedef puan tablosu okuma', err.message);
+    }
+  }
+  mergeBoard(b);
+  store.save(room.code, 'hedefboard', () => b);
+  io.to(room.code).emit('hedef:board', b);
 }
 
 const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
@@ -298,6 +347,8 @@ function finish(room, reason, scored) {
   const top = ranked.length ? game.totals[ranked[0]] : 0;
   Object.assign(game, { done: true, phase: 'done', ready: [], reason: reason || null, winners: top > 0 ? ranked.filter((p) => game.totals[p] === top) : [] });
   send(room);
+  // Sonuna kadar oynanan oyunlar puan tablosuna girer (botsuz, puanı olanlar)
+  if (scored && !reason) addScores(room, game.rounds, active(game).filter((p) => p !== BOT && game.totals[p] > 0).map((p) => ({ name: p, points: game.totals[p], at: game.id })));
   const prefix = reason ? `${reason} ` : '';
   if (game.players.length === 1) return postSystem(room, `${prefix}${roundText}Hedef sayı bitti: ${game.players[0]} ${game.totals[game.players[0]]} puan.`);
   const all = [...ranked, ...game.left.filter((p) => game.players.includes(p))];
@@ -346,4 +397,4 @@ function attach(socket, ctx) {
   });
 }
 
-module.exports = { init, ROUNDS, solve, replay, makeRound, points, view, start, left, running, attach, clearTimers };
+module.exports = { init, board, loadBoard, ROUNDS, solve, replay, makeRound, points, view, start, left, running, attach, clearTimers };

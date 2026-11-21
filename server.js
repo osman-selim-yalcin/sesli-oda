@@ -287,7 +287,7 @@ const io = new Server(server, { maxHttpBufferSize: IMAGE_MAX_BYTES + 64 * 1024 }
 
 // oda kodu -> { users: Map<socketId, {name, muted}>, current, queue, playing, position, updatedAt }
 const rooms = new Map();
-hedef.init({ io, rooms, postSystem, rand, pick, BOT });
+hedef.init({ io, rooms, postSystem, rand, pick, BOT, store });
 const mantik = require('./games/mantik').create({ io, postSystem, getRoom, rooms, BOT }); // Mantık tablosu
 
 // Önceden çalanlar, özel efektler ve tier listler oda boşalınca silinmez; Supabase ayarlıysa
@@ -593,7 +593,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(room.code), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -2686,6 +2686,7 @@ async function loadSaved() {
     if (kind === 'kelimeler') kelimePools.set(room, data);
     if (kind === 'memoryboard') memoryLogs.set(room, data);
     if (kind === 'klotskiboard') klotskiLogs.set(room, data);
+    if (kind === 'hedefboard') hedef.loadBoard(room, data);
     if (kind === 'oneriler') mergeOneriler(data);
     if (kind === 'dinoboard') dinoBoards.set(room, { auto: [], hold: [], tap: [], ...data });
     if (kind === 'sfx') customSfxByRoom.set(room, new Map(data.map((fx) => [fx.id, { buf: null, label: fx.label, by: fx.by }])));

@@ -584,7 +584,7 @@
               <p>Herkese aynı 6 sayı (4 küçük, 2 büyük) ve 101-999 arası bir hedef gelir. Dört işlemle (+ − × ÷) hedefe ulaşmaya ya da en çok yaklaşmaya çalış. Hedefe her zaman tam ulaşılabilir.</p>
               <p><strong>Nasıl:</strong> bir sayıya bas, bir işlem seç, başka bir sayıya bas: iki kutu birleşir, sonuç yeni kutu olur. Her sayı en çok bir kez kullanılır, hepsini kullanmak zorunlu değil. Ara sonuçlar pozitif tam sayı olmalı (bölme tam bölünmeli). Elindeki kutulardan hedefe en yakını cevabın olur; "Gönder" ile yolla. Tur içinde daha iyisini yine gönderebilirsin. Klavyede + − * / işlem seçer, Backspace geri alır, Enter gönderir.</p>
               <p><strong>Puanlama:</strong> tam hedef 100 + kalan saniye (ilk ulaştığın an sayılır). Değilse 60 − 6 × fark: 1 fark 54, 5 fark 30, 10 ve üstü 0. Her tur 90 saniye; herkes tam bulursa erken biter. Tur sonunda soru, herkesin işlemleri ve bir tam çözüm görünür; herkes "Sonraki tur"a basınca yeni tur başlar.</p>
-              <p>Lobiyi kuran tur sayısını seçer (3, 5, 7). Toplamda en yüksek puan kazanır, eşitse berabere. "Oyunu bitir" o anki toplamla bitirir. Başkalarının işlemleri tur bitene kadar gizli; sadece ulaşıp ulaşmadığı ve kaç fark kaldığı görünür.</p>
+              <p>Lobiyi kuran tur sayısını seçer (3, 5, 7). Toplamda en yüksek puan kazanır, eşitse berabere. "Oyunu bitir" o anki toplamla bitirir. Sonuna kadar oynanan oyunların toplamı, tur sayısına göre puan tablosuna girer (en iyi 10). Başkalarının işlemleri tur bitene kadar gizli; sadece ulaşıp ulaşmadığı ve kaç fark kaldığı görünür.</p>
             </div>
             <div id="lobby-hedef" class="lobby"></div>
             <div id="hedef-play" class="hedef-play" hidden>
@@ -630,6 +630,14 @@
               </div>
             </div>
             <ol id="hedef-board" class="timing-list hedef-board" hidden></ol>
+            <!-- Kalıcı puan tablosu: sonuna kadar oynanan oyunların toplam puanı, tur sayısına göre -->
+            <div id="hedef-records" class="hedef-records" hidden>
+              <div class="hedef-records-head">
+                <strong>Puan tablosu</strong>
+                <div id="hedef-records-tabs" class="hedef-records-tabs"></div>
+              </div>
+              <ol id="hedef-records-list" class="timing-list"></ol>
+            </div>
           </div>
 
           <!-- Gizli kural: 3 sayılık dizilerle bilgisayarın gizli kuralını bul (public/kural.js) -->
@@ -716,15 +724,20 @@
                 <section id="mantik-grid-box" class="mantik-grid-box">
                   <div class="mantik-scroll"><div id="mantik-grid"></div></div>
                   <div class="mantik-tools">
-                    <label class="mantik-auto"><input id="mantik-auto" type="checkbox"> Otomatik ✗</label>
+                    <label class="mantik-auto" title="Koyduğun işaretlerden kesin çıkanları tabloya kendisi yazar"><input id="mantik-auto" type="checkbox"> Otomatik doldur</label>
                     <button id="mantik-undo" type="button" class="sm ghost">↶ Geri al</button>
                     <button id="mantik-reset" type="button" class="sm ghost danger">Sıfırla</button>
                     <button type="button" class="sayi-info-btn" popovertarget="mantik-tools-pop" title="Tablo nasıl kullanılır" aria-label="Tablo nasıl kullanılır">i</button>
                   </div>
                   <div id="mantik-tools-pop" class="pop sayi-pop" popover><p>Bir hücreye bas: boş → ✗ (bu ikisi aynı kişide değil) → ✓ (aynı kişide) → boş. Her küçük tablo iki kategoriyi karşılaştırır.</p>
-                    <p><strong>Otomatik ✗:</strong> açıkken bir hücreye ✓ koyunca o küçük tablodaki aynı satır ve sütunun boş hücreleri ✗ olur (bir kişinin her kategoride tek değeri olur).</p>
+                    <p><strong>Otomatik doldur:</strong> açıkken koyduğun işaretlerden kesin çıkanlar boş hücrelere soluk olarak yazılır: ✓'in satırı ve sütunu ✗ olur, bir satırda tek boş kalırsa ✓ olur, "Burak turuncu evde" ve "Burak tavşan besliyor" ✓ ise turuncu–tavşan da ✓ olur. Senin koyduğun işaretlere dokunmaz; bir işareti silince ondan çıkanlar da kalkar.</p>
+                    <p><strong>Cevabın:</strong> tablonun altındaki listeden her isme değer seçebilirsin; seçim tabloya ✓ olarak geçer, tablodaki ✓'ler de listede görünür. Başkasına verilmiş değerin yanında o kişinin adı yazar.</p>
                     <p>İpucuna basınca üstü çizilir; kullandıklarını böyle işaretleyebilirsin. Geri al son değişikliği geri alır, Sıfırla tabloyu ve işaretleri temizler. Hepsi sadece sende görünür.</p>
                     <p><strong>Kontrol et:</strong> en üstteki isim satırlarında her ismin her kategoride tek bir ✓'i olmalı; tamamsa cevabın gönderilir. Yanlışsa sadece "doğru değil" denir, hangi hücrenin yanlış olduğu söylenmez.</p>
+                  </div>
+                  <div class="mantik-sheet-box">
+                    <strong class="mantik-sub">Cevabın</strong>
+                    <div id="mantik-sheet" class="mantik-scroll"></div>
                   </div>
                   <div id="mantik-check-row" class="mantik-check-row">
                     <button id="mantik-check" type="button" class="primary">Kontrol et</button>

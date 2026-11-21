@@ -6145,6 +6145,7 @@ function applyJoin(res) {
   setMemory(res.memory);
   setSayi(res.sayi);
   setHedef(res.hedef); // public/hedef.js
+  setHedefRecords(res.hedefBoard);
   window.setKural?.(res.kural); // public/kural.js
   setMantik(res.mantik); // public/mantik.js
   setRadio(res.radio);

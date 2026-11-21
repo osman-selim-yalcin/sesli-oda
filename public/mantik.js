@@ -11,7 +11,7 @@ let mantikUndo = []; // not değişikliklerinden önceki haller (JSON), en çok 
 let mantikMsgTimer = null;
 const MANTIK_CYCLE = { '': 'x', x: 'v', v: '' };
 const mantikNotesKey = () => `mantikNotes:${myName}`;
-const MANTIK_AUTO_KEY = 'mantikAutoX';
+const MANTIK_AUTO_KEY = 'mantikAutoFill'; // eski 'mantikAutoX' sadece ✗ koyuyordu; yeni ayar varsayılan açık
 
 const mantikPlaying = () => Boolean(mantik && mantik.players.includes(myName) && !mantik.gone?.includes(myName));
 const mantikActive = () => (mantik && !mantik.done ? mantik : null);
@@ -46,20 +46,128 @@ const mantikRowCats = (k) => [0, ...Array.from({ length: k - 2 }, (_, i) => k - 
 const mantikHas = (r, c) => r === 0 || c < r;
 const mantikKey = (r, c, rv, cv) => `${r},${c},${rv},${cv}`;
 
+// İki kategori arasındaki işaret (hangi alt tabloda durduğu fark etmez): a. kategorinin av değeri – b.'nin bv değeri.
+// Merdivende her çift bir kez var: isimler (0) satırda, diğer çiftlerde büyük numaralı kategori satırda.
+function mantikPairKey(a, av, b, bv) {
+  if (a === 0 || (b !== 0 && a > b)) return mantikKey(a, b, av, bv);
+  return mantikKey(b, a, bv, av);
+}
+
+// Otomatik doldurma: kullanıcının işaretlerinden kesin çıkanları boş hücrelere yazar (var olan işarete dokunmaz).
+// Kayıtta sadece kullanıcının işaretleri durur; doldurulanlar her çizimde yeniden hesaplanır, böylece bir ✓ silinince
+// ondan çıkanlar da kalkar.
+// 1) Bir ✓'in satırı ve sütunu (o alt tabloda) ✗. 2) Satırda/sütunda tek boş kalıp gerisi ✗ ise o ✓.
+// 3) Geçişlilik: A–B ✓ ve B–C ✓ ise A–C ✓; A–B ✓ ve B–C ✗ ise A–C ✗.
+function mantikFill(own) {
+  const marks = { ...own };
+  const k = mantik.cats.length;
+  const get = (a, av, b, bv) => marks[mantikPairKey(a, av, b, bv)] || '';
+  let changed = true;
+  const set = (a, av, b, bv, m) => {
+    const key = mantikPairKey(a, av, b, bv);
+    if (!marks[key]) { marks[key] = m; changed = true; }
+  };
+  for (let round = 0; changed && round < 30; round++) {
+    changed = false;
+    for (let a = 0; a < k; a++) {
+      for (let b = a + 1; b < k; b++) {
+        for (let i = 0; i < 4; i++) {
+          for (let j = 0; j < 4; j++) {
+            if (get(a, i, b, j) !== 'v') continue;
+            for (let o = 0; o < 4; o++) {
+              if (o !== j) set(a, i, b, o, 'x');
+              if (o !== i) set(a, o, b, j, 'x');
+            }
+          }
+          const rowOpen = [0, 1, 2, 3].filter((j) => get(a, i, b, j) !== 'x');
+          if (rowOpen.length === 1 && !get(a, i, b, rowOpen[0])) set(a, i, b, rowOpen[0], 'v');
+          const colOpen = [0, 1, 2, 3].filter((j) => get(a, j, b, i) !== 'x');
+          if (colOpen.length === 1 && !get(a, colOpen[0], b, i)) set(a, colOpen[0], b, i, 'v');
+        }
+      }
+    }
+    for (let a = 0; a < k; a++) {
+      for (let b = 0; b < k; b++) {
+        if (b === a) continue;
+        for (let c = 0; c < k; c++) {
+          if (c === a || c === b) continue;
+          for (let i = 0; i < 4; i++) {
+            for (let j = 0; j < 4; j++) {
+              if (get(a, i, b, j) !== 'v') continue;
+              for (let l = 0; l < 4; l++) {
+                const m = get(b, j, c, l);
+                if (m) set(a, i, c, l, m);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return marks;
+}
+
+// Ekranda görünen işaretler: kullanıcınınkiler + (ayar açıksa) onlardan çıkanlar.
+const mantikShown = (own) => (mantikAuto() ? mantikFill(own) : own);
+
+// Hücreye basınca görünen işaretten bir sonrakine geçer ve kullanıcının işareti olarak saklanır.
 function mantikToggle(r, c, rv, cv) {
   mantikEdit((notes) => {
     const key = mantikKey(r, c, rv, cv);
-    const next = MANTIK_CYCLE[notes.marks[key] || ''];
+    const next = MANTIK_CYCLE[mantikShown(notes.marks)[key] || ''];
     if (next) notes.marks[key] = next;
     else delete notes.marks[key];
-    // ✓ konunca aynı alt tablodaki satır ve sütunun boş hücreleri ✗ olur (ayar açıksa).
-    if (next === 'v' && mantikAuto()) {
-      for (let i = 0; i < 4; i++) {
-        if (i !== cv && !notes.marks[mantikKey(r, c, rv, i)]) notes.marks[mantikKey(r, c, rv, i)] = 'x';
-        if (i !== rv && !notes.marks[mantikKey(r, c, i, cv)]) notes.marks[mantikKey(r, c, i, cv)] = 'x';
-      }
-    }
   });
+}
+
+// Cevap tablosundan seçim: p. kişinin c. kategorideki değeri v (null = boş). Tablodaki ✓ da buna göre değişir.
+function mantikPick(c, p, v) {
+  mantikEdit((notes) => {
+    for (let i = 0; i < 4; i++) {
+      for (const key of [mantikKey(0, c, p, i), mantikKey(0, c, i, v ?? -1)]) if (notes.marks[key] === 'v') delete notes.marks[key];
+    }
+    if (v == null) return;
+    notes.marks[mantikKey(0, c, p, v)] = 'v';
+  });
+}
+
+// Cevap tablosu: her isim bir satır, her kategori bir seçim kutusu; değerler isim tablosundaki ✓'lerden okunur.
+function renderMantikSheet(marks, editable) {
+  const game = mantik;
+  const k = game.cats.length;
+  const tickOf = (c, p) => {
+    const ticks = [0, 1, 2, 3].filter((v) => marks[mantikKey(0, c, p, v)] === 'v');
+    return ticks.length === 1 ? ticks[0] : null;
+  };
+  const table = mantikCell('table', 'mantik-sheet');
+  const head = document.createElement('tr');
+  head.append(mantikCell('th', null, game.cats[0].title));
+  for (let c = 1; c < k; c++) head.append(mantikCell('th', null, game.cats[c].title));
+  table.append(head);
+  for (let p = 0; p < 4; p++) {
+    const tr = document.createElement('tr');
+    tr.append(mantikCell('th', 'mantik-sheet-name', game.cats[0].values[p]));
+    for (let c = 1; c < k; c++) {
+      const td = document.createElement('td');
+      const sel = document.createElement('select');
+      const mine = tickOf(c, p);
+      sel.className = mine == null ? 'empty' : '';
+      sel.disabled = !editable;
+      sel.append(new Option('?', ''));
+      game.cats[c].values.forEach((label, v) => {
+        const owner = [0, 1, 2, 3].find((q) => q !== p && tickOf(c, q) === v);
+        const no = marks[mantikKey(0, c, p, v)] === 'x';
+        const opt = new Option(label + (owner != null ? ` (${game.cats[0].values[owner]})` : no ? ' ✗' : ''), String(v));
+        opt.selected = v === mine;
+        sel.append(opt);
+      });
+      sel.onchange = () => mantikPick(c, p, sel.value === '' ? null : Number(sel.value));
+      td.append(sel);
+      tr.append(td);
+    }
+    table.append(tr);
+  }
+  $('mantik-sheet').replaceChildren(table);
 }
 
 // ✓'lerden cevap çıkarır: answer[c - 1][kişi] = değer. Döner: { answer } ya da { error }.
@@ -102,7 +210,7 @@ function mantikMsg(text, kind) {
 
 $('mantik-check').onclick = async () => {
   if (!mantikSolving()) return;
-  const { answer, error } = mantikAnswer(mantikNotes().marks);
+  const { answer, error } = mantikAnswer(mantikShown(mantikNotes().marks));
   if (error) return mantikMsg(error, 'warn');
   const btn = $('mantik-check');
   btn.disabled = true;
@@ -139,7 +247,7 @@ function mantikCell(tag, cls, text) {
 }
 
 // Izgara: <table>; her alt tablo 4×4, aralarında kalın çizgi.
-function renderMantikGrid(marks, editable) {
+function renderMantikGrid(marks, editable, own = marks) {
   const game = mantik;
   const k = game.cats.length;
   const cols = Array.from({ length: k - 1 }, (_, i) => i + 1);
@@ -181,8 +289,10 @@ function renderMantikGrid(marks, editable) {
         for (let cv = 0; cv < 4; cv++) {
           const mark = marks[mantikKey(r, c, rv, cv)] || '';
           const td = mantikCell('td', 'mantik-td' + (cv === 0 ? ' start' : cv === 3 ? ' end' : ''));
-          const b = mantikCell('button', `mantik-cell${mark ? ` mark-${mark}` : ''}`, mark === 'x' ? '✗' : mark === 'v' ? '✓' : '');
+          const auto = mark && !own[mantikKey(r, c, rv, cv)];
+          const b = mantikCell('button', `mantik-cell${mark ? ` mark-${mark}` : ''}${auto ? ' auto' : ''}`, mark === 'x' ? '✗' : mark === 'v' ? '✓' : '');
           b.type = 'button';
+          b.dataset.col = String((c - 1) * 4 + cv);
           b.title = `${game.cats[r].values[rv]} – ${game.cats[c].values[cv]}`;
           b.disabled = !editable;
           if (editable) b.onclick = () => mantikToggle(r, c, rv, cv);
@@ -194,6 +304,21 @@ function renderMantikGrid(marks, editable) {
     }
   }
   table.append(thead, tbody);
+  // Üstüne gelinen hücrenin satır ve sütun başlığı (ve o satır/sütun) vurgulanır.
+  const heads = [...head2.children];
+  const clear = () => table.querySelectorAll('.hl').forEach((el) => el.classList.remove('hl'));
+  table.addEventListener('pointerover', (e) => {
+    clear();
+    const cell = e.target.closest('.mantik-cell');
+    if (!cell) return;
+    const col = Number(cell.dataset.col);
+    const tr = cell.closest('tr');
+    tr.querySelector('.mantik-row')?.classList.add('hl');
+    tr.querySelectorAll('.mantik-td').forEach((td) => td.classList.add('hl'));
+    heads[col]?.classList.add('hl');
+    table.querySelectorAll(`.mantik-cell[data-col="${col}"]`).forEach((b) => b.parentElement.classList.add('hl'));
+  });
+  table.addEventListener('pointerleave', clear);
   $('mantik-grid').replaceChildren(table);
 }
 
@@ -263,7 +388,9 @@ function renderMantik() {
   // Tablo sadece oynayana; bitince herkese çözüm
   $('mantik-grid-box').hidden = !playing || game.done;
   if (playing && !game.done) {
-    renderMantikGrid(notes.marks, solving);
+    const shown = mantikShown(notes.marks);
+    renderMantikGrid(shown, solving, notes.marks);
+    renderMantikSheet(shown, solving);
     $('mantik-undo').disabled = !mantikUndo.length || !solving;
     $('mantik-reset').disabled = !solving;
     $('mantik-auto').checked = mantikAuto();
@@ -276,6 +403,7 @@ function renderMantik() {
 
 $('mantik-auto').onchange = (e) => {
   try { localStorage.setItem(MANTIK_AUTO_KEY, e.target.checked ? '1' : '0'); } catch {}
+  renderMantik();
 };
 $('mantik-undo').onclick = () => {
   const prev = mantikUndo.pop();
