@@ -487,6 +487,7 @@
               <span id="sayi-status" class="muted small"></span>
               <button id="sayi-end" class="sm ghost danger" hidden>Oyunu bitir</button>
               <button id="sayi-close" class="sm ghost" hidden>Kapat</button>
+              <span id="sayi-timer" class="sayi-timer" title="Tahminler başlayalı geçen süre" hidden></span>
             </div>
             <div id="lobby-sayi" class="lobby"></div>
             <form id="sayi-secret" class="sayi-secret" hidden>
@@ -523,7 +524,22 @@
                 <ol id="sayi-mine" class="sayi-list"></ol>
               </div>
               <div id="sayi-digits" class="sayi-digits"></div>
-              <p class="muted small sayi-help">Rakamlara basarak işaretle: ✗ yok, ✓ var, ? emin değilim. İşaretler ve emin olduklarına yazdıkların sadece sende görünür.</p>
+              <div id="sayi-tools" class="sayi-tools">
+                <button id="sayi-undo" type="button" class="sm ghost">↶ Geri al</button>
+                <button id="sayi-reset" type="button" class="sm ghost danger">Sıfırla</button>
+              </div>
+              <p class="muted small sayi-help">Üstteki rakamlara bas: ✗ yok, ✓ var, ? emin değilim. Alttaki tabloda bir rakamın o basamakta olup olmadığını işaretle (✗ burada değil, ✓ burada); ✓ koyduğun rakam "emin oldukların"a da yazılır. Geçmiş tahminlerdeki rakamlara basarak üstünü çizebilir ya da daire içine alabilirsin. Hepsi sadece sende görünür.</p>
+              <div id="sayi-extra" class="sayi-extra">
+                <label class="sayi-notes">
+                  <span class="muted small">Notlar</span>
+                  <textarea id="sayi-text" rows="4" placeholder="ör. 6 ya da 8 üçüncü basamakta"></textarea>
+                </label>
+                <details id="sayi-draft" class="sayi-draft">
+                  <summary class="muted small">Taslak: aklındaki sayıyı dene</summary>
+                  <input id="sayi-draft-input" inputmode="numeric" autocomplete="off" placeholder="aday sayı" aria-label="Taslak sayı">
+                  <ol id="sayi-draft-list" class="sayi-draft-list"></ol>
+                </details>
+              </div>
               <button id="sayi-opp-toggle" type="button" class="sm"></button>
               <div id="sayi-opp" class="sayi-board" hidden>
                 <div class="sayi-col-head muted small"><span id="sayi-opp-title"></span><span>Bilgi</span></div>

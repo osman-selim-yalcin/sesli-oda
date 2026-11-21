@@ -1191,7 +1191,38 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .sayi-hidden-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: none; padding: 0; caret-color: transparent; font-size: 16px; }
 .sayi-guess-row #sayi-guess-hint { text-align: center; font-size: 12px; line-height: 1.3; }
 .sayi-guess-row #sayi-guess-hint.error { color: var(--danger); }
-.sayi-digits { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 4px; padding: 6px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line); }
+.sayi-digits { display: grid; grid-template-columns: 26px repeat(10, minmax(0, 1fr)); gap: 4px; padding: 6px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line); align-items: stretch; }
+.sayi-corner { display: block; }
+.sayi-pos { display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.sayi-cell { height: 34px; padding: 0; min-width: 0; font-size: 16px; font-weight: 800; background: transparent; border: 1px dashed var(--line-2); border-radius: var(--radius-sm); display: grid; place-items: center; }
+.sayi-cell:hover { border-style: solid; }
+.sayi-cell.no { color: var(--danger); background: var(--danger-soft); border: 1px solid transparent; }
+.sayi-cell.yes { color: var(--speak); background: rgba(61, 220, 132, .18); border: 1px solid var(--speak); }
+.sayi-cell.dim:not(.yes) { opacity: .35; }
+.sayi-digit.gone { opacity: .35; text-decoration: line-through; }
+.sayi-timer { margin-left: auto; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 3px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
+.sayi-timer[hidden] { display: none; }
+#sayi-status { flex: 1; min-width: 0; }
+.sayi-tools { display: flex; gap: 8px; justify-content: flex-end; margin-top: -6px; }
+.sayi-tools[hidden], .sayi-extra[hidden] { display: none; }
+.sayi-extra { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.sayi-notes { display: grid; gap: 4px; }
+.sayi-notes textarea { width: 100%; resize: vertical; min-height: 84px; font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; }
+.sayi-draft { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); padding: 8px 10px; }
+.sayi-draft summary { cursor: pointer; }
+.sayi-draft[open] { display: grid; gap: 8px; }
+.sayi-draft input { width: 100%; font-size: 18px; font-weight: 700; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
+.sayi-draft-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 260px; overflow: auto; }
+.sayi-draft-list li { display: grid; grid-template-columns: 26px auto 1fr 1fr 18px; gap: 8px; align-items: baseline; font-size: 13px; font-variant-numeric: tabular-nums; }
+.sayi-draft-list li.bad { color: var(--danger); }
+.sayi-draft-list li.ok strong { color: var(--speak); }
+.sayi-draft-list li.sayi-draft-sum { display: block; font-weight: 700; padding-bottom: 4px; }
+.sayi-draft-list li.sayi-draft-sum.ok { color: var(--speak); }
+.sayi-draft-g { font-weight: 700; letter-spacing: .1em; }
+.sayi-num .tappable { cursor: pointer; border-radius: 6px; }
+.sayi-num .tappable:hover { background: var(--panel-2); }
+.sayi-num .tag-s { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: var(--danger); opacity: .45; }
+.sayi-num .tag-c { box-shadow: inset 0 0 0 2px #7aa2ff; border-radius: 999px; }
 .sayi-digits[hidden] { display: none; }
 .sayi-digit { position: relative; height: 52px; padding: 0; font-size: 22px; font-weight: 700; display: grid; place-items: center; }
 .sayi-digit small { position: absolute; top: 2px; right: 5px; font-size: 13px; }
@@ -1222,6 +1253,9 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   .sayi-sure, .sayi-code { flex: 1 1 100%; justify-items: start; }
   .sayi-sure-slots { justify-content: flex-start; }
   .sayi-digit { height: 46px; font-size: 18px; }
+  .sayi-digits { grid-template-columns: 20px repeat(10, minmax(0, 1fr)); gap: 3px; padding: 4px; }
+  .sayi-cell { height: 30px; font-size: 14px; }
+  .sayi-extra { grid-template-columns: 1fr; }
 }
 .sayi-col-head { display: flex; justify-content: space-between; }
 .sayi-col-head span:last-child { display: none; }

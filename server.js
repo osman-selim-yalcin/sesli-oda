@@ -2234,6 +2234,7 @@ function sayiView(game, name) {
   return {
     ...rest,
     ready: Object.fromEntries(game.players.map((p) => [p, Boolean(secrets[p])])),
+    now: Date.now(), // istemci sayaç için saat farkını buradan hesaplar
     secrets: game.done ? secrets : (secrets[name] ? { [name]: secrets[name] } : {}),
   };
 }
