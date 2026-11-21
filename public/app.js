@@ -6165,3 +6165,109 @@ $('leave').onclick = () => {
 
 // Sekme kapanınca/yenilenince sunucuya hemen haber ver.
 addEventListener('pagehide', () => socket.disconnect());
+
+// ---------- Oyun seçici ----------
+// Sekme düğmeleri (game-tab-*) gizli durur ve hâlâ asıl geçişi yapar; menü ve son oynananlar onları tıklar.
+// Yeni bir oyunun sekmesi eklenince menüde kendiliğinden görünür (bilgisi yoksa "Diğer" altında).
+
+const GAME_INFO = {
+  sayi: { icon: '🔢', group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul' },
+  kural: { icon: '🕵️', group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala' },
+  hedef: { icon: '🎯', group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş' },
+  mantik: { icon: '🧠', group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu' },
+  klotski: { icon: '🧩', group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar' },
+  memory: { icon: '🃏', group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla' },
+  timing: { icon: '⏱️', group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur' },
+  dino: { icon: '🦖', group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş' },
+  peacock: { icon: '🦚', group: 'Hız ve refleks', desc: 'Yakında' },
+  kelime: { icon: '💬', group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir' },
+  tier: { icon: '📊', group: 'Birlikte', desc: 'Birlikte sıralama listeleri' },
+  oner: { icon: '💡', group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
+};
+const GAME_GROUPS = ['Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
+const gameRecentKey = 'gameRecent';
+
+const gameTabs = () => [...document.querySelectorAll('.games-panel > .tabs > .tab[id^="game-tab-"]')]
+  .map((btn) => ({ btn, key: btn.id.slice('game-tab-'.length), name: btn.textContent.trim() }));
+const gameInfo = (key) => GAME_INFO[key] || { icon: '🎮', group: 'Diğer', desc: '' };
+
+function gameEntry(tab, cls) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = cls + (tab.btn.classList.contains('active') ? ' active' : '') + (tab.btn.classList.contains('lobby-open') ? ' lobby-open' : '');
+  b.title = tab.btn.classList.contains('lobby-open') ? `${tab.name}: lobi açık` : tab.name;
+  b.onclick = () => {
+    if ($('game-menu').matches(':popover-open')) $('game-menu').hidePopover();
+    tab.btn.click();
+  };
+  return b;
+}
+
+function renderGameSwitch() {
+  const tabs = gameTabs();
+  const current = tabs.find((t) => t.btn.classList.contains('active')) || tabs[0];
+  if (!current) return;
+  let recent = [];
+  try { recent = JSON.parse(localStorage.getItem(gameRecentKey)) || []; } catch {}
+  if (recent[0] !== current.key) {
+    recent = [current.key, ...recent.filter((k) => k !== current.key)].slice(0, 6);
+    try { localStorage.setItem(gameRecentKey, JSON.stringify(recent)); } catch {}
+  }
+  const menuBtn = $('game-menu-btn');
+  const anyLobby = tabs.some((t) => t !== current && t.btn.classList.contains('lobby-open'));
+  menuBtn.classList.toggle('lobby-open', anyLobby);
+  menuBtn.replaceChildren(
+    Object.assign(document.createElement('span'), { className: 'game-menu-icon', textContent: gameInfo(current.key).icon }),
+    Object.assign(document.createElement('strong'), { textContent: current.name }),
+    Object.assign(document.createElement('span'), { className: 'game-menu-caret', textContent: '▾' }),
+  );
+  // Son oynananlar: şu ankinden sonraki en çok 3 oyun, lobisi açık olanlar öne
+  const byKey = new Map(tabs.map((t) => [t.key, t]));
+  const others = recent.slice(1).map((k) => byKey.get(k)).filter(Boolean);
+  for (const t of tabs) if (t !== current && t.btn.classList.contains('lobby-open') && !others.includes(t)) others.unshift(t);
+  $('game-recent').replaceChildren(...others.slice(0, 3).map((t) => {
+    const b = gameEntry(t, 'game-chip');
+    b.append(Object.assign(document.createElement('span'), { textContent: gameInfo(t.key).icon }), t.name);
+    return b;
+  }));
+  if ($('game-menu').matches(':popover-open')) renderGameMenu();
+}
+
+function renderGameMenu() {
+  const tabs = gameTabs();
+  const groups = GAME_GROUPS.map((g) => [g, tabs.filter((t) => gameInfo(t.key).group === g)]).filter(([, list]) => list.length);
+  $('game-menu').replaceChildren(...groups.map(([group, list]) => {
+    const sec = document.createElement('section');
+    sec.append(Object.assign(document.createElement('h3'), { textContent: group }));
+    const grid = document.createElement('div');
+    grid.className = 'game-menu-grid';
+    grid.append(...list.map((t) => {
+      const b = gameEntry(t, 'game-card');
+      const info = gameInfo(t.key);
+      const text = document.createElement('span');
+      text.append(Object.assign(document.createElement('strong'), { textContent: t.name }),
+        Object.assign(document.createElement('small'), { className: 'muted', textContent: t.btn.classList.contains('lobby-open') ? 'Lobi açık, katılabilirsin' : info.desc }));
+      b.append(Object.assign(document.createElement('span'), { className: 'game-card-icon', textContent: info.icon }), text);
+      return b;
+    }));
+    sec.append(grid);
+    return sec;
+  }));
+}
+
+$('game-menu').addEventListener('toggle', (e) => {
+  if (e.newState !== 'open') return;
+  renderGameMenu();
+  // Menü oyun panelinin genişliğinde, düğmenin altında açılır
+  const panel = document.querySelector('.games-panel').getBoundingClientRect();
+  const btn = $('game-menu-btn').getBoundingClientRect();
+  const menu = $('game-menu');
+  menu.style.width = `${Math.min(panel.width - 16, innerWidth - 32)}px`;
+  menu.style.left = `${Math.max(16, panel.left + 8)}px`;
+  menu.style.top = `${btn.bottom + 6}px`;
+});
+// Bot düğmesi sekme satırından seçicinin sağına taşınır
+document.querySelector('.game-switch').append($('bot-toggle'));
+new MutationObserver(renderGameSwitch).observe(document.querySelector('.games-panel > .tabs'), { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+renderGameSwitch();
+

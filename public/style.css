@@ -398,6 +398,36 @@ button.link:hover { background: none; text-decoration: underline; }
 .games-panel > .tabs .tab { flex-shrink: 0; white-space: nowrap; }
 .bot-toggle { flex-shrink: 0; margin: 4px 0 4px auto; white-space: nowrap; }
 .bot-toggle.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+/* Oyun seçici: menü düğmesi + son oynananlar + bot; eski sekme satırı gizli */
+.games-panel > .tabs { display: none; }
+.game-switch { display: flex; align-items: center; gap: 8px; margin: -4px 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); min-width: 0; }
+.game-menu-btn { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; font-size: 16px; flex-shrink: 0; position: relative; }
+.game-menu-btn strong { font-weight: 700; }
+.game-menu-icon { font-size: 18px; line-height: 1; }
+.game-menu-caret { color: var(--muted); font-size: 12px; }
+.game-menu-btn.lobby-open::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--speak); }
+.game-recent { display: flex; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.game-recent::-webkit-scrollbar { display: none; }
+.game-chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; padding: 6px 10px; font-size: 13px; color: var(--muted); background: transparent; }
+.game-chip:hover { color: var(--text); }
+.game-chip.lobby-open::after { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--speak); }
+.game-switch .bot-toggle { margin: 0 0 0 auto; }
+.game-menu { max-height: min(70vh, 560px); padding: 12px; }
+.game-menu:popover-open { display: grid; gap: 12px; }
+.game-menu h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.game-menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px; }
+.game-card { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 12px; height: auto; justify-content: flex-start; position: relative; }
+.game-card > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.game-card small { font-size: 12px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.game-card-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
+.game-card.active { border-color: var(--accent); background: var(--accent-soft); }
+.game-card.lobby-open small { color: var(--speak); }
+@media (max-width: 520px) {
+  .game-chip { padding: 6px 8px; }
+  .game-menu-grid { grid-template-columns: 1fr 1fr; }
+  .game-card { padding: 8px; gap: 8px; }
+  .game-card small { display: none; }
+}
 .game-head { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
 .game-head > button { flex-shrink: 0; }
 .tier-title { font-weight: 600; }
