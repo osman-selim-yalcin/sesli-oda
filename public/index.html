@@ -295,6 +295,7 @@
             <button id="game-tab-memory" class="tab" role="tab">Eşini bul</button>
             <button id="game-tab-klotski" class="tab" role="tab">Kaydırmaca</button>
             <button id="game-tab-sayi" class="tab" role="tab">Sayı bulmaca</button>
+            <button id="game-tab-mantik" class="tab" role="tab">Mantık tablosu</button>
             <button id="game-tab-peacock" class="tab" role="tab">Tavus kuşu</button>
             <button id="game-tab-oner" class="tab" role="tab">Oyun öner</button>
             <button id="bot-toggle" class="sm ghost bot-toggle" title="Bot rastgele oynar; tek başınayken oyunların gidişatını görmek için"></button>
@@ -562,6 +563,52 @@
             </div>
           </div>
 
+          <!-- Mantık tablosu: ipuçlarıyla dört kişinin kim olduğunu bul; herkes aynı bulmacayı aynı anda çözer (public/mantik.js) -->
+          <div id="game-mantik" class="mantik" hidden>
+            <div class="memory-head">
+              <span id="mantik-status" class="muted small"></span>
+              <button id="mantik-end" class="sm ghost danger" hidden>Oyunu bitir</button>
+              <button id="mantik-close" class="sm ghost" hidden>Kapat</button>
+              <span id="mantik-timer" class="sayi-timer" title="Bulmaca açılalı geçen süre" hidden></span>
+              <button type="button" class="sayi-info-btn" popovertarget="mantik-rules-pop" title="Nasıl oynanır" aria-label="Nasıl oynanır">i</button>
+            </div>
+            <div id="mantik-rules-pop" class="pop sayi-pop" popover><p>Dört kişi yan yana dört evde oturuyor. Her birinin bir ismi ve birkaç özelliği var (ev rengi, hayvan, içecek, meslek, hobi…); her özellik tek bir kişide. İpuçlarından kimin neyi olduğunu bul. Bulmacayı bilgisayar üretir ve tek bir çözümü vardır; herkes aynı bulmacayı aynı anda çözer.</p>
+              <p>Kolayda isim ve iki özellik var. Zorda bir de evlerin numarası (soldan sağa 1-4) var; "hemen solunda", "yan yana", "arasında tam bir ev var" gibi ipuçları evlerin sırasından söz eder.</p>
+              <p><strong>Puanlama:</strong> kolayda 1000, zorda 2000 puanla başlarsın. Her saniye 2, her yanlış "Kontrol et" 150 puan götürür (en az 0). Süre bulmaca açılınca başlar, çözünce senin süren durur. Çözemeyen 0 alır.</p>
+              <p>Herkes çözünce oyun biter; biri "Oyunu bitir"e basarsa o ana kadar çözenlerin puanına bakılır. Yüksek puan kazanır, eşitse berabere. Bitince çözüm herkese gösterilir. Başkalarının tablosunu göremezsin, sadece çözüp çözmediklerini görürsün.</p>
+            </div>
+            <div id="lobby-mantik" class="lobby"></div>
+            <div id="mantik-play" class="mantik-play" hidden>
+              <ul id="mantik-scores" class="sayi-scores"></ul>
+              <div class="mantik-main">
+                <section class="mantik-clues-box">
+                  <strong class="mantik-sub">İpuçları</strong>
+                  <ol id="mantik-clues" class="mantik-clues"></ol>
+                </section>
+                <section id="mantik-grid-box" class="mantik-grid-box">
+                  <div class="mantik-scroll"><div id="mantik-grid"></div></div>
+                  <div class="mantik-tools">
+                    <label class="mantik-auto"><input id="mantik-auto" type="checkbox"> Otomatik ✗</label>
+                    <button id="mantik-undo" type="button" class="sm ghost">↶ Geri al</button>
+                    <button id="mantik-reset" type="button" class="sm ghost danger">Sıfırla</button>
+                    <button type="button" class="sayi-info-btn" popovertarget="mantik-tools-pop" title="Tablo nasıl kullanılır" aria-label="Tablo nasıl kullanılır">i</button>
+                  </div>
+                  <div id="mantik-tools-pop" class="pop sayi-pop" popover><p>Bir hücreye bas: boş → ✗ (bu ikisi aynı kişide değil) → ✓ (aynı kişide) → boş. Her küçük tablo iki kategoriyi karşılaştırır.</p>
+                    <p><strong>Otomatik ✗:</strong> açıkken bir hücreye ✓ koyunca o küçük tablodaki aynı satır ve sütunun boş hücreleri ✗ olur (bir kişinin her kategoride tek değeri olur).</p>
+                    <p>İpucuna basınca üstü çizilir; kullandıklarını böyle işaretleyebilirsin. Geri al son değişikliği geri alır, Sıfırla tabloyu ve işaretleri temizler. Hepsi sadece sende görünür.</p>
+                    <p><strong>Kontrol et:</strong> en üstteki isim satırlarında her ismin her kategoride tek bir ✓'i olmalı; tamamsa cevabın gönderilir. Yanlışsa sadece "doğru değil" denir, hangi hücrenin yanlış olduğu söylenmez.</p>
+                  </div>
+                  <div id="mantik-check-row" class="mantik-check-row">
+                    <button id="mantik-check" type="button" class="primary">Kontrol et</button>
+                    <span id="mantik-msg" class="small mantik-msg"></span>
+                    <span id="mantik-wrong" class="muted small"></span>
+                  </div>
+                </section>
+              </div>
+              <div id="mantik-solution" class="mantik-solution" hidden></div>
+            </div>
+          </div>
+
           <!-- Oyun öner: istenen oyun adım adım anlatılır, kaydedilir; site sahibi eklenip eklenmeyeceğine karar verir -->
           <div id="game-oner" class="oner" hidden>
             <div class="oner-intro">
@@ -768,5 +815,6 @@
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="/sfx.js"></script>
   <script src="/app.js"></script>
+  <script src="/mantik.js"></script>
 </body>
 </html>
