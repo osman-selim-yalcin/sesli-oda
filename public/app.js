@@ -6199,6 +6199,16 @@ const GAME_INFO = {
   oner: { icon: '💡', hue: 50, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
 };
 const GAME_GROUPS = ['Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
+// Çizilmiş simgeler public/icons/<oyun>.webp (192 px); dosyası olmayan oyunda emoji görünür.
+const GAME_ICONS = new Set(['sayi', 'kural', 'hedef', 'mantik', 'klotski', 'memory', 'timing', 'dino', 'peacock', 'kelime', 'tier', 'oner']);
+function gameIcon(key, cls) {
+  const el = Object.assign(document.createElement('span'), { className: cls });
+  if (GAME_ICONS.has(key)) {
+    el.classList.add('img');
+    el.append(Object.assign(document.createElement('img'), { src: `/icons/${key}.webp`, alt: '', decoding: 'async', draggable: false }));
+  } else el.textContent = gameInfo(key).icon;
+  return el;
+}
 const gameRecentKey = 'gameRecent';
 
 const gameTabs = () => [...document.querySelectorAll('.games-panel > .tabs > .tab[id^="game-tab-"]')]
@@ -6230,7 +6240,7 @@ function renderGameSwitch() {
   homeBtn.disabled = !current;
   homeBtn.replaceChildren(...(current
     ? [Object.assign(document.createElement('span'), { className: 'game-home-back', textContent: '‹' }),
-      Object.assign(document.createElement('span'), { className: 'game-home-icon', textContent: gameInfo(current.key).icon }),
+      gameIcon(current.key, 'game-home-icon'),
       Object.assign(document.createElement('strong'), { textContent: current.name })]
     : [Object.assign(document.createElement('strong'), { textContent: 'Oyunlar' })]));
   homeBtn.title = current ? 'Bütün oyunlara dön' : '';
@@ -6240,7 +6250,7 @@ function renderGameSwitch() {
   for (const t of tabs) if (t !== current && lobbyOpen(t) && !others.includes(t)) others.unshift(t);
   $('game-recent').replaceChildren(...(current ? others.slice(0, 3) : []).map((t) => {
     const b = gameEntry(t, 'game-chip');
-    b.append(Object.assign(document.createElement('span'), { textContent: gameInfo(t.key).icon }), t.name);
+    b.append(gameIcon(t.key, 'game-chip-icon'), t.name);
     return b;
   }));
   if (!$('game-home').hidden) renderGameHome();
@@ -6258,7 +6268,7 @@ function renderGameHome() {
       const info = gameInfo(t.key);
       const b = gameEntry(t, 'game-card' + (info.soon ? ' soon' : ''));
       b.style.setProperty('--hue', info.hue);
-      b.append(Object.assign(document.createElement('span'), { className: 'game-card-icon', textContent: info.icon }),
+      b.append(gameIcon(t.key, 'game-card-icon'),
         Object.assign(document.createElement('strong'), { textContent: t.name }),
         Object.assign(document.createElement('small'), { textContent: lobbyOpen(t) ? 'Lobi açık, katılabilirsin' : info.desc }));
       if (lobbyOpen(t)) b.append(Object.assign(document.createElement('span'), { className: 'game-card-badge', textContent: 'Lobi' }));

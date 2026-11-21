@@ -429,11 +429,19 @@ button.link:hover { background: none; text-decoration: underline; }
 .game-card:hover { transform: translateY(-2px); border-color: hsl(var(--hue) 70% 62% / .6); box-shadow: 0 10px 26px -12px hsl(var(--hue) 80% 55% / .55); }
 .game-card:active { transform: translateY(0); }
 .game-card-icon {
-  display: grid; place-items: center; width: 56px; height: 56px; margin-bottom: 10px; border-radius: 16px;
+  display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 10px; border-radius: 16px;
   font-size: 30px; line-height: 1;
   background: linear-gradient(145deg, hsl(var(--hue) 75% 62% / .32), hsl(var(--hue) 70% 45% / .14));
   box-shadow: inset 0 0 0 1px hsl(var(--hue) 80% 70% / .25);
 }
+.game-card-icon.img, .game-home-icon.img, .game-chip-icon.img { background: none; box-shadow: none; padding: 0; overflow: hidden; }
+.game-card-icon.img { box-shadow: 0 6px 18px -8px hsl(var(--hue) 80% 50% / .7); }
+.game-card-icon img, .game-home-icon img, .game-chip-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.game-card:hover .game-card-icon.img img { transform: scale(1.06); }
+.game-card-icon img { transition: transform .2s ease; }
+.game-home-icon.img { width: 24px; height: 24px; border-radius: 7px; }
+.game-chip-icon.img { width: 20px; height: 20px; border-radius: 6px; }
+.game-chip-icon:not(.img) { font-size: 14px; }
 .game-card strong { font-size: 15px; font-weight: 700; }
 .game-card small { font-size: 12px; font-weight: 400; color: var(--muted); line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .game-card.lobby-open small { color: var(--speak); }
