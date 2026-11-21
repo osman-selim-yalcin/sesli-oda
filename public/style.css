@@ -1415,4 +1415,62 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   .kural-row .kural-seq { font-size: 17px; }
   .kural-col-head { padding: 6px 10px; }
   .kural-others { grid-template-columns: minmax(0, 1fr); }
+/* ---------- Mantık tablosu ---------- */
+.mantik { display: grid; gap: 12px; }
+#mantik-status { flex: 1; min-width: 0; }
+.mantik-play { display: grid; gap: 14px; width: 100%; min-width: 0; }
+.mantik-main { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; min-width: 0; }
+.mantik-clues-box { flex: 1 1 260px; min-width: 0; display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--panel); }
+.mantik-sub { font-size: 14px; }
+.mantik-clues { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.mantik-clue { width: 100%; display: flex; align-items: baseline; justify-content: flex-start; gap: 8px; padding: 6px 8px; text-align: left; font-size: 15px; line-height: 1.4; background: transparent; border-color: transparent; border-radius: var(--radius-sm); }
+.mantik-clue:hover:not(:disabled) { background: var(--panel-2); border-color: transparent; }
+.mantik-clue:active:not(:disabled) { transform: none; }
+.mantik-clue:disabled { opacity: 1; cursor: default; }
+.mantik-clue-no { flex: none; min-width: 20px; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+.mantik-clues li.used .mantik-clue { color: var(--muted); }
+.mantik-clues li.used .mantik-clue span:last-child { text-decoration: line-through; text-decoration-color: var(--muted); }
+.mantik-grid-box { flex: 0 1 auto; min-width: 0; max-width: 100%; display: grid; gap: 10px; }
+.mantik-grid-box[hidden] { display: none; }
+.mantik-scroll { overflow-x: auto; max-width: 100%; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+.mantik-table { border-collapse: collapse; font-size: 13px; }
+.mantik-table th { font-weight: 600; color: var(--muted); padding: 0; }
+.mantik-corner { border: none; }
+.mantik-cat-col { text-align: center; color: var(--text) !important; padding: 4px 0 !important; border-left: 2px solid var(--line-2); font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.mantik-col { vertical-align: bottom; height: 92px; border-left: 1px solid var(--line); }
+.mantik-col.start { border-left: 2px solid var(--line-2); }
+.mantik-col span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; padding: 4px 0; max-height: 88px; overflow: hidden; text-overflow: ellipsis; }
+.mantik-cat-row { width: 22px; border-top: 2px solid var(--line-2); color: var(--text) !important; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.mantik-cat-row span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; }
+.mantik-row { text-align: right; white-space: nowrap; padding: 0 8px 0 4px !important; border-top: 1px solid var(--line); }
+.mantik-table tbody tr:nth-child(4n + 1) .mantik-row { border-top: 2px solid var(--line-2); }
+.mantik-td { padding: 0; width: 32px; height: 32px; border: 1px solid var(--line); }
+.mantik-table tbody tr:nth-child(4n + 1) .mantik-td { border-top: 2px solid var(--line-2); }
+.mantik-table tbody tr.end .mantik-td { border-bottom: 2px solid var(--line-2); }
+.mantik-td.end { border-right: 2px solid var(--line-2); }
+.mantik-td.start { border-left: 2px solid var(--line-2); }
+.mantik-cell { width: 32px; height: 32px; min-width: 30px; padding: 0; border: none; border-radius: 0; background: transparent; font-size: 16px; font-weight: 800; display: grid; place-items: center; }
+.mantik-cell:hover:not(:disabled) { background: var(--panel-2); border: none; }
+.mantik-cell:active:not(:disabled) { transform: none; }
+.mantik-cell:disabled { opacity: 1; cursor: default; }
+.mantik-cell.mark-x { color: var(--danger); background: var(--danger-soft); }
+.mantik-cell.mark-v { color: var(--speak); background: rgba(61, 220, 132, .18); }
+.mantik-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
+.mantik-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-right: auto; cursor: pointer; }
+.mantik-auto input { width: auto; margin: 0; padding: 0; accent-color: var(--accent); }
+.mantik-check-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.mantik-check-row[hidden] { display: none; }
+.mantik-msg.warn { color: var(--danger); }
+.mantik-msg.ok { color: var(--speak); font-weight: 600; }
+.mantik-solution { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--speak); border-radius: var(--radius); background: rgba(61, 220, 132, .06); overflow-x: auto; }
+.mantik-solution[hidden] { display: none; }
+.mantik-sol { border-collapse: collapse; font-size: 14px; }
+.mantik-sol th, .mantik-sol td { padding: 5px 12px 5px 0; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.mantik-sol th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; }
+.mantik-sol tr:last-child td { border-bottom: none; }
+#mantik-rules-pop, #mantik-tools-pop { width: min(400px, calc(100vw - 32px)); }
+@media (max-width: 600px) {
+  .mantik-td, .mantik-cell { width: 30px; height: 30px; }
+  .mantik-clue { font-size: 14px; padding: 5px 6px; }
+  .mantik-row { padding: 0 6px 0 2px !important; }
 }

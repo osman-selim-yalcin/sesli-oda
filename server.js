@@ -288,6 +288,7 @@ const io = new Server(server, { maxHttpBufferSize: IMAGE_MAX_BYTES + 64 * 1024 }
 // oda kodu -> { users: Map<socketId, {name, muted}>, current, queue, playing, position, updatedAt }
 const rooms = new Map();
 hedef.init({ io, rooms, postSystem, rand, pick, BOT });
+const mantik = require('./games/mantik').create({ io, postSystem, getRoom, rooms, BOT }); // Mantık tablosu
 
 // Önceden çalanlar, özel efektler ve tier listler oda boşalınca silinmez; Supabase ayarlıysa
 // kalıcıdır (store.js), değilse sunucu yeniden başlayana kadar durur.
@@ -323,6 +324,7 @@ function getRoom(code) {
       sayi: null, // sayı bulmaca (aşağıda); gizli sayılar sadece sahibine gider
       hedef: null, // hedef sayı (games/hedef.js)
       kural: null, // gizli kural (games/kural.js); kural oyun bitene kadar istemciye gitmez
+      mantik: null, // mantık tablosu (games/mantik.js); çözüm bitene kadar gönderilmez
       memoryLog: memoryLogs.get(code),
       klotskiLog: klotskiLogs.get(code),
       radio: null, // odada çalan radyo istasyonu
@@ -591,7 +593,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), kural: kural.view(room.kural, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -1015,9 +1017,10 @@ io.on('connection', (socket) => {
   socket.on('lobby:leave', lobbyAction((room, name, game) => leaveLobby(room, game, name)));
 
   // Kurallar: tur sayısı (yarış) kuranındır; kelimede anlatıcı koltuğunu lobideki herkes alabilir.
-  socket.on('lobby:opts', lobbyAction((room, name, game, { rounds, narrator, numbers, colors, digits }) => {
+  socket.on('lobby:opts', lobbyAction((room, name, game, { rounds, narrator, numbers, colors, digits, level }) => {
     const lobby = room.lobbies[game];
     if (!lobby?.players.includes(name)) return;
+    if (game === 'mantik') mantik.lobbyOpts(lobby, name, { level });
     if (game === 'race' && name === lobby.host && RACE_ROUNDS.includes(rounds)) lobby.opts.rounds = rounds;
     if (game === 'hedef' && name === lobby.host && hedef.ROUNDS.includes(rounds)) lobby.opts.rounds = rounds;
     if (game === 'sayi' && name === lobby.host && Number.isInteger(digits) && digits >= SAYI_DIGITS[0] && digits <= SAYI_DIGITS[1]) lobby.opts.digits = digits;
@@ -1118,6 +1121,9 @@ io.on('connection', (socket) => {
   });
 
   kural.bind(socket, () => code); // Gizli kural olayları (games/kural.js)
+  // ---------- Mantık tablosu ----------
+
+  mantik.bind(socket, () => code);
 
   // ---------- Radyo ----------
   // Seçilen istasyon odanın ortak radyosudur; Radyo sayfasındaki herkes onu dinler.
@@ -1252,6 +1258,7 @@ io.on('connection', (socket) => {
     if (!room.bot) sayiLeft(room, BOT);
     if (!room.bot) hedef.left(room, BOT);
     if (!room.bot) kural.left(room, BOT);
+    if (!room.bot) mantik.left(room, BOT);
     kelimeBotLater(room);
     postSystem(room, `${room.users.get(socket.id).name} botu ${room.bot ? 'ekledi; lobilere katılır' : 'çıkardı'}`);
   });
@@ -1428,6 +1435,7 @@ io.on('connection', (socket) => {
       if (current) sayiLeft(current, user.name);
       if (current) hedef.left(current, user.name);
       if (current) kural.left(current, user.name);
+      if (current) mantik.left(current, user.name);
       if (current) for (const game of Object.keys(current.lobbies)) leaveLobby(current, game, user.name);
     }, REJOIN_GRACE));
     if (room.users.size === 0) {
@@ -1436,6 +1444,7 @@ io.on('connection', (socket) => {
       clearTimeout(sayiTimers.get(code));
       hedef.clearTimers(code);
       kural.clear(code);
+      mantik.clear(code);
       rooms.delete(code);
       deleteRoomImages(code);
     }
@@ -1461,6 +1470,7 @@ function gameRunning(room, game) {
   if (game === 'sayi') return Boolean(room.sayi && !room.sayi.done);
   if (game === 'hedef') return hedef.running(room);
   if (game === 'kural') return kural.running(room);
+  if (game === 'mantik') return mantik.running(room);
   return Boolean(room.kelime && room.kelime.phase !== 'done');
 }
 
@@ -1472,6 +1482,7 @@ function lastPlayers(room, game) {
       : game === 'sayi' ? room.sayi?.players
       : game === 'hedef' ? room.hedef?.players
       : game === 'kural' ? room.kural?.players
+      : game === 'mantik' ? room.mantik?.players
         : room.kelime?.players.map((p) => p.name);
   const here = lobbyHere(room);
   return (names || []).filter((n) => here.has(n));
@@ -1499,6 +1510,7 @@ const LOBBY_GAMES = {
   hedef: { label: 'Hedef sayı', min: 1, max: 6, opts: { rounds: 5 }, start: (room, by, players, opts) => hedef.start(room, by, players, opts) },
   sayi: { label: 'Sayı bulmaca', min: 1, max: 2, opts: { digits: 4 }, start: (room, by, players, opts) => startSayi(room, by, players, opts) },
   kural: { label: 'Gizli kural', min: 1, max: 6, opts: {}, start: (room, by, players) => kural.start(room, by, players) },
+  mantik: { label: 'Mantık tablosu', min: 1, max: 6, opts: { level: 'kolay' }, start: (room, by, players, opts) => mantik.start(room, by, players, opts) },
   kelime: { label: 'kelime', min: 2, max: KELIME_PLAYERS, opts: { narrator: null }, start: (room, by, players, opts) => startKelime(room, by, players, opts.narrator) },
 };
 
