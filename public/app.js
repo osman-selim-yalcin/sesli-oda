@@ -882,7 +882,26 @@ $('nav-room').onclick = () => go(() => showPage('room'));
 $('nav-games').onclick = () => go(() => showPage('games'));
 $('nav-members').onclick = () => go(() => showPage('members'));
 $('nav-radio').onclick = () => go(() => showPage('radio'));
-$('topbar-now').onclick = () => go(() => showPage('room'));
+// Üst çubuktaki şarkıya basınca kumanda açılır (odaya dönmez); kumanda odadaki düğmeleri kullanır.
+function renderNowPop() {
+  $('now-pop-title').textContent = media?.current?.title || 'Şu an bir şey çalmıyor';
+  $('now-pop-play').innerHTML = $('play-toggle').innerHTML;
+  $('now-pop-play').disabled = $('now-pop-next').disabled = !media?.current;
+  $('now-pop-vol').value = $('music-vol').value;
+}
+$('now-pop').addEventListener('toggle', (e) => { if (e.newState === 'open') renderNowPop(); });
+new MutationObserver(() => { if ($('now-pop').matches(':popover-open')) renderNowPop(); }).observe($('play-toggle'), { childList: true, subtree: true });
+$('now-pop-play').onclick = () => $('play-toggle').click();
+$('now-pop-next').onclick = () => $('next').click();
+$('now-pop-vol').oninput = () => {
+  $('music-vol').value = $('now-pop-vol').value;
+  $('music-vol').dispatchEvent(new Event('input'));
+  $('music-vol').dispatchEvent(new Event('change'));
+};
+$('now-pop-room').onclick = () => {
+  $('now-pop').hidePopover();
+  go(() => showPage('room'));
+};
 
 // ---------- Gezinme geçmişi ----------
 // Sayfa, sekme, oyun ve açık tier list tarayıcı geçmişine yazılır: geri tuşu siteden çıkmak yerine
@@ -951,6 +970,8 @@ function renderTopbarNow() {
   const title = media?.current?.title;
   btn.hidden = !title || !document.querySelector('.media').classList.contains('away');
   if (title) setIcon(btn, 'music', title);
+  if (btn.hidden && $('now-pop').matches(':popover-open')) $('now-pop').hidePopover();
+  else if ($('now-pop').matches(':popover-open')) renderNowPop();
 }
 
 // ---------- Üyeler ----------

@@ -118,13 +118,25 @@
           <button id="nav-members" class="top-tab" role="tab" hidden><svg class="ic"><use href="#i-users"></use></svg>Üyeler</button>
         </nav>
         <div class="topbar-right">
-          <button id="topbar-now" class="topbar-now ghost sm" title="Odaya dön" hidden></button>
+          <button id="topbar-now" class="topbar-now ghost sm" popovertarget="now-pop" title="Çalan şarkı: ses, duraklat, geç" hidden></button>
           <button id="settings-btn" class="topbar-settings ghost" popovertarget="settings-pop" title="Ayarlar ve profil">
             <span id="topbar-avatar"></span><svg class="ic"><use href="#i-settings"></use></svg>
           </button>
         </div>
       </div>
     </header>
+    <!-- Oyunlardayken çalan şarkının küçük kumandası: odaya gitmeden duraklat, geç, sesi ayarla -->
+    <div id="now-pop" class="pop now-pop" popover>
+      <div id="now-pop-title" class="now-pop-title"></div>
+      <div class="now-pop-controls">
+        <button id="now-pop-play" class="icon round" title="Oynat / Duraklat"></button>
+        <button id="now-pop-next" class="icon ghost" title="Sonraki"><svg class="ic"><use href="#i-skip"></use></svg></button>
+        <label class="vol" title="Müzik sesi (sadece sende)"><svg class="ic"><use href="#i-volume"></use></svg>
+          <input id="now-pop-vol" type="range" min="0" max="100" value="70" aria-label="Müzik sesi">
+        </label>
+      </div>
+      <button id="now-pop-room" class="sm ghost now-pop-room">Odaya git →</button>
+    </div>
     <div id="settings-pop" class="pop" popover>
       <div class="profile-row">
         <button id="profile-avatar" class="account-avatar" title="Profil resmini değiştir"></button>
