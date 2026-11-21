@@ -24,8 +24,8 @@ function mantikAuto() {
 function mantikNotes() {
   let notes = null;
   try { notes = JSON.parse(localStorage.getItem(mantikNotesKey())); } catch {}
-  if (!mantik || notes?.id !== mantik.id) notes = { id: mantik?.id ?? null, marks: {}, used: [] };
-  return { marks: {}, used: [], ...notes };
+  if (!mantik || notes?.id !== mantik.id) notes = { id: mantik?.id ?? null, marks: {}, used: [], initials: {} };
+  return { marks: {}, used: [], initials: {}, ...notes };
 }
 function mantikSaveNotes(notes) {
   try { localStorage.setItem(mantikNotesKey(), JSON.stringify(notes)); } catch {}
@@ -104,6 +104,16 @@ function mantikFill(own) {
         }
       }
     }
+  }
+  return marks;
+}
+
+// Baş harf görünümünde cevap: isim tablosunda ✓'i olmayan kişi-kategori için baş harf tablosundaki yeşil sayılır.
+function mantikWithHarf(shown, initials) {
+  const marks = { ...shown };
+  for (const [key, v] of Object.entries(mantikHarfValues(mantikHarfShown(initials)))) {
+    const [c, p] = key.split(',').map(Number);
+    if (![0, 1, 2, 3].some((i) => marks[mantikKey(0, c, p, i)] === 'v')) marks[mantikKey(0, c, p, v)] = 'v';
   }
   return marks;
 }
@@ -211,7 +221,9 @@ function mantikMsg(text, kind) {
 
 $('mantik-check').onclick = async () => {
   if (!mantikSolving()) return;
-  const { answer, error } = mantikAnswer(mantikShown(mantikNotes().marks));
+  const notes = mantikNotes();
+  const shown = mantikShown(notes.marks);
+  const { answer, error } = mantikAnswer(mantikView() === 'harf' ? mantikWithHarf(shown, notes.initials) : shown);
   if (error) return mantikMsg(error, 'warn');
   const btn = $('mantik-check');
   btn.disabled = true;
@@ -340,7 +352,156 @@ function mantikFit() {
     table.style.setProperty('--mc', `${size}px`);
   }
 }
-addEventListener('resize', () => { if (!$('mantik-grid-box').hidden) mantikFit(); });
+addEventListener('resize', () => { if (!$('mantik-grid-box').hidden && mantikView() === 'klasik') mantikFit(); });
+
+// ---------- Baş harf görünümü ----------
+// Satırlar bir kategori (zorda ev numarası), sütunlar diğer özellikler; her hücrede dört kişinin baş harfi.
+// Harfe basınca: normal → yeşil (bu kişi burada) → gizli (burada değil) → sarı (belki) → normal.
+// İşaretler notes.initials'ta durur: anahtar `${sütun kategorisi},${satır değeri},${sütun değeri},${kişi}`.
+// Klasik tablodan ayrı notlardır; ikisi arasında Klasik / Baş harf düğmesiyle geçilir.
+const MANTIK_VIEW_KEY = 'mantikView';
+const MANTIK_HARF_CYCLE = { '': 'v', v: 'x', x: 'q', q: '' };
+
+function mantikView() {
+  try { return localStorage.getItem(MANTIK_VIEW_KEY) === 'klasik' ? 'klasik' : 'harf'; } catch { return 'harf'; }
+}
+
+// Satır kategorisi: varsa ev numarası, yoksa 1. özellik; sütun blokları kalan özellikler.
+function mantikHarfLayout() {
+  const k = mantik.cats.length;
+  const konum = mantik.cats.findIndex((c) => c.key === 'konum');
+  const row = konum > 0 ? konum : 1;
+  const blocks = Array.from({ length: k - 1 }, (_, i) => i + 1).filter((c) => c !== row);
+  return { row, blocks };
+}
+
+// Baş harfler; aynı harfle başlayan isimler için iki harf.
+function mantikInitials() {
+  const names = mantik.cats[0].values;
+  return names.map((n) => {
+    const first = n.slice(0, 1).toLocaleUpperCase('tr-TR');
+    const clash = names.some((m) => m !== n && m.slice(0, 1).toLocaleUpperCase('tr-TR') === first);
+    return clash ? first + n.slice(1, 2) : first;
+  });
+}
+
+const mantikHKey = (b, r, c, p) => `${b},${r},${c},${p}`;
+
+// Kesin çıkanlar (ayar açıksa): yeşilin satırında başkası, başka satırlarda o kişi, bloğunda başka sütunlarda o kişi,
+// o sütunda başkası olmaz. Bir kişinin bir blokta tek yeri kalırsa, ya da bir satırda/sütunda tek aday kalırsa yeşil.
+function mantikHarfFill(own) {
+  const marks = { ...own };
+  const { blocks } = mantikHarfLayout();
+  const get = (b, r, c, p) => { const m = marks[mantikHKey(b, r, c, p)]; return m === 'q' ? '' : m || ''; };
+  let changed = true;
+  const set = (b, r, c, p, m) => {
+    const key = mantikHKey(b, r, c, p);
+    if (!marks[key] || marks[key] === 'q') { marks[key] = m; changed = true; }
+  };
+  const R = [0, 1, 2, 3];
+  for (let round = 0; changed && round < 30; round++) {
+    changed = false;
+    for (const b of blocks) {
+      for (const r of R) for (const c of R) for (const p of R) {
+        if (get(b, r, c, p) !== 'v') continue;
+        for (const b2 of blocks) for (const r2 of R) for (const c2 of R) for (const p2 of R) {
+          if (r2 === r && p2 !== p) set(b2, r2, c2, p2, 'x');
+          if (r2 !== r && p2 === p) set(b2, r2, c2, p2, 'x');
+          if (b2 === b && c2 !== c && p2 === p) set(b2, r2, c2, p2, 'x');
+          if (b2 === b && c2 === c && p2 !== p) set(b2, r2, c2, p2, 'x');
+        }
+      }
+      // Tek aday kalanlar
+      const open = (f) => { const list = []; for (const r of R) for (const c of R) for (const p of R) if (f(r, c, p) && get(b, r, c, p) !== 'x') list.push([r, c, p]); return list; };
+      const groups = [];
+      for (const i of R) {
+        groups.push(open((r, c, p) => p === i)); // kişi
+        groups.push(open((r) => r === i)); // satır
+        groups.push(open((r, c) => c === i)); // sütun
+      }
+      for (const g of groups) if (g.length === 1 && !get(b, ...g[0])) set(b, ...g[0], 'v');
+    }
+  }
+  return marks;
+}
+
+const mantikHarfShown = (own) => (mantikAuto() ? mantikHarfFill(own) : own);
+
+function mantikHarfToggle(b, r, c, p) {
+  mantikEdit((notes) => {
+    const key = mantikHKey(b, r, c, p);
+    const next = MANTIK_HARF_CYCLE[mantikHarfShown(notes.initials)[key] || ''];
+    if (next) notes.initials[key] = next;
+    else delete notes.initials[key];
+  });
+}
+
+// Yeşillerden cevaba geçenler: { `${kategori},${kişi}`: değer }
+function mantikHarfValues(shown) {
+  const { row } = mantikHarfLayout();
+  const out = {};
+  for (const [key, m] of Object.entries(shown)) {
+    if (m !== 'v') continue;
+    const [b, r, c, p] = key.split(',').map(Number);
+    out[`${row},${p}`] = r;
+    out[`${b},${p}`] = c;
+  }
+  return out;
+}
+
+// Her özellik ayrı bir tablo (kendi satır başlıklarıyla): geniş ekranda yan yana, telefonda alt alta.
+function renderMantikHarf(shown, own, editable) {
+  const game = mantik;
+  const { row, blocks } = mantikHarfLayout();
+  const ini = mantikInitials();
+  const tables = blocks.map((b) => {
+    const table = mantikCell('table', 'mantik-harf');
+    const h1 = document.createElement('tr');
+    h1.append(mantikCell('th', 'mantik-harf-corner'));
+    const cat = mantikCell('th', 'mantik-cat-col', game.cats[b].head);
+    cat.colSpan = 4;
+    h1.append(cat);
+    const h2 = document.createElement('tr');
+    h2.append(mantikCell('th', 'mantik-harf-rowcat', game.cats[row].head));
+    game.cats[b].values.forEach((v, i) => {
+      const th = mantikCell('th', 'mantik-harf-col' + (i === 0 ? ' start' : ''));
+      th.append(mantikCell('span', null, v));
+      h2.append(th);
+    });
+    const thead = document.createElement('thead');
+    thead.append(h1, h2);
+    const tbody = document.createElement('tbody');
+    for (let r = 0; r < 4; r++) {
+      const tr = document.createElement('tr');
+      tr.append(mantikCell('th', 'mantik-harf-row', game.cats[row].values[r]));
+      for (let c = 0; c < 4; c++) {
+        const td = mantikCell('td', 'mantik-harf-td' + (c === 0 ? ' start' : ''));
+        const cell = mantikCell('div', 'mantik-harf-cell');
+        for (let p = 0; p < 4; p++) {
+          const key = mantikHKey(b, r, c, p);
+          const m = shown[key] || '';
+          const auto = m && own[key] !== m;
+          const btn = mantikCell('button', `mantik-ini${m ? ` ini-${m}` : ''}${auto ? ' auto' : ''}`, ini[p]);
+          btn.type = 'button';
+          btn.title = `${game.cats[0].values[p]} · ${game.cats[row].values[r]} · ${game.cats[b].values[c]}`;
+          btn.disabled = !editable;
+          if (editable) btn.onclick = () => mantikHarfToggle(b, r, c, p);
+          cell.append(btn);
+        }
+        td.append(cell);
+        tr.append(td);
+      }
+      tbody.append(tr);
+    }
+    table.append(thead, tbody);
+    return table;
+  });
+  const wrap = mantikCell('div', 'mantik-harf-wrap');
+  wrap.append(...tables);
+  const legend = mantikCell('p', 'muted small mantik-harf-legend');
+  legend.append(...game.cats[0].values.map((n, p) => mantikCell('span', null, `${ini[p]} = ${n}`)));
+  $('mantik-grid').replaceChildren(wrap, legend);
+}
 
 // Bitince çözüm: her kişi bir satır (zorda ev sırasıyla).
 function renderMantikSolution() {
@@ -409,9 +570,17 @@ function renderMantik() {
   // Tablo sadece oynayana; bitince herkese çözüm
   $('mantik-grid-box').hidden = !playing || game.done;
   if (playing && !game.done) {
+    const view = mantikView();
     const shown = mantikShown(notes.marks);
-    renderMantikGrid(shown, solving, notes.marks);
-    renderMantikSheet(shown, solving);
+    for (const b of document.querySelectorAll('#mantik-view [data-view]')) b.classList.toggle('active', b.dataset.view === view);
+    $('mantik-grid-box').classList.toggle('harf', view === 'harf');
+    if (view === 'harf') {
+      renderMantikHarf(mantikHarfShown(notes.initials), notes.initials, solving);
+      renderMantikSheet(mantikWithHarf(shown, notes.initials), solving);
+    } else {
+      renderMantikGrid(shown, solving, notes.marks);
+      renderMantikSheet(shown, solving);
+    }
     $('mantik-undo').disabled = !mantikUndo.length || !solving;
     $('mantik-reset').disabled = !solving;
     $('mantik-auto').checked = mantikAuto();
@@ -435,7 +604,14 @@ $('mantik-undo').onclick = () => {
 confirmButton($('mantik-reset'), 'Emin misin? Tekrar bas', () => mantikEdit((notes) => {
   notes.marks = {};
   notes.used = [];
+  notes.initials = {};
 }));
+for (const b of document.querySelectorAll('#mantik-view [data-view]')) {
+  b.onclick = () => {
+    try { localStorage.setItem(MANTIK_VIEW_KEY, b.dataset.view); } catch {}
+    renderMantik();
+  };
+}
 confirmButton($('mantik-end'), 'Emin misin? Tekrar bas', () => socket.emit('mantik:end'));
 $('mantik-close').onclick = () => socket.emit('mantik:close');
 

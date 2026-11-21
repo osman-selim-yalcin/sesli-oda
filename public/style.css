@@ -1505,6 +1505,31 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .mantik-sheet select { display: block; width: 100%; min-width: 120px; margin: 0; padding: 6px 8px; font-size: 14px; border-radius: var(--radius-sm); text-align: left; }
 .mantik-sheet td { vertical-align: middle; }
 .mantik-sheet select.empty { color: var(--muted); }
+.mantik-view { display: inline-flex; gap: 4px; padding: 3px; border-radius: var(--radius-sm); background: var(--panel-2); justify-self: start; }
+.mantik-view button { border-color: transparent; background: transparent; color: var(--muted); }
+.mantik-view button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.mantik-grid-box.harf { flex: 1 1 300px; }
+.mantik-harf-wrap { display: flex; flex-wrap: wrap; gap: 14px; }
+.mantik-harf { flex: 1 1 280px; max-width: 420px; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.mantik-harf th { font-weight: 600; color: var(--muted); padding: 4px 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mantik-harf-corner { width: 76px; }
+.mantik-harf-rowcat { text-align: right; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text) !important; padding-right: 8px !important; }
+.mantik-harf-col { font-size: 12px; text-align: center; vertical-align: bottom; height: 84px; border-left: 1px solid var(--line); }
+.mantik-harf-col span { display: inline-block; writing-mode: vertical-rl; transform: rotate(180deg); max-height: 80px; overflow: hidden; text-overflow: ellipsis; }
+.mantik-harf-rowcat { vertical-align: bottom; }
+.mantik-harf-col.start, .mantik-harf-td.start { border-left: 2px solid var(--line-2); }
+.mantik-harf-row { text-align: right; padding-right: 8px !important; color: var(--text) !important; border-top: 1px solid var(--line); }
+.mantik-harf-td { padding: 2px; border: 1px solid var(--line); vertical-align: middle; }
+.mantik-harf-cell { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; max-width: 72px; margin: 0 auto; }
+.mantik-ini { height: auto; aspect-ratio: 1; min-width: 0; padding: 0; font-size: 13px; font-weight: 700; border-radius: 6px; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--text); display: grid; place-items: center; }
+.mantik-ini:active:not(:disabled) { transform: none; }
+.mantik-ini:disabled { opacity: 1; cursor: default; }
+.mantik-ini.ini-v { background: rgba(61, 220, 132, .25); border-color: var(--speak); color: var(--speak); }
+.mantik-ini.ini-x { background: transparent; border-color: transparent; color: transparent; }
+.mantik-ini.ini-x:hover:not(:disabled) { color: var(--muted); border-color: var(--line); }
+.mantik-ini.ini-q { background: rgba(255, 173, 59, .2); border-color: #ffad3b; color: #ffad3b; }
+.mantik-ini.auto.ini-v { opacity: .65; }
+.mantik-harf-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; }
 .mantik-tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: flex-end; }
 .mantik-auto { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-right: auto; cursor: pointer; }
 .mantik-auto input { width: auto; margin: 0; padding: 0; accent-color: var(--accent); }
@@ -1524,6 +1549,12 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   .mantik-table { font-size: 12px; }
   .mantik-row { padding: 0 4px 0 2px !important; max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
   .mantik.zor .mantik-row { max-width: 58px; font-size: 11px; }
+  .mantik-harf-corner { width: 54px; }
+  .mantik-harf-col { font-size: 10px; }
+  .mantik-harf-row { font-size: 12px; padding-right: 4px !important; }
+  .mantik-harf-td { padding: 1px; }
+  .mantik-harf-cell { gap: 1px; }
+  .mantik-ini { font-size: 11px; border-radius: 4px; }
   .mantik-sheet { width: 100%; table-layout: fixed; font-size: 13px; }
   .mantik-sheet th:first-child { width: 64px; }
   .mantik-sheet th { font-size: 10px; padding-right: 4px; overflow: hidden; text-overflow: ellipsis; }
