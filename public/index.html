@@ -301,6 +301,7 @@
             <button id="game-tab-memory" class="tab" role="tab">Eşini bul</button>
             <button id="game-tab-klotski" class="tab" role="tab">Kaydırmaca</button>
             <button id="game-tab-sayi" class="tab" role="tab">Sayı bulmaca</button>
+            <button id="game-tab-hedef" class="tab" role="tab">Hedef sayı</button>
             <button id="game-tab-peacock" class="tab" role="tab">Tavus kuşu</button>
             <button id="game-tab-oner" class="tab" role="tab">Oyun öner</button>
             <button id="bot-toggle" class="sm ghost bot-toggle" title="Bot rastgele oynar; tek başınayken oyunların gidişatını görmek için"></button>
@@ -568,6 +569,57 @@
             </div>
           </div>
 
+          <!-- Hedef sayı: herkese aynı 6 sayı ve hedef; dört işlemle hedefe en yakın sayıya ulaşılır -->
+          <div id="game-hedef" class="hedef" hidden>
+            <div class="memory-head">
+              <span id="hedef-status" class="muted small"></span>
+              <button id="hedef-end" class="sm ghost danger" hidden>Oyunu bitir</button>
+              <button id="hedef-close" class="sm ghost" hidden>Kapat</button>
+              <span id="hedef-clock" class="hedef-clock" hidden></span>
+              <button type="button" class="sayi-info-btn" popovertarget="hedef-rules-pop" title="Nasıl oynanır" aria-label="Nasıl oynanır">i</button>
+            </div>
+            <div id="hedef-rules-pop" class="pop sayi-pop hedef-pop" popover>
+              <p>Herkese aynı 6 sayı (4 küçük, 2 büyük) ve 101-999 arası bir hedef gelir. Dört işlemle (+ − × ÷) hedefe ulaşmaya ya da en çok yaklaşmaya çalış. Hedefe her zaman tam ulaşılabilir.</p>
+              <p><strong>Nasıl:</strong> bir sayıya bas, bir işlem seç, başka bir sayıya bas: iki kutu birleşir, sonuç yeni kutu olur. Her sayı en çok bir kez kullanılır, hepsini kullanmak zorunlu değil. Ara sonuçlar pozitif tam sayı olmalı (bölme tam bölünmeli). Elindeki kutulardan hedefe en yakını cevabın olur; "Gönder" ile yolla. Tur içinde daha iyisini yine gönderebilirsin. Klavyede + − * / işlem seçer, Backspace geri alır, Enter gönderir.</p>
+              <p><strong>Puanlama:</strong> tam hedef 100 + kalan saniye (ilk ulaştığın an sayılır). Değilse 60 − 6 × fark: 1 fark 54, 5 fark 30, 10 ve üstü 0. Her tur 90 saniye; herkes tam bulursa erken biter. Tur sonunda herkesin işlemleri ve bir tam çözüm görünür.</p>
+              <p>Lobiyi kuran tur sayısını seçer (3, 5, 7). Toplamda en yüksek puan kazanır, eşitse berabere. "Oyunu bitir" o anki toplamla bitirir. Başkalarının işlemleri tur bitene kadar gizli; sadece ulaşıp ulaşmadığı ve kaç fark kaldığı görünür.</p>
+            </div>
+            <div id="lobby-hedef" class="lobby"></div>
+            <div id="hedef-play" class="hedef-play" hidden>
+              <div class="hedef-target"><span class="muted small">Hedef</span><strong id="hedef-target"></strong></div>
+              <div id="hedef-tiles" class="hedef-tiles"></div>
+              <div id="hedef-ops" class="hedef-ops">
+                <button type="button" data-op="+" aria-label="Topla">+</button>
+                <button type="button" data-op="-" aria-label="Çıkar">−</button>
+                <button type="button" data-op="*" aria-label="Çarp">×</button>
+                <button type="button" data-op="/" aria-label="Böl">÷</button>
+              </div>
+              <ol id="hedef-steps" class="hedef-steps" hidden></ol>
+              <div id="hedef-tools" class="hedef-tools">
+                <div class="hedef-answer-box">
+                  <strong id="hedef-answer" class="hedef-answer"></strong>
+                  <span id="hedef-mine" class="muted small"></span>
+                </div>
+                <button id="hedef-undo" type="button" class="sm ghost">↶ Geri al</button>
+                <button id="hedef-clear" type="button" class="sm ghost danger">Baştan</button>
+                <button id="hedef-send" type="button" class="primary">Gönder</button>
+              </div>
+              <p id="hedef-msg" class="small hedef-msg" aria-live="polite"></p>
+            </div>
+            <div id="hedef-result" class="hedef-result" hidden>
+              <div class="hedef-result-top">
+                <strong id="hedef-result-title"></strong>
+                <span id="hedef-result-target" class="muted small"></span>
+              </div>
+              <ul id="hedef-result-list" class="hedef-result-list"></ul>
+              <div class="hedef-solution-box">
+                <span class="muted small">Bir tam çözüm</span>
+                <ol id="hedef-solution" class="hedef-steps"></ol>
+              </div>
+            </div>
+            <ol id="hedef-board" class="timing-list hedef-board" hidden></ol>
+          </div>
+
           <!-- Oyun öner: istenen oyun adım adım anlatılır, kaydedilir; site sahibi eklenip eklenmeyeceğine karar verir -->
           <div id="game-oner" class="oner" hidden>
             <div class="oner-intro">
@@ -774,5 +826,6 @@
   <script src="https://www.youtube.com/iframe_api"></script>
   <script src="/sfx.js"></script>
   <script src="/app.js"></script>
+  <script src="/hedef.js"></script>
 </body>
 </html>
