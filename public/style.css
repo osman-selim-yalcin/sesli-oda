@@ -1541,8 +1541,8 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .mantik-ini:active:not(:disabled) { transform: none; }
 .mantik-ini:disabled { opacity: 1; cursor: default; }
 .mantik-ini.ini-v { background: rgba(61, 220, 132, .25); border-color: var(--speak); color: var(--speak); }
-.mantik-ini.ini-x { background: transparent; border-color: transparent; color: transparent; }
-.mantik-ini.ini-x:hover:not(:disabled) { color: var(--muted); border-color: var(--line); }
+.mantik-ini.ini-x { background: var(--danger-soft); border-color: rgba(255, 92, 92, .55); color: var(--danger); text-decoration: line-through; }
+.mantik-ini.auto.ini-x { background: rgba(255, 92, 92, .06); border-color: rgba(255, 92, 92, .2); color: rgba(255, 120, 120, .45); }
 .mantik-ini.ini-q { background: rgba(255, 173, 59, .2); border-color: #ffad3b; color: #ffad3b; }
 .mantik-ini.auto.ini-v { opacity: .65; }
 .mantik-harf-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; }

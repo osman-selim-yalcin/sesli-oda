@@ -356,11 +356,11 @@ addEventListener('resize', () => { if (!$('mantik-grid-box').hidden && mantikVie
 
 // ---------- Baş harf görünümü ----------
 // Satırlar bir kategori (zorda ev numarası), sütunlar diğer özellikler; her hücrede dört kişinin baş harfi.
-// Harfe basınca: normal → yeşil (bu kişi burada) → gizli (burada değil) → sarı (belki) → normal.
+// Harfe basınca: normal → sarı (belki) → yeşil (bu kişi burada) → kırmızı (burada değil) → normal.
 // İşaretler notes.initials'ta durur: anahtar `${sütun kategorisi},${satır değeri},${sütun değeri},${kişi}`.
 // Klasik tablodan ayrı notlardır; ikisi arasında Klasik / Baş harf düğmesiyle geçilir.
 const MANTIK_VIEW_KEY = 'mantikView';
-const MANTIK_HARF_CYCLE = { '': 'v', v: 'x', x: 'q', q: '' };
+const MANTIK_HARF_CYCLE = { '': 'q', q: 'v', v: 'x', x: '' };
 
 function mantikView() {
   try { return localStorage.getItem(MANTIK_VIEW_KEY) === 'klasik' ? 'klasik' : 'harf'; } catch { return 'harf'; }
