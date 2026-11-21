@@ -1292,63 +1292,6 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .sayi-col-head { display: flex; justify-content: space-between; }
 .sayi-col-head span:last-child { display: none; }
 
-/* ---------- Hedef sayı ---------- */
-.hedef { display: grid; gap: 12px; }
-#hedef-status { flex: 1; min-width: 0; }
-.hedef-clock { margin-left: auto; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 3px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); white-space: nowrap; }
-.hedef-clock.low { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
-#hedef-rules-pop { width: min(420px, calc(100vw - 32px)); }
-.hedef-play { display: grid; gap: 12px; justify-items: center; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
-.hedef-target { display: grid; justify-items: center; gap: 2px; }
-.hedef-target strong { font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: .04em; font-variant-numeric: tabular-nums; padding: 8px 22px; border-radius: var(--radius-sm); background: var(--text); color: var(--bg); }
-.hedef-tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; min-height: 60px; }
-.hedef-tile { min-width: 64px; height: 60px; padding: 0 12px; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: var(--radius-sm); background: var(--panel-2); border: 2px solid var(--line-2); touch-action: manipulation; }
-.hedef-tile.big { border-color: rgba(107, 140, 255, .5); }
-.hedef-tile.made { border-style: dashed; border-color: var(--accent); background: var(--accent-soft); }
-.hedef-tile.best { box-shadow: 0 0 0 2px rgba(255, 173, 59, .55); }
-.hedef-tile.hit { color: var(--speak); border-color: var(--speak); background: rgba(61, 220, 132, .14); }
-.hedef-tile.sel { border-color: var(--text); background: var(--panel-3); transform: translateY(-2px); box-shadow: 0 0 0 3px var(--accent); }
-.hedef-tile:disabled { opacity: 1; cursor: default; }
-.hedef-locked .hedef-tile:disabled, .hedef-locked .hedef-ops button:disabled { opacity: .55; }
-.hedef-ops { display: flex; gap: 8px; justify-content: center; }
-.hedef-ops[hidden] { display: none; }
-.hedef-ops button { width: 56px; height: 52px; padding: 0; font-size: 26px; font-weight: 700; border-radius: var(--radius-sm); touch-action: manipulation; }
-.hedef-ops button.active { background: var(--accent); border-color: transparent; color: #fff; }
-.hedef-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; font-variant-numeric: tabular-nums; }
-.hedef-steps li { padding: 4px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; font-weight: 600; }
-.hedef-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; }
-.hedef-tools[hidden] { display: none; }
-.hedef-answer-box { display: grid; gap: 2px; margin-right: auto; min-width: 0; }
-.hedef-answer { font-size: 17px; font-variant-numeric: tabular-nums; }
-.hedef-answer.ok { color: var(--speak); }
-#hedef-send.pulse { animation: hedef-pulse 1s ease-in-out infinite; }
-@keyframes hedef-pulse { 50% { box-shadow: 0 0 0 5px rgba(107, 140, 255, .35); } }
-.hedef-msg { margin: 0; min-height: 1.45em; text-align: center; color: var(--muted); }
-.hedef-msg.error { color: var(--danger); }
-.hedef-result { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--panel); }
-.hedef-result-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.hedef-result-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.hedef-result-list li { display: grid; gap: 2px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--panel-2); min-width: 0; }
-.hedef-result-list li.ok { box-shadow: inset 0 0 0 1px rgba(61, 220, 132, .35); }
-.hedef-result-list li > .small { overflow-wrap: anywhere; }
-.hedef-result-head { display: flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
-.hedef-result-head b { margin-left: auto; color: var(--speak); }
-.hedef-solution-box { display: grid; gap: 6px; justify-items: start; }
-.hedef-solution-box .hedef-steps { justify-content: flex-start; }
-.hedef-board li { flex-wrap: wrap; }
-.hedef-board .hedef-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hedef-board .hedef-note { flex: 1; min-width: 0; white-space: normal; }
-.hedef-board .hedef-note.ok { color: var(--speak); }
-.hedef-board .hedef-total { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
-@media (max-width: 520px) {
-  .hedef-play { padding: 12px 10px; }
-  .hedef-target strong { font-size: 36px; padding: 6px 18px; }
-  .hedef-tiles { gap: 6px; }
-  .hedef-tile { min-width: 0; flex: 1 1 calc(33.333% - 6px); max-width: calc(33.333% - 4px); height: 54px; font-size: 22px; padding: 0 4px; }
-  .hedef-ops { width: 100%; }
-  .hedef-ops button { flex: 1; width: auto; }
-  .hedef-answer-box { flex: 1 1 100%; margin-right: 0; text-align: center; }
-  #hedef-send { flex: 1 1 auto; }
 /* ---------- Gizli kural ---------- */
 .kural { display: grid; gap: 12px; }
 #kural-status { flex: 1; min-width: 0; }
@@ -1415,6 +1358,67 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   .kural-row .kural-seq { font-size: 17px; }
   .kural-col-head { padding: 6px 10px; }
   .kural-others { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- Hedef sayı ---------- */
+.hedef { display: grid; gap: 12px; }
+#hedef-status { flex: 1; min-width: 0; }
+.hedef-clock { margin-left: auto; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 3px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); white-space: nowrap; }
+.hedef-clock.low { color: var(--danger); border-color: var(--danger); background: var(--danger-soft); }
+#hedef-rules-pop { width: min(420px, calc(100vw - 32px)); }
+.hedef-play { display: grid; gap: 12px; justify-items: center; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); }
+.hedef-target { display: grid; justify-items: center; gap: 2px; }
+.hedef-target strong { font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: .04em; font-variant-numeric: tabular-nums; padding: 8px 22px; border-radius: var(--radius-sm); background: var(--text); color: var(--bg); }
+.hedef-tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; min-height: 60px; }
+.hedef-tile { min-width: 64px; height: 60px; padding: 0 12px; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: var(--radius-sm); background: var(--panel-2); border: 2px solid var(--line-2); touch-action: manipulation; }
+.hedef-tile.big { border-color: rgba(107, 140, 255, .5); }
+.hedef-tile.made { border-style: dashed; border-color: var(--accent); background: var(--accent-soft); }
+.hedef-tile.best { box-shadow: 0 0 0 2px rgba(255, 173, 59, .55); }
+.hedef-tile.hit { color: var(--speak); border-color: var(--speak); background: rgba(61, 220, 132, .14); }
+.hedef-tile.sel { border-color: var(--text); background: var(--panel-3); transform: translateY(-2px); box-shadow: 0 0 0 3px var(--accent); }
+.hedef-tile:disabled { opacity: 1; cursor: default; }
+.hedef-locked .hedef-tile:disabled, .hedef-locked .hedef-ops button:disabled { opacity: .55; }
+.hedef-ops { display: flex; gap: 8px; justify-content: center; }
+.hedef-ops[hidden] { display: none; }
+.hedef-ops button { width: 56px; height: 52px; padding: 0; font-size: 26px; font-weight: 700; border-radius: var(--radius-sm); touch-action: manipulation; }
+.hedef-ops button.active { background: var(--accent); border-color: transparent; color: #fff; }
+.hedef-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.hedef-steps li { padding: 4px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; font-weight: 600; }
+.hedef-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; }
+.hedef-tools[hidden] { display: none; }
+.hedef-answer-box { display: grid; gap: 2px; margin-right: auto; min-width: 0; }
+.hedef-answer { font-size: 17px; font-variant-numeric: tabular-nums; }
+.hedef-answer.ok { color: var(--speak); }
+#hedef-send.pulse { animation: hedef-pulse 1s ease-in-out infinite; }
+@keyframes hedef-pulse { 50% { box-shadow: 0 0 0 5px rgba(107, 140, 255, .35); } }
+.hedef-msg { margin: 0; min-height: 1.45em; text-align: center; color: var(--muted); }
+.hedef-msg.error { color: var(--danger); }
+.hedef-result { display: grid; gap: 10px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--panel); }
+.hedef-result-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.hedef-result-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hedef-result-list li { display: grid; gap: 2px; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--panel-2); min-width: 0; }
+.hedef-result-list li.ok { box-shadow: inset 0 0 0 1px rgba(61, 220, 132, .35); }
+.hedef-result-list li > .small { overflow-wrap: anywhere; }
+.hedef-result-head { display: flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
+.hedef-result-head b { margin-left: auto; color: var(--speak); }
+.hedef-solution-box { display: grid; gap: 6px; justify-items: start; }
+.hedef-solution-box .hedef-steps { justify-content: flex-start; }
+.hedef-board li { flex-wrap: wrap; }
+.hedef-board .hedef-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hedef-board .hedef-note { flex: 1; min-width: 0; white-space: normal; }
+.hedef-board .hedef-note.ok { color: var(--speak); }
+.hedef-board .hedef-total { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@media (max-width: 520px) {
+  .hedef-play { padding: 12px 10px; }
+  .hedef-target strong { font-size: 36px; padding: 6px 18px; }
+  .hedef-tiles { gap: 6px; }
+  .hedef-tile { min-width: 0; flex: 1 1 calc(33.333% - 6px); max-width: calc(33.333% - 4px); height: 54px; font-size: 22px; padding: 0 4px; }
+  .hedef-ops { width: 100%; }
+  .hedef-ops button { flex: 1; width: auto; }
+  .hedef-answer-box { flex: 1 1 100%; margin-right: 0; text-align: center; }
+  #hedef-send { flex: 1 1 auto; }
+}
+
 /* ---------- Mantık tablosu ---------- */
 .mantik { display: grid; gap: 12px; }
 #mantik-status { flex: 1; min-width: 0; }
