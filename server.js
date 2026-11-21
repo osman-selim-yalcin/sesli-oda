@@ -2252,7 +2252,7 @@ function startSayi(room, by, players, { digits }) {
   if (players.length === 1) secrets[SAYI_CPU] = sayiRandom(digits);
   if (players.includes(BOT)) secrets[BOT] = sayiRandom(digits);
   room.sayi = {
-    id: Date.now(), digits, players, secrets, phase: 'secret', turn: 0, lastChance: false,
+    id: Date.now(), digits, players, secrets, phase: 'secret', finished: {},
     guesses: Object.fromEntries(players.map((p) => [p, []])), winners: [], startedAt: Date.now(), endedAt: null, done: false, reason: null,
   };
   postSystem(room, players.length > 1 ? `${by} Sayı bulmaca başlattı (${digits} basamak): ${players.join(' – ')}` : `${by} tek başına Sayı bulmaca oynuyor (${digits} basamak)`);
@@ -2278,43 +2278,67 @@ function sayiSecret(room, name, secret) {
   sayiMaybePlay(room);
 }
 
+// Puan: hem tahmin sayısı hem süre sayılır. Başlangıç 500 + 250 × basamak; her tahmin 50, her 20 sn 50 puan götürür
+// (1 tahmin = 20 sn). Bulamayan 0 alır.
+const sayiBase = (digits) => 500 + 250 * digits;
+const sayiPoints = (digits, guesses, ms) => Math.max(0, Math.round(sayiBase(digits) - 50 * guesses - 2.5 * (ms / 1000)));
+
+// Sıra yok: herkes kendi hızında tahmin eder. Bulan bitirir (puanı o an hesaplanır); herkes bulunca ya da
+// arayanların hiçbiri bir sonraki tahminde bulsa bile öndekini geçemeyecek hale gelince oyun biter.
 function sayiGuess(room, name, guess) {
   const game = room.sayi;
-  if (!game || game.done || game.phase !== 'play' || game.players[game.turn] !== name || !sayiValid(guess, game.digits)) return;
-  const score = sayiScore(game.secrets[sayiTarget(game, name)], guess);
+  if (!game || game.done || game.phase !== 'play' || !game.players.includes(name) || game.finished[name] || !sayiValid(guess, game.digits)) return;
   const mine = game.guesses[name];
-  mine.push({ guess, ...score, at: Date.now() });
-  const found = score.plus === game.digits;
-  if (game.players.length === 1) {
-    if (found) return finishSayi(room, [name]);
-    return sendSayi(room);
+  if (mine.some((g) => g.guess === guess)) return;
+  const score = sayiScore(game.secrets[sayiTarget(game, name)], guess);
+  const at = Date.now();
+  mine.push({ guess, ...score, at });
+  if (score.plus === game.digits) {
+    const ms = at - game.startedAt;
+    game.finished[name] = { guesses: mine.length, ms, points: sayiPoints(game.digits, mine.length, ms) };
+    if (game.players.length > 1 && !sayiSettled(game)) postSystem(room, `${name} sayıyı ${mine.length} tahminde buldu: ${game.finished[name].points} puan.`);
   }
-  const other = sayiTarget(game, name);
-  if (game.lastChance) return finishSayi(room, found ? [...game.players] : [other]);
-  if (found) {
-    if (game.guesses[other].length < mine.length) {
-      game.lastChance = true;
-      game.turn = game.players.indexOf(other);
-      postSystem(room, `${name} sayıyı ${mine.length}. tahminde buldu! ${other} için son hak.`);
-      sendSayi(room);
-      return sayiBotLater(room);
-    }
-    return finishSayi(room, [name]);
-  }
-  game.turn = game.players.indexOf(other);
+  if (sayiSettled(game)) return finishSayiByPoints(room);
   sendSayi(room);
   sayiBotLater(room);
 }
 
+// Oyun bitti mi: herkes buldu ya da arayanlar artık öndekine yetişemez.
+function sayiSettled(game, now = Date.now()) {
+  const left = game.players.filter((p) => !game.finished[p]);
+  if (!left.length) return true;
+  const best = Math.max(-1, ...Object.values(game.finished).map((f) => f.points));
+  if (best < 0) return false;
+  return left.every((p) => sayiPoints(game.digits, game.guesses[p].length + 1, now - game.startedAt) < best);
+}
+
+function finishSayiByPoints(room) {
+  const game = room.sayi;
+  const pts = (p) => game.finished[p]?.points ?? -1;
+  const best = Math.max(...game.players.map(pts));
+  finishSayi(room, best < 0 ? [] : game.players.filter((p) => pts(p) === best));
+}
+
+// Biri bulduktan sonra geride kalanın yetişme şansı süreyle de biter; bunu saniyede bir kontrol ederiz.
+// Bot da sıra beklemeden kendi aralığında tahmin eder.
 function sayiBotLater(room) {
   const game = room.sayi;
-  if (!game || game.done || game.phase !== 'play' || game.players[game.turn] !== BOT || !room.bot) return;
   clearTimeout(sayiTimers.get(room.code));
+  if (!game || game.done || game.phase !== 'play') return;
+  const botPlays = room.bot && game.players.includes(BOT) && !game.finished[BOT];
+  const watching = Object.keys(game.finished).length > 0;
+  if (!botPlays && !watching) return;
+  const due = botPlays ? (game.botAt ||= Date.now() + rand(5000, 11000)) : Infinity;
   sayiTimers.set(room.code, setTimeout(() => {
     sayiTimers.delete(room.code);
-    if (room.sayi !== game || game.done || game.players[game.turn] !== BOT || rooms.get(room.code) !== room) return;
-    sayiGuess(room, BOT, sayiBotGuess(game.digits, game.guesses[BOT]));
-  }, rand(1500, 3000)));
+    if (room.sayi !== game || game.done || rooms.get(room.code) !== room) return;
+    if (sayiSettled(game)) return finishSayiByPoints(room);
+    if (botPlays && Date.now() >= due) {
+      game.botAt = 0;
+      return sayiGuess(room, BOT, sayiBotGuess(game.digits, game.guesses[BOT]));
+    }
+    sayiBotLater(room);
+  }, Math.max(50, Math.min(1000, due - Date.now()))));
 }
 
 // Oyunculardan biri ayrılırsa oyun biter, kalan kazanır.
@@ -2332,15 +2356,16 @@ function finishSayi(room, winners, reason) {
   Object.assign(game, { done: true, winners, endedAt: Date.now(), reason: reason || null });
   sendSayi(room);
   const prefix = reason ? `${reason} ` : '';
+  const fmt = (ms) => { const t = Math.round(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+  const line = (p) => (game.finished[p] ? `${p} ${game.finished[p].guesses} tahmin, ${fmt(game.finished[p].ms)} → ${game.finished[p].points} puan` : `${p} bulamadı`);
   if (game.players.length === 1) {
     const [name] = game.players;
-    const n = game.guesses[name].length;
-    const secs = Math.round((game.endedAt - game.startedAt) / 1000);
-    return postSystem(room, winners.length ? `${name} ${game.digits} basamaklı sayıyı ${n} tahminde, ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} sürede buldu 🎉` : `${prefix}Sayı bulmaca bitti; sayı ${game.secrets[SAYI_CPU]} idi.`);
+    return postSystem(room, winners.length ? `${line(name)} 🎉` : `${prefix}Sayı bulmaca bitti; sayı ${game.secrets[SAYI_CPU]} idi.`);
   }
-  if (winners.length === 2) return postSystem(room, `${prefix}Sayı bulmaca berabere! İkisi de ${game.guesses[winners[0]].length} tahminde buldu.`);
-  if (winners.length === 1) return postSystem(room, `${prefix}Sayı bulmaca bitti: 🏆 ${winners[0]} (${game.guesses[winners[0]].length} tahmin)`);
-  postSystem(room, `${prefix}Sayı bulmaca bitti.`);
+  const summary = game.players.map(line).join(' · ');
+  if (winners.length === 2) return postSystem(room, `${prefix}Sayı bulmaca berabere! ${summary}`);
+  if (winners.length === 1) return postSystem(room, `${prefix}Sayı bulmaca bitti: 🏆 ${winners[0]}. ${summary}`);
+  postSystem(room, `${prefix}Sayı bulmaca bitti. ${summary}`);
 }
 
 // ---------- Kaydırmaca (Klotski) ----------

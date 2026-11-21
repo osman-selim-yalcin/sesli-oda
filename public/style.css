@@ -1212,6 +1212,12 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 #sayi-status { flex: 1; min-width: 0; }
 .sayi-info-btn { width: 26px; height: 26px; padding: 0; border-radius: 50%; font: italic 700 14px Georgia, serif; display: inline-grid; place-items: center; flex: none; }
 .sayi-pop p { margin: 0; font-size: 14px; line-height: 1.5; }
+.sayi-pop:popover-open { display: grid; gap: 8px; }
+#sayi-rules-pop { width: min(400px, calc(100vw - 32px)); }
+.sayi-scores { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 14px; color: var(--muted); }
+.sayi-scores[hidden] { display: none; }
+.sayi-scores li.found { color: var(--text); }
+.sayi-scores li b { color: var(--speak); }
 .sayi-tools { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: -6px; }
 .sayi-tools[hidden], .sayi-extra[hidden] { display: none; }
 .sayi-extra { display: grid; gap: 12px; }

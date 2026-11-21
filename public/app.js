@@ -2541,8 +2541,7 @@ function sayiGuessHint(text, warn) {
 function renderSayiHint() {
   const game = sayiActive();
   if (!game || game.phase !== 'play') return;
-  const turn = game.players[game.turn];
-  sayiGuessHint(turn === myName ? (game.lastChance ? 'Son hakkın! Yaz, Enter' : 'Sıra sende: yaz, Enter') : `Sıra ${turn}'de; sen yazmaya başlayabilirsin`);
+  sayiGuessHint('Yaz, Enter');
 }
 
 $('sayi-secret').onsubmit = (e) => {
@@ -2557,7 +2556,7 @@ $('sayi-guess').onsubmit = (e) => {
   const game = sayiActive();
   const input = $('sayi-guess-input');
   if (!game || game.phase !== 'play') return;
-  if (game.players[game.turn] !== myName) return sayiGuessHint(`Sıra ${game.players[game.turn]}'de.`, true);
+  if (game.finished?.[myName]) return;
   if (input.value.length !== game.digits) return sayiGuessHint(`${game.digits} basamak yaz.`, true);
   if (game.guesses[myName].some((g) => g.guess === input.value)) return sayiGuessHint('Bunu zaten denedin.', true);
   socket.emit('sayi:guess', input.value);
@@ -2708,11 +2707,12 @@ function renderSayiTimer() {
   sayiTick = null;
   if (!show) return;
   const draw = () => {
-    const end = game.done ? game.endedAt : Date.now() + sayiClock;
+    const mine = game.finished?.[myName];
+    const end = mine ? game.startedAt + mine.ms : game.done ? game.endedAt : Date.now() + sayiClock;
     el.textContent = `⏱ ${fmtTime((end - game.startedAt) / 1000)}`;
   };
   draw();
-  if (!game.done) sayiTick = setInterval(draw, 1000);
+  if (!game.done && !game.finished?.[myName]) sayiTick = setInterval(draw, 1000);
 }
 
 function renderSayi() {
@@ -2731,11 +2731,22 @@ function renderSayi() {
   renderSayiTimer();
   if (!game) return;
 
-  const turn = game.players[game.turn];
   $('sayi-status').textContent = game.done
     ? (game.reason ? `${game.reason} ` : '') + (game.winners.length === 2 ? 'Berabere!' : game.winners.length ? `🏆 ${game.winners[0]} kazandı` : 'Oyun bitti')
     : secretPhase ? `${game.digits} basamak · sayılar tutuluyor`
-      : `${game.digits} basamak · ${game.lastChance ? 'son hak: ' : 'sıra: '}${turn === myName ? 'sende' : turn}`;
+      : `${game.digits} basamak · herkes kendi hızında`;
+  // Puanlar: bulan herkesin tahmin, süre ve puanı; arayanların tahmin sayısı
+  const scores = $('sayi-scores');
+  scores.hidden = secretPhase;
+  scores.replaceChildren(...game.players.map((p) => {
+    const f = game.finished?.[p];
+    const li = document.createElement('li');
+    li.className = f ? 'found' : '';
+    li.append(Object.assign(document.createElement('strong'), { textContent: p === myName ? 'Sen' : p }),
+      f ? ` · ${f.guesses} tahmin · ${fmtTime(f.ms / 1000)} · ` : ` · ${game.done ? 'bulamadı' : 'arıyor'} (${game.guesses[p].length} tahmin)`,
+      ...(f ? [Object.assign(document.createElement('b'), { textContent: `${f.points} puan` })] : []));
+    return li;
+  }));
   if (secretPhase) {
     sayiSlots($('sayi-secret-input'));
     return;
@@ -2758,7 +2769,7 @@ function renderSayi() {
   $('sayi-digits').hidden = !playing;
   $('sayi-tools').hidden = !playing;
   $('sayi-extra').hidden = !playing;
-  $('sayi-guess').hidden = !(playing && active);
+  $('sayi-guess').hidden = !(playing && active && !game.finished?.[myName]);
   if (playing) renderSayiTools();
   if (playing && active) {
     sayiSlots($('sayi-guess-input'));
@@ -2786,7 +2797,7 @@ $('sayi-close').onclick = () => socket.emit('sayi:close');
 
 function setSayi(game) {
   const fresh = game && sayi?.id !== game.id;
-  const wasTurn = sayiActive()?.phase === 'play' && sayi.players[sayi.turn] === myName;
+  const wasPlay = sayiActive()?.phase === 'play';
   sayi = game;
   if (game?.now) sayiClock = game.now - Date.now();
   if (fresh) {
@@ -2798,9 +2809,9 @@ function setSayi(game) {
     sayiOppOpen = false;
   }
   renderSayi();
-  // Sıra bana geçince (sayfa açıksa) tahmin kutusuna odaklan
-  const nowTurn = sayiActive()?.phase === 'play' && sayi.players[sayi.turn] === myName;
-  if (nowTurn && !wasTurn && !$('games').hidden && !$('game-sayi').hidden && !document.activeElement?.closest?.('input, textarea')) $('sayi-guess-input').focus({ preventScroll: true });
+  // Tahminler başlayınca (sayfa açıksa) tahmin kutusuna odaklan
+  const nowPlay = sayiActive()?.phase === 'play' && sayiPlaying();
+  if (nowPlay && !wasPlay && !$('games').hidden && !$('game-sayi').hidden && !document.activeElement?.closest?.('input, textarea')) $('sayi-guess-input').focus({ preventScroll: true });
 }
 socket.on('sayi', setSayi);
 
