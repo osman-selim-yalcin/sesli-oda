@@ -908,8 +908,8 @@ $('now-pop-room').onclick = () => {
 // önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var:
 // / sıra, /gecmis, /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'kural', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', kural: 'gizli-kural', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   if (view.page === 'members') return '/uyeler';
@@ -1458,6 +1458,7 @@ function openGame(name) {
   if (name === 'memory') renderMemory();
   if (name === 'klotski') renderKlotski();
   if (name === 'sayi') renderSayi();
+  if (name === 'kural') window.renderKural?.(); // public/kural.js
   if (name === 'dino') dinoKick();
 }
 for (const game of GAMES) $(`game-tab-${game}`).onclick = () => go(() => openGame(game));
@@ -6136,6 +6137,7 @@ function applyJoin(res) {
   if (res.klotski) setKlotskiLevels(res.klotski);
   setMemory(res.memory);
   setSayi(res.sayi);
+  window.setKural?.(res.kural); // public/kural.js
   setRadio(res.radio);
   lobbies = res.lobbies || {};
   renderLobbies();
