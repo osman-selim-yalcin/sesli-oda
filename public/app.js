@@ -879,7 +879,7 @@ function showPage(page) {
   renderTopbarNow();
 }
 $('nav-room').onclick = () => go(() => showPage('room'));
-$('nav-games').onclick = () => go(() => showPage('games'));
+$('nav-games').onclick = () => go(() => { showPage('games'); openGame('home'); }); // her seferinde oyun kartlarıyla açılır
 $('nav-members').onclick = () => go(() => showPage('members'));
 $('nav-radio').onclick = () => go(() => showPage('radio'));
 // Üst çubuktaki şarkıya basınca kumanda açılır (odaya dönmez); kumanda odadaki düğmeleri kullanır.
@@ -906,7 +906,7 @@ $('now-pop-room').onclick = () => {
 // ---------- Gezinme geçmişi ----------
 // Sayfa, sekme, oyun ve açık tier list tarayıcı geçmişine yazılır: geri tuşu siteden çıkmak yerine
 // önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var:
-// / sıra, /gecmis, /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
+// / sıra, /gecmis, /oyunlar (oyun kartları), /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
 
 const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'kural', 'hedef', 'mantik', 'peacock', 'oner'];
 const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', peacock: 'tavus', oner: 'oner' };
@@ -915,17 +915,18 @@ function viewPath(view) {
   if (view.page === 'members') return '/uyeler';
   if (view.page === 'radio') return '/radyo';
   if (view.page === 'room') return view.tab === 'history' ? '/gecmis' : '/';
+  if (!GAME_PATHS[view.game]) return '/oyunlar';
   return `/oyunlar/${GAME_PATHS[view.game]}` + (view.game === 'tier' && view.list != null ? `/${view.list}` : '');
 }
 
 function pathView(path) {
   const [first, second, third] = path.split('/').filter(Boolean);
-  const view = { page: 'room', tab: first === 'gecmis' ? 'history' : 'queue', game: 'tier', list: null };
+  const view = { page: 'room', tab: first === 'gecmis' ? 'history' : 'queue', game: 'home', list: null };
   if (first === 'uyeler') view.page = 'members';
   if (first === 'radyo') view.page = 'radio';
   if (first !== 'oyunlar') return view;
   view.page = 'games';
-  view.game = GAMES.find((g) => GAME_PATHS[g] === second) || 'tier';
+  view.game = GAMES.find((g) => GAME_PATHS[g] === second) || 'home';
   if (view.game === 'tier' && /^\d+$/.test(third || '')) view.list = Number(third);
   return view;
 }
@@ -933,7 +934,7 @@ function pathView(path) {
 const currentView = () => ({
   page: !$('members').hidden ? 'members' : !$('radio').hidden ? 'radio' : $('games').hidden ? 'room' : 'games',
   tab: $('history-view').hidden ? 'queue' : 'history',
-  game: GAMES.find((g) => !$(`game-${g}`).hidden) || 'tier',
+  game: GAMES.find((g) => !$(`game-${g}`).hidden) || 'home',
   list: openListId,
 });
 
@@ -1445,7 +1446,9 @@ $('card-form').onsubmit = async (e) => {
 
 // ---------- Oyun sekmeleri ----------
 
+// 'home' oyun değil: bütün oyunların kartları (Oyunlar sayfasının girişi)
 function showGame(name) {
+  $('game-home').hidden = name !== 'home';
   for (const game of GAMES) {
     $(`game-tab-${game}`).classList.toggle('active', game === name);
     $(`game-${game}`).hidden = game !== name;
@@ -1453,6 +1456,7 @@ function showGame(name) {
 }
 function openGame(name) {
   showGame(name);
+  if (name === 'home') renderGameHome();
   if (name === 'tier') document.querySelectorAll('.tier-name').forEach(fitTierName);
   if (name === 'kelime') renderKelime();
   if (name === 'memory') renderMemory();
@@ -6174,87 +6178,89 @@ $('leave').onclick = () => {
 addEventListener('pagehide', () => socket.disconnect());
 
 // ---------- Oyun seçici ----------
-// Sekme düğmeleri (game-tab-*) gizli durur ve hâlâ asıl geçişi yapar; menü ve son oynananlar onları tıklar.
-// Yeni bir oyunun sekmesi eklenince menüde kendiliğinden görünür (bilgisi yoksa "Diğer" altında).
+// Oyunlar sayfası kart ızgarasıyla açılır (game-home); karta basınca oyun açılır. Oyundayken üstte
+// "Oyunlar" geri düğmesi, açık oyunun adı ve son oynananlar durur.
+// Sekme düğmeleri (game-tab-*) gizli durur ve hâlâ asıl geçişi yapar; kartlar ve son oynananlar onları tıklar.
+// Yeni bir oyunun sekmesi eklenince kartlarda kendiliğinden görünür (bilgisi yoksa "Diğer" altında).
 
 const GAME_INFO = {
-  sayi: { icon: '🔢', group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul' },
-  kural: { icon: '🕵️', group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala' },
-  hedef: { icon: '🎯', group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş' },
-  mantik: { icon: '🧠', group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu' },
-  klotski: { icon: '🧩', group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar' },
-  memory: { icon: '🃏', group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla' },
-  timing: { icon: '⏱️', group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur' },
-  dino: { icon: '🦖', group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş' },
-  peacock: { icon: '🦚', group: 'Hız ve refleks', desc: 'Yakında' },
-  kelime: { icon: '💬', group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir' },
-  tier: { icon: '📊', group: 'Birlikte', desc: 'Birlikte sıralama listeleri' },
-  oner: { icon: '💡', group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
+  sayi: { icon: '🔢', hue: 210, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul' },
+  kural: { icon: '🕵️', hue: 265, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala' },
+  hedef: { icon: '🎯', hue: 0, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş' },
+  mantik: { icon: '🧠', hue: 320, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu' },
+  klotski: { icon: '🧩', hue: 130, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar' },
+  memory: { icon: '🃏', hue: 40, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla' },
+  timing: { icon: '⏱️', hue: 190, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur' },
+  dino: { icon: '🦖', hue: 100, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş' },
+  peacock: { icon: '🦚', hue: 170, group: 'Hız ve refleks', desc: 'Yakında', soon: true },
+  kelime: { icon: '💬', hue: 230, group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir' },
+  tier: { icon: '📊', hue: 25, group: 'Birlikte', desc: 'Birlikte sıralama listeleri' },
+  oner: { icon: '💡', hue: 50, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
 };
 const GAME_GROUPS = ['Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
 const gameRecentKey = 'gameRecent';
 
 const gameTabs = () => [...document.querySelectorAll('.games-panel > .tabs > .tab[id^="game-tab-"]')]
   .map((btn) => ({ btn, key: btn.id.slice('game-tab-'.length), name: btn.textContent.trim() }));
-const gameInfo = (key) => GAME_INFO[key] || { icon: '🎮', group: 'Diğer', desc: '' };
+const gameInfo = (key) => GAME_INFO[key] || { icon: '🎮', hue: 230, group: 'Diğer', desc: '' };
+const lobbyOpen = (tab) => tab.btn.classList.contains('lobby-open');
 
 function gameEntry(tab, cls) {
   const b = document.createElement('button');
   b.type = 'button';
-  b.className = cls + (tab.btn.classList.contains('active') ? ' active' : '') + (tab.btn.classList.contains('lobby-open') ? ' lobby-open' : '');
-  b.title = tab.btn.classList.contains('lobby-open') ? `${tab.name}: lobi açık` : tab.name;
-  b.onclick = () => {
-    if ($('game-menu').matches(':popover-open')) $('game-menu').hidePopover();
-    tab.btn.click();
-  };
+  b.className = cls + (lobbyOpen(tab) ? ' lobby-open' : '');
+  b.title = lobbyOpen(tab) ? `${tab.name}: lobi açık` : tab.name;
+  b.onclick = () => tab.btn.click();
   return b;
 }
 
 function renderGameSwitch() {
   const tabs = gameTabs();
-  const current = tabs.find((t) => t.btn.classList.contains('active')) || tabs[0];
-  if (!current) return;
+  const current = $('game-home').hidden ? tabs.find((t) => t.btn.classList.contains('active')) : null;
+  $('games').classList.toggle('at-home', !current);
   let recent = [];
   try { recent = JSON.parse(localStorage.getItem(gameRecentKey)) || []; } catch {}
-  if (recent[0] !== current.key) {
+  if (current && recent[0] !== current.key) {
     recent = [current.key, ...recent.filter((k) => k !== current.key)].slice(0, 6);
     try { localStorage.setItem(gameRecentKey, JSON.stringify(recent)); } catch {}
   }
-  const menuBtn = $('game-menu-btn');
-  const anyLobby = tabs.some((t) => t !== current && t.btn.classList.contains('lobby-open'));
-  menuBtn.classList.toggle('lobby-open', anyLobby);
-  menuBtn.replaceChildren(
-    Object.assign(document.createElement('span'), { className: 'game-menu-icon', textContent: gameInfo(current.key).icon }),
-    Object.assign(document.createElement('strong'), { textContent: current.name }),
-    Object.assign(document.createElement('span'), { className: 'game-menu-caret', textContent: '▾' }),
-  );
-  // Son oynananlar: şu ankinden sonraki en çok 3 oyun, lobisi açık olanlar öne
+  const homeBtn = $('game-home-btn');
+  homeBtn.classList.toggle('lobby-open', tabs.some((t) => t !== current && lobbyOpen(t)));
+  homeBtn.disabled = !current;
+  homeBtn.replaceChildren(...(current
+    ? [Object.assign(document.createElement('span'), { className: 'game-home-back', textContent: '‹' }),
+      Object.assign(document.createElement('span'), { className: 'game-home-icon', textContent: gameInfo(current.key).icon }),
+      Object.assign(document.createElement('strong'), { textContent: current.name })]
+    : [Object.assign(document.createElement('strong'), { textContent: 'Oyunlar' })]));
+  homeBtn.title = current ? 'Bütün oyunlara dön' : '';
+  // Son oynananlar: şu ankinden sonraki en çok 3 oyun, lobisi açık olanlar öne (kart ızgarasında gizli)
   const byKey = new Map(tabs.map((t) => [t.key, t]));
-  const others = recent.slice(1).map((k) => byKey.get(k)).filter(Boolean);
-  for (const t of tabs) if (t !== current && t.btn.classList.contains('lobby-open') && !others.includes(t)) others.unshift(t);
-  $('game-recent').replaceChildren(...others.slice(0, 3).map((t) => {
+  const others = recent.filter((k) => k !== current?.key).map((k) => byKey.get(k)).filter(Boolean);
+  for (const t of tabs) if (t !== current && lobbyOpen(t) && !others.includes(t)) others.unshift(t);
+  $('game-recent').replaceChildren(...(current ? others.slice(0, 3) : []).map((t) => {
     const b = gameEntry(t, 'game-chip');
     b.append(Object.assign(document.createElement('span'), { textContent: gameInfo(t.key).icon }), t.name);
     return b;
   }));
-  if ($('game-menu').matches(':popover-open')) renderGameMenu();
+  if (!$('game-home').hidden) renderGameHome();
 }
 
-function renderGameMenu() {
+function renderGameHome() {
   const tabs = gameTabs();
   const groups = GAME_GROUPS.map((g) => [g, tabs.filter((t) => gameInfo(t.key).group === g)]).filter(([, list]) => list.length);
-  $('game-menu').replaceChildren(...groups.map(([group, list]) => {
+  $('game-home').replaceChildren(...groups.map(([group, list]) => {
     const sec = document.createElement('section');
     sec.append(Object.assign(document.createElement('h3'), { textContent: group }));
     const grid = document.createElement('div');
-    grid.className = 'game-menu-grid';
+    grid.className = 'game-home-grid';
     grid.append(...list.map((t) => {
-      const b = gameEntry(t, 'game-card');
       const info = gameInfo(t.key);
-      const text = document.createElement('span');
-      text.append(Object.assign(document.createElement('strong'), { textContent: t.name }),
-        Object.assign(document.createElement('small'), { className: 'muted', textContent: t.btn.classList.contains('lobby-open') ? 'Lobi açık, katılabilirsin' : info.desc }));
-      b.append(Object.assign(document.createElement('span'), { className: 'game-card-icon', textContent: info.icon }), text);
+      const b = gameEntry(t, 'game-card' + (info.soon ? ' soon' : ''));
+      b.style.setProperty('--hue', info.hue);
+      b.append(Object.assign(document.createElement('span'), { className: 'game-card-icon', textContent: info.icon }),
+        Object.assign(document.createElement('strong'), { textContent: t.name }),
+        Object.assign(document.createElement('small'), { textContent: lobbyOpen(t) ? 'Lobi açık, katılabilirsin' : info.desc }));
+      if (lobbyOpen(t)) b.append(Object.assign(document.createElement('span'), { className: 'game-card-badge', textContent: 'Lobi' }));
       return b;
     }));
     sec.append(grid);
@@ -6262,19 +6268,11 @@ function renderGameMenu() {
   }));
 }
 
-$('game-menu').addEventListener('toggle', (e) => {
-  if (e.newState !== 'open') return;
-  renderGameMenu();
-  // Menü oyun panelinin genişliğinde, düğmenin altında açılır
-  const panel = document.querySelector('.games-panel').getBoundingClientRect();
-  const btn = $('game-menu-btn').getBoundingClientRect();
-  const menu = $('game-menu');
-  menu.style.width = `${Math.min(panel.width - 16, innerWidth - 32)}px`;
-  menu.style.left = `${Math.max(16, panel.left + 8)}px`;
-  menu.style.top = `${btn.bottom + 6}px`;
-});
+$('game-home-btn').onclick = () => go(() => openGame('home'));
 // Bot düğmesi sekme satırından seçicinin sağına taşınır
 document.querySelector('.game-switch').append($('bot-toggle'));
-new MutationObserver(renderGameSwitch).observe(document.querySelector('.games-panel > .tabs'), { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+const gameSwitchObserver = new MutationObserver(renderGameSwitch);
+gameSwitchObserver.observe(document.querySelector('.games-panel > .tabs'), { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+gameSwitchObserver.observe($('game-home'), { attributes: true, attributeFilter: ['hidden'] });
 renderGameSwitch();
 

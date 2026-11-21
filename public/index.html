@@ -287,12 +287,12 @@
       <!-- Oyunlar: konuşurken birlikte oynanan küçük şeyler; her oyun bir sekme -->
       <section id="games" class="games" hidden>
         <div class="panel games-panel">
-          <!-- Oyun seçici: sekmeler çoğalınca tek satıra sığmadığı için menü + son oynananlar; sekme düğmeleri gizli durur -->
+          <!-- Oyun seçici: Oyunlar sayfası kart ızgarasıyla açılır; oyundayken üstte geri düğmesi + son oynananlar; sekme düğmeleri gizli durur -->
           <div class="game-switch">
-            <button id="game-menu-btn" class="game-menu-btn" popovertarget="game-menu" aria-haspopup="true" title="Bütün oyunlar"></button>
+            <button id="game-home-btn" class="game-home-btn" title="Bütün oyunlar"></button>
             <div id="game-recent" class="game-recent"></div>
           </div>
-          <div id="game-menu" class="pop game-menu" popover></div>
+          <div id="game-home" class="game-home" hidden></div>
           <div class="tabs" role="tablist">
             <button id="game-tab-tier" class="tab active" role="tab">Tier list</button>
             <button id="game-tab-timing" class="tab" role="tab">Süre tahmini</button>
