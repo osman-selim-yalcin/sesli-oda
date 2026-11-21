@@ -136,6 +136,7 @@ $('hedef-send').onclick = hedefSend;
 for (const b of document.querySelectorAll('#hedef-ops [data-op]')) b.onclick = () => hedefOp(b.dataset.op);
 confirmButton($('hedef-end'), 'Emin misin? Tekrar bas', () => socket.emit('hedef:end'));
 $('hedef-close').onclick = () => socket.emit('hedef:close');
+$('hedef-next').onclick = () => socket.emit('hedef:next');
 
 // Klavye: + − × ÷ işlem seçer, Backspace geri alır, Enter gönderir, Esc seçimi bırakır.
 document.addEventListener('keydown', (e) => {
@@ -157,7 +158,7 @@ function hedefStepEl(text) {
   return Object.assign(document.createElement('li'), { textContent: text });
 }
 
-// Sağ üstteki sayaç: turda kalan süre (son 10 sn kırmızı), arada yeni turun başlamasına kalan süre.
+// Sağ üstteki sayaç: turda kalan süre (son 10 sn kırmızı); arada gizli (yeni tur "Sonraki tur" ile başlar).
 function hedefTick() {
   const game = hedefActive();
   const el = $('hedef-clock');
@@ -168,9 +169,9 @@ function hedefTick() {
     return;
   }
   const play = game.phase === 'play';
-  const left = Math.max(0, Math.ceil(((play ? game.roundEnd : game.breakUntil) - serverNow()) / 1000));
-  el.hidden = false;
-  el.textContent = play ? `⏱ ${fmtTime(left)}` : `Yeni tur ${left} sn`;
+  const left = Math.max(0, Math.ceil((game.roundEnd - serverNow()) / 1000));
+  el.hidden = !play;
+  el.textContent = `⏱ ${fmtTime(left)}`;
   el.classList.toggle('low', play && left <= 10);
   // Süre dolunca sunucunun turu bitirmesi beklenir; bu arada kutular kilitlenir.
   if (play && hedefCanPlay() === $('game-hedef').classList.contains('hedef-locked')) renderHedef();
@@ -203,7 +204,21 @@ function renderHedefResult(game) {
   $('hedef-result-title').textContent = game.done
     ? (game.reason ? `${game.reason} ` : '') + (game.winners.length > 1 ? 'Berabere!' : game.winners.length ? `🏆 ${hedefWho(game.winners[0])} kazandı` : 'Oyun bitti')
     : `${last.round + 1}. tur bitti`;
-  $('hedef-result-target').textContent = `Hedef ${last.target} · sayılar ${last.nums.join(', ')}`;
+  $('hedef-result-target').textContent = last.target;
+  $('hedef-result-nums').replaceChildren(...last.nums.map((v) => Object.assign(document.createElement('span'), { className: 'hedef-tile' + (v >= 25 ? ' big' : ''), textContent: v })));
+  // Arada: herkes "Sonraki tur"a basınca yeni tur başlar; kimlerin beklendiği yazılır.
+  const waiting = !game.done && game.phase === 'break';
+  $('hedef-next-row').hidden = !waiting;
+  if (waiting) {
+    const people = game.players.filter((p) => p !== BOT_NAME && !game.left.includes(p));
+    const ready = game.ready || [];
+    const me = hedefPlaying() && ready.includes(myName);
+    const wait = people.filter((p) => !ready.includes(p)).map(hedefWho);
+    $('hedef-next').hidden = !hedefPlaying();
+    $('hedef-next').disabled = me;
+    $('hedef-next').textContent = me ? 'Hazırsın' : game.round + 2 === game.rounds ? 'Son tura geç' : 'Sonraki tur';
+    $('hedef-ready').textContent = people.length > 1 ? `Hazır ${ready.length}/${people.length}` + (wait.length ? ` · bekleniyor: ${wait.join(', ')}` : '') : '';
+  }
   const list = $('hedef-result-list');
   list.replaceChildren(...game.players.filter((p) => last.results[p]).map((p) => {
     const r = last.results[p];

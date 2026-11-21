@@ -4,10 +4,10 @@
 // seçilir (aşağıdaki çözücüyle). Tarayıcı adımları gönderir, sunucu yeniden oynatıp doğrular; tur içinde daha iyisi
 // tekrar gönderilebilir, sunucu en iyisini ve ilk ulaşıldığı anı tutar. Başkalarının adımları tur bitene kadar gizli.
 // Puan: tam hedef 100 + kalan saniye, değilse max(0, 60 − 6 × fark). Toplamda en yüksek puan kazanır.
+// Tur bitince ara ekranı kendiliğinden geçmez: herkes "Sonraki tur"a basınca (bot hep hazır) yeni tur başlar.
 
 const ROUNDS = [3, 5, 7];
 const ROUND_MS = Number(process.env.HEDEF_ROUND_MS) || 90000;
-const BREAK_MS = Number(process.env.HEDEF_BREAK_MS) || 5000;
 const SMALL = [1, 10];
 const LARGE = [25, 50, 75, 100];
 const TARGET = [101, 999];
@@ -179,7 +179,7 @@ function view(game, name) {
   return {
     id: game.id, by: game.by, players: game.players, left: game.left, rounds: game.rounds, round: game.round,
     phase: game.phase, nums: game.nums, target: game.target, roundStart: game.roundStart, roundEnd: game.roundEnd,
-    breakUntil: game.breakUntil, totals: game.totals, status, mine: game.best[name] || null, last: game.last,
+    ready: game.ready, totals: game.totals, status, mine: game.best[name] || null, last: game.last,
     done: game.done, winners: game.winners, reason: game.reason, now: Date.now(),
   };
 }
@@ -193,7 +193,7 @@ function start(room, by, players, { rounds }) {
   rounds = ROUNDS.includes(rounds) ? rounds : 5;
   room.hedef = {
     id: Date.now(), by, players, left: [], rounds, round: -1, phase: 'play', nums: [], target: 0,
-    roundStart: 0, roundEnd: 0, breakUntil: null, totals: Object.fromEntries(players.map((p) => [p, 0])),
+    roundStart: 0, roundEnd: 0, ready: [], totals: Object.fromEntries(players.map((p) => [p, 0])),
     best: {}, last: null, done: false, winners: [], reason: null,
   };
   postSystem(room, players.length > 1
@@ -208,7 +208,7 @@ function startRound(room) {
   game.cur = made; // çözüm ve botun planı: istemciye gitmez (view sadece seçili alanları gönderir)
   Object.assign(game, {
     round: game.round + 1, phase: 'play', nums: made.nums, target: made.target, best: {},
-    roundStart: Date.now(), roundEnd: Date.now() + ROUND_MS, breakUntil: null,
+    roundStart: Date.now(), roundEnd: Date.now() + ROUND_MS, ready: [],
   });
   setTimer(room, 'round', ROUND_MS, () => endRound(room));
   if (active(game).includes(BOT)) setTimer(room, 'bot', rand(ROUND_MS * 20 / 90, ROUND_MS * 70 / 90), () => botSubmit(room));
@@ -273,10 +273,20 @@ function endRound(room) {
   if (game.round + 1 >= game.rounds) return finish(room, null, true);
   postSystem(room, `Hedef sayı ${game.round + 1}. tur (hedef ${game.target}): ${roundLine(game)}`);
   game.phase = 'break';
-  game.breakUntil = Date.now() + BREAK_MS;
-  setTimer(room, 'round', BREAK_MS, () => startRound(room));
+  game.ready = [];
   send(room);
 }
+
+// Arada oyuncu "Sonraki tur"a basar; oyunda kalan herkes basınca yeni tur başlar.
+function ready(room, name) {
+  const game = room.hedef;
+  if (!game || game.done || game.phase !== 'break' || !humans(game).includes(name) || game.ready.includes(name)) return;
+  game.ready.push(name);
+  if (allReady(game)) startRound(room);
+  else send(room);
+}
+
+const allReady = (game) => humans(game).every((p) => game.ready.includes(p));
 
 function finish(room, reason, scored) {
   const game = room.hedef;
@@ -286,7 +296,7 @@ function finish(room, reason, scored) {
   const roundText = game.phase === 'play' ? `Son tur (hedef ${game.target}): ${roundLine(game)}. ` : '';
   const ranked = active(game).sort((a, b) => game.totals[b] - game.totals[a]);
   const top = ranked.length ? game.totals[ranked[0]] : 0;
-  Object.assign(game, { done: true, phase: 'done', breakUntil: null, reason: reason || null, winners: top > 0 ? ranked.filter((p) => game.totals[p] === top) : [] });
+  Object.assign(game, { done: true, phase: 'done', ready: [], reason: reason || null, winners: top > 0 ? ranked.filter((p) => game.totals[p] === top) : [] });
   send(room);
   const prefix = reason ? `${reason} ` : '';
   if (game.players.length === 1) return postSystem(room, `${prefix}${roundText}Hedef sayı bitti: ${game.players[0]} ${game.totals[game.players[0]]} puan.`);
@@ -304,6 +314,7 @@ function left(room, name) {
   if (!humans(game).length) return finish(room, `${name} ayrıldı.`);
   if (name === BOT) clearTimeout(timers.get(room.code)?.bot);
   if (game.phase === 'play' && settled(game)) return endRound(room);
+  if (game.phase === 'break' && allReady(game)) return startRound(room);
   send(room);
 }
 
@@ -316,6 +327,10 @@ function attach(socket, ctx) {
     if (!c) return;
     const res = submit(c.room, c.name, data);
     if (typeof ack === 'function') ack(res);
+  });
+  socket.on('hedef:next', () => {
+    const c = ctx();
+    if (c) ready(c.room, c.name);
   });
   socket.on('hedef:end', () => {
     const c = ctx();

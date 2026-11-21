@@ -583,7 +583,7 @@
             <div id="hedef-rules-pop" class="pop sayi-pop hedef-pop" popover>
               <p>Herkese aynı 6 sayı (4 küçük, 2 büyük) ve 101-999 arası bir hedef gelir. Dört işlemle (+ − × ÷) hedefe ulaşmaya ya da en çok yaklaşmaya çalış. Hedefe her zaman tam ulaşılabilir.</p>
               <p><strong>Nasıl:</strong> bir sayıya bas, bir işlem seç, başka bir sayıya bas: iki kutu birleşir, sonuç yeni kutu olur. Her sayı en çok bir kez kullanılır, hepsini kullanmak zorunlu değil. Ara sonuçlar pozitif tam sayı olmalı (bölme tam bölünmeli). Elindeki kutulardan hedefe en yakını cevabın olur; "Gönder" ile yolla. Tur içinde daha iyisini yine gönderebilirsin. Klavyede + − * / işlem seçer, Backspace geri alır, Enter gönderir.</p>
-              <p><strong>Puanlama:</strong> tam hedef 100 + kalan saniye (ilk ulaştığın an sayılır). Değilse 60 − 6 × fark: 1 fark 54, 5 fark 30, 10 ve üstü 0. Her tur 90 saniye; herkes tam bulursa erken biter. Tur sonunda herkesin işlemleri ve bir tam çözüm görünür.</p>
+              <p><strong>Puanlama:</strong> tam hedef 100 + kalan saniye (ilk ulaştığın an sayılır). Değilse 60 − 6 × fark: 1 fark 54, 5 fark 30, 10 ve üstü 0. Her tur 90 saniye; herkes tam bulursa erken biter. Tur sonunda soru, herkesin işlemleri ve bir tam çözüm görünür; herkes "Sonraki tur"a basınca yeni tur başlar.</p>
               <p>Lobiyi kuran tur sayısını seçer (3, 5, 7). Toplamda en yüksek puan kazanır, eşitse berabere. "Oyunu bitir" o anki toplamla bitirir. Başkalarının işlemleri tur bitene kadar gizli; sadece ulaşıp ulaşmadığı ve kaç fark kaldığı görünür.</p>
             </div>
             <div id="lobby-hedef" class="lobby"></div>
@@ -611,12 +611,22 @@
             <div id="hedef-result" class="hedef-result" hidden>
               <div class="hedef-result-top">
                 <strong id="hedef-result-title"></strong>
-                <span id="hedef-result-target" class="muted small"></span>
+              </div>
+              <!-- Soru (biten turun hedefi ve 6 sayısı) ve bir tam çözüm yan yana -->
+              <div class="hedef-recap">
+                <div class="hedef-question">
+                  <div class="hedef-target"><span class="muted small">Hedef</span><strong id="hedef-result-target"></strong></div>
+                  <div id="hedef-result-nums" class="hedef-tiles"></div>
+                </div>
+                <div class="hedef-solution-box">
+                  <span class="muted small">Bir tam çözüm</span>
+                  <ol id="hedef-solution" class="hedef-steps"></ol>
+                </div>
               </div>
               <ul id="hedef-result-list" class="hedef-result-list"></ul>
-              <div class="hedef-solution-box">
-                <span class="muted small">Bir tam çözüm</span>
-                <ol id="hedef-solution" class="hedef-steps"></ol>
+              <div id="hedef-next-row" class="hedef-next-row" hidden>
+                <span id="hedef-ready" class="muted small"></span>
+                <button id="hedef-next" type="button" class="primary">Sonraki tur</button>
               </div>
             </div>
             <ol id="hedef-board" class="timing-list hedef-board" hidden></ol>

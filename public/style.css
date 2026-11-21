@@ -1418,8 +1418,21 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .hedef-result-list li > .small { overflow-wrap: anywhere; }
 .hedef-result-head { display: flex; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
 .hedef-result-head b { margin-left: auto; color: var(--speak); }
-.hedef-solution-box { display: grid; gap: 6px; justify-items: start; }
+.hedef-solution-box { display: grid; gap: 6px; justify-items: start; align-content: start; }
 .hedef-solution-box .hedef-steps { justify-content: flex-start; }
+/* Tur sonu: soru (hedef + 6 sayı) ve çözüm yan yana; dar ekranda alt alta */
+.hedef-recap { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 14px; align-items: start; padding: 12px; border-radius: var(--radius-sm); background: var(--panel-2); }
+.hedef-question { display: grid; gap: 10px; justify-items: center; }
+.hedef-question .hedef-target strong { font-size: 34px; padding: 6px 18px; }
+.hedef-question .hedef-tiles { min-height: 0; gap: 6px; }
+.hedef-question .hedef-tile { display: inline-grid; place-items: center; min-width: 48px; height: 44px; font-size: 19px; padding: 0 8px; }
+.hedef-next-row { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
+.hedef-next-row button { min-width: 140px; }
+@media (max-width: 640px) {
+  .hedef-recap { grid-template-columns: 1fr; }
+  .hedef-question .hedef-tiles { gap: 4px; flex-wrap: nowrap; }
+  .hedef-question .hedef-tile { flex: 1 1 0; max-width: 52px; min-width: 0; height: 40px; font-size: 17px; padding: 0 2px; }
+}
 .hedef-board li { flex-wrap: wrap; }
 .hedef-board .hedef-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hedef-board .hedef-note { flex: 1; min-width: 0; white-space: normal; }
