@@ -2658,54 +2658,8 @@ function renderSayiTools() {
   $('sayi-undo').disabled = !sayiUndo.length;
   const text = $('sayi-text');
   if (document.activeElement !== text) text.value = notes.text || '';
-  renderSayiDraft();
 }
 
-// Taslak: yazılan aday, geçmiş tahminlerin her birinden ne alırdı? Uyanlar ✓, uymayanlar ✗.
-function renderSayiDraft() {
-  const list = $('sayi-draft-list');
-  const input = $('sayi-draft-input');
-  const cand = input.value;
-  const mine = sayi.guesses[myName] || [];
-  if (!$('sayi-draft').open) return;
-  if (cand.length !== sayi.digits) {
-    list.replaceChildren(Object.assign(document.createElement('li'), { className: 'muted small', textContent: `${sayi.digits} basamaklı bir aday yaz; her tahminine karşı ne alacağını gösteririm.` }));
-    return;
-  }
-  if (!mine.length) {
-    list.replaceChildren(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz karşılaştıracak tahmin yok.' }));
-    return;
-  }
-  let bad = 0;
-  const rows = mine.map((g, i) => {
-    let plus = 0;
-    let minus = 0;
-    for (let k = 0; k < g.guess.length; k++) {
-      if (cand[k] === g.guess[k]) plus++;
-      else if (cand.includes(g.guess[k])) minus++;
-    }
-    const ok = plus === g.plus && minus === g.minus;
-    if (!ok) bad++;
-    const li = document.createElement('li');
-    li.className = ok ? 'ok' : 'bad';
-    const fmt = (p, m) => [p && `+${p}`, m && `-${m}`].filter(Boolean).join(' ') || '0';
-    li.append(
-      Object.assign(document.createElement('span'), { className: 'muted small', textContent: `${i + 1}.` }),
-      Object.assign(document.createElement('span'), { className: 'sayi-draft-g', textContent: g.guess }),
-      Object.assign(document.createElement('span'), { textContent: `gerçek ${fmt(g.plus, g.minus)}` }),
-      Object.assign(document.createElement('span'), { textContent: `aday ${fmt(plus, minus)}` }),
-      Object.assign(document.createElement('strong'), { textContent: ok ? '✓' : '✗' }),
-    );
-    return li;
-  });
-  const sum = Object.assign(document.createElement('li'), { className: 'sayi-draft-sum ' + (bad ? 'bad' : 'ok'), textContent: bad ? `${bad} tahminle çelişiyor.` : 'Bütün tahminlerle uyuyor.' });
-  list.replaceChildren(sum, ...rows);
-}
-$('sayi-draft-input').addEventListener('input', (e) => {
-  e.target.value = sayiClean(e.target.value, sayi?.digits || 0).out;
-  if (sayi) renderSayiDraft();
-});
-$('sayi-draft').addEventListener('toggle', () => { if (sayi) renderSayiDraft(); });
 $('sayi-text').addEventListener('input', (e) => {
   const notes = sayiNotes();
   notes.text = e.target.value;
@@ -2745,7 +2699,6 @@ function renderSayi() {
   renderLobby('sayi');
   const playing = sayiPlaying();
   const active = sayiActive();
-  $('game-sayi').querySelector('.memory-head').hidden = !game;
   $('sayi-end').hidden = !(active && playing);
   $('sayi-close').hidden = !game?.done;
   const secretPhase = Boolean(active && active.phase === 'secret');
@@ -2784,7 +2737,6 @@ function renderSayi() {
   $('sayi-digits').hidden = !playing;
   $('sayi-tools').hidden = !playing;
   $('sayi-extra').hidden = !playing;
-  $('game-sayi').querySelector('.sayi-help').hidden = !playing;
   $('sayi-guess').hidden = !(playing && active);
   if (playing) renderSayiTools();
   if (playing && active) {
@@ -2818,8 +2770,6 @@ function setSayi(game) {
   if (game?.now) sayiClock = game.now - Date.now();
   if (fresh) {
     sayiUndo = [];
-    $('sayi-draft-input').value = '';
-    $('sayi-draft').open = false;
     $('sayi-secret-input').value = '';
     $('sayi-guess-input').value = '';
     $('sayi-secret-error').textContent = '';

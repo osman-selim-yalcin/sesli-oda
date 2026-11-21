@@ -1203,22 +1203,13 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .sayi-timer { margin-left: auto; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 3px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
 .sayi-timer[hidden] { display: none; }
 #sayi-status { flex: 1; min-width: 0; }
-.sayi-tools { display: flex; gap: 8px; justify-content: flex-end; margin-top: -6px; }
+.sayi-info-btn { width: 26px; height: 26px; padding: 0; border-radius: 50%; font: italic 700 14px Georgia, serif; display: inline-grid; place-items: center; flex: none; }
+.sayi-pop p { margin: 0; font-size: 14px; line-height: 1.5; }
+.sayi-tools { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: -6px; }
 .sayi-tools[hidden], .sayi-extra[hidden] { display: none; }
-.sayi-extra { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.sayi-extra { display: grid; gap: 12px; }
 .sayi-notes { display: grid; gap: 4px; }
 .sayi-notes textarea { width: 100%; resize: vertical; min-height: 84px; font: inherit; color: var(--text); background: var(--panel-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 10px; }
-.sayi-draft { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); padding: 8px 10px; }
-.sayi-draft summary { cursor: pointer; }
-.sayi-draft[open] { display: grid; gap: 8px; }
-.sayi-draft input { width: 100%; font-size: 18px; font-weight: 700; letter-spacing: .14em; font-variant-numeric: tabular-nums; }
-.sayi-draft-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; max-height: 260px; overflow: auto; }
-.sayi-draft-list li { display: grid; grid-template-columns: 26px auto 1fr 1fr 18px; gap: 8px; align-items: baseline; font-size: 13px; font-variant-numeric: tabular-nums; }
-.sayi-draft-list li.bad { color: var(--danger); }
-.sayi-draft-list li.ok strong { color: var(--speak); }
-.sayi-draft-list li.sayi-draft-sum { display: block; font-weight: 700; padding-bottom: 4px; }
-.sayi-draft-list li.sayi-draft-sum.ok { color: var(--speak); }
-.sayi-draft-g { font-weight: 700; letter-spacing: .1em; }
 .sayi-num .tappable { cursor: pointer; border-radius: 6px; }
 .sayi-num .tappable:hover { background: var(--panel-2); }
 .sayi-num .tag-s { text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: var(--danger); opacity: .45; }
@@ -1235,8 +1226,6 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .sayi-num .mark-x, .sayi-slot.mark-x { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--danger); opacity: .55; }
 .sayi-num .mark-v, .sayi-slot.mark-v { color: var(--speak); }
 .sayi-num .mark-q, .sayi-slot.mark-q { color: #ffad3b; }
-.sayi-help { margin: 0; }
-.sayi-help[hidden] { display: none; }
 #sayi-opp-toggle { justify-self: center; }
 #sayi-opp-toggle[hidden] { display: none; }
 @media (max-width: 520px) {

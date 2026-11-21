@@ -488,6 +488,9 @@
               <button id="sayi-end" class="sm ghost danger" hidden>Oyunu bitir</button>
               <button id="sayi-close" class="sm ghost" hidden>Kapat</button>
               <span id="sayi-timer" class="sayi-timer" title="Tahminler başlayalı geçen süre" hidden></span>
+              <button type="button" class="sayi-info-btn" popovertarget="sayi-rules-pop" title="Nasıl oynanır" aria-label="Nasıl oynanır">i</button>
+            </div>
+            <div id="sayi-rules-pop" class="pop sayi-pop" popover><p>İki kişi oynar (tek başına oynarsan sayıyı bilgisayar tutar; bot açıksa rakibin bot olur). Lobiyi kuran kaç basamakla oynanacağını seçer (1-10). Herkes gizli bir sayı tutar: rakamları farklı, 0 ile başlamaz. Sırayla rakibin sayısını tahmin edersiniz; tahmindeki rakam sayıda varsa ve yeri doğruysa +, yeri yanlışsa - olarak sayılır (+1 -2 gibi), sayıda olmayan rakamlardan bahsedilmez. Önce başlayan bulursa rakibine bir son hak kalır; o da bulursa berabere.</p>
             </div>
             <div id="lobby-sayi" class="lobby"></div>
             <form id="sayi-secret" class="sayi-secret" hidden>
@@ -527,18 +530,14 @@
               <div id="sayi-tools" class="sayi-tools">
                 <button id="sayi-undo" type="button" class="sm ghost">↶ Geri al</button>
                 <button id="sayi-reset" type="button" class="sm ghost danger">Sıfırla</button>
+                <button type="button" class="sayi-info-btn" popovertarget="sayi-tools-pop" title="Not araçları nasıl kullanılır" aria-label="Not araçları nasıl kullanılır">i</button>
               </div>
-              <p class="muted small sayi-help">Üstteki rakamlara bas: ✗ yok, ✓ var, ? emin değilim. Alttaki tabloda bir rakamın o basamakta olup olmadığını işaretle (✗ burada değil, ✓ burada); ✓ koyduğun rakam "emin oldukların"a da yazılır. Geçmiş tahminlerdeki rakamlara basarak üstünü çizebilir ya da daire içine alabilirsin. Hepsi sadece sende görünür.</p>
+              <div id="sayi-tools-pop" class="pop sayi-pop" popover><p>Üstteki rakamlara bas: ✗ yok, ✓ var, ? emin değilim. Alttaki tabloda bir rakamın o basamakta olup olmadığını işaretle (✗ burada değil, ✓ burada); ✓ koyduğun rakam "emin oldukların"a da yazılır. Geçmiş tahminlerdeki rakamlara basarak üstünü çizebilir ya da daire içine alabilirsin. Hepsi sadece sende görünür.</p></div>
               <div id="sayi-extra" class="sayi-extra">
                 <label class="sayi-notes">
                   <span class="muted small">Notlar</span>
                   <textarea id="sayi-text" rows="4" placeholder="ör. 6 ya da 8 üçüncü basamakta"></textarea>
                 </label>
-                <details id="sayi-draft" class="sayi-draft">
-                  <summary class="muted small">Taslak: aklındaki sayıyı dene</summary>
-                  <input id="sayi-draft-input" inputmode="numeric" autocomplete="off" placeholder="aday sayı" aria-label="Taslak sayı">
-                  <ol id="sayi-draft-list" class="sayi-draft-list"></ol>
-                </details>
               </div>
               <button id="sayi-opp-toggle" type="button" class="sm"></button>
               <div id="sayi-opp" class="sayi-board" hidden>
@@ -546,7 +545,6 @@
                 <ol id="sayi-theirs" class="sayi-list"></ol>
               </div>
             </div>
-            <p class="muted small memory-help">İki kişi oynar (tek başına oynarsan sayıyı bilgisayar tutar; bot açıksa rakibin bot olur). Lobiyi kuran kaç basamakla oynanacağını seçer (1-10). Herkes gizli bir sayı tutar: rakamları farklı, 0 ile başlamaz. Sırayla rakibin sayısını tahmin edersiniz; tahmindeki rakam sayıda varsa ve yeri doğruysa +, yeri yanlışsa - olarak sayılır (+1 -2 gibi), sayıda olmayan rakamlardan bahsedilmez. Önce başlayan bulursa rakibine bir son hak kalır; o da bulursa berabere.</p>
           </div>
 
           <!-- Oyun öner: istenen oyun adım adım anlatılır, kaydedilir; site sahibi eklenip eklenmeyeceğine karar verir -->
