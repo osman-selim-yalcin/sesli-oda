@@ -322,6 +322,7 @@ function getRoom(code) {
       memory: null, // eşini bul (aşağıda)
       sayi: null, // sayı bulmaca (aşağıda); gizli sayılar sadece sahibine gider
       hedef: null, // hedef sayı (games/hedef.js)
+      kural: null, // gizli kural (games/kural.js); kural oyun bitene kadar istemciye gitmez
       memoryLog: memoryLogs.get(code),
       klotskiLog: klotskiLogs.get(code),
       radio: null, // odada çalan radyo istasyonu
@@ -590,7 +591,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), kural: kural.view(room.kural, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -1116,6 +1117,8 @@ io.on('connection', (socket) => {
     sendSayi(room);
   });
 
+  kural.bind(socket, () => code); // Gizli kural olayları (games/kural.js)
+
   // ---------- Radyo ----------
   // Seçilen istasyon odanın ortak radyosudur; Radyo sayfasındaki herkes onu dinler.
 
@@ -1248,6 +1251,7 @@ io.on('connection', (socket) => {
     if (!room.bot) kelimeLeft(room, BOT);
     if (!room.bot) sayiLeft(room, BOT);
     if (!room.bot) hedef.left(room, BOT);
+    if (!room.bot) kural.left(room, BOT);
     kelimeBotLater(room);
     postSystem(room, `${room.users.get(socket.id).name} botu ${room.bot ? 'ekledi; lobilere katılır' : 'çıkardı'}`);
   });
@@ -1423,6 +1427,7 @@ io.on('connection', (socket) => {
       if (current) memoryLeft(current, user.name);
       if (current) sayiLeft(current, user.name);
       if (current) hedef.left(current, user.name);
+      if (current) kural.left(current, user.name);
       if (current) for (const game of Object.keys(current.lobbies)) leaveLobby(current, game, user.name);
     }, REJOIN_GRACE));
     if (room.users.size === 0) {
@@ -1430,6 +1435,7 @@ io.on('connection', (socket) => {
       clearMemoryTimers(code);
       clearTimeout(sayiTimers.get(code));
       hedef.clearTimers(code);
+      kural.clear(code);
       rooms.delete(code);
       deleteRoomImages(code);
     }
@@ -1454,6 +1460,7 @@ function gameRunning(room, game) {
   if (game === 'memory') return Boolean(room.memory && !room.memory.done);
   if (game === 'sayi') return Boolean(room.sayi && !room.sayi.done);
   if (game === 'hedef') return hedef.running(room);
+  if (game === 'kural') return kural.running(room);
   return Boolean(room.kelime && room.kelime.phase !== 'done');
 }
 
@@ -1464,6 +1471,7 @@ function lastPlayers(room, game) {
       : game === 'memory' ? room.memory?.players
       : game === 'sayi' ? room.sayi?.players
       : game === 'hedef' ? room.hedef?.players
+      : game === 'kural' ? room.kural?.players
         : room.kelime?.players.map((p) => p.name);
   const here = lobbyHere(room);
   return (names || []).filter((n) => here.has(n));
@@ -1490,6 +1498,7 @@ const LOBBY_GAMES = {
   memory: { label: 'Eşini Bul', min: 1, max: MAX_USERS + 1, opts: { numbers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], colors: ['yesil', 'turuncu', 'mavi', 'kirmizi'] }, start: (room, by, players, opts) => startMemory(room, by, players, opts) },
   hedef: { label: 'Hedef sayı', min: 1, max: 6, opts: { rounds: 5 }, start: (room, by, players, opts) => hedef.start(room, by, players, opts) },
   sayi: { label: 'Sayı bulmaca', min: 1, max: 2, opts: { digits: 4 }, start: (room, by, players, opts) => startSayi(room, by, players, opts) },
+  kural: { label: 'Gizli kural', min: 1, max: 6, opts: {}, start: (room, by, players) => kural.start(room, by, players) },
   kelime: { label: 'kelime', min: 2, max: KELIME_PLAYERS, opts: { narrator: null }, start: (room, by, players, opts) => startKelime(room, by, players, opts.narrator) },
 };
 
@@ -2367,6 +2376,10 @@ function finishSayi(room, winners, reason) {
   if (winners.length === 1) return postSystem(room, `${prefix}Sayı bulmaca bitti: 🏆 ${winners[0]}. ${summary}`);
   postSystem(room, `${prefix}Sayı bulmaca bitti. ${summary}`);
 }
+
+// ---------- Gizli kural ----------
+// Oyunun kodu games/kural.js içinde.
+const kural = require('./games/kural')({ io, rooms, getRoom, postSystem, rand, pick, BOT });
 
 // ---------- Kaydırmaca (Klotski) ----------
 // 4×5 tahtada parçalar kaydırılır; büyük kare alttaki çıkışa (alt orta) gelince bulmaca biter. Oyun tarayıcıda

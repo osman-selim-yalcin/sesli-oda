@@ -1349,4 +1349,70 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   .hedef-ops button { flex: 1; width: auto; }
   .hedef-answer-box { flex: 1 1 100%; margin-right: 0; text-align: center; }
   #hedef-send { flex: 1 1 auto; }
+/* ---------- Gizli kural ---------- */
+.kural { display: grid; gap: 12px; }
+#kural-status { flex: 1; min-width: 0; }
+#kural-rules-pop { width: min(420px, calc(100vw - 32px)); }
+.kural-play { display: grid; gap: 14px; width: 100%; min-width: 0; }
+.kural-seq { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; white-space: nowrap; }
+.kural-example { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--radius-sm); background: rgba(61, 220, 132, .08); border: 1px solid rgba(61, 220, 132, .35); }
+.kural-example .kural-seq { color: var(--speak); }
+.kural-reveal { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--accent-soft); border: 1px solid var(--accent); }
+.kural-reveal strong { font-size: 17px; }
+.kural-try { display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line-2); }
+.kural-inputs { display: flex; align-items: center; gap: 6px; }
+.kural-n { width: 58px; height: 48px; padding: 0; text-align: center; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.kural-dot { color: var(--muted); font-size: 20px; font-weight: 700; }
+.kural-try button[type=submit] { height: 48px; padding: 0 20px; }
+.kural-hint { flex: 1 1 180px; min-width: 0; }
+.kural-hint.error { color: var(--danger); }
+.kural-hint.ok { color: var(--speak); font-weight: 600; }
+.kural-hint.no { color: var(--danger); font-weight: 600; }
+.kural-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+.kural-cols:has(> .kural-guess-box[hidden]), .kural-cols:has(> .kural-board[hidden]) { grid-template-columns: minmax(0, 1fr); }
+.kural-board { min-width: 0; }
+.kural-col-head { display: flex; justify-content: space-between; gap: 8px; padding: 6px 14px; border-bottom: 1px solid var(--line); }
+.kural-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto; }
+.kural-row { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 8px; padding: 6px 14px; border-bottom: 1px solid var(--line); }
+.kural-row:last-child { border-bottom: none; }
+.kural-row.ok { background: rgba(61, 220, 132, .08); }
+.kural-row.ok .kural-res { color: var(--speak); }
+.kural-row.no { background: var(--danger-soft); }
+.kural-row.no .kural-res { color: var(--danger); }
+.kural-row .kural-seq { font-size: 18px; }
+.kural-row.new { animation: kural-flash .9s ease-out; }
+@keyframes kural-flash { from { box-shadow: inset 0 0 0 2px var(--text); } }
+.kural-i { text-align: right; font-variant-numeric: tabular-nums; }
+.kural-res { font-size: 14px; white-space: nowrap; }
+.kural-empty { padding: 10px 14px; }
+.kural-wrong { margin: 0; padding: 8px 14px; border-top: 1px solid var(--line); }
+.kural-guess-box { display: grid; gap: 8px; min-width: 0; }
+.kural-guess-toggle { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; padding: 12px 14px; font-weight: 700; border-color: var(--accent); }
+.kural-guess-toggle small { font-weight: 400; }
+.kural-pick { display: grid; gap: 8px; padding: 10px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line-2); min-width: 0; }
+.kural-pick input[type=search] { width: 100%; }
+.kural-rules { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 340px; overflow: auto; }
+.kural-rule { display: flex; align-items: stretch; gap: 4px; }
+.kural-rule-pick { flex: 1; min-width: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; padding: 8px 10px; font-size: 14px; line-height: 1.35; background: var(--panel-2); }
+.kural-rule.chosen .kural-rule-pick { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+.kural-rule.struck .kural-rule-pick { text-decoration: line-through; text-decoration-color: var(--danger); text-decoration-thickness: 2px; color: var(--muted); opacity: .6; }
+.kural-rule.bad .kural-rule-pick { opacity: .45; }
+.kural-rule-tag { flex: none; color: var(--danger); text-decoration: none; display: inline-block; }
+.kural-strike { flex: none; width: 36px; padding: 0; color: var(--muted); }
+.kural-confirm { display: grid; gap: 8px; padding: 10px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--accent); }
+.kural-confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.kural-others { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+@media (max-width: 800px) {
+  .kural-cols { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px) {
+  .kural-try { padding: 10px; gap: 8px; }
+  .kural-inputs { gap: 4px; flex: 1 1 auto; }
+  .kural-n { width: 50px; height: 44px; font-size: 20px; }
+  .kural-try button[type=submit] { height: 44px; padding: 0 14px; flex: 1 1 auto; }
+  .kural-hint { flex-basis: 100%; }
+  .kural-row { padding: 6px 10px; grid-template-columns: 24px 1fr auto; }
+  .kural-row .kural-seq { font-size: 17px; }
+  .kural-col-head { padding: 6px 10px; }
+  .kural-others { grid-template-columns: minmax(0, 1fr); }
 }

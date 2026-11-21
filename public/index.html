@@ -301,6 +301,7 @@
             <button id="game-tab-memory" class="tab" role="tab">Eşini bul</button>
             <button id="game-tab-klotski" class="tab" role="tab">Kaydırmaca</button>
             <button id="game-tab-sayi" class="tab" role="tab">Sayı bulmaca</button>
+            <button id="game-tab-kural" class="tab" role="tab">Gizli kural</button>
             <button id="game-tab-hedef" class="tab" role="tab">Hedef sayı</button>
             <button id="game-tab-peacock" class="tab" role="tab">Tavus kuşu</button>
             <button id="game-tab-oner" class="tab" role="tab">Oyun öner</button>
@@ -618,6 +619,63 @@
               </div>
             </div>
             <ol id="hedef-board" class="timing-list hedef-board" hidden></ol>
+          <!-- Gizli kural: 3 sayılık dizilerle bilgisayarın gizli kuralını bul (public/kural.js) -->
+          <div id="game-kural" class="kural" hidden>
+            <div class="memory-head">
+              <span id="kural-status" class="muted small"></span>
+              <button id="kural-end" class="sm ghost danger" hidden>Oyunu bitir</button>
+              <button id="kural-close" class="sm ghost" hidden>Kapat</button>
+              <span id="kural-timer" class="sayi-timer" title="Oyun başlayalı geçen süre" hidden></span>
+              <button type="button" class="sayi-info-btn" popovertarget="kural-rules-pop" title="Nasıl oynanır" aria-label="Nasıl oynanır">i</button>
+            </div>
+            <div id="kural-rules-pop" class="pop sayi-pop kural-pop" popover>
+              <p>Bilgisayar 3 sayılık diziler için gizli bir kural tutar (ör. "artan sırada", "toplamı çift"). Sayılar 1-20 arası, aynı sayı tekrar edebilir. Başta herkese kurala uyan bir örnek dizi gösterilir.</p>
+              <p>Sıra yok: herkes aynı anda, istediği kadar dizi dener. Her denemeye ✓ uyuyor ya da ✗ uymuyor cevabı gelir. Denemelerin sadece sende görünür; oyun bitince herkesinki açılır.</p>
+              <p>Kuralı bildiğini düşününce "Kuralı söyle"ye bas, listeden seç ve onayla. Doğruysa bitirirsin; yanlışsa ceza alır, devam edersin. Listede elediğin kuralların üstünü çizebilirsin (sadece sende).</p>
+              <p><strong>Puanlama:</strong> 1500 − 40 × deneme − 150 × yanlış tahmin − 2,5 × saniye (en az 0). Örnek: 10 denemede, 1 yanlışla, 2 dakikada bulursan 1500 − 400 − 150 − 300 = 650 puan. Süre oyun başlayınca işler, bulunca senin süren durur. Bulamayan 0 alır.</p>
+              <p>Herkes bulunca oyun biter; yüksek puan kazanır, eşitse berabere. Biri "Oyunu bitir"e basarsa o ana kadar bulanların puanına bakılır. Ayrılan oyundan düşer, kalanlar devam eder.</p>
+            </div>
+            <div id="lobby-kural" class="lobby"></div>
+            <div id="kural-play" class="kural-play" hidden>
+              <ul id="kural-scores" class="sayi-scores"></ul>
+              <div id="kural-reveal" class="kural-reveal" hidden></div>
+              <div class="kural-example">
+                <span class="muted small">Kurala uyan örnek</span>
+                <span id="kural-example" class="kural-seq ok"></span>
+              </div>
+              <form id="kural-try" class="kural-try" autocomplete="off">
+                <div class="kural-inputs">
+                  <input id="kural-n1" class="kural-n" inputmode="numeric" enterkeyhint="next" maxlength="2" aria-label="Birinci sayı">
+                  <span class="kural-dot">·</span>
+                  <input id="kural-n2" class="kural-n" inputmode="numeric" enterkeyhint="next" maxlength="2" aria-label="İkinci sayı">
+                  <span class="kural-dot">·</span>
+                  <input id="kural-n3" class="kural-n" inputmode="numeric" enterkeyhint="send" maxlength="2" aria-label="Üçüncü sayı">
+                </div>
+                <button type="submit" class="primary">Dene</button>
+                <span id="kural-hint" class="muted small kural-hint"></span>
+              </form>
+              <div class="kural-cols">
+                <div class="sayi-board kural-board">
+                  <div class="kural-col-head muted small"><span id="kural-tries-title">Denemelerin</span><span id="kural-tries-count"></span></div>
+                  <ol id="kural-mine" class="kural-list"></ol>
+                </div>
+                <div id="kural-guess-box" class="kural-guess-box">
+                  <button id="kural-guess-toggle" type="button" class="kural-guess-toggle"></button>
+                  <div id="kural-pick" class="kural-pick" hidden>
+                    <input id="kural-search" type="search" placeholder="Kural ara…" aria-label="Kural ara" autocomplete="off">
+                    <ul id="kural-rules" class="kural-rules"></ul>
+                    <div id="kural-confirm" class="kural-confirm" hidden>
+                      <span id="kural-choice" class="small"></span>
+                      <div class="kural-confirm-actions">
+                        <button id="kural-cancel" type="button" class="sm ghost">Vazgeç</button>
+                        <button id="kural-submit" type="button" class="sm primary">Bu kural</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div id="kural-others" class="kural-others" hidden></div>
+            </div>
           </div>
 
           <!-- Oyun öner: istenen oyun adım adım anlatılır, kaydedilir; site sahibi eklenip eklenmeyeceğine karar verir -->
@@ -827,5 +885,6 @@
   <script src="/sfx.js"></script>
   <script src="/app.js"></script>
   <script src="/hedef.js"></script>
+  <script src="/kural.js"></script>
 </body>
 </html>
