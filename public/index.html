@@ -118,6 +118,8 @@
           <button id="nav-members" class="top-tab" role="tab" hidden><svg class="ic"><use href="#i-users"></use></svg>Üyeler</button>
         </nav>
         <div class="topbar-right">
+          <!-- Yalnızca yöneticide görünür: odadaki herkesin ekranına amuda kalkan eşeği çıkarır (public/esek.js) -->
+          <button id="esek-btn" class="ghost sm esek-btn" title="Eşeği çıkar (herkeste görünür)" aria-label="Eşeği çıkar" hidden>🫏</button>
           <button id="topbar-now" class="topbar-now ghost sm" popovertarget="now-pop" title="Çalan şarkı: ses, duraklat, geç" hidden></button>
           <button id="settings-btn" class="topbar-settings ghost" popovertarget="settings-pop" title="Ayarlar ve profil">
             <span id="topbar-avatar"></span><svg class="ic"><use href="#i-settings"></use></svg>
@@ -201,8 +203,6 @@
           <div class="player-shield"></div>
           <div id="player-empty" class="player-empty">
             <div>
-              <!-- Amuda kalkan 3D eşek (public/esek.js); WebGL yoksa müzik simgesi kalır -->
-              <div id="esek" class="esek" title="Sürükleyip çevirebilirsin"></div>
               <svg class="ic"><use href="#i-music"></use></svg>
               <p>Henüz bir şey çalmıyor</p>
               <p class="muted small">Aşağıdan şarkı ara ya da YouTube veya X linki yapıştır.</p>

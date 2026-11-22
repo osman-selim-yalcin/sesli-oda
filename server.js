@@ -48,6 +48,7 @@ const RACE_MISS = 10000;        // ms; durdurmayan o tur için bu kadar fark yem
 const TIMING_RESULTS = 100;    // istemciye giden son deneme sayısı (her kişinin her hedefteki en iyisi de gider)
 const TIMING_LOG = 5000;       // kayıtta tutulan en fazla deneme
 const TIMING_COOLDOWN = 1000;  // ms
+const ESEK_COOLDOWN = 4000;    // ms; yöneticinin eşeği art arda çıkarması
 const RACE_ROUNDS = [3, 5, 10]; // yarışta seçilebilen tur sayıları
 const DINO_COUNTDOWN = 5000;   // ms; dinozor oyunu başlamadan önce
 const DINO_MAX_TIME = 20 * 60 * 1000; // bundan uzun süren oyun bitmiş sayılır
@@ -594,7 +595,7 @@ io.on('connection', (socket) => {
 
     const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
     code = roomCode;
-    room.users.set(socket.id, { name, muted: false, clientId, recording: false });
+    room.users.set(socket.id, { name, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
     ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(room.code), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(room.code), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
@@ -1158,6 +1159,17 @@ io.on('connection', (socket) => {
     io.to(room.code).emit('radio', null);
     postSystem(room, `📻 ${name} radyoyu kapattı`);
   }));
+
+  // ---------- Amuda kalkan eşek ----------
+  // Yalnızca yönetici çıkarır; odadaki herkesin ekranında ortada belirir (public/esek.js). Art arda basılmasın diye bekleme var.
+  let lastEsek = 0;
+  socket.on('esek:show', () => {
+    if (!code || Date.now() - lastEsek < ESEK_COOLDOWN) return;
+    const user = getRoom(code).users.get(socket.id);
+    if (!user?.admin) return;
+    lastEsek = Date.now();
+    io.to(code).emit('esek', { by: user.name, seed: Math.floor(Math.random() * 1e9) });
+  });
 
   // ---------- Süre tahmini ----------
   // Süreyi oyuncunun tarayıcısı ölçer; sunucu sadece sonuçları odaya dağıtır.

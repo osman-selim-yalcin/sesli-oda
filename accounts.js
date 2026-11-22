@@ -226,4 +226,6 @@ function setup(app, { imageTypes, onProfile, online }) {
   });
 }
 
-module.exports = { setup, load, accountByToken, profiles, seen };
+const isAdmin = (key) => ADMINS.has(key);
+
+module.exports = { setup, load, accountByToken, profiles, seen, isAdmin };

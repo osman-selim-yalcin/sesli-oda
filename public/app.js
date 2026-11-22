@@ -5368,19 +5368,16 @@ socket.on('video-state', ({ id, state }) => {
   if (peer) peer.row.querySelector('.p-badge').hidden = state !== 'buffering';
 });
 
-// Oynatıcı boşken ortada amuda kalkan 3D eşek durur (public/esek.js). three.js büyük olduğundan ilk kez
-// oynatıcı boş göründüğünde yüklenir; WebGL ya da yükleme başarısızsa müzik simgesi kalır.
-let donkeyLoading = false;
-function loadDonkey() {
-  if (donkeyLoading) return;
-  donkeyLoading = true;
-  import('/esek.js')
-    .then((m) => {
-      m.mountDonkey($('esek'));
-      $('player-empty').classList.add('has-esek');
-    })
-    .catch((err) => console.warn('eşek yüklenemedi', err));
-}
+// Amuda kalkan eşek: yönetici çıkarınca odadaki herkesin ekranında ortada belirir (public/esek.js).
+// three.js büyük olduğundan ilk gösteride yüklenir (yöneticide düğme görününce önceden).
+let esekModule = null;
+const loadEsek = () => (esekModule ||= import('/esek.js'));
+socket.on('esek', (data) => {
+  loadEsek()
+    .then((m) => m.showDonkey(data))
+    .catch((err) => console.warn('eşek gösterilemedi', err));
+});
+$('esek-btn').onclick = () => socket.emit('esek:show');
 
 function applyMedia() {
   if (!playerReady || !media) return;
@@ -5388,7 +5385,6 @@ function applyMedia() {
   const cur = media.current;
 
   $('player-empty').hidden = Boolean(cur);
-  if (!cur) loadDonkey();
   $('now-title').textContent = cur ? cur.title : 'Şu an bir şey çalmıyor';
   $('now-title').classList.toggle('muted', !cur);
   $('now-by').textContent = cur ? `${cur.by} ekledi` : '';
@@ -5943,6 +5939,7 @@ function renderAccount() {
   $('profile-avatar').replaceChildren(makeAvatar(account.name));
   $('topbar-avatar').replaceChildren(makeAvatar(account.name));
   $('nav-members').hidden = !account.admin;
+  $('esek-btn').hidden = !account.admin;
   for (const id of ['avatar-change', 'profile-change']) $(id).textContent = account.avatar ? 'Resmi değiştir' : 'Resim ekle';
   for (const id of ['avatar-remove', 'profile-remove']) $(id).hidden = !account.avatar;
 }
