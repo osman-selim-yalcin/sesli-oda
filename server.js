@@ -45,7 +45,8 @@ const RACE_TARGETS = [3, 10];   // yarış hedefleri bu aralıktan (sn)
 const RACE_COUNTDOWN = 3000;    // ms; her turdan önce ortak geri sayım
 const RACE_REVEAL = 3500;       // ms; tur sonuçları bu kadar görünür, sonra sonraki tur
 const RACE_MISS = 10000;        // ms; durdurmayan o tur için bu kadar fark yemiş sayılır
-const TIMING_RESULTS = 100;    // odada tutulan son deneme sayısı
+const TIMING_RESULTS = 100;    // istemciye giden son deneme sayısı (her kişinin her hedefteki en iyisi de gider)
+const TIMING_LOG = 5000;       // kayıtta tutulan en fazla deneme
 const TIMING_COOLDOWN = 1000;  // ms
 const RACE_ROUNDS = [3, 5, 10]; // yarışta seçilebilen tur sayıları
 const DINO_COUNTDOWN = 5000;   // ms; dinozor oyunu başlamadan önce
@@ -299,6 +300,7 @@ const dinoBoards = new Map(); // oda kodu -> { hold: [{ name, dist, at }], tap: 
 const memoryLogs = new Map(); // oda kodu -> [{ at, pairs, ms, full, players: [{ name, pairs, moves }] }] biten Eşini Bul oyunları
 const kelimePools = new Map(); // oda kodu -> [{ text, by }] kelime oyununun havuzu
 const klotskiLogs = new Map(); // oda kodu -> [{ level, name, moves, ms, at }] bitirilen Kaydırmaca bulmacaları
+const timingLogs = new Map(); // oda kodu -> [{ name, target, elapsed, at, race? }] süre tahmini denemeleri
 const oneriler = []; // oyun önerileri (tek oda var): [{ id, by, at, fields, status, note, updatedAt }]
 
 function getRoom(code) {
@@ -310,12 +312,13 @@ function getRoom(code) {
     if (!kelimePools.has(code)) kelimePools.set(code, []);
     if (!memoryLogs.has(code)) memoryLogs.set(code, []);
     if (!klotskiLogs.has(code)) klotskiLogs.set(code, []);
+    if (!timingLogs.has(code)) timingLogs.set(code, []);
     rooms.set(code, {
       code,
       history: histories.get(code),
       customSfx: customSfxByRoom.get(code),
       tierLists: tierListsByRoom.get(code),
-      timing: { target: 10, results: [], race: null }, // süre tahmini: sadece hafızada
+      timing: { target: 10, results: timingLogs.get(code), race: null }, // süre tahmini; denemeler kalıcı (timingboard), istemciye timingView gider
       dinoBoard: dinoBoards.get(code),
       kelimePool: kelimePools.get(code),
       kelime: null, // kelime oyunu (aşağıda); hedef kelime sadece anlatıcıya gider
@@ -325,6 +328,7 @@ function getRoom(code) {
       hedef: null, // hedef sayı (games/hedef.js)
       kural: null, // gizli kural (games/kural.js); kural oyun bitene kadar istemciye gitmez
       mantik: null, // mantık tablosu (games/mantik.js); çözüm bitene kadar gönderilmez
+      xox: null, // ittirmeli XOX (games/xox.js)
       memoryLog: memoryLogs.get(code),
       klotskiLog: klotskiLogs.get(code),
       radio: null, // odada çalan radyo istasyonu
@@ -593,7 +597,7 @@ io.on('connection', (socket) => {
     room.users.set(socket.id, { name, muted: false, clientId, recording: false });
     socket.join(code);
     socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: room.timing, dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(room.code), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
+    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(room.code), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), xox: xox.view(room.xox), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
   });
@@ -1124,6 +1128,7 @@ io.on('connection', (socket) => {
   // ---------- Mantık tablosu ----------
 
   mantik.bind(socket, () => code);
+  xox.bind(socket, () => code); // İttirmeli XOX (games/xox.js)
 
   // ---------- Radyo ----------
   // Seçilen istasyon odanın ortak radyosudur; Radyo sayfasındaki herkes onu dinler.
@@ -1165,7 +1170,7 @@ io.on('connection', (socket) => {
     }
     if (!Number.isInteger(target) || target < TIMING_TARGET_MIN || target > TIMING_TARGET_MAX) return;
     room.timing.target = target;
-    io.to(code).emit('timing', room.timing);
+    sendTiming(room);
     socket.to(code).emit('notice', `${room.users.get(socket.id).name} süre tahmini hedefini ${target} sn yaptı`);
   });
 
@@ -1176,9 +1181,7 @@ io.on('connection', (socket) => {
     if (!Number.isInteger(target) || target < TIMING_TARGET_MIN || target > TIMING_TARGET_MAX) return;
     lastTiming = Date.now();
     const room = getRoom(code);
-    room.timing.results.push({ name: room.users.get(socket.id).name, target, elapsed: Math.round(elapsed), at: Date.now() });
-    if (room.timing.results.length > TIMING_RESULTS) room.timing.results.shift();
-    io.to(code).emit('timing', room.timing);
+    logTiming(room, [{ name: room.users.get(socket.id).name, target, elapsed: Math.round(elapsed), at: Date.now() }]);
   });
 
   // Yarış: turlar herkeste aynı anda başlar (ortak geri sayımdan sonra), herkes sadece durdurur.
@@ -1194,7 +1197,7 @@ io.on('connection', (socket) => {
     if (!mine || mine.length !== round || Date.now() < race.roundStart - 500) return;
     if (!Number.isFinite(elapsed) || elapsed <= 0 || elapsed > raceRoundTime(race)) return;
     mine.push(Math.round(elapsed));
-    io.to(code).emit('timing', room.timing);
+    sendTiming(room);
     checkRaceRound(room);
   });
 
@@ -1211,7 +1214,7 @@ io.on('connection', (socket) => {
     const room = getRoom(code);
     if (!room.timing.race?.done) return;
     room.timing.race = null;
-    io.to(code).emit('timing', room.timing);
+    sendTiming(room);
   });
 
   // ---------- Dinozor koşusu ----------
@@ -1436,6 +1439,7 @@ io.on('connection', (socket) => {
       if (current) hedef.left(current, user.name);
       if (current) kural.left(current, user.name);
       if (current) mantik.left(current, user.name);
+      if (current) xox.left(current, user.name);
       if (current) for (const game of Object.keys(current.lobbies)) leaveLobby(current, game, user.name);
     }, REJOIN_GRACE));
     if (room.users.size === 0) {
@@ -1445,6 +1449,7 @@ io.on('connection', (socket) => {
       hedef.clearTimers(code);
       kural.clear(code);
       mantik.clear(code);
+      xox.clear(code);
       rooms.delete(code);
       deleteRoomImages(code);
     }
@@ -1471,6 +1476,7 @@ function gameRunning(room, game) {
   if (game === 'hedef') return hedef.running(room);
   if (game === 'kural') return kural.running(room);
   if (game === 'mantik') return mantik.running(room);
+  if (game === 'xox') return xox.running(room);
   return Boolean(room.kelime && room.kelime.phase !== 'done');
 }
 
@@ -1483,6 +1489,7 @@ function lastPlayers(room, game) {
       : game === 'hedef' ? room.hedef?.players
       : game === 'kural' ? room.kural?.players
       : game === 'mantik' ? room.mantik?.players
+      : game === 'xox' ? room.xox?.players
         : room.kelime?.players.map((p) => p.name);
   const here = lobbyHere(room);
   return (names || []).filter((n) => here.has(n));
@@ -1511,6 +1518,7 @@ const LOBBY_GAMES = {
   sayi: { label: 'Sayı bulmaca', min: 1, max: 2, opts: { digits: 4 }, start: (room, by, players, opts) => startSayi(room, by, players, opts) },
   kural: { label: 'Gizli kural', min: 1, max: 6, opts: {}, start: (room, by, players) => kural.start(room, by, players) },
   mantik: { label: 'Mantık tablosu', min: 1, max: 6, opts: { level: 'kolay' }, start: (room, by, players, opts) => mantik.start(room, by, players, opts) },
+  xox: { label: 'İttirmeli XOX', min: 1, max: 2, opts: {}, start: (room, by, players) => xox.start(room, by, players) },
   kelime: { label: 'kelime', min: 2, max: KELIME_PLAYERS, opts: { narrator: null }, start: (room, by, players, opts) => startKelime(room, by, players, opts.narrator) },
 };
 
@@ -1539,7 +1547,7 @@ function raceTimer(room, ms, fn) {
 function startRaceRound(room, i) {
   const race = room.timing.race;
   Object.assign(race, { round: i, roundStart: Date.now() + RACE_COUNTDOWN, revealUntil: null });
-  io.to(room.code).emit('timing', room.timing);
+  sendTiming(room);
   raceTimer(room, RACE_COUNTDOWN + raceRoundTime(race), () => endRaceRound(room));
   // Bot hedefin ±1,5 sn yakınında durdurur.
   if (race.scores[BOT]) {
@@ -1547,7 +1555,7 @@ function startRaceRound(room, i) {
     setTimeout(() => {
       if (room.timing.race !== race || race.done || race.round !== i || race.revealUntil || race.scores[BOT].length !== i) return;
       race.scores[BOT].push(Math.round(elapsed));
-      io.to(room.code).emit('timing', room.timing);
+      sendTiming(room);
       checkRaceRound(room);
     }, RACE_COUNTDOWN + elapsed);
   }
@@ -1569,7 +1577,7 @@ function endRaceRound(room) {
   race.ended = race.round + 1;
   race.revealUntil = Date.now() + RACE_REVEAL;
   if (race.ended === race.targets.length) return finishRace(room);
-  io.to(room.code).emit('timing', room.timing);
+  sendTiming(room);
   raceTimer(room, RACE_REVEAL, () => startRaceRound(room, race.round + 1));
 }
 
@@ -1578,7 +1586,11 @@ function finishRace(room, endedBy) {
   const race = room.timing.race;
   clearTimeout(raceTimers.get(room.code));
   race.done = true;
-  io.to(room.code).emit('timing', room.timing);
+  sendTiming(room);
+  // Yarışta durdurulan turlar da denemelere (ve en iyiler tablosuna) girer; bot girmez.
+  const at = Date.now();
+  logTiming(room, race.players.filter((n) => n !== BOT).flatMap((name) => race.scores[name].slice(0, race.ended)
+    .map((ms, i) => (ms == null ? null : { name, target: race.targets[i], elapsed: ms, at: at + i, race: true })).filter(Boolean)));
   const prefix = endedBy ? `${endedBy} yarışı bitirdi. ` : 'Süre yarışı bitti! ';
   if (!race.ended) return postSystem(room, `${prefix}Biten tur olmadı.`);
   const ranked = [...race.players].sort((a, b) => raceTotal(race, a) - raceTotal(race, b));
@@ -1586,6 +1598,52 @@ function finishRace(room, endedBy) {
   const winners = ranked.filter((n) => raceTotal(race, n) === best);
   const secs = (best / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   postSystem(room, `${prefix}🏆 Kazanan: ${winners.join(', ')} (toplam ${secs} sn fark)`);
+}
+
+// ---------- Süre tahmini kaydı ----------
+// Bütün denemeler kayıtta durur (room_state 'timingboard'); istemciye son denemeler ve herkesin her hedefteki
+// en iyisi gider. Bilgisayardaki sunucu da aynı kaydı kullanır; kaydetmeden önce kayıttakilerle birleştirilir.
+
+function timingView(room) {
+  const log = room.timing.results;
+  const keep = new Set(log.slice(-TIMING_RESULTS));
+  const best = new Map();
+  for (const r of log) {
+    const key = `${r.name}|${r.target}`;
+    const old = best.get(key);
+    if (!old || Math.abs(r.elapsed - r.target * 1000) < Math.abs(old.elapsed - old.target * 1000)) best.set(key, r);
+  }
+  for (const r of best.values()) keep.add(r);
+  return { target: room.timing.target, race: room.timing.race, results: log.filter((r) => keep.has(r)) };
+}
+
+const sendTiming = (room) => io.to(room.code).emit('timing', timingView(room));
+
+function mergeTimingLog(log, from) {
+  const seen = new Set();
+  const all = [...log, ...(Array.isArray(from) ? from : [])].filter((r) => {
+    const key = `${r.at}|${r.name}|${r.target}|${r.elapsed}`;
+    return !seen.has(key) && seen.add(key);
+  });
+  all.sort((a, b) => a.at - b.at);
+  log.splice(0, log.length, ...all.slice(-TIMING_LOG));
+}
+
+async function logTiming(room, entries) {
+  if (!entries.length) return sendTiming(room);
+  room.timing.results.push(...entries);
+  sendTiming(room); // önce hemen göster, kayıtla birleştirince yeniden gönder
+  if (store.enabled) {
+    try {
+      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.timingboard&select=data`);
+      mergeTimingLog(room.timing.results, row?.data);
+    } catch (err) {
+      console.warn('süre tahmini kaydı okuma', err.message);
+    }
+  }
+  mergeTimingLog(room.timing.results);
+  store.save(room.code, 'timingboard', () => room.timing.results);
+  sendTiming(room);
 }
 
 // ---------- Oyun önerileri ----------
@@ -2393,6 +2451,10 @@ function finishSayi(room, winners, reason) {
 // Oyunun kodu games/kural.js içinde.
 const kural = require('./games/kural')({ io, rooms, getRoom, postSystem, rand, pick, BOT });
 
+// ---------- İttirmeli XOX ----------
+// Oyunun kodu games/xox.js içinde.
+const xox = require('./games/xox').create({ io, rooms, getRoom, postSystem, rand, BOT });
+
 // ---------- Kaydırmaca (Klotski) ----------
 // 4×5 tahtada parçalar kaydırılır; büyük kare alttaki çıkışa (alt orta) gelince bulmaca biter. Oyun tarayıcıda
 // oynanır; bitince adımlar sunucuya gelir, sunucu her adımı yeniden oynatıp doğrular ve hamleyi kendisi sayar
@@ -2686,6 +2748,7 @@ async function loadSaved() {
     if (kind === 'kelimeler') kelimePools.set(room, data);
     if (kind === 'memoryboard') memoryLogs.set(room, data);
     if (kind === 'klotskiboard') klotskiLogs.set(room, data);
+    if (kind === 'timingboard') timingLogs.set(room, data);
     if (kind === 'hedefboard') hedef.loadBoard(room, data);
     if (kind === 'oneriler') mergeOneriler(data);
     if (kind === 'dinoboard') dinoBoards.set(room, { auto: [], hold: [], tap: [], ...data });

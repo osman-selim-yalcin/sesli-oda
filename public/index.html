@@ -304,6 +304,7 @@
             <button id="game-tab-kural" class="tab" role="tab">Gizli kural</button>
             <button id="game-tab-hedef" class="tab" role="tab">Hedef sayı</button>
             <button id="game-tab-mantik" class="tab" role="tab">Mantık tablosu</button>
+            <button id="game-tab-xox" class="tab" role="tab">İttirmeli XOX</button>
             <button id="game-tab-peacock" class="tab" role="tab">Tavus kuşu</button>
             <button id="game-tab-oner" class="tab" role="tab">Oyun öner</button>
             <button id="bot-toggle" class="sm ghost bot-toggle" title="Bot rastgele oynar; tek başınayken oyunların gidişatını görmek için"></button>
@@ -699,6 +700,27 @@
             </div>
           </div>
 
+          <!-- İttirmeli XOX: kenardan kare al, satırın ya da sütunun ucundan geri it; beşli yapan kazanır (public/xox.js) -->
+          <div id="game-xox" class="xox" hidden>
+            <div class="memory-head">
+              <span id="xox-status" class="muted small"></span>
+              <button id="xox-end" class="sm ghost danger" hidden>Oyunu bırak</button>
+              <button id="xox-close" class="sm ghost" hidden>Kapat</button>
+              <button type="button" class="sayi-info-btn" popovertarget="xox-rules-pop" title="Nasıl oynanır" aria-label="Nasıl oynanır">i</button>
+            </div>
+            <div id="xox-rules-pop" class="pop sayi-pop" popover>
+              <p>5×5 tahta, başta boş. Bir oyuncu X, öbürü O; X başlar. Kim X olacak rastgele seçilir.</p>
+              <p>Sıran gelince kenardaki (dış halkadaki) bir kareyi seç: boş olabilir ya da üstünde senin işaretin olabilir, rakibinkini alamazsın. Sonra parlayan uçlardan birine bas: kare oraya senin işaretinle girer, o satırdaki ya da sütundaki diğer işaretler bir kare kayar. Aldığın yere geri koyamazsın.</p>
+              <p>Yatay, dikey ya da çaprazda beş aynı işareti yan yana getiren kazanır. Bir hamle iki tarafa da beşli yaparsa rakibin beşlisi sayılır, yani hamleyi yapan kaybeder.</p>
+              <p>İki kişi oynanır. Tek başına başlatırsan bilgisayara karşı oynarsın. Oyunu bırakan ya da ayrılan kaybeder.</p>
+            </div>
+            <div id="lobby-xox" class="lobby"></div>
+            <div id="xox-play" class="xox-play" hidden>
+              <div id="xox-players" class="xox-players"></div>
+              <div id="xox-board" class="xox-board"></div>
+            </div>
+          </div>
+
           <!-- Mantık tablosu: ipuçlarıyla dört kişinin kim olduğunu bul; herkes aynı bulmacayı aynı anda çözer (public/mantik.js) -->
           <div id="game-mantik" class="mantik" hidden>
             <div class="memory-head">
@@ -964,5 +986,6 @@
   <script src="/hedef.js"></script>
   <script src="/kural.js"></script>
   <script src="/mantik.js"></script>
+  <script src="/xox.js"></script>
 </body>
 </html>

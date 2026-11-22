@@ -908,8 +908,8 @@ $('now-pop-room').onclick = () => {
 // önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var:
 // / sıra, /gecmis, /oyunlar (oyun kartları), /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'kural', 'hedef', 'mantik', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'kural', 'hedef', 'mantik', 'xox', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', xox: 'ittirmeli-xox', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   if (view.page === 'members') return '/uyeler';
@@ -1465,6 +1465,7 @@ function openGame(name) {
   if (name === 'hedef') renderHedef(); // public/hedef.js
   if (name === 'kural') window.renderKural?.(); // public/kural.js
   if (name === 'mantik') renderMantik(); // public/mantik.js
+  if (name === 'xox') renderXox(); // public/xox.js
   if (name === 'dino') dinoKick();
 }
 for (const game of GAMES) $(`game-tab-${game}`).onclick = () => go(() => openGame(game));
@@ -3474,24 +3475,33 @@ function renderLobby(game) {
   $(`game-tab-${def.tab}`).classList.toggle('lobby-open', Boolean(lobby) && box.hidden === false);
   if (box.hidden) return;
 
-  const head = document.createElement('div');
-  head.className = 'lobby-head';
-  const title = document.createElement('strong');
-  title.textContent = lobby ? `${def.title} lobisi` : def.title;
-  head.append(title);
-  box.append(head);
+  box.classList.remove('hero');
+  box.style.removeProperty('--hue');
 
+  // Lobi yokken: ortada oyunun simgesi ve adı, altında oyunun renginde "Oda kur" tuşu, en altta soluk açıklama.
+  // Süre tahmininde lobi tek başına oynanan oyunun üstünde durduğundan, biten oyun da ekranda dururken
+  // (Kapat'a basılana kadar) sonucu aşağı itmesin diye küçük kalır.
   if (!lobby) {
     box.classList.remove('open');
-    box.append(Object.assign(document.createElement('p'), { className: 'muted small', textContent: def.hint }));
+    const hero = game !== 'race' && !def.last();
+    box.classList.toggle('hero', hero);
+    box.style.setProperty('--hue', gameInfo(def.tab).hue);
+    if (hero) box.append(gameIcon(def.tab, 'lobby-hero-icon'));
+    box.append(Object.assign(document.createElement(hero ? 'h2' : 'strong'), { className: 'lobby-title', textContent: def.title }));
+    if (!hero) box.append(Object.assign(document.createElement('p'), { className: 'muted small', textContent: def.hint }));
     const row = document.createElement('div');
     row.className = 'lobby-actions';
-    row.append(lobbyButton('Lobi kur', 'primary', () => lobbyEmit('lobby:open', game)));
-    if (def.last()) row.append(lobbyButton('Aynı ekiple lobi kur', '', () => lobbyEmit('lobby:open', game, { again: true })));
+    row.append(lobbyButton('Oda kur', 'lobby-start', () => lobbyEmit('lobby:open', game)));
+    if (def.last()) row.append(lobbyButton('Aynı ekiple kur', 'ghost lobby-again', () => lobbyEmit('lobby:open', game, { again: true })));
     box.append(row);
+    if (hero) box.append(Object.assign(document.createElement('p'), { className: 'lobby-desc', textContent: def.hint }));
     return;
   }
 
+  const head = document.createElement('div');
+  head.className = 'lobby-head';
+  head.append(Object.assign(document.createElement('strong'), { textContent: `${def.title} lobisi` }));
+  box.append(head);
   box.classList.add('open');
   const mine = lobby.players.includes(myName);
   const host = lobby.host === myName;
@@ -6148,6 +6158,7 @@ function applyJoin(res) {
   setHedefRecords(res.hedefBoard);
   window.setKural?.(res.kural); // public/kural.js
   setMantik(res.mantik); // public/mantik.js
+  setXox(res.xox); // public/xox.js
   setRadio(res.radio);
   lobbies = res.lobbies || {};
   renderLobbies();
@@ -6189,6 +6200,7 @@ const GAME_INFO = {
   kural: { icon: '🕵️', hue: 265, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala' },
   hedef: { icon: '🎯', hue: 0, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş' },
   mantik: { icon: '🧠', hue: 320, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu' },
+  xox: { icon: '❌', hue: 150, group: 'Zeka', desc: 'X ve O\'ları it, beşini yan yana getir' },
   klotski: { icon: '🧩', hue: 130, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar' },
   memory: { icon: '🃏', hue: 40, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla' },
   timing: { icon: '⏱️', hue: 190, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur' },

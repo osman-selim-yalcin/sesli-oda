@@ -626,6 +626,31 @@ button.link:hover { background: none; text-decoration: underline; }
 .lobby-player .avatar { width: 22px; height: 22px; font-size: 10px; }
 .lobby-player .small { font-size: 11px; }
 .lobby-opts, .lobby-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lobby-title { font-size: 15px; }
+/* Lobi yokken ortalanmış giriş ekranı (renderLobby, lobby.hero) */
+.lobby.hero { justify-items: center; text-align: center; gap: 14px; padding: 36px 18px 30px; background: none; border-color: transparent; }
+.lobby.hero .lobby-title { margin: 0; font-size: 30px; font-weight: 800; letter-spacing: -.01em; text-transform: none; color: var(--text); }
+.lobby.hero .lobby-actions { justify-content: center; }
+.lobby-hero-icon { display: grid; place-items: center; width: 96px; height: 96px; border-radius: 26px; overflow: hidden; font-size: 44px;
+  box-shadow: 0 0 0 2px hsl(var(--hue) 70% 60% / .35), 0 10px 24px -8px hsl(var(--hue) 80% 35% / .8); }
+.lobby-hero-icon:not(.img) { background: linear-gradient(145deg, hsl(var(--hue) 75% 62% / .32), hsl(var(--hue) 70% 45% / .14)); }
+.lobby-hero-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lobby-desc { max-width: 440px; color: var(--muted); opacity: .75; font-size: 13px; line-height: 1.5; }
+/* "Oda kur": oyun kartlarındaki gibi oyunun renginde tuş (mavi değil) */
+button.lobby-start { padding: 12px 34px; font-size: 16px; font-weight: 800; color: #fff; border-radius: 14px;
+  background: linear-gradient(180deg, hsl(var(--hue) 50% 32%), hsl(var(--hue) 45% 21%));
+  border: 1px solid hsl(var(--hue) 55% 50% / .6);
+  box-shadow: inset 0 1px 0 hsl(var(--hue) 80% 75% / .35), 0 4px 0 hsl(var(--hue) 45% 12%);
+  transition: transform .1s ease, box-shadow .1s ease, filter .1s ease; }
+button.lobby-start:hover { background: linear-gradient(180deg, hsl(var(--hue) 50% 32%), hsl(var(--hue) 45% 21%)); filter: brightness(1.12); border-color: hsl(var(--hue) 70% 62% / .75); }
+button.lobby-start:active:not(:disabled) { transform: translateY(3px); box-shadow: inset 0 1px 0 hsl(var(--hue) 80% 75% / .25), 0 1px 0 hsl(var(--hue) 45% 12%); }
+.lobby:not(.hero) button.lobby-start { padding: 8px 18px; font-size: 14px; border-radius: 10px; }
+.lobby.hero .lobby-again { color: var(--muted); }
+@media (max-width: 520px) {
+  .lobby.hero { padding: 26px 12px 22px; }
+  .lobby.hero .lobby-title { font-size: 25px; }
+  .lobby-hero-icon { width: 80px; height: 80px; border-radius: 22px; }
+}
 .tab.lobby-open::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px; vertical-align: 2px; border-radius: 50%; background: var(--speak); }
 #race-rounds button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 .race-board { width: 100%; max-width: 420px; text-align: left; }
@@ -1581,4 +1606,40 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   .mantik-cat-col { font-size: 10px; }
   .mantik-col { height: 78px; }
   .mantik-col span { max-height: 74px; }
+}
+
+/* ---------- İttirmeli XOX ---------- */
+.xox { display: grid; gap: 12px; }
+#xox-status { flex: 1; min-width: 0; }
+.xox-play { display: grid; gap: 16px; justify-items: center; }
+.xox-players { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.xox-player { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px 6px 8px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); font-size: 14px; transition: box-shadow .2s, border-color .2s; }
+.xox-player .avatar { width: 24px; height: 24px; font-size: 10px; }
+.xox-player-mark { font-weight: 900; font-size: 18px; width: 22px; text-align: center; }
+.xox-player.x .xox-player-mark { color: #ff7a7a; }
+.xox-player.o .xox-player-mark { color: #6fc3ff; }
+.xox-player.turn { border-color: var(--text); box-shadow: 0 0 0 2px rgba(255, 255, 255, .12); font-weight: 700; }
+.xox-player.won { border-color: var(--speak); }
+.xox-board { --cell: min(68px, calc((100vw - 90px) / 5)); display: grid; grid-template-columns: repeat(5, var(--cell)); gap: 6px; padding: 10px; border-radius: 18px; background: var(--panel-2); border: 1px solid var(--line-2); }
+.xox-cell { width: var(--cell); height: var(--cell); padding: 0; border-radius: 12px; font-size: calc(var(--cell) * .55); font-weight: 900; line-height: 1;
+  background: var(--panel-3); border: 1px solid var(--line); color: var(--text); position: relative; }
+.xox-cell:not(.edge) { background: color-mix(in srgb, var(--panel-3) 60%, var(--panel-2)); }
+.xox-cell.x { color: #ff7a7a; }
+.xox-cell.o { color: #6fc3ff; }
+.xox-cell:hover { background: var(--panel-3); }
+.xox-board:not(.my-turn) .xox-cell { cursor: default; }
+.xox-board:not(.my-turn) .xox-cell:active { transform: none; }
+.xox-cell.takeable { border-color: rgba(255, 255, 255, .28); cursor: pointer; }
+.xox-cell.takeable:hover { border-color: var(--text); }
+.xox-cell.picked { border-color: #ffd36b; box-shadow: 0 0 0 2px #ffd36b; transform: scale(.92); }
+.xox-cell.target { border: 2px dashed #ffd36b; background: rgba(255, 211, 107, .10); cursor: pointer; }
+.xox-cell.target::after { content: attr(data-ghost); position: absolute; right: 4px; bottom: 2px; font-size: calc(var(--cell) * .24); color: #ffd36b; opacity: .8; }
+.xox-cell.target:hover { background: rgba(255, 211, 107, .22); }
+.xox-cell.last { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .35); }
+.xox-cell.shifted { animation: xox-shift .6s ease-out; }
+@keyframes xox-shift { from { background: rgba(255, 211, 107, .35); } }
+.xox-cell.win { background: rgba(61, 220, 132, .22); border-color: var(--speak); }
+@media (max-width: 520px) {
+  .xox-board { gap: 5px; padding: 8px; }
+  .xox-cell { border-radius: 10px; }
 }
