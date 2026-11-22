@@ -1,5 +1,8 @@
 /* Temel katman: değişken sözleşmesi (yedek değerler), gömülü yazı tipleri, sıfırlama ve temel tipografi.
-   Yükleme sırası (index.html): themes/<tema>.css → css/base.css → style.css.
+   Yükleme sırası (index.html): themes/<tema>.css → css/base.css → css/shell.css → css/games.css.
+   base: sözleşme, yazı tipleri, sıfırlama, tipografi, genel bileşenler ve yardımcı sınıflar;
+   shell: giriş, oda listesi, oda çerçevesi, üst çubuk, sohbet, oynatıcı, sıra, ayarlar, üyeler;
+   games: oyunlar sayfası, lobi kartları, oyun tahtaları, skor tabloları, radyo.
 
    Değişken sözleşmesi: her tema dosyası (public/themes/*.css) bunların hepsini :root üstünde tanımlar.
      Renk:    --bg --surface --surface-2 --surface-3 --border --border-strong --text --muted
@@ -97,3 +100,247 @@ h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: v
 
 ::selection { background: var(--accent-soft); }
 * { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+
+/* ---------- Genel bileşenler ve yardımcılar ----------
+   (style.css'ten taşındı. .auth-tabs, .sfx-pop, .now-pop, .emoji-pop, .attach.kelime-file ve
+   .card-form .card-pick burada durur: style.css'te kendilerinden sonra gelen .tabs, .pop ve .attach:hover
+   kurallarına yeniliyorlardı; sıra korunsun diye onlardan önce kalırlar.) */
+
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.error { color: var(--danger); margin: 0; }
+
+/* İkonlar: temanın ikon seti (index.html <svg id="ui-icons">, theme.js). Çizgi rengi ve kalınlığı buradan. */
+.ic {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -.2em;
+}
+/* Yazının içindeki ikonlar yazı boyunda (kilit işareti, süre, birleşik oda etiketi, küçük notlar) */
+.lock-mark .ic, #topbar-merged .ic, .sayi-timer .ic, .hedef-clock .ic, .kelime-trash .ic,
+.lobby-player .small .ic, .lobby-opts > .small .ic { width: 1.1em; height: 1.1em; vertical-align: -.18em; }
+#topbar-merged .ic, .sayi-timer .ic, .hedef-clock .ic, .lobby-player .small .ic, .lobby-opts > .small .ic { margin-right: .3em; }
+.lock-mark { color: var(--muted); }
+
+
+input, select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  transition: border-color .15s, background .15s;
+}
+input::placeholder { color: #6b7284; }
+input:hover { border-color: var(--border-strong); }
+input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+input[type=range] { padding: 0; border: none; background: none; box-shadow: none; accent-color: var(--accent); cursor: pointer; }
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  padding: 9px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background .15s, border-color .15s, color .15s, transform .08s;
+}
+button:hover { background: var(--surface-3); border-color: var(--border-strong); }
+button:active:not(:disabled) { transform: scale(.96); }
+button:disabled { opacity: .5; cursor: default; }
+button:focus-visible, .attach:focus-within, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); border-color: transparent; color: var(--accent-contrast); font-weight: 600; }
+button.primary:hover { background: var(--accent); filter: brightness(1.08); }
+button.ghost { background: transparent; border-color: transparent; }
+button.ghost:hover { background: var(--surface-2); }
+button.danger { color: var(--danger); }
+button.danger:hover { background: var(--danger-soft); border-color: transparent; }
+button.wide { width: 100%; }
+button.icon { width: 40px; height: 40px; padding: 0; flex-shrink: 0; }
+button.icon .ic { width: 20px; height: 20px; }
+button.icon.sm { width: 32px; height: 32px; }
+button.icon.sm .ic { width: 16px; height: 16px; }
+button.sm { padding: 5px 10px; font-size: 13px; gap: 5px; }
+button.sm .ic { width: 15px; height: 15px; }
+button.round { border-radius: 50%; }
+button.off { background: var(--danger); border-color: transparent; color: #fff; }
+button.off:hover { background: #ff7482; }
+.card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 28px;
+  display: grid;
+  gap: 16px;
+  box-shadow: var(--shadow-2);
+}
+.card label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.card button.primary { padding: 12px; }
+.auth-tabs { margin: 0 0 -2px; }
+button.link { padding: 0; border: none; background: none; color: var(--accent); font-size: inherit; }
+button.link:hover { background: none; text-decoration: underline; }
+
+/* Video altı: kartlar */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 14px 16px;
+  margin-top: 12px;
+}
+
+.sfx-pop { width: min(340px, calc(100vw - 32px)); padding: 12px; }
+.select { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.select select { width: auto; min-width: 0; max-width: 60%; padding: 6px 8px; cursor: pointer; text-overflow: ellipsis; }
+.select input[type=range] { width: 140px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.check { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.check input { width: auto; accent-color: var(--accent); }
+
+/* Sıra / geçmiş sekmeleri */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: -6px -6px 14px; padding: 0 6px; }
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.tab:hover { background: none; color: var(--text); }
+.tab:active:not(:disabled) { transform: none; }
+.tab.active { color: var(--text); border-bottom-color: var(--accent); }
+.count { font-size: 11px; color: var(--muted); font-weight: 600; background: var(--surface-2); border-radius: 999px; padding: 0 6px; }
+.count:empty { display: none; }
+.empty { margin: 8px 0 2px; text-align: center; padding: 16px 0; }
+.now-pop { width: min(300px, calc(100vw - 32px)); }
+.attach.kelime-file { display: inline-flex; width: auto; height: auto; align-self: stretch; padding: 0 12px; border-color: var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; white-space: nowrap; }
+.card-form .card-pick { display: inline-flex; width: auto; height: auto; gap: 6px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-s); white-space: nowrap; flex-shrink: 0; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  color: #fff;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px transparent;
+  transition: box-shadow .12s;
+}
+.speaking .avatar { box-shadow: 0 0 0 3px var(--live); animation: speak-pulse 1.1s ease-out infinite; }
+@keyframes speak-pulse {
+  0% { box-shadow: 0 0 0 3px var(--live), 0 0 0 3px rgba(61, 220, 132, .45); }
+  100% { box-shadow: 0 0 0 3px var(--live), 0 0 0 10px rgba(61, 220, 132, 0); }
+}
+.attach {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.attach:hover { background: var(--surface-2); color: var(--text); border-color: transparent; }
+.emoji-pop { width: min(300px, calc(100vw - 32px)); padding: 8px; }
+
+.toasts {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 8px;
+  width: min(360px, calc(100% - 32px));
+  z-index: 10;
+  pointer-events: none;
+}
+.toast {
+  background: rgba(35, 39, 49, .92);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-s);
+  padding: 10px 14px;
+  font-size: 13px;
+  box-shadow: var(--shadow-2);
+  animation: toast-in .2s ease-out, fade 4s forwards;
+}
+@keyframes toast-in { from { transform: translateY(-8px); } }
+@keyframes fade { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
+
+.pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(320px, calc(100vw - 32px));
+  max-height: 70vh;
+  overflow: auto;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-m);
+  padding: 14px;
+  box-shadow: var(--shadow-2);
+}
+.pop:popover-open { animation: pop-in .14s ease-out; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.pop h2 { margin: 0 0 12px; }
+
+@media (max-width: 800px) {
+  .toasts { top: auto; bottom: 84px; }
+}
+
+/* ---------- Animasyonlar ---------- */
+
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } }
+@keyframes rise-sm { from { opacity: 0; transform: translateY(6px); } }
+@keyframes drop { from { opacity: 0; transform: translateY(-100%); } }
+@keyframes pop { 0% { opacity: 0; transform: scale(.6); } 70% { transform: scale(1.08); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+@keyframes float { 50% { transform: translateY(-4px) rotate(-3deg); } }
+@keyframes shine { from { left: -60%; } to { left: 130%; } }
+
+/* Ana düğmede üzerine gelince parlama */
+button.primary { position: relative; overflow: hidden; }
+button.primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .28), transparent);
+  transform: skewX(-20deg);
+  pointer-events: none;
+  opacity: 0;
+}
+button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; animation-delay: 0s !important; transition-duration: .01ms !important; }
+}
