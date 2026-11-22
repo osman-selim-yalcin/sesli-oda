@@ -284,5 +284,7 @@ function setup(app, { imageTypes, onProfile, online }) {
 }
 
 const isAdmin = (key) => ADMINS.has(key);
+// Anahtarla hesap: { key, name } ya da yoksa null (şifre özeti dışarı verilmez).
+const byKey = (key) => (accounts.has(key) ? { key, name: accounts.get(key).name } : null);
 
-module.exports = { setup, load, accountByToken, profiles, seen, isAdmin, hashPassword, checkPassword, keyOf, NAME_RE, attemptLimiter };
+module.exports = { setup, load, accountByToken, byKey, profiles, seen, isAdmin, hashPassword, checkPassword, keyOf, NAME_RE, attemptLimiter };

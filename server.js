@@ -11,6 +11,7 @@ try {
 } catch {}
 const store = require('./store');
 const accounts = require('./accounts');
+const roomStore = require('./rooms'); // oda kayıtları (canlı durum aşağıdaki rooms haritasında)
 const hedef = require('./games/hedef');
 
 const PORT = process.env.PORT || 3030;
@@ -130,6 +131,9 @@ accounts.setup(app, {
   imageTypes: IMAGE_TYPES,
   onProfile: (name, avatar) => io.emit('profile', { name, avatar }),
   online: () => [...(rooms.get('genel')?.users.values() || [])].map((u) => u.name),
+});
+roomStore.setup(app, {
+  live: (id) => ({ users: [...(rooms.get(id)?.users.values() || [])].map((u) => u.name), max: MAX_USERS, mergedWith: null }),
 });
 
 // ICE sunucuları: STUN herkese yeter, ama mobil hat ve bazı modemlerde (CGNAT) doğrudan
@@ -2747,11 +2751,15 @@ function killDino(room, name, x) {
 
 // Kayıtlı durumu hafızaya alır. Okunamazsa kayıt da kapatılır ki boş hafıza eskilerin üstüne yazılmasın.
 async function loadSaved() {
-  if (!store.enabled) return console.log('Supabase ayarlı değil; hesaplar, geçmiş, efektler ve tier listler sadece hafızada.');
+  if (!store.enabled) {
+    await roomStore.load();
+    return console.log('Supabase ayarlı değil; hesaplar, odalar, geçmiş, efektler ve tier listler sadece hafızada.');
+  }
   let rows;
   try {
     rows = await store.loadAll();
     await accounts.load();
+    await roomStore.load(); // okunamazsa da genel odası hafızada açılır
   } catch (err) {
     store.enabled = false;
     return console.warn('Kayıtlar okunamadı, bu oturumda kaydetme kapalı:', err.message);
