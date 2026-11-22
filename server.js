@@ -18,6 +18,7 @@ const PORT = process.env.PORT || 3030;
 const MAX_USERS = 6;
 const SHARED = 'ortak';    // room_state'te bütün odaların ortak kaydı (skor tabloları, öneriler); oda adı olamaz
 const JOINED = '@joined';  // Socket.IO odası: bir odaya girmiş bütün soketler (ortak tablolar buraya yayılır)
+const LOBBY = '@lobby';    // Socket.IO odası: oda listesinde bekleyen (hello demiş, odada olmayan) soketler
 const RADIO_COOLDOWN = 1000; // ms; bir kişi radyoyu bu sıklıktan fazla değiştiremez
 const VIDEO_ID = /^[\w-]{11}$/;
 const TWEET_ID = /^x:(\d{1,25})$/; // X (Twitter) postu; videoId olarak "x:<post no>" tutulur
@@ -136,12 +137,63 @@ accounts.setup(app, {
 });
 roomStore.setup(app, {
   live: (id) => ({ users: [...(rooms.get(id)?.users.values() || [])].map((u) => u.name), max: MAX_USERS, mergedWith: null }),
-  // 'rooms' (liste değişti) ve 'request' (bekleyen istek sayısı) Görev 8'de yayılacak.
   onChange: (kind, info) => {
     if (kind === 'settings') io.to(info.id).emit('room:theme', { theme: info.theme });
     else if (kind === 'closed') closeRoom(info);
+    else if (kind === 'rooms') roomsChanged();
+    else if (kind === 'request') {
+      // Site yöneticisinin bütün soketlerine (listede ya da odada)
+      for (const [key, set] of socketsByKey) {
+        if (accounts.isAdmin(key)) for (const s of set) s.emit('room-request', { pending: info.pending });
+      }
+    }
   },
 });
+
+// ---------- Oda listesi (canlı) ----------
+
+const socketsByKey = new Map(); // hesap anahtarı -> Set<soket>: hello ya da join ile kimliklenmiş bağlı soketler
+// Bir hesabın bağlı bütün soketleri (listede ya da odada).
+const onlineSockets = (key) => [...(socketsByKey.get(key) || [])];
+
+// Soketi hesaba bağlar; soket ömrü boyunca tek hesaba aittir. Başka hesaba bağlıysa false.
+function bindAccount(socket, account) {
+  const bound = socket.data.account;
+  if (bound) return bound.key === account.key;
+  socket.data.account = account;
+  if (!socketsByKey.has(account.key)) socketsByKey.set(account.key, new Set());
+  socketsByKey.get(account.key).add(socket);
+  return true;
+}
+function unbindAccount(socket) {
+  const key = socket.data.account?.key;
+  const set = key && socketsByKey.get(key);
+  if (!set) return;
+  set.delete(socket);
+  if (!set.size) socketsByKey.delete(key);
+}
+const OTHER_ACCOUNT = { error: 'Bu bağlantı başka bir hesaba ait; sayfayı yenile.', auth: true };
+
+const roomList = (account) => roomStore.all().map((r) => roomStore.view(r, account));
+
+// Liste değişti: art arda değişiklikler ROOMS_COALESCE içinde toplanır, sonra listedeki her sokete
+// kendi hesabına göre (role) hesaplanmış liste gider.
+const ROOMS_COALESCE = 300; // ms
+let roomsTimer = null;
+function roomsChanged() {
+  if (roomsTimer) return;
+  roomsTimer = setTimeout(() => {
+    roomsTimer = null;
+    for (const id of io.sockets.adapter.rooms.get(LOBBY) || []) {
+      const socket = io.sockets.sockets.get(id);
+      if (socket?.data.account) socket.emit('rooms', { rooms: roomList(socket.data.account) });
+    }
+  }, ROOMS_COALESCE);
+}
+// Odadan çıkan (atılan, oda kapanan, girişi yarım kalan) kimlikli soket listeye döner.
+function backToLobby(socket) {
+  if (socket.connected && socket.data.account) socket.join(LOBBY);
+}
 
 // ICE sunucuları: STUN herkese yeter, ama mobil hat ve bazı modemlerde (CGNAT) doğrudan
 // bağlantı kurulamaz; o zaman ses TURN sunucusu üzerinden geçer.
@@ -674,8 +726,10 @@ function enterRoom(socket, account, clientId, roomId) {
   const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
   socket.data.setCode(roomCode);
   room.users.set(socket.id, { name, key: account.key, home: roomCode, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
+  socket.leave(LOBBY);
   socket.join([roomCode, JOINED]);
   socket.to(roomCode).emit('user-joined', { id: socket.id, name, muted: false });
+  roomsChanged();
   return { rejoined, id: socket.id, room: roomStore.view(reg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
@@ -687,12 +741,14 @@ function leaveRoom(socket, { grace }) {
   socket.data.setCode(null);
   socket.leave(roomCode);
   socket.leave(JOINED);
+  backToLobby(socket);
   const room = rooms.get(roomCode);
   // Yenileme sırasında zaten silinmiş olabilir.
   const user = room?.users.get(socket.id);
   if (!room || !room.users.delete(socket.id)) return;
   stopSharing(room, roomCode, socket.id);
   io.to(roomCode).emit('user-left', socket.id);
+  roomsChanged();
 
   const leaveKey = `${roomCode}:${user.clientId}`;
   const depart = () => {
@@ -764,20 +820,27 @@ io.on('connection', (socket) => {
   const undoEnter = () => {
     const roomCode = code;
     const room = rooms.get(roomCode);
-    if (room?.users.delete(socket.id)) io.to(roomCode).emit('user-left', socket.id);
+    if (room?.users.delete(socket.id)) {
+      io.to(roomCode).emit('user-left', socket.id);
+      roomsChanged();
+    }
     socket.leave(roomCode);
     socket.leave(JOINED);
+    backToLobby(socket);
     socket.data.setCode(null);
     if (room && room.users.size === 0) dropRoom(roomCode);
   };
   socket.on('join', async ({ token, clientId, room: roomId = 'genel', password } = {}, ack) => {
     if (typeof ack !== 'function' || code || joining) return;
+    const bound = socket.data.account;
+    if (bound && accounts.accountByToken(token)?.key !== bound.key) return ack(OTHER_ACCOUNT);
     joining = true;
     let res, rejoined, payload;
     try {
       res = await admit(socket, { token, clientId, roomId, password });
       if (!socket.connected) return; // şifre denetlenirken ayrıldı
       if (res.error) return ack(res);
+      if (!bindAccount(socket, res.account)) return ack(OTHER_ACCOUNT); // denetlenirken hello başka hesapla bağladı
       ({ rejoined, ...payload } = enterRoom(socket, res.account, res.clientId, res.roomId));
     } catch (err) {
       // Beklenmeyen hata sunucuyu düşürmesin (yakalanmayan ret süreci kapatır); istemci cevapsız kalmasın.
@@ -790,6 +853,20 @@ io.on('connection', (socket) => {
     ack(payload);
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!payload.error && !rejoined) postSystem(getRoom(code), `${res.account.name} odaya katıldı`, { event: 'join', from: socket.id });
+  });
+
+  // Oda listesi ekranı: soketi hesaba bağlar ve (odada değilse) listeye alır. Yalnız dinleme hakkı
+  // verir; aynı hesabın odadaki soketine dokunmaz.
+  socket.on('hello', ({ token } = {}, ack) => {
+    if (typeof ack !== 'function') return;
+    const account = accounts.accountByToken(token);
+    if (!account) return ack({ error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true });
+    if (!bindAccount(socket, account)) return ack(OTHER_ACCOUNT);
+    accounts.seen(account.key);
+    if (!code) socket.join(LOBBY);
+    const res = { rooms: roomList(account) };
+    if (accounts.isAdmin(account.key)) res.pending = roomStore.pendingCount();
+    ack(res);
   });
 
   // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir.
@@ -1618,7 +1695,10 @@ io.on('connection', (socket) => {
     sendKelime(room);
   });
 
-  socket.on('disconnect', () => leaveRoom(socket, { grace: true }));
+  socket.on('disconnect', () => {
+    leaveRoom(socket, { grace: true });
+    unbindAccount(socket);
+  });
 });
 
 // ---------- Süre yarışı ----------

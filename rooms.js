@@ -168,6 +168,11 @@ function role(room, account) {
   return 'none';
 }
 
+// Kayıt sürerken istek id'siz durur (aynı ad ya da ikinci istek geçmesin diye listede); id'siz istek
+// listede, mine'da, kararda ve bekleyen sayısında görünmez.
+const ready = () => requests.filter((q) => q.id != null);
+const pendingCount = () => ready().length; // yöneticinin listesindeki bekleyen istek sayısı
+
 let live = () => ({ users: [], max: 0, mergedWith: null });
 let onChange = () => {};
 
@@ -319,11 +324,6 @@ function setup(app, opts) {
     else return a;
     return null;
   };
-  // Kayıt sürerken istek id'siz durur (aynı ad ya da ikinci istek geçmesin diye listede); id'siz istek
-  // listede, mine'da ve kararda görünmez.
-  const ready = () => requests.filter((q) => q.id != null);
-  const pendingCount = () => ({ pending: ready().length });
-
   app.post('/rooms/requests', json, async (req, res) => {
     const a = accounts.accountByToken(bearer(req));
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
@@ -353,7 +353,7 @@ function setup(app, opts) {
         if (at >= 0) requests.splice(at, 1);
         throw err;
       }
-      onChange('request', pendingCount());
+      onChange('request', { pending: pendingCount() });
       res.json({ request: { id: q.id, name: q.name, status: 'pending' } });
     } catch (err) {
       console.warn('oda isteği', err.message);
@@ -402,7 +402,7 @@ function setup(app, opts) {
         console.warn('oda isteği kararı yazılamadı', err.message); // oda açıldı; kayıt bir sonraki açılışta beklemede görünebilir
       }
       if (room) onChange('rooms', { id: room.id });
-      onChange('request', pendingCount());
+      onChange('request', { pending: pendingCount() });
       res.json(room ? { room: view(room, a) } : {});
     } catch (err) {
       restore();
@@ -412,4 +412,4 @@ function setup(app, opts) {
   });
 }
 
-module.exports = { load, get, all, slugOf, create, role, view, setup, addMember, isMember, THEMES };
+module.exports = { load, get, all, slugOf, create, role, view, setup, addMember, isMember, pendingCount, THEMES };
