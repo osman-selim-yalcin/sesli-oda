@@ -129,11 +129,16 @@ async function create({ name, ownerId, password, passHash: ready, theme }) {
 }
 
 const isMember = (roomId, key) => Boolean(members.get(roomId)?.has(key));
+const memberGen = new Map(); // oda id -> üyelikler her silindiğinde artan sayaç
+const genOf = (roomId) => memberGen.get(roomId) || 0;
+const memberFilter = (roomId, key) => `room_id=eq.${encodeURIComponent(roomId)}&account_id=eq.${encodeURIComponent(key)}`;
 
 // Şifreyi bir kez doğru yazan hesap odanın üyesi olur; bir daha şifre sorulmaz.
 // Hafızaya hemen eklenir; kayıt hatası fırlatılır (aynı satır zaten varsa hata sayılmaz).
+// Kayıt sürerken üyelikler silindiyse (şifre değişti) yazılan satır geri silinir; false döner.
 async function addMember(roomId, key) {
-  if (isMember(roomId, key)) return;
+  if (isMember(roomId, key)) return true;
+  const gen = genOf(roomId);
   if (!members.has(roomId)) members.set(roomId, new Set());
   members.get(roomId).add(key);
   try {
@@ -141,11 +146,16 @@ async function addMember(roomId, key) {
   } catch (err) {
     if (!/ 409 /.test(err.message)) throw err; // birincil anahtar çakışması: üyelik zaten kayıtlı
   }
+  if (genOf(roomId) === gen) return true;
+  members.get(roomId)?.delete(key);
+  await store.remove('room_members', memberFilter(roomId, key));
+  return false;
 }
 
 // Şifre değişince ya da kalkınca eski üyelikler geçersiz: hafızadan ve tablodan silinir.
 // Tablo silinemezse hata fırlatılır (hafıza olduğu gibi kalır).
 async function clearMembers(roomId) {
+  memberGen.set(roomId, genOf(roomId) + 1); // kaydı süren addMember'lar kendi satırını geri siler
   await store.remove('room_members', `room_id=eq.${encodeURIComponent(roomId)}`);
   members.delete(roomId);
 }
@@ -257,7 +267,7 @@ function setup(app, opts) {
       if (passChange) next.passHash = body.password === null ? null : await accounts.hashPassword(body.password); // düz şifre saklanmaz
       if (!get(room.id)) return fail(res, 404, 'Böyle bir oda yok.'); // özet hesaplanırken kapanmış olabilir
       if (next.name && checkName(next.name, { self: room }).error) return fail(res, 400, 'Bu adda bir oda zaten var.');
-      const old = { ...room };
+      const old = Object.fromEntries(Object.keys(next).map((k) => [k, room[k]]));
       Object.assign(room, next); // await sırasında aynı ad başka odaya verilmesin
       try {
         if (passChange) await clearMembers(room.id);
@@ -268,7 +278,8 @@ function setup(app, opts) {
         if (passChange) row.pass_hash = next.passHash;
         await store.update('rooms', `id=eq.${encodeURIComponent(room.id)}`, row);
       } catch (err) {
-        Object.assign(room, old);
+        // Yalnız bu isteğin değiştirdiği alanlar, araya başka değişiklik girmediyse geri alınır (closedAt hiç).
+        for (const [k, v] of Object.entries(old)) if (room[k] === next[k]) room[k] = v;
         throw err;
       }
       if ('theme' in next) onChange('settings', { id: room.id, theme: room.theme });

@@ -601,23 +601,31 @@ async function admit(socket, { token, clientId, roomId, password }) {
       releaseIp?.();
       return { error: 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.', wait: true };
     }
+    const hash = reg.passHash; // denetlenirken şifre değişirse eski şifre üyelik kazandırmasın
+    const changed = () => {
+      const now = roomStore.get(reg.id);
+      return now && now.passHash !== hash ? { error: 'Oda şifresi değişti; tekrar dene.', needPassword: Boolean(now.passHash) } : null;
+    };
     let ok;
     try {
-      ok = typeof password === 'string' && password.length <= 200 && await accounts.checkPassword(password, reg.passHash);
+      ok = typeof password === 'string' && password.length <= 200 && await accounts.checkPassword(password, hash);
     } catch (err) {
       releaseIp(); // denetim yapılamadı: yanlış deneme sayılmaz
       releaseKey();
       throw err;
     }
-    if (!ok) return { error: 'Şifre yanlış.', needPassword: true };
+    if (!ok) return changed() || { error: 'Şifre yanlış.', needPassword: true };
     releaseIp();
     releaseKey();
+    if (!roomStore.get(reg.id)) return gone; // denetlenirken oda kapanmış olabilir
+    if (changed()) return changed();
     try {
-      await roomStore.addMember(reg.id, account.key);
+      await roomStore.addMember(reg.id, account.key); // kayıt sürerken şifre değişirse üyeliği kendisi geri alır
     } catch (err) {
       console.warn('oda üyeliği yazılamadı', err.message); // hafızada üye; yeniden başlayınca şifre yine sorulur
     }
-    if (!roomStore.get(reg.id)) return gone; // denetlenirken oda kapanmış olabilir
+    if (!roomStore.get(reg.id)) return gone;
+    if (changed()) return changed();
   }
   return { account, clientId, roomId: reg.id };
 }

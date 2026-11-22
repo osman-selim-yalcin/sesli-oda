@@ -1,7 +1,9 @@
 // Oda ayarları (tema, şifre) ve yönetici işlemleri (ad, sahip, kapatma): yetki matrisi
+require('./preload');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, client, ack, http, next } = require('./helpers');
+const roomStore = require('../rooms');
 
 let srv;
 const ADMIN = 'test:osyalcin';
@@ -27,6 +29,7 @@ before(async () => {
   assert.equal(await open({ name: 'Kapat Oda', owner: 'Sahip' }), 'kapat-oda');
   assert.equal(await open({ name: 'Lobi Oda' }), 'lobi-oda');
   assert.equal(await open({ name: 'Ad Oda' }), 'ad-oda');
+  assert.equal(await open({ name: 'Yaris Oda', owner: 'Sahip', password: FIRST_PASS }), 'yaris-oda');
 });
 after(async () => {
   for (const s of sockets) s.close();
@@ -34,8 +37,8 @@ after(async () => {
 });
 
 let cid = 0;
-async function user(name) {
-  const s = await client(srv.url, name);
+async function user(name, opts) {
+  const s = await client(srv.url, name, opts);
   s.cid = `c${++cid}`;
   sockets.push(s);
   return s;
@@ -210,4 +213,64 @@ test('açık lobisi olan oda kapatılınca sunucu çökmeden temizlenir', async 
   const later = await user('Sonraki');
   assert.equal((await join(later, 'genel')).error, undefined);
   assert.equal((await join(host, 'ayar-oda', { password: 'ayar-sifre' })).error, undefined);
+});
+
+test('şifre değişirken eski şifreyle doğrulanan giriş üyelik kazanmaz', async () => {
+  // Şifre denetimi (scrypt) onlarca ms sürer: yeni şifre uygulanırken eski şifreyle doğrulanmakta olan
+  // girişler olur. Hiçbiri yeni şifrenin altında üye kalmamalı.
+  const names = ['Yarisci1', 'Yarisci2', 'Yarisci3', 'Yarisci4', 'Yarisci5', 'Yarisci6'];
+  const opts = { extraHeaders: { 'x-forwarded-for': '10.7.7.7' } }; // yanlış denemeler başka testlerin sınırını yemesin
+  const racers = await Promise.all(names.map((n) => user(n, opts)));
+  const changed = patch('yaris-oda', OWNER, { password: 'ikinci-sifre' });
+  const joins = [];
+  for (const s of racers) {
+    joins.push(join(s, 'yaris-oda', { password: FIRST_PASS }));
+    await sleep(5);
+  }
+  assert.equal((await changed).status, 200);
+  await Promise.all(joins);
+  for (const s of racers) s.close();
+  for (const n of names) {
+    const again = await user(n, opts);
+    const r = await join(again, 'yaris-oda');
+    assert.equal(r.needPassword, true, `${n} şifresiz girdi`);
+    again.close();
+  }
+});
+
+// Bu süreçte (sunucu süreci değil): üyelik kaydı sürerken şifre değişirse satır tabloda kalmaz.
+test('üyelik yazılırken şifre değişirse yazılan satır geri silinir', async () => {
+  const express = require('express');
+  const store = require('../store');
+  await roomStore.load();
+  const app = express();
+  roomStore.setup(app, { live: () => ({ users: [], max: 6, mergedWith: null }) });
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  const url = `http://localhost:${server.address().port}`;
+  const saved = { insert: store.insert, remove: store.remove, update: store.update };
+  const table = new Set(); // room_members: `${oda}|${hesap}`
+  try {
+    const room = await roomStore.create({ name: 'Satir Oda', ownerId: 'osyalcin', password: FIRST_PASS });
+    let land;
+    store.update = async () => {};
+    store.insert = (t, row) => new Promise((resolve) => { land = () => { table.add(`${row.room_id}|${row.account_id}`); resolve(); }; });
+    store.remove = async (t, filter) => {
+      const f = Object.fromEntries(new URLSearchParams(filter));
+      const roomId = f.room_id?.replace(/^eq\./, '');
+      const key = f.account_id?.replace(/^eq\./, '');
+      for (const k of table) if (k.startsWith(`${roomId}|`) && (!key || k === `${roomId}|${key}`)) table.delete(k);
+    };
+    const adding = roomStore.addMember(room.id, 'gec');
+    const r = await http(url, 'PATCH', `/rooms/${room.id}`, { token: ADMIN, body: { password: 'ikinci-sifre' } });
+    assert.equal(r.status, 200);
+    land(); // eski şifreyle başlayan kayıt silmeden sonra yazılır
+    await adding;
+    assert.equal(roomStore.isMember(room.id, 'gec'), false);
+    assert.deepEqual([...table], []);
+  } finally {
+    Object.assign(store, saved);
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+  }
 });
