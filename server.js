@@ -704,17 +704,20 @@ function leaveRoom(socket, { grace }) {
   } else {
     depart();
   }
-  if (room.users.size === 0) {
-    clearKelimeTimers(roomCode);
-    clearMemoryTimers(roomCode);
-    clearTimeout(sayiTimers.get(roomCode));
-    hedef.clearTimers(roomCode);
-    kural.clear(roomCode);
-    mantik.clear(roomCode);
-    daktilo.clear(roomCode);
-    rooms.delete(roomCode);
-    deleteRoomImages(roomCode);
-  }
+  if (room.users.size === 0) dropRoom(roomCode);
+}
+
+// Boşalan odanın canlı durumunu ve zamanlayıcılarını siler (kalıcı kayıtları silmez).
+function dropRoom(roomCode) {
+  clearKelimeTimers(roomCode);
+  clearMemoryTimers(roomCode);
+  clearTimeout(sayiTimers.get(roomCode));
+  hedef.clearTimers(roomCode);
+  kural.clear(roomCode);
+  mantik.clear(roomCode);
+  daktilo.clear(roomCode);
+  rooms.delete(roomCode);
+  deleteRoomImages(roomCode);
 }
 
 io.on('connection', (socket) => {
@@ -727,6 +730,16 @@ io.on('connection', (socket) => {
 
   // İsim hesaptan gelir; herkes kendi hesabıyla girer. Şifreli odada üye olmayan şifre yazar.
   let joining = false; // şifre denetlenirken ikinci join gelmesin
+  // Yarım kalan girişi geri alır: "ayrıldı" mesajı ve oyun temizliği yok (katılma tamamlanmadı).
+  const undoEnter = () => {
+    const roomCode = code;
+    const room = rooms.get(roomCode);
+    if (room?.users.delete(socket.id)) io.to(roomCode).emit('user-left', socket.id);
+    socket.leave(roomCode);
+    socket.leave(JOINED);
+    socket.data.setCode(null);
+    if (room && room.users.size === 0) dropRoom(roomCode);
+  };
   socket.on('join', async ({ token, clientId, room: roomId = 'genel', password } = {}, ack) => {
     if (typeof ack !== 'function' || code || joining) return;
     joining = true;
@@ -739,6 +752,7 @@ io.on('connection', (socket) => {
     } catch (err) {
       // Beklenmeyen hata sunucuyu düşürmesin (yakalanmayan ret süreci kapatır); istemci cevapsız kalmasın.
       console.warn('odaya giriş', err.message);
+      if (code) undoEnter(); // enterRoom yarıda kaldıysa code dolu kalır ve yeniden deneme yok sayılırdı
       return ack({ error: 'Odaya girilemedi, biraz sonra tekrar dene.' });
     } finally {
       joining = false;

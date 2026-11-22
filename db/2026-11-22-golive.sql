@@ -10,6 +10,10 @@
 -- Çoklu oda canlıya geçiş: skor tabloları ve oyun önerileri bütün odalarda ortak.
 -- Canlıya geçerken Supabase SQL düzenleyicisinde bir kez elle, yeni sunucu açılmadan önce çalıştırılır
 -- (sunucu çalıştırmaz). Tek işlem: biri başarısız olursa hiçbiri yazılmaz.
+-- ZAMANLAMA: kopya satırların tamamını değiştirir (data üzerine yazılır, birleştirilmez). Bu yüzden eski
+-- sunucu durdurulmuşken (ya da tam geçiş anında) çalıştırılır: yeni sunucu 'ortak' satırlarına yazmaya
+-- başladıktan sonra çalıştırılırsa o yazılanlar silinir; eski sunucu hâlâ 'genel' satırlarına yazabiliyorken
+-- çalıştırılırsa sonradan yazılanlar 'ortak'a hiç geçmez.
 -- (a) 'genel' odasının tabloları ve önerileri 'ortak' satırına kopyalanır; yeni sunucu bu türleri yalnız
 --     'ortak' satırından okur. 'genel' satırları silinmez (geri dönüş için kalır, sunucu onları yok sayar).
 -- (b) rooms tablosuna genel odası eklenir (sahibi osyalcin; accounts'ta 'osyalcin' hesabı olmalı).
