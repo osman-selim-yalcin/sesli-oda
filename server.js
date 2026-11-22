@@ -596,7 +596,14 @@ async function admit(socket, { token, clientId, roomId, password }) {
       releaseIp?.();
       return { error: 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.', wait: true };
     }
-    const ok = typeof password === 'string' && password.length <= 200 && await accounts.checkPassword(password, reg.passHash);
+    let ok;
+    try {
+      ok = typeof password === 'string' && password.length <= 200 && await accounts.checkPassword(password, reg.passHash);
+    } catch (err) {
+      releaseIp(); // denetim yapılamadı: yanlış deneme sayılmaz
+      releaseKey();
+      throw err;
+    }
     if (!ok) return { error: 'Şifre yanlış.', needPassword: true };
     releaseIp();
     releaseKey();
@@ -723,15 +730,19 @@ io.on('connection', (socket) => {
   socket.on('join', async ({ token, clientId, room: roomId = 'genel', password } = {}, ack) => {
     if (typeof ack !== 'function' || code || joining) return;
     joining = true;
-    let res;
+    let res, rejoined, payload;
     try {
       res = await admit(socket, { token, clientId, roomId, password });
+      if (!socket.connected) return; // şifre denetlenirken ayrıldı
+      if (res.error) return ack(res);
+      ({ rejoined, ...payload } = enterRoom(socket, res.account, res.clientId, res.roomId));
+    } catch (err) {
+      // Beklenmeyen hata sunucuyu düşürmesin (yakalanmayan ret süreci kapatır); istemci cevapsız kalmasın.
+      console.warn('odaya giriş', err.message);
+      return ack({ error: 'Odaya girilemedi, biraz sonra tekrar dene.' });
     } finally {
       joining = false;
     }
-    if (!socket.connected) return; // şifre denetlenirken ayrıldı
-    if (res.error) return ack(res);
-    const { rejoined, ...payload } = enterRoom(socket, res.account, res.clientId, res.roomId);
     ack(payload);
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!payload.error && !rejoined) postSystem(getRoom(code), `${res.account.name} odaya katıldı`, { event: 'join', from: socket.id });

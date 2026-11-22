@@ -256,3 +256,15 @@ test('7. kişi oda dolu hatası alır', async () => {
   assert.equal(r.room, undefined);
   closeAll();
 });
+
+test('girişte beklenmeyen hata sunucuyu düşürmez: hata cevabı döner, soket yeniden deneyebilir', async () => {
+  const bozuk = await user('Bozuk');
+  // JSON'dan gelen bu nesne String() ile metne çevrilemez; admit içinde fırlatır.
+  const r = await ack(bozuk, 'join', { token: bozuk.token, clientId: { toString: 1, valueOf: 1 }, room: 'genel' });
+  assert.deepEqual(r, { error: 'Odaya girilemedi, biraz sonra tekrar dene.' });
+  const ok = await join(bozuk, 'genel');
+  assert.equal(ok.error, undefined);
+  assert.equal(ok.room.id, 'genel');
+  assert.deepEqual(await status(), { online: 1 });
+  closeAll();
+});
