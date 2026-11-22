@@ -63,11 +63,21 @@ function emitAck(ms, event, ...args) {
 }
 
 function toast(text) {
+  const box = $('toasts');
   const el = document.createElement('div');
   el.className = 'toast';
   el.textContent = text;
-  $('toasts').append(el);
-  setTimeout(() => el.remove(), 4000);
+  box.append(el);
+  // Kutu üst katmanda (popover) durur; sonradan açılmış bir pencere varsa onun da üstüne çıksın diye yeniden açılır.
+  if (box.showPopover) {
+    const open = box.matches(':popover-open');
+    if (open && document.querySelector('dialog[open]')) box.hidePopover();
+    if (!open || !box.matches(':popover-open')) box.showPopover();
+  }
+  setTimeout(() => {
+    el.remove();
+    if (!box.children.length && box.hidePopover && box.matches(':popover-open')) box.hidePopover();
+  }, 4000);
 }
 
 function fmtTime(sec) {

@@ -279,6 +279,7 @@
 .chat-msg .queue-add .ic { width: 14px; height: 14px; }
 .chat-form { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--border); align-items: center; }
 .sfx-upload .attach { display: inline-flex; border-color: var(--border); background: var(--surface-2); color: var(--text); }
+.sfx-upload .attach:hover { background: var(--surface-3); border-color: var(--border-strong); }
 .chat-img { display: block; margin-top: 4px; max-width: 100%; max-height: 220px; border-radius: var(--radius-s); cursor: zoom-in; background: var(--surface-2); }
 .quick-emojis { display: flex; justify-content: space-between; padding: 6px 8px 0; border-top: 1px solid var(--border); }
 .quick-emojis button { padding: 2px 4px; font-size: 18px; background: none; border: none; border-radius: 6px; transition: transform .12s, background .12s; }
@@ -484,6 +485,7 @@ details.usage[open] summary span::after { content: '▾'; }
 /* ---------- Amuda kalkan eşek (public/esek.js) ---------- */
 /* Enver düğmesi: yüzü eşek emojisi (gösterinin maskotu); üst çubuktaki ikon düğmeleriyle aynı kare */
 button.esek-btn { width: 36px; height: 36px; padding: 0; flex-shrink: 0; }
+@media (pointer: coarse) { button.esek-btn { width: 40px; height: 40px; } } /* dokunmatikte de kare */
 .esek-face { font-size: 20px; line-height: 1; }
 .esek-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; align-content: center; gap: 6px;
   background: radial-gradient(circle at 50% 50%, rgba(10, 12, 18, .25), rgba(10, 12, 18, .72) 70%);
@@ -538,7 +540,6 @@ button.esek-btn { width: 36px; height: 36px; padding: 0; flex-shrink: 0; }
 .nav-rooms { flex-shrink: 0; }
 .room-pass .rooms-row button { flex: 1; }
 /* Oda ayarları ve birleşme penceresi (Task 11): uzun pencere ekranda kayar */
-.room-settings { max-height: calc(100dvh - 32px); overflow-y: auto; }
 .room-settings .rs-sub { margin: 4px 0 0; font-size: 15px; }
 .room-settings select, .room-settings input { min-width: 0; width: 100%; }
 .settings-actions .room-settings-open { grid-column: 1 / -1; }

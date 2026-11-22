@@ -258,6 +258,8 @@ button:focus-visible, .btn:focus-visible, .attach:focus-within, summary:focus-vi
 }
 .btn:hover:where(:not(:disabled)) { background: var(--surface-3); border-color: var(--border-strong); }
 .btn:active:not(:disabled) { transform: scale(.97); }
+/* Basılı: yüzey bir kat daha koyulaşır (yalnız ölçek değişimi fark edilmiyordu) */
+.btn:active:where(:not(:disabled)) { background: var(--border-strong); border-color: var(--border-strong); }
 .btn:disabled, .btn[aria-disabled=true] { opacity: .45; cursor: not-allowed; }
 .btn .ic, button:where(.primary, .ghost, .danger) .ic { width: 16px; height: 16px; }
 
@@ -274,10 +276,14 @@ button:focus-visible, .btn:focus-visible, .attach:focus-within, summary:focus-vi
 }
 .btn-primary:active:not(:disabled), button.primary:active:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, var(--bg)); }
 
-/* Hayalet: saydam; üzerine gelince kenarlık */
+/* Hayalet: saydam; üzerine gelince kenarlık + hafif zemin (odak ise vurgu renginde dış çizgi: ikisi karışmaz) */
 .btn-ghost, button.ghost { background: transparent; border-color: transparent; }
 .btn-ghost:hover:where(:not(:disabled)), button.ghost:hover:where(:not(:disabled)) {
-  background: transparent;
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+}
+.btn-ghost:active:where(:not(:disabled)), button.ghost:active:where(:not(:disabled)) {
+  background: var(--surface-3);
   border-color: var(--border-strong);
 }
 
@@ -288,10 +294,21 @@ button:focus-visible, .btn:focus-visible, .attach:focus-within, summary:focus-vi
   border-color: transparent;
   color: var(--danger-contrast);
 }
+.btn-danger:active:where(:not(:disabled)), button.danger:active:where(:not(:disabled)) {
+  background: color-mix(in srgb, var(--danger) 78%, var(--bg));
+  border-color: transparent;
+  color: var(--danger-contrast);
+}
 /* Hayalet + tehlike: sakin kırmızı yazı, üzerine gelince yumuşak zemin */
 .btn-ghost.btn-danger, button.ghost.danger { background: transparent; }
 .btn-ghost.btn-danger:hover:where(:not(:disabled)), button.ghost.danger:hover:where(:not(:disabled)) {
   background: var(--danger-soft);
+  border-color: transparent;
+  color: var(--danger);
+}
+.btn-ghost.btn-danger:active:where(:not(:disabled)), button.ghost.danger:active:where(:not(:disabled)) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
   color: var(--danger);
 }
 
@@ -372,7 +389,7 @@ button.round { border-radius: var(--radius-pill); }
   gap: var(--space-4);
   box-shadow: var(--shadow-2);
 }
-.card button.primary { min-height: 44px; }
+.card button.primary:not(.sm) { min-height: 44px; } /* büyük eylem; .sm küçük kalır */
 .panel-head { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-3); min-width: 0; }
 .panel-title { margin: 0; font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--text); letter-spacing: -.005em; }
 
@@ -523,7 +540,7 @@ dialog:not([open]) { display: none; }
 dialog, .dialog {
   width: min(420px, calc(100vw - 32px));
   max-width: none;
-  max-height: calc(100dvh - 32px);
+  max-height: calc(100dvh - 160px); /* üstte 80 px bildirim şeridi boş kalır (aşağıda .toasts) */
   overflow-y: auto;
   overscroll-behavior: contain;
   margin: auto;
@@ -549,18 +566,39 @@ dialog[open]::backdrop { animation: fade-in var(--dur) var(--ease); }
 }
 
 /* ---------- Bildirim: .toast ----------
-   Masaüstünde sol altta (sağ altta sohbet kutusu var), telefonda üstte: yazı kutularının üstüne binmez. */
+   Her ekranda üstte ortada, üst çubuğun hemen altında, aşağı doğru dizilir: yazı kutuları ekranın altında ya da
+   içerikte durur, üstteki bu şeride hiçbiri düşmez. Kutu (#toasts) popover="manual"dır; app.js toast() açık bir
+   pencere varken onu yeniden açar ki pencerenin arka planının da üstünde (üst katmanın en sonunda) dursun.
+   Tıklamayı yalnız bildirimler tutar, aralarındaki boşluk tıklanabilir. */
+:where(:root) { --toast-top: 64px; } /* üst çubuk 52 px + 12 px */
 .toasts {
   position: fixed;
-  left: var(--space-4);
-  bottom: var(--space-4);
+  inset: auto;
+  top: max(var(--toast-top), env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  overflow: visible;
   display: grid;
+  justify-items: center;
   gap: var(--space-2);
   width: min(360px, calc(100% - 32px));
+  height: auto;
   z-index: 10;
   pointer-events: none;
 }
+.toasts[popover]:not(:popover-open) { display: none; }
+/* Pencere açıkken şerit ekranın en üstüne çıkar ve yalnız en yeni bildirim görünür: pencere en fazla
+   100dvh - 160px olduğu için üstte 80 px boş kalır, iki satırlık bir bildirim de pencerenin alanlarına binmez. */
+body:has(dialog[open]) .toasts { top: max(var(--space-3), env(safe-area-inset-top)); }
+body:has(dialog[open]) .toast:not(:last-child) { display: none; }
 .toast {
+  pointer-events: auto;
+  width: 100%;
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
@@ -572,17 +610,12 @@ dialog[open]::backdrop { animation: fade-in var(--dur) var(--ease); }
   font-size: 13px;
   line-height: 1.45;
   box-shadow: var(--shadow-2);
-  animation: toast-in var(--dur) var(--ease), fade 4s forwards;
+  animation: toast-down var(--dur) var(--ease), fade 4s forwards;
 }
 .toast .ic { width: 16px; height: 16px; margin-top: 1px; color: var(--muted); }
 .toast-live .ic { color: var(--live); }
 .toast-danger .ic { color: var(--danger); }
-@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 @keyframes fade { 0%, 85% { opacity: 1; } 100% { opacity: 0; } }
-@media (max-width: 800px) {
-  .toasts { left: 50%; bottom: auto; top: max(var(--space-3), env(safe-area-inset-top)); transform: translateX(-50%); }
-  .toast { animation-name: toast-down, fade; }
-}
 @keyframes toast-down { from { opacity: 0; transform: translateY(-8px); } }
 
 /* ---------- Dokunmatik ekran: dokunma hedefleri ---------- */
