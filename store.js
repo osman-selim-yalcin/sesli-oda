@@ -56,6 +56,19 @@ store.insert = async (table, row) => {
   await check(res, `${table} ekleme`);
 };
 
+// Eklenen satırı geri döndürür (veritabanının verdiği id gerekince); kayıt kapalıyken null.
+store.insertReturning = async (table, row) => {
+  if (!store.enabled) return null;
+  const res = await fetch(`${BASE}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: { ...headers(), 'Content-Type': 'application/json', Prefer: 'return=representation' },
+    body: JSON.stringify(row),
+    signal: timeout(),
+  });
+  await check(res, `${table} ekleme`);
+  return (await res.json())[0] ?? null;
+};
+
 store.update = async (table, filter, patch) => {
   if (!store.enabled) return;
   const res = await fetch(`${BASE}/rest/v1/${table}?${filter}`, {

@@ -1,0 +1,136 @@
+// Oda açma istekleri ve yönetici onayı
+require('./preload');
+const { test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const { startServer, http } = require('./helpers');
+const roomStore = require('../rooms');
+
+let srv;
+before(async () => {
+  await roomStore.load();
+  srv = await startServer();
+});
+after(async () => { await srv?.stop(); });
+
+const ADMIN = 'test:osyalcin';
+const ask = (token, body) => http(srv.url, 'POST', '/rooms/requests', { token, body });
+const mine = (token) => http(srv.url, 'GET', '/rooms/requests/mine', { token });
+const pendingList = (token) => http(srv.url, 'GET', '/admin/room-requests', { token });
+const decide = (token, id, approve) => http(srv.url, 'POST', `/admin/room-requests/${id}`, { token, body: { approve } });
+const rooms = (token) => http(srv.url, 'GET', '/rooms', { token });
+
+test('istek yöneticinin listesinde görünür; locked doğru; şifre hiçbir cevapta yok', async () => {
+  assert.equal((await ask(undefined, { name: 'Salon' })).status, 401);
+  const r = await ask('test:Ali', { name: 'Ali Salonu', password: 'gizli123', note: 'Arkadaşlarla' });
+  assert.equal(r.status, 200);
+  assert.deepEqual(Object.keys(r.json.request).sort(), ['id', 'name', 'status']);
+  assert.equal(r.json.request.status, 'pending');
+  const l = await pendingList(ADMIN);
+  assert.equal(l.status, 200);
+  const item = l.json.requests.find((q) => q.id === r.json.request.id);
+  assert.deepEqual(item, {
+    id: r.json.request.id, by: 'ali', name: 'Ali Salonu', locked: true, theme: 'varsayilan',
+    note: 'Arkadaşlarla', createdAt: item.createdAt,
+  });
+  assert.equal(typeof item.createdAt, 'number');
+  assert.ok(!JSON.stringify([r.json, l.json, (await mine('test:Ali')).json]).includes('gizli123'));
+  assert.ok(!JSON.stringify(l.json).includes('pass'));
+  assert.deepEqual((await mine('test:Ali')).json.request, { id: r.json.request.id, name: 'Ali Salonu', status: 'pending', decidedAt: null });
+});
+
+test('bekleyen isteği olan ikinci istek gönderemez (409); aynı adla başka hesap da gönderemez', async () => {
+  const r = await ask('test:Ali', { name: 'Başka Ad' });
+  assert.equal(r.status, 409);
+  assert.equal(r.json.error, 'Bekleyen bir oda isteğin var.');
+  const dup = await ask('test:Deniz', { name: 'ali salonu' });
+  assert.equal(dup.status, 400);
+});
+
+test('yönetici olmayan liste ve karar uçlarında 403; oturumsuz 401', async () => {
+  const id = (await pendingList(ADMIN)).json.requests[0].id;
+  assert.equal((await pendingList('test:Veli')).status, 403);
+  assert.equal((await decide('test:Veli', id, true)).status, 403);
+  assert.equal((await pendingList(undefined)).status, 401);
+  assert.equal((await pendingList(ADMIN)).json.requests.length, 1); // reddedilen karar etkisiz
+});
+
+test('yönetici istek göndermez (400)', async () => {
+  const r = await ask(ADMIN, { name: 'Yönetici Odası' });
+  assert.equal(r.status, 400);
+  assert.ok(r.json.error);
+});
+
+test('onay: oda istek sahibinin adına açılır, şifre korunur; mine approved', async () => {
+  const id = (await mine('test:Ali')).json.request.id;
+  const r = await decide(ADMIN, id, true);
+  assert.equal(r.status, 200);
+  assert.equal(r.json.room.id, 'ali-salonu');
+  assert.equal(r.json.room.locked, true);
+  assert.ok(!JSON.stringify(r.json).includes('pass'));
+  const aliRooms = (await rooms('test:Ali')).json.rooms;
+  const room = aliRooms.find((x) => x.id === 'ali-salonu');
+  assert.equal(room.role, 'owner');
+  assert.equal(room.locked, true);
+  assert.equal((await rooms('test:Veli')).json.rooms.find((x) => x.id === 'ali-salonu').role, 'none');
+  const m = (await mine('test:Ali')).json.request;
+  assert.equal(m.status, 'approved');
+  assert.equal(m.id, id);
+  assert.equal(typeof m.decidedAt, 'number');
+  assert.equal((await pendingList(ADMIN)).json.requests.length, 0);
+});
+
+test('aynı isteğe ikinci karar 409', async () => {
+  const id = (await mine('test:Ali')).json.request.id;
+  assert.equal((await decide(ADMIN, id, true)).status, 409);
+  assert.equal((await decide(ADMIN, id, false)).status, 409);
+});
+
+test('ret: oda açılmaz, mine rejected, istek sahibi yeniden gönderebilir; şifresiz istek locked false', async () => {
+  const r = await ask('test:Ali', { name: 'Reddedilecek' });
+  assert.equal(r.status, 200);
+  assert.equal((await pendingList(ADMIN)).json.requests[0].locked, false);
+  const d = await decide(ADMIN, r.json.request.id, false);
+  assert.equal(d.status, 200);
+  assert.deepEqual(d.json, {});
+  assert.ok(!(await rooms(ADMIN)).json.rooms.some((x) => x.name === 'Reddedilecek'));
+  const m = (await mine('test:Ali')).json.request;
+  assert.equal(m.status, 'rejected');
+  assert.equal(m.name, 'Reddedilecek');
+  assert.equal((await ask('test:Ali', { name: 'Reddedilecek' })).status, 200); // ret adı serbest bırakır
+  assert.equal((await mine('test:Hiç')).json.request, null);
+});
+
+test('geçersiz ad, uzun not, bilinmeyen tema, kısa ve metin olmayan şifre reddedilir', async () => {
+  const bad = [
+    { name: 'a' }, { name: 'x'.repeat(25) }, { name: 'Ortak' }, { name: 'genel' }, { name: 'Ali Salonu' },
+    { name: 'Geçerli Ad', note: 'n'.repeat(201) }, { name: 'Geçerli Ad', theme: 'yok' },
+    { name: 'Geçerli Ad', password: 'abc' }, { name: 'Geçerli Ad', password: {} }, { name: 'Geçerli Ad', password: false },
+    { name: 'Geçerli Ad', note: 5 },
+  ];
+  for (const body of bad) {
+    const r = await ask('test:Cem', body);
+    assert.equal(r.status, 400, JSON.stringify(body));
+    assert.equal(typeof r.json.error, 'string');
+  }
+  assert.equal((await mine('test:Cem')).json.request, null);
+  assert.equal((await ask('test:Cem', { name: 'Geçerli Ad', note: 'n'.repeat(200) })).status, 200);
+});
+
+test('onaydan önce aynı adla oda açılmışsa onay 409 ve istek beklemede kalır', async () => {
+  const id = (await mine('test:Cem')).json.request.id;
+  assert.equal((await http(srv.url, 'POST', '/rooms', { token: ADMIN, body: { name: 'Geçerli Ad' } })).status, 200);
+  const r = await decide(ADMIN, id, true);
+  assert.equal(r.status, 409);
+  assert.ok(r.json.error);
+  assert.ok((await pendingList(ADMIN)).json.requests.some((q) => q.id === id));
+  assert.equal((await mine('test:Cem')).json.request.status, 'pending');
+  assert.equal((await decide(ADMIN, id, false)).status, 200); // yine de reddedilebilir
+});
+
+test('create metin olmayan şifreyi reddeder', async () => {
+  for (const password of [{}, false, 1234, ['abcd']]) {
+    const r = await roomStore.create({ name: 'Şifre Denemesi', ownerId: 'osyalcin', password });
+    assert.equal(typeof r.error, 'string', JSON.stringify(password));
+  }
+  assert.equal(roomStore.all().some((x) => x.name === 'Şifre Denemesi'), false);
+});
