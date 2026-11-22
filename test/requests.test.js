@@ -187,3 +187,31 @@ test('Supabase açıkken kayıt satır döndürmezse istek hata verir, hafıza s
     assert.equal((await http(url, 'GET', '/rooms/requests/mine', { token: 'test:Satirsiz' })).json.request, null);
   });
 });
+
+test('aynı hesaptan 5 eşzamanlı istek: biri 200, öbürleri 409', async () => {
+  const rs = await Promise.all([1, 2, 3, 4, 5].map((i) => ask('test:Eszaman', { name: `Eszaman Oda ${i}`, password: 'gizli-sifre' })));
+  const codes = rs.map((r) => r.status).sort();
+  assert.deepEqual(codes, [200, 409, 409, 409, 409], JSON.stringify(rs.map((r) => r.json)));
+  for (const r of rs) if (r.status === 409) assert.equal(r.json.error, 'Bekleyen bir oda isteğin var.');
+});
+
+// Bu süreçte (sunucu süreci değil): rooms.js uçları ayrı bir Express'e bağlanır, şifre hashleme sayılır.
+test('eşzamanlı istekler şifreyi yalnız bir kez hashler', async () => {
+  const express = require('express');
+  const accounts = require('../accounts');
+  const app = express();
+  roomStore.setup(app, { live: () => ({ users: [], max: 6, mergedWith: null }), onChange: () => {} });
+  const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
+  const hash = accounts.hashPassword;
+  let hashed = 0;
+  accounts.hashPassword = (p) => { hashed++; return hash(p); };
+  try {
+    const url = `http://127.0.0.1:${server.address().port}`;
+    const rs = await Promise.all([1, 2, 3, 4, 5].map((i) => http(url, 'POST', '/rooms/requests', { token: 'test:Tekhash', body: { name: `Tekhash Oda ${i}`, password: 'gizli-sifre' } })));
+    assert.deepEqual(rs.map((r) => r.status).sort(), [200, 409, 409, 409, 409]);
+    assert.equal(hashed, 1);
+  } finally {
+    accounts.hashPassword = hash;
+    await new Promise((r) => server.close(r));
+  }
+});

@@ -349,18 +349,21 @@ function setup(app, opts) {
     else return a;
     return null;
   };
+  // Hesabın işlenmekte olan isteği (şifre hashlenirken): eşzamanlı istekler her biri scrypt çalıştırmasın.
+  const asking = new Set();
   app.post('/rooms/requests', json, async (req, res) => {
     const a = accounts.accountByToken(bearer(req));
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
     if (accounts.isAdmin(a.key)) return fail(res, 400, 'Yönetici oda isteği göndermez; doğrudan oda açabilir.');
     const body = req.body || {};
     const has = () => requests.some((q) => q.accountId === a.key);
-    if (has()) return fail(res, 409, 'Bekleyen bir oda isteğin var.');
+    if (has() || asking.has(a.key)) return fail(res, 409, 'Bekleyen bir oda isteğin var.');
     const v = check({ name: body.name, password: body.password, theme: body.theme ?? undefined }, { pendingName: true });
     if (v.error) return fail(res, 400, v.error);
     if (body.note != null && typeof body.note !== 'string') return fail(res, 400, 'Not geçersiz.');
     const note = (body.note || '').trim();
     if (note.length > NOTE_MAX) return fail(res, 400, `Not en çok ${NOTE_MAX} karakter olmalı.`);
+    asking.add(a.key);
     try {
       const passHash = v.password ? await accounts.hashPassword(v.password) : null; // düz şifre saklanmaz
       if (has()) return fail(res, 409, 'Bekleyen bir oda isteğin var.'); // hash sürerken ikinci istek gelmiş olabilir
@@ -383,6 +386,8 @@ function setup(app, opts) {
     } catch (err) {
       console.warn('oda isteği', err.message);
       fail(res, 500, 'İstek gönderilemedi, biraz sonra tekrar dene.');
+    } finally {
+      asking.delete(a.key);
     }
   });
 
