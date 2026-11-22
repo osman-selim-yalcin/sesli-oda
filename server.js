@@ -826,7 +826,7 @@ function dropRoom(roomCode) {
 // oda olanlar geri taşınır. Birleşme yalnız hafızadadır; sunucu yeniden başlayınca biter.
 
 const MERGE_EXPIRE_EVERY = 5000; // ms; 60 sn'yi geçen istekler bu aralıkla düşürülür
-setInterval(() => merge.expire(), MERGE_EXPIRE_EVERY).unref();
+setInterval(() => settleMergeNotices('cancelled'), MERGE_EXPIRE_EVERY).unref();
 const NO_MERGE_RIGHT = { error: 'Birleştirmeyi yalnız oda sahibi ya da yönetici yapabilir.' };
 const MERGE_GONE = { error: 'Birleşme isteği bulunamadı ya da süresi doldu.' };
 
@@ -868,6 +868,27 @@ function mergeDeciders(reg) {
   return out;
 }
 
+// Bekleyen isteğin ilgilileri: isteyen hesap (bütün soketleri) ve merge:incoming alan soketler.
+// İstek kapanınca hepsine merge:closed { id, reason } gider
+// (reason: 'declined' | 'expired' | 'merged' | 'cancelled').
+const mergeNotices = new Map(); // istek id -> { key, deciders: Set<soket> }
+
+function closeMergeNotice(id, reason) {
+  const notice = mergeNotices.get(id);
+  if (!notice) return;
+  mergeNotices.delete(id);
+  for (const s of new Set([...onlineSockets(notice.key), ...notice.deciders])) {
+    if (s.connected) s.emit('merge:closed', { id, reason });
+  }
+}
+
+// Süresi dolanlar 'expired'; artık bekleyen olmayan öteki istekler (odası başka odayla birleşti ya da
+// kapandı) reason ile kapanır.
+function settleMergeNotices(reason) {
+  for (const q of merge.expire()) closeMergeNotice(q.id, 'expired');
+  for (const id of [...mergeNotices.keys()]) if (!merge.pending(id)) closeMergeNotice(id, reason);
+}
+
 // Soketi başka odaya taşır: odadakilere normal çıkış/giriş gibi user-left / user-joined gider,
 // sohbete "ayrıldı"/"katıldı" yazılmaz; sokete room:moved { reason, ...join cevabı } gider.
 function moveSocket(socket, target, home, reason) {
@@ -880,14 +901,19 @@ function moveSocket(socket, target, home, reason) {
   socket.emit('room:moved', { reason, ...payload });
 }
 
-// Birleşme anı: misafir odanın müziği duraklar (sıra durur), lobileri kapanır, oyunları çıkan
-// kişilerin temizliğiyle biter; herkes ev sahibi odaya taşınır.
+// Birleşme anı: misafir odanın müziği duraklar (sıra durur), radyosu kapanır, lobileri kapanır, oyunları
+// çıkan kişilerin temizliğiyle biter; herkes ev sahibi odaya taşınır. Misafir odanın canlı durumu
+// (şarkı, sıra, sohbet) birleşik kaldıkça boş haliyle bekler (roomEmptied silmez).
 function startMerge({ host, guest }) {
   const room = rooms.get(guest);
   if (room) {
     if (room.playing) {
       setPlayback(room, false, currentPosition(room));
       broadcastMedia(guest);
+    }
+    if (room.radio) {
+      room.radio = null;
+      io.to(guest).emit('radio', null);
     }
     if (Object.keys(room.lobbies).length) {
       for (const game of Object.keys(room.lobbies)) delete room.lobbies[game];
@@ -898,12 +924,18 @@ function startMerge({ host, guest }) {
       if (socket) moveSocket(socket, host, guest, 'merge');
       else room.users.delete(id); // bağlantısı çoktan gitmiş eski kayıt
     }
-    if (rooms.get(guest)?.users.size === 0) dropRoom(guest);
   }
   const hostRoom = rooms.get(host);
   if (hostRoom) postSystem(hostRoom, `${roomStore.get(guest)?.name || guest} odası birleşti`);
-  else merge.split(host); // iki oda da boştu: boş ev sahibi birleşik kalmaz
+  else endMerge(host); // iki oda da boştu: boş ev sahibi birleşik kalmaz
   roomsChanged();
+}
+
+// Birleşmeyi taşımasız bitirir; bekleyen misafir oda boşsa canlı durumu silinir.
+function endMerge(roomId) {
+  const pair = merge.split(roomId);
+  if (pair && rooms.get(pair.guest)?.users.size === 0) dropRoom(pair.guest);
+  return pair;
 }
 
 // Ayrılma: home'u misafir oda olanlar kendi odasına döner. Birleşik değilse null.
@@ -915,6 +947,7 @@ function splitRooms(roomId) {
     const socket = io.sockets.sockets.get(id);
     if (socket) moveSocket(socket, pair.guest, pair.guest, 'split');
   }
+  if (rooms.get(pair.guest)?.users.size === 0) dropRoom(pair.guest); // geri dönen kimse yok
   const hostRoom = rooms.get(pair.host);
   if (hostRoom) postSystem(hostRoom, `${roomStore.get(pair.guest)?.name || pair.guest} odası ayrıldı`);
   roomsChanged();
@@ -925,6 +958,7 @@ function splitRooms(roomId) {
 // (misafirler kendi odasına döner); misafir kapanıyorsa onun kökenlileri ev sahibinden listeye döner.
 function mergeRoomClosed(id, name) {
   merge.forget(id);
+  settleMergeNotices('cancelled');
   const partner = merge.partnerOf(id);
   if (!partner) return;
   if (merge.hostOf(id) === id) {
@@ -944,10 +978,13 @@ function mergeRoomClosed(id, name) {
   roomsChanged();
 }
 
-// Canlı oda boşaldı: ev sahibiyse birleşme biter (içeride misafir kökenli kimse kalmadı), durum silinir.
+// Canlı oda boşaldı. Birleşik misafir oda silinmez (içeriği ayrılmayı bekler). Ev sahibiyse birleşme
+// biter (içeride misafir kökenli kimse kalmadı; boş bekleyen misafir oda da silinir), durum silinir.
 function roomEmptied(roomCode) {
-  if (merge.partnerOf(roomCode) && merge.hostOf(roomCode) === roomCode) {
-    merge.split(roomCode);
+  const partner = merge.partnerOf(roomCode);
+  if (partner && merge.hostOf(roomCode) !== roomCode) return;
+  if (partner) {
+    endMerge(roomCode);
     roomsChanged();
   }
   dropRoom(roomCode);
@@ -980,10 +1017,13 @@ function bindMergeEvents(socket) {
       const pair = merge.answer(req.id, true);
       if (pair.error) return ack(pair);
       startMerge(pair);
+      settleMergeNotices('cancelled'); // iki odadan birini içeren öteki istekler düştü
       return ack({ merged: true });
     }
     const incoming = { id: req.id, from: { id: fromReg.id, name: fromReg.name }, by: account.name, warn: mergeWarn(toReg.id) };
-    for (const s of mergeDeciders(toReg)) s.emit('merge:incoming', incoming);
+    const deciders = mergeDeciders(toReg);
+    mergeNotices.set(req.id, { key: account.key, deciders });
+    for (const s of deciders) s.emit('merge:incoming', incoming);
     ack({ id: req.id });
   });
 
@@ -999,12 +1039,20 @@ function bindMergeEvents(socket) {
       const full = mergeCapacityError(req.from, req.to); // istek beklerken kişi sayısı değişmiş olabilir
       if (full) {
         merge.answer(id, false);
+        closeMergeNotice(id, 'cancelled');
         return ack(full);
       }
     }
     const pair = merge.answer(id, Boolean(accept));
-    if (pair?.error) return ack(pair);
-    if (pair) startMerge(pair);
+    if (pair?.error) {
+      settleMergeNotices('cancelled'); // istek bu arada geçersizleşti
+      return ack(pair);
+    }
+    closeMergeNotice(id, pair ? 'merged' : 'declined');
+    if (pair) {
+      startMerge(pair);
+      settleMergeNotices('cancelled');
+    }
     ack({ merged: Boolean(pair) });
   });
 

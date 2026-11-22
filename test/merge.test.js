@@ -301,7 +301,12 @@ test('ret ve 60 sn zaman aşımı: durum temiz, yeniden istek gönderilebilir', 
   assert.equal((await request(a, p.A, p.B)).error, undefined);
   assert.ok((await request(a, p.A, p.B)).error, 'bekleyen çift');
   const moved = next(bside[0], 'room:moved', 1500).then(() => assert.fail('retten sonra taşınma olmamalı'), () => {});
-  assert.equal((await answer(b, (await inc).id, false)).error, undefined);
+  const declined = (await inc).id;
+  const toA = next(a, 'merge:closed');
+  const toB = next(b, 'merge:closed');
+  assert.equal((await answer(b, declined, false)).error, undefined);
+  assert.deepEqual(await toA, { id: declined, reason: 'declined' }, 'isteyen öğrenir');
+  assert.deepEqual(await toB, { id: declined, reason: 'declined' }, 'karar verenin penceresi kapanır');
   await moved;
   assert.equal((await listed(p.B)).mergedWith, null);
 
@@ -345,8 +350,12 @@ test('çevrimiçi yönetici de merge:incoming alır ve onaylayabilir', async () 
   const inc = await toAdmin;
   assert.equal((await toOwner).id, inc.id);
   const moved = next(bside[0], 'room:moved');
+  const closedOwner = next(b, 'merge:closed');
+  const closedRequester = next(a, 'merge:closed');
   assert.equal((await answer(admin, inc.id, true)).error, undefined);
   await moved;
+  assert.deepEqual(await closedOwner, { id: inc.id, reason: 'merged' }, 'öteki karar vericinin penceresi kapanır');
+  assert.deepEqual(await closedRequester, { id: inc.id, reason: 'merged' });
   assert.ok((await answer(b, inc.id, true)).error, 'ilk cevap kazanır');
 });
 
@@ -387,8 +396,12 @@ test('istek beklerken taraf değişir (yönetici A ile C\'yi birleştirir): kabu
   const inc = next(b, 'merge:incoming');
   assert.equal((await request(a, p.A, p.B)).error, undefined);
   const { id } = await inc;
+  const cancelA = next(a, 'merge:closed');
+  const cancelB = next(b, 'merge:closed');
   const admin = await online(ADMIN);
   assert.equal((await request(admin, p.A, p.C)).error, undefined, 'yönetici A ile C\'yi birleştirir');
+  assert.deepEqual(await cancelA, { id, reason: 'cancelled' });
+  assert.deepEqual(await cancelB, { id, reason: 'cancelled' });
   const moved = next(bside[0], 'room:moved', 1000).then(() => assert.fail('taşınmamalı'), () => {});
   const r = await answer(b, id, true);
   assert.ok(r.error, JSON.stringify(r));
@@ -482,9 +495,14 @@ test('birleşme anında B\'deki lobi kapanır, B\'nin müziği duraklatılır; u
   s.emit('lobby:open', { game: 'race' });
   await eventWhere(s, 'lobbies', (l) => l.race);
   s.emit('media:add', 'dQw4w9WgXcQ');
-  await eventWhere(s, 'media', (m) => m.current, 8000);
+  const playing = await eventWhere(s, 'media', (m) => m.current, 8000);
+  s.emit('media:add', 'jNQXAC9IVRw');
+  await eventWhere(s, 'media', (m) => m.queue.length === 1, 8000);
   s.emit('media:play', 12);
   await eventWhere(s, 'media', (m) => m.playing);
+  const said = chatText(s, 'B\'nin eski mesajı');
+  s.emit('chat', 'B\'nin eski mesajı');
+  await said;
 
   const got = collect(s);
   const a = await online(p.ownerA);
@@ -501,8 +519,42 @@ test('birleşme anında B\'deki lobi kapanır, B\'nin müziği duraklatılır; u
   const media = before.filter((e) => e.event === 'media').pop();
   assert.ok(media, 'taşınmadan önce B\'nin media durumu gelir');
   assert.equal(media.data.playing, false);
-  assert.ok(media.data.current, 'sıra/şarkı silinmez');
-  assert.ok(media.data.position >= 12);
   const lobbies = before.filter((e) => e.event === 'lobbies').pop();
   assert.ok(lobbies && !lobbies.data.race, 'B\'deki lobi kapandı');
+
+  // Ayrılınca B'nin kendi canlı durumu beklediği gibi döner: şarkı duraklamış, sıra ve eski sohbet yerinde
+  const back = next(s, 'room:moved');
+  assert.equal((await split(b, p.B)).error, undefined);
+  const r = await back;
+  assert.equal(r.room.id, p.B);
+  assert.equal(r.media.current?.id, playing.current.id, 'şarkı korunur');
+  assert.equal(r.media.playing, false);
+  assert.ok(r.media.position >= 12);
+  assert.deepEqual(r.media.queue.map((q) => q.videoId), ['jNQXAC9IVRw'], 'sıra korunur');
+  assert.ok(r.chat.some((c) => c.text === 'B\'nin eski mesajı'), 'B\'nin sohbeti korunur');
+  assert.deepEqual(r.lobbies, {});
+});
+
+test('ev sahibi oda boşalınca birleşme biter; bekleyen boş misafir odanın canlı durumu silinir', async () => {
+  const p = await pair();
+  const [aUser] = await fill(p.A, `Bos${p.t}a`, 1);
+  const [bUser] = await fill(p.B, `Bos${p.t}b`, 1);
+  const said = chatText(bUser, 'silinecek mesaj');
+  bUser.emit('chat', 'silinecek mesaj');
+  await said;
+  await mergeRooms(p, [bUser]);
+  await sleep(400);
+  assert.deepEqual((await listed(p.B)).users, [`Bos${p.t}b0`]);
+  aUser.close();
+  bUser.close();
+  await sleep(400);
+  const lb = await listed(p.B);
+  assert.equal(lb.mergedWith, null);
+  assert.deepEqual(lb.users, [], 'boş misafir oda dolu görünmez');
+  assert.equal((await listed(p.A)).mergedWith, null);
+  // B'ye yeni giren yeni bir canlı durum bulur (eski boş oda kalmadı)
+  const fresh = await user(`Yeni${p.t}b`);
+  const r = await join(fresh, p.B);
+  assert.equal(r.room.id, p.B);
+  assert.ok(!r.chat.some((c) => c.text === 'silinecek mesaj'));
 });
