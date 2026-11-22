@@ -908,8 +908,8 @@ $('now-pop-room').onclick = () => {
 // önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var:
 // / sıra, /gecmis, /oyunlar (oyun kartları), /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'kural', 'hedef', 'mantik', 'xox', 'daktilo', 'okuma', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', xox: 'ittirmeli-xox', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'kural', 'hedef', 'mantik', 'daktilo', 'okuma', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   if (view.page === 'members') return '/uyeler';
@@ -1465,7 +1465,6 @@ function openGame(name) {
   if (name === 'hedef') renderHedef(); // public/hedef.js
   if (name === 'kural') window.renderKural?.(); // public/kural.js
   if (name === 'mantik') renderMantik(); // public/mantik.js
-  if (name === 'xox') renderXox(); // public/xox.js
   if (name === 'daktilo') renderDaktilo(); // public/daktilo.js
   if (name === 'okuma') renderOkuma(); // public/okuma.js
   else if (typeof okumaStop === 'function') okumaStop(); // açık alıştırmanın sayacı dursun; geri gelince alıştırma baştan çizilir
@@ -6161,7 +6160,6 @@ function applyJoin(res) {
   setHedefRecords(res.hedefBoard);
   window.setKural?.(res.kural); // public/kural.js
   setMantik(res.mantik); // public/mantik.js
-  setXox(res.xox); // public/xox.js
   setDaktilo(res.daktilo); // public/daktilo.js
   setDaktiloBoard(res.daktiloBoard);
   setRadio(res.radio);
@@ -6205,12 +6203,11 @@ const GAME_INFO = {
   kural: { icon: '🕵️', hue: 265, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala' },
   hedef: { icon: '🎯', hue: 0, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş' },
   mantik: { icon: '🧠', hue: 320, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu' },
-  xox: { icon: '❌', hue: 150, group: 'Zeka', desc: 'X ve O\'ları it, beşini yan yana getir' },
   klotski: { icon: '🧩', hue: 130, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar' },
   memory: { icon: '🃏', hue: 40, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla' },
   timing: { icon: '⏱️', hue: 190, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur' },
   daktilo: { icon: '⌨️', hue: 280, group: 'Hız ve refleks', desc: 'Aynı kelimeleri yaz, en hızlı olan kazanır' },
-  okuma: { icon: '📖', hue: 35, group: 'Hız ve refleks', desc: 'Takistoskop, sayı tablosu, kelime akışı' },
+  okuma: { icon: '📖', hue: 35, group: 'Hız ve refleks', desc: 'Göz açısı, blok görme, takistoskop' },
   dino: { icon: '🦖', hue: 100, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş' },
   peacock: { icon: '🦚', hue: 170, group: 'Hız ve refleks', desc: 'Yakında', soon: true },
   kelime: { icon: '💬', hue: 230, group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir' },

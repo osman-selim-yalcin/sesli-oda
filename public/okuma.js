@@ -1,29 +1,75 @@
 'use strict';
 
 // ---------- Hızlı okuma alıştırmaları ----------
-// app.js ve tr-words.js'ten sonra yüklenir; $, toast, TR_WORDS oradan gelir. Hepsi tek kişilik, sunucuya bir şey
-// gitmez; en iyi sonuçlar bu tarayıcıda (localStorage) kişiye göre tutulur.
+// app.js ve tr-words.js'ten sonra yüklenir; $, TR_WORDS oradan gelir. Hepsi tek kişilik, sunucuya bir şey gitmez;
+// en iyi sonuçlar bu tarayıcıda (localStorage) kişiye göre tutulur.
+// - Göz açısı (yatay), Kademeli blok görme, Göz açısı (dikey): ortadaki noktaya bakarken çevresinde bir an
+//   rakamlar görünür, gördüğünü yazarsın. Her seviyede 6 kademe; doğru bildikçe rakamlar merkezden uzaklaşır,
+//   seviye arttıkça rakam sayısı çoğalır. Doğru cevap puan kazandırır, yanlış aynı kadar götürür.
 // - Takistoskop: kelime(ler) çok kısa süre görünür, gördüğünü yazarsın. Seviye 1-10 gösterim süresini kısaltır.
-// - Tek mi çift mi: 1 dakikada tablodaki tek (ya da çift) sayıların hepsini bul; bitince yeni tablo gelir.
 // - Sayı tablosu: 1'den başlayıp sırayla bütün sayılara bas; gözünü ortada tutmaya çalış.
-// - Kelime akışı: metin kelime kelime (ya da 2-3'lü gruplar) ekranın ortasında seçilen hızda akar.
+
+// Blok egzersizleri: seviye (d) ve kademe (k) 1'den başlar. items(d, k) gösterilecekleri {x, y (yüzde), text}
+// olarak verir; focus varsa (kademeli) göz önce soldaki, sonra sağdaki bloğa yönlendirilir.
+const BLOK_STEPS = 6; // her seviyede kademe sayısı
+const randDigits = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('');
+const spread = (fix, k) => fix + ((100 - fix) / 5) * (k - 1); // kademe arttıkça açılan genişlik (yüzde)
+const rowX = (n, w) => Array.from({ length: n }, (_, i) => (n === 1 ? 50 : 50 - w / 2 + (w * i) / (n - 1)));
+
+const BLOK = {
+  yatay: {
+    levels: 5, pts: 20,
+    ms: (d) => 100 + 25 * (d - 1),
+    question: (d) => randDigits(d + 1),
+    // Çift sayıda rakamda ortadaki nokta iki rakamın arasında kalır (boş yer); tekte ortadaki rakam noktanın üstünde.
+    items(answer, d, k) {
+      const chars = answer.split('');
+      if (chars.length % 2 === 0) chars.splice(chars.length / 2, 0, null);
+      const xs = rowX(chars.length, spread([12, 12, 21, 21, 29][d - 1], k) * 0.92);
+      return chars.map((c, i) => c && { x: xs[i], y: 50, text: c }).filter(Boolean);
+    },
+    hint: 'Ortadaki noktaya bak, iki yanında beliren rakamları soldan sağa yaz.',
+  },
+  kademeli: {
+    levels: 4, pts: 40,
+    ms: (d) => Math.round(250 * 1.6 ** (d - 1)),
+    question: (d) => randDigits(2 * (d + 1)),
+    items(answer, d, k) {
+      const half = answer.length / 2;
+      const w = spread([18, 24, 31, 37][d - 1], k) * 0.86;
+      return [{ x: 50 - w / 2, y: 50, text: answer.slice(0, half), block: 0 }, { x: 50 + w / 2, y: 50, text: answer.slice(half), block: 1 }];
+    },
+    focus: true,
+    hint: 'Başını oynatmadan önce soldaki sayıyı, sonra sağdakini bir bakışta gör. Önce soldakini, sonra sağdakini yaz.',
+  },
+  dikey: {
+    levels: 3, pts: 50,
+    ms: (d) => 175 + 50 * (d - 1),
+    question: (d) => randDigits(d + 3),
+    // Üstte ve altta üçer yer; 4 rakamda iki ortası boş, 5 rakamda üst ortası boş.
+    items(answer, d, k) {
+      const chars = answer.split('');
+      if (d === 1) chars.splice(1, 0, null), chars.splice(4, 0, null);
+      if (d === 2) chars.splice(1, 0, null);
+      const xs = rowX(3, 14 + 13 * (k - 1));
+      const dy = 12 + 5.5 * (k - 1);
+      return chars.map((c, i) => c && { x: xs[i % 3], y: i < 3 ? 50 - dy : 50 + dy, text: c }).filter(Boolean);
+    },
+    hint: 'Ortadaki noktaya bak, üstünde ve altında beliren rakamları önce üst satırı, sonra alt satırı soldan sağa yaz.',
+  },
+};
 
 const OKUMA_EXERCISES = [
+  { key: 'yatay', title: 'Göz açısı (yatay)', icon: '↔️', desc: 'Noktanın sağında ve solunda bir an beliren rakamları gör. Doğru bildikçe rakamlar açılır.' },
+  { key: 'kademeli', title: 'Kademeli blok görme', icon: '👀', desc: 'Sağda ve solda iki sayı bloğu: başını oynatmadan önce soldakini, sonra sağdakini bir bakışta gör.' },
+  { key: 'dikey', title: 'Göz açısı (dikey)', icon: '↕️', desc: 'Noktanın üstünde ve altında bir an beliren rakamları gör; rakamlar dört yöne açılır.' },
   { key: 'takisto', title: 'Takistoskop', icon: '⚡', desc: 'Bir anlık gördüğün kelimeyi yaz. Seviye arttıkça süre kısalır.' },
-  { key: 'tekcift', title: 'Tek mi? Çift mi?', icon: '🔢', desc: 'Tablodaki tek ya da çift sayıların hepsini bir dakikada bul.' },
   { key: 'tablo', title: 'Sayı tablosu', icon: '🎯', desc: "1'den başlayıp sırayla bütün sayılara bas. Gözün ortada kalsın, kenarları görmeye çalış." },
-  { key: 'akis', title: 'Kelime akışı', icon: '📖', desc: 'Metin ekranın ortasında kelime kelime akar; hızı sen seçersin.' },
 ];
 
 // Seviye -> gösterim süresi (ms)
 const TAKISTO_MS = [200, 150, 125, 100, 75, 50, 30, 20, 15, 10];
 const TAKISTO_SET = 10; // bir turda kaç deneme
-
-const OKUMA_TEXTS = [
-  { title: 'Sabah', text: 'Sabahları erken kalkmak çoğu insana zor gelir. Alarm çalar, el kendiliğinden düğmeye uzanır ve beş dakika daha uyumak dünyanın en güzel fikri gibi görünür. Oysa güneş doğarken pencereyi açıp serin havayı içine çekmek, günün geri kalanına bambaşka bir başlangıç yapmak demektir. Sokaklar henüz sessizdir, fırınlardan taze ekmek kokusu yayılır, kuşlar ağaçlarda birbirine seslenir. Bu saatlerde yazılan bir sayfa, okunan bir bölüm ya da yapılan kısa bir yürüyüş, öğleden sonra yapılan iki saatlik çalışmadan daha verimli olabilir. Önemli olan bir anda değişmek değil, her gün biraz daha erken kalkmayı denemektir. Bir hafta sonra beden bu yeni düzene alışır ve sabahlar artık bir ceza değil, kimsenin rahatsız etmediği küçük bir hediye olur.' },
-  { title: 'Deniz feneri', text: 'Küçük bir adanın ucunda, kayaların üstünde eski bir deniz feneri dururdu. Yıllarca her gece aynı saatte yanar, uzaktaki gemilere kıyının nerede olduğunu gösterirdi. Feneri yaşlı bir bekçi yönetirdi. Her akşam yüz yirmi basamağı tek tek çıkar, camları siler, lambayı yakar ve sabaha kadar denizi izlerdi. Fırtınalı gecelerde dalgalar kayalara çarpar, rüzgar pencereleri sarsardı ama ışık hiç sönmezdi. Bir gün adaya otomatik bir lamba getirildi ve bekçiye artık gerek kalmadığı söylendi. Yaşlı adam fenerden indi, köydeki küçük evine yerleşti. Yine de her akşam aynı saatte pencereye gider, uzakta dönen ışığa bakar ve kendi kendine gülümserdi. Işık hâlâ yanıyordu; onun için önemli olan da buydu.' },
-  { title: 'Okumak', text: 'Hızlı okumak yalnızca gözleri hızlı oynatmak değildir. Okurken çoğumuz kelimeleri içimizden tek tek söyleriz ve bu iç ses okuma hızımızı konuşma hızına bağlar. Göz ise aslında bir bakışta birden fazla kelimeyi görebilir. Alıştırmalar bu yüzden iki şeye odaklanır: bir bakışta görülen alanı genişletmek ve gözün satır üstündeki sıçramalarını azaltmak. Takistoskop çalışması kısa sürede daha çok şey görmeyi, sayı tablosu ise gözü ortada tutarken kenarları fark etmeyi öğretir. Yine de amaç anlamadan okumak değildir. Hız arttıkça arada durup okuduğunu kendine özetlemek, anlamanın da hızla birlikte gelişmesini sağlar. Her gün on dakikalık düzenli çalışma, ayda bir yapılan uzun çalışmadan çok daha fazla işe yarar.' },
-];
 
 const okumaKey = (k) => `okuma:${myName}:${k}`;
 const okumaGet = (k) => {
@@ -76,23 +122,149 @@ function renderOkuma() {
   head.append(okBtn('‹ Alıştırmalar', 'sm ghost', () => okumaOpen(null)), okEl('strong', 'okuma-title', `${def.icon} ${def.title}`));
   const body = okEl('div', 'okuma-body');
   ex.replaceChildren(head, okEl('p', 'muted small okuma-desc', def.desc), body);
-  ({ takisto: takistoView, tekcift: tekciftView, tablo: tabloView, akis: akisView })[okumaEx](body);
+  if (BLOK[okumaEx]) blokView(body, okumaEx);
+  else ({ takisto: takistoView, tablo: tabloView })[okumaEx](body);
 }
 
 function okumaBestText(key) {
+  if (BLOK[key]) {
+    const b = okumaGet(key);
+    return b?.score ? `En iyi: ${b.score} puan (seviye ${b.d}, kademe ${b.k})` : '';
+  }
   if (key === 'takisto') {
     const b = okumaGet('takisto');
     return b?.level ? `En iyi: seviye ${b.level} (${TAKISTO_MS[b.level - 1]} ms)` : '';
-  }
-  if (key === 'tekcift') {
-    const b = okumaGet('tekcift');
-    return b?.score ? `En iyi: ${b.score} puan` : '';
   }
   if (key === 'tablo') {
     const b = okumaGet('tablo:5');
     return b?.ms ? `En iyi 5×5: ${(b.ms / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} sn` : '';
   }
   return '';
+}
+
+// ---------- Blok egzersizleri (yatay, kademeli, dikey) ----------
+function blokView(body, key) {
+  const cfg = BLOK[key];
+  const st = { d: 1, k: 1, score: 0, answer: '', phase: 'idle', timers: [], right: 0, wrong: 0, best: { d: 1, k: 1 } };
+  okumaStop = () => st.timers.forEach(clearTimeout);
+  const later = (ms, fn) => st.timers.push(setTimeout(fn, ms));
+
+  const bar = okEl('div', 'blok-bar');
+  const stage = okEl('div', `blok-stage ${key}`);
+  const form = okEl('form', 'okuma-answer');
+  const input = Object.assign(okEl('input'), { inputMode: 'numeric', autocomplete: 'off', placeholder: key === 'kademeli' ? 'Önce sol, sonra sağ' : 'Gördüğün rakamlar', enterKeyHint: 'send' });
+  const send = okBtn('Gönder', 'primary');
+  send.type = 'submit';
+  form.append(input, send);
+  const info = okEl('p', 'muted small okuma-info');
+  const startBtn = okBtn('Başla', 'lobby-start okuma-start', () => begin());
+  const endBtn = okBtn('Bitir', 'sm ghost danger', () => finish(false));
+  const actions = okEl('div', 'okuma-opts');
+  actions.append(startBtn, endBtn);
+  body.append(bar, stage, form, actions, info);
+
+  function drawBar() {
+    bar.replaceChildren(
+      okEl('span', '', `Seviye ${st.d}/${cfg.levels}`),
+      okEl('span', '', `Kademe ${st.k}/${BLOK_STEPS}`),
+      okEl('span', '', `${cfg.question(st.d).length} rakam · ${cfg.ms(st.d)} ms`),
+      okEl('strong', '', `${st.score} puan`));
+  }
+  const dot = () => okEl('span', 'blok-dot');
+
+  function idle(text) {
+    st.phase = 'idle';
+    form.hidden = true;
+    startBtn.hidden = false;
+    endBtn.hidden = true;
+    stage.replaceChildren(dot());
+    const best = okumaGet(key);
+    info.textContent = text || `${cfg.hint} Doğru bildikçe kademe, 6 kademede bir seviye artar.${best ? ` Rekorun: ${best.score} puan.` : ''}`;
+    drawBar();
+  }
+
+  function begin() {
+    Object.assign(st, { d: 1, k: 1, score: 0, right: 0, wrong: 0, best: { d: 1, k: 1 } });
+    startBtn.hidden = true;
+    endBtn.hidden = false;
+    next();
+  }
+
+  function next() {
+    st.phase = 'show';
+    form.hidden = true;
+    drawBar();
+    info.textContent = cfg.hint;
+    st.answer = cfg.question(st.d);
+    stage.replaceChildren(dot());
+    const items = cfg.items(st.answer, st.d, st.k);
+    const ms = cfg.ms(st.d);
+    later(800, () => {
+      const els = items.map((it) => {
+        const el = okEl('span', 'blok-item', it.text);
+        // En açık kademede de sahneden taşmasın: yarım genişlik/yükseklik kadar kenardan içeride kalır
+        const half = it.text.length * 0.33 + 0.3;
+        el.style.left = `clamp(${half}em, ${it.x}%, calc(100% - ${half}em))`;
+        el.style.top = `clamp(0.8em, ${it.y}%, calc(100% - 1.2em))`;
+        return el;
+      });
+      if (cfg.focus) {
+        // Kademeli: noktalar sayıların altında; göz önce soldakine, yarı sürede sağdakine
+        stage.replaceChildren(...els);
+        els[0].classList.add('focus');
+        later(ms / 2, () => {
+          els[0].classList.remove('focus');
+          els[1].classList.add('focus');
+        });
+      } else stage.append(...els);
+      later(ms, ask);
+    });
+  }
+
+  function ask() {
+    st.phase = 'answer';
+    stage.replaceChildren(okEl('span', 'blok-q', '?'));
+    form.hidden = false;
+    input.value = '';
+    input.focus();
+  }
+
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    if (st.phase !== 'answer') return;
+    const given = input.value.replace(/\D/g, '');
+    const ok = given === st.answer;
+    const pts = (st.d + 1) * st.k * cfg.pts;
+    st.score += ok ? pts : -pts;
+    st.phase = 'feedback';
+    form.hidden = true;
+    stage.replaceChildren(okEl('span', `blok-q ${ok ? 'right' : 'wrong'}`, `${ok ? '✓' : '✗'} ${st.answer}${ok ? '' : given ? ` (sen: ${given})` : ''}`));
+    if (ok) {
+      st.right++;
+      st.best = { d: st.d, k: st.k };
+      st.k++;
+      if (st.k > BLOK_STEPS) {
+        st.k = 1;
+        st.d++;
+        if (st.d > cfg.levels) return later(900, () => finish(true));
+      }
+    } else st.wrong++;
+    drawBar();
+    later(ok ? 700 : 1300, next);
+  };
+
+  function finish(all) {
+    okumaStop();
+    st.timers = [];
+    st.d = Math.min(st.d, cfg.levels);
+    const best = okumaGet(key);
+    const rec = st.right > 0 && (!best || st.score > best.score);
+    if (rec) okumaSet(key, { score: st.score, d: st.best.d, k: st.best.k });
+    idle(`${all ? 'Bütün seviyeleri bitirdin! ' : ''}${st.right} doğru, ${st.wrong} yanlış → ${st.score} puan.${rec ? ' Yeni rekor!' : best ? ` Rekorun: ${best.score} puan.` : ''}`);
+    startBtn.textContent = 'Tekrar';
+  }
+
+  idle();
 }
 
 // ---------- Takistoskop ----------
@@ -209,107 +381,6 @@ function takistoView(body) {
   idle();
 }
 
-// ---------- Tek mi? Çift mi? ----------
-function tekciftView(body) {
-  const saved = okumaGet('tekcift-set') || { digits: 2 };
-  const st = { digits: saved.digits, running: false, score: 0, wrong: 0, end: 0, odd: true, cells: [], left: 0, timers: [] };
-  okumaStop = () => st.timers.forEach(clearInterval);
-  const opts = okEl('div', 'okuma-opts');
-  const task = okEl('div', 'tekcift-task');
-  const grid = okEl('div', 'tekcift-grid');
-  const info = okEl('p', 'muted small okuma-info');
-  const startBtn = okBtn('Başla', 'lobby-start okuma-start', () => begin());
-  body.append(opts, task, grid, startBtn, info);
-
-  function drawOpts() {
-    opts.replaceChildren(okEl('span', 'muted small', 'Basamak:'));
-    for (const d of [2, 3, 4]) {
-      const b = okBtn(String(d), 'sm' + (st.digits === d ? ' active' : ''), () => { st.digits = d; okumaSet('tekcift-set', { digits: d }); drawOpts(); });
-      b.disabled = st.running;
-      opts.append(b);
-    }
-  }
-
-  function newGrid() {
-    st.odd = Math.random() < 0.5;
-    const lo = 10 ** (st.digits - 1);
-    const hi = 10 ** st.digits - 1;
-    const n = 30;
-    const hits = 6 + Math.floor(Math.random() * 6);
-    const nums = [];
-    for (let i = 0; i < n; i++) {
-      let v = lo + Math.floor(Math.random() * (hi - lo + 1));
-      const want = i < hits ? st.odd : !st.odd; // ilk "hits" tanesi aranan türde
-      if ((v % 2 === 1) !== want) v = v === hi ? v - 1 : v + 1;
-      nums.push(v);
-    }
-    st.cells = okShuffle(nums);
-    st.left = hits;
-    task.textContent = st.odd ? 'Tek sayıları bul!' : 'Çift sayıları bul!';
-    task.className = `tekcift-task ${st.odd ? 'odd' : 'even'}`;
-    grid.replaceChildren(...st.cells.map((v) => {
-      const b = okBtn(String(v), 'tekcift-cell');
-      b.onclick = () => {
-        if (!st.running || b.disabled) return;
-        if ((v % 2 === 1) === st.odd) {
-          b.classList.add('hit');
-          b.disabled = true;
-          st.score++;
-          if (--st.left === 0) newGrid();
-        } else {
-          st.wrong++;
-          b.classList.remove('miss');
-          void b.offsetWidth;
-          b.classList.add('miss');
-        }
-        stats();
-      };
-      return b;
-    }));
-  }
-
-  const points = () => Math.max(0, st.score - st.wrong * 2);
-  function stats() {
-    const left = Math.max(0, st.end - Date.now());
-    info.textContent = st.running ? `${Math.ceil(left / 1000)} sn · ${st.score} doğru · ${st.wrong} yanlış` : info.textContent;
-  }
-
-  function begin() {
-    st.running = true;
-    st.score = 0;
-    st.wrong = 0;
-    st.end = Date.now() + 60000;
-    startBtn.hidden = true;
-    drawOpts();
-    newGrid();
-    stats();
-    st.timers.push(setInterval(() => {
-      if (Date.now() < st.end) return stats();
-      st.timers.forEach(clearInterval);
-      st.timers = [];
-      finish();
-    }, 200));
-  }
-
-  function finish() {
-    st.running = false;
-    startBtn.hidden = false;
-    startBtn.textContent = 'Tekrar';
-    for (const b of grid.children) b.disabled = true;
-    const p = points();
-    const best = okumaGet('tekcift');
-    const rec = !best || p > best.score;
-    if (rec && p > 0) okumaSet('tekcift', { score: p });
-    info.textContent = `Süre doldu: ${st.score} doğru, ${st.wrong} yanlış → ${p} puan (her yanlış 2 puan götürür).${rec && p > 0 ? ' Yeni rekor!' : best ? ` Rekorun ${best.score}.` : ''}`;
-    drawOpts();
-  }
-
-  drawOpts();
-  task.textContent = 'Hazır olunca başla';
-  task.className = 'tekcift-task';
-  info.textContent = 'Bir dakika boyunca tablodaki tek (ya da çift) sayıların hepsine bas; hepsini bulunca yeni tablo gelir. Yanlışa basmak 2 puan götürür.';
-}
-
 // ---------- Sayı tablosu ----------
 function tabloView(body) {
   const saved = okumaGet('tablo-set') || { size: 5 };
@@ -389,94 +460,3 @@ function tabloView(body) {
   idleInfo();
 }
 
-// ---------- Kelime akışı ----------
-function akisView(body) {
-  const saved = okumaGet('akis-set') || { wpm: 300, chunk: 1, text: 0 };
-  const st = { ...saved, words: [], pos: 0, playing: false, timer: null, custom: '' };
-  okumaStop = () => clearTimeout(st.timer);
-  const save = () => okumaSet('akis-set', { wpm: st.wpm, chunk: st.chunk, text: st.text });
-
-  const opts = okEl('div', 'okuma-opts');
-  const texts = okEl('div', 'okuma-opts');
-  const stage = okEl('div', 'akis-stage');
-  const word = okEl('div', 'akis-word');
-  stage.append(word);
-  const bar = okEl('div', 'akis-progress');
-  const fill = okEl('span');
-  bar.append(fill);
-  const controls = okEl('div', 'okuma-opts akis-controls');
-  const playBtn = okBtn('Başlat', 'lobby-start okuma-start', () => (st.playing ? pause() : play()));
-  const backBtn = okBtn('↺ Baştan', 'sm ghost', () => { pause(); st.pos = 0; show(); });
-  controls.append(playBtn, backBtn);
-  const custom = Object.assign(okEl('textarea', 'akis-custom'), { placeholder: 'Kendi metnini buraya yapıştır…', rows: 4, hidden: true });
-  custom.oninput = () => { st.custom = custom.value; load(); };
-  const info = okEl('p', 'muted small okuma-info');
-  body.append(texts, custom, opts, stage, bar, controls, info);
-
-  function drawOpts() {
-    texts.replaceChildren(okEl('span', 'muted small', 'Metin:'), ...OKUMA_TEXTS.map((t, i) =>
-      okBtn(t.title, 'sm' + (st.text === i ? ' active' : ''), () => { st.text = i; save(); load(); drawOpts(); })),
-    okBtn('Kendi metnin', 'sm' + (st.text === -1 ? ' active' : ''), () => { st.text = -1; save(); load(); drawOpts(); }));
-    custom.hidden = st.text !== -1;
-    opts.replaceChildren(okEl('span', 'muted small', 'Hız:'), ...[200, 300, 400, 500, 650, 800].map((w) =>
-      okBtn(`${w}`, 'sm' + (st.wpm === w ? ' active' : ''), () => { st.wpm = w; save(); drawOpts(); show(); })),
-    okEl('span', 'muted small', 'kelime/dk'), okEl('span', 'muted small okuma-gap', 'Grup:'), ...[1, 2, 3].map((n) =>
-      okBtn(String(n), 'sm' + (st.chunk === n ? ' active' : ''), () => { st.chunk = n; save(); drawOpts(); show(); })));
-  }
-
-  function load() {
-    pause();
-    const text = st.text === -1 ? st.custom : OKUMA_TEXTS[st.text]?.text || '';
-    st.words = text.split(/\s+/).filter(Boolean);
-    st.pos = 0;
-    show();
-  }
-
-  function show() {
-    const total = st.words.length;
-    word.textContent = total ? st.words.slice(st.pos, st.pos + st.chunk).join(' ') || '✓' : '';
-    fill.style.width = total ? `${Math.min(100, (st.pos / total) * 100)}%` : '0';
-    const mins = total / st.wpm;
-    info.textContent = total ? `${total} kelime · bu hızla ${mins < 1 ? `${Math.round(mins * 60)} sn` : `${mins.toLocaleString('tr-TR', { maximumFractionDigits: 1 })} dk`}. Boşluk tuşu başlatır/durdurur.` : 'Metin yok.';
-  }
-
-  function step() {
-    st.pos += st.chunk;
-    if (st.pos >= st.words.length) {
-      st.pos = st.words.length;
-      pause();
-      word.textContent = '✓ Bitti';
-      fill.style.width = '100%';
-      return;
-    }
-    show();
-    // Noktalı kelimede biraz durur
-    const shown = st.words.slice(st.pos, st.pos + st.chunk).join(' ');
-    const extra = /[.!?]$/.test(shown) ? 1.8 : /[,;:]$/.test(shown) ? 1.3 : 1;
-    st.timer = setTimeout(step, (60000 / st.wpm) * st.chunk * extra);
-  }
-
-  function play() {
-    if (!st.words.length) return;
-    if (st.pos >= st.words.length) st.pos = 0;
-    st.playing = true;
-    playBtn.textContent = 'Durdur';
-    show();
-    st.timer = setTimeout(step, (60000 / st.wpm) * st.chunk);
-  }
-  function pause() {
-    clearTimeout(st.timer);
-    st.playing = false;
-    playBtn.textContent = st.pos > 0 && st.pos < st.words.length ? 'Devam' : 'Başlat';
-  }
-
-  drawOpts();
-  load();
-}
-
-addEventListener('keydown', (e) => {
-  if (okumaEx !== 'akis' || e.key !== ' ' || $('game-okuma').hidden) return;
-  if (e.target.closest?.('input, textarea')) return;
-  e.preventDefault();
-  $('okuma-ex').querySelector('.akis-controls .okuma-start')?.click();
-});
