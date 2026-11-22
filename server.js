@@ -897,6 +897,12 @@ function settleMergeNotices(reason) {
   for (const id of [...mergeNotices.keys()]) if (!merge.pending(id)) closeMergeNotice(id, reason);
 }
 
+// Ev sahibi odadakilere (taşınanlar dahil) birleşme durumu: room:merge { mergedWith, name }; bitince ikisi null.
+// Taşınanların room:moved görünümü de aynı mergedWith'i taşır (çağıranlar önce merge durumunu değiştirir).
+function sendMergeState(host, partner) {
+  io.to(host).emit('room:merge', { mergedWith: partner || null, name: (partner && roomStore.get(partner)?.name) || null });
+}
+
 // Soketi başka odaya taşır: odadakilere normal çıkış/giriş gibi user-left / user-joined gider,
 // sohbete "ayrıldı"/"katıldı" yazılmaz; sokete room:moved { reason, ...join cevabı } gider.
 function moveSocket(socket, target, home, reason) {
@@ -934,8 +940,10 @@ function startMerge({ host, guest }) {
     }
   }
   const hostRoom = rooms.get(host);
-  if (hostRoom) postSystem(hostRoom, `${roomStore.get(guest)?.name || guest} odası birleşti`);
-  else endMerge(host); // iki oda da boştu: boş ev sahibi birleşik kalmaz
+  if (hostRoom) {
+    sendMergeState(host, guest);
+    postSystem(hostRoom, `${roomStore.get(guest)?.name || guest} odası birleşti`);
+  } else endMerge(host); // iki oda da boştu: boş ev sahibi birleşik kalmaz
   roomsChanged();
 }
 
@@ -956,6 +964,7 @@ function splitRooms(roomId) {
     if (socket) moveSocket(socket, pair.guest, pair.guest, 'split');
   }
   if (rooms.get(pair.guest)?.users.size === 0) dropRoom(pair.guest); // geri dönen kimse yok
+  sendMergeState(pair.host, null);
   const hostRoom = rooms.get(pair.host);
   if (hostRoom) postSystem(hostRoom, `${roomStore.get(pair.guest)?.name || pair.guest} odası ayrıldı`);
   roomsChanged();
@@ -981,6 +990,7 @@ function mergeRoomClosed(id, name) {
     leaveRoom(socket, { grace: false });
     socket.emit('room:closed', { name });
   }
+  sendMergeState(partner, null);
   const hostRoom = rooms.get(partner);
   if (hostRoom) postSystem(hostRoom, `${name} odası ayrıldı`);
   roomsChanged();

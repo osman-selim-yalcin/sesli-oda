@@ -558,3 +558,30 @@ test('ev sahibi oda boşalınca birleşme biter; bekleyen boş misafir odanın c
   assert.equal(r.room.id, p.B);
   assert.ok(!r.chat.some((c) => c.text === 'silinecek mesaj'));
 });
+
+test('room:merge: A\'da kalan birleşmede B\'nin id\'sini, ayrılmada null alır; taşınanın görünümü aynı', async () => {
+  const p = await pair();
+  const [aUser] = await fill(p.A, `Olay${p.t}a`, 1);
+  const bside = await fill(p.B, `Olay${p.t}b`, 1);
+  const merged = next(aUser, 'room:merge');
+  const { b, moved } = await mergeRooms(p, bside);
+  assert.deepEqual(await merged, { mergedWith: p.B, name: p.nameB });
+  assert.equal(moved[0].room.mergedWith, p.B, 'room:moved görünümü olayla aynı');
+  const splitEv = next(aUser, 'room:merge');
+  const back = next(bside[0], 'room:moved');
+  assert.equal((await split(b, p.B)).error, undefined);
+  assert.deepEqual(await splitEv, { mergedWith: null, name: null });
+  assert.equal((await back).room.mergedWith, null);
+});
+
+test('room:merge: boş B ile birleşmede de (yönetici, hemen) A\'dakilere gelir; B kapanınca null', async () => {
+  const p = await pair();
+  const [aUser] = await fill(p.A, `Bosb${p.t}a`, 1);
+  const admin = await online(ADMIN);
+  const merged = next(aUser, 'room:merge');
+  assert.deepEqual(await request(admin, p.A, p.B), { merged: true });
+  assert.deepEqual(await merged, { mergedWith: p.B, name: p.nameB });
+  const closed = next(aUser, 'room:merge');
+  assert.equal((await http(srv.url, 'DELETE', `/rooms/${p.B}`, { token: ADMIN })).status, 200);
+  assert.deepEqual(await closed, { mergedWith: null, name: null });
+});

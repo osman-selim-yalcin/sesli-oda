@@ -493,13 +493,11 @@ socket.on('user-joined', ({ id, name, muted }) => {
   addPeer(id, name, muted);
   createPc(id);
   renderRecBanner();
-  refreshRoomViewSoon(); // birleşmede öteki odadakiler böyle gelir
 });
 
 socket.on('user-left', (id) => {
   removePeer(id);
   renderRecBanner();
-  refreshRoomViewSoon();
 });
 
 socket.on('user-muted', ({ id, muted }) => {
@@ -6271,8 +6269,7 @@ function renderRoomInfo() {
   $('room-settings-open').hidden = !canManage(curHome);
 }
 
-// Odaların güncel görünümü (soket odadayken rooms olayı gelmez). Birleşme ya da ayrılma ev sahibi
-// odadakilere ayrı bir olayla gelmez, kişiler girip çıkar; o zaman da buradan öğrenilir.
+// Odaların güncel görünümü (soket odadayken rooms olayı gelmez); ayarlar penceresi ve bilinmeyen oda adı için.
 async function refreshRoomView() {
   const res = await api('GET', '/rooms');
   if (res.error || !curRoom) return null;
@@ -6282,12 +6279,15 @@ async function refreshRoomView() {
   renderRoomInfo();
   return res.rooms;
 }
-let roomViewTimer = null;
-function refreshRoomViewSoon() {
-  if (!selfId) return;
-  clearTimeout(roomViewTimer);
-  roomViewTimer = setTimeout(refreshRoomView, 400);
-}
+
+// Birleşme başladı ya da bitti (ev sahibi odadakilere; taşınanlar ayrıca room:moved alır).
+socket.on('room:merge', ({ mergedWith = null, name = null } = {}) => {
+  if (!curRoom) return;
+  if (mergedWith && name) roomNames.set(mergedWith, name);
+  curRoom.mergedWith = mergedWith;
+  if (curHome?.id === curRoom.id) curHome.mergedWith = mergedWith;
+  renderRoomInfo();
+});
 
 socket.on('room:theme', ({ theme } = {}) => {
   if (!curRoom || typeof theme !== 'string') return;
@@ -6485,8 +6485,7 @@ $('rs-merge-form').onsubmit = async (e) => {
   if (res.error) return rsError(res.error);
   $('room-settings').close();
   if (res.merged) {
-    toast(`Odalar birleşti: ${roomNames.get(to) || to}`);
-    refreshRoomViewSoon();
+    toast(`Odalar birleşti: ${roomNames.get(to) || to}`); // görünüm room:merge ile güncellenir
     return;
   }
   mergeAsked.add(res.id);
@@ -6501,8 +6500,7 @@ $('rs-split').onclick = async (e) => {
   const res = (await emitAck(10000, 'merge:split', { room: settingsRoom.id })) ?? { error: 'Sunucuya ulaşılamadı.' };
   btn.disabled = false;
   if (res.error) return rsError(res.error);
-  if ($('room-settings').open) $('room-settings').close();
-  refreshRoomViewSoon(); // misafir kökenliyse room:moved da gelir
+  if ($('room-settings').open) $('room-settings').close(); // görünüm room:merge ya da room:moved ile güncellenir
 };
 
 // Gelen istek penceresi: odada da listede de aynı pencere. Sırayla gösterilir; cevaplanınca,
