@@ -129,8 +129,11 @@ app.get('/radio/stations', async (req, res) => {
   if (/\bgzip\b/.test(req.get('accept-encoding') || '')) return res.set('Content-Encoding', 'gzip').send(gzip);
   res.send(json);
 });
-// Sayfanın ekranları kendi adresinde açılır (/gecmis, /oyunlar/kelime, /uyeler, /radyo ...); hepsi aynı sayfadır.
-app.get(/^\/(gecmis|oyunlar|uyeler|radyo)(\/[\w-]*)*\/?$/, (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
+// Sayfanın ekranları kendi adresinde açılır; hepsi aynı sayfadır: / oda listesi, /uyeler, /oda/<id> ve
+// odanın içindeki ekranlar (/oda/<id>/gecmis, /oda/<id>/oyunlar/kelime, /oda/<id>/radyo ...).
+app.get(/^\/(uyeler|oda\/[\w-]+(\/[\w-]*)*)\/?$/, (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
+// Tek oda zamanının adresleri genel odasına gider (kayıtlı linkler bozulmasın).
+app.get(/^\/(gecmis|oyunlar|radyo)(\/[\w-]*)*\/?$/, (req, res) => res.redirect(302, `/oda/genel${req.url}`));
 accounts.setup(app, {
   imageTypes: IMAGE_TYPES,
   onProfile: (name, avatar) => io.emit('profile', { name, avatar }),

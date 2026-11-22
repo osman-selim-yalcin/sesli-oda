@@ -1716,3 +1716,61 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   transform: scale(.4) rotate(-8deg); opacity: 0; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1), opacity .15s; }
 .esek-bubble.on { transform: scale(1) rotate(-4deg); opacity: 1; }
 .esek-caption { font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, .85); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); pointer-events: none; }
+
+/* Oda listesi (public/lobby.js). Sade: Aşama 2 baştan tasarlayacak. */
+.rooms-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
+  padding: 20px 16px;
+  max-width: 1040px;
+  margin: 0 auto;
+}
+.rooms-main { display: grid; gap: 12px; align-content: start; min-width: 0; }
+.rooms-main > .panel, .rooms-side .panel { margin-top: 0; }
+.rooms-title { margin: 0 0 12px; }
+.room-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.room-card {
+  width: 100%;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  text-align: left;
+}
+.room-card.target { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.room-info { display: grid; gap: 4px; min-width: 0; }
+.room-name { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-info .avatar-strip { margin: 0; padding: 2px 0; }
+.room-go { flex-shrink: 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+.room-go.primary { padding: 8px 14px; border-radius: var(--radius-sm); background: var(--accent); color: #fff; }
+.rooms-form { display: grid; gap: 12px; }
+.rooms-form label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.rooms-form p { margin: 0; }
+.rooms-form h2 + p { margin-top: -6px; }
+.rooms-row { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.my-request { margin: 0; font-size: 14px; }
+.rooms-account .account { margin-bottom: 0; }
+.rooms-account #pass-form { margin-top: 14px; }
+#request-list li { flex-wrap: wrap; }
+#request-list .p-info { flex-basis: 160px; }
+#request-list .p-status { white-space: normal; overflow-wrap: anywhere; }
+.nav-rooms { flex-shrink: 0; }
+.room-pass {
+  width: min(380px, calc(100vw - 32px));
+  max-width: none;
+  color: var(--text);
+  padding: 24px;
+}
+.room-pass:not([open]) { display: none; } /* .card display: grid kapalı pencereyi göstermesin */
+.room-pass::backdrop { background: rgba(0, 0, 0, .6); }
+.room-pass .rooms-row button { flex: 1; }
+@media (max-width: 800px) {
+  .rooms-layout { grid-template-columns: minmax(0, 1fr); padding: 12px; gap: 12px; }
+  .rooms-side { order: -1; }
+}
+/* Telefonda "Odalar" düğmesi de üst çubuğa sığsın: sekmelerin simgeleri gizlenir */
+@media (max-width: 520px) {
+  .top-tab { padding: 0 8px; }
+  .top-tab .ic { display: none; }
+  button.nav-rooms { padding: 5px 6px; }
+}

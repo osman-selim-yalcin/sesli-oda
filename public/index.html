@@ -61,7 +61,7 @@
   </svg>
 
   <!-- Giriş ekranı -->
-  <main id="join-screen" class="join">
+  <main id="join-screen" class="join" hidden>
     <form id="join-form" class="card">
       <div class="brand">
         <img src="/favicon.svg" alt="" width="44" height="44">
@@ -70,7 +70,7 @@
           <p class="muted">Arkadaşlarınla konuş, aynı anda YouTube izle/dinle.</p>
         </div>
       </div>
-      <!-- Giriş yapılmamışsa: kullanıcı adı + şifre -->
+      <!-- Kullanıcı adı + şifre; giriş yapınca oda listesi açılır -->
       <div id="auth-fields" class="auth-fields">
         <div class="tabs auth-tabs" role="tablist">
           <button type="button" id="auth-login" class="tab active" role="tab">Giriş yap</button>
@@ -86,36 +86,130 @@
           <input id="password2" type="password" maxlength="200" autocomplete="new-password">
         </label>
       </div>
-      <!-- Giriş yapılmışsa: hesap kartı -->
-      <div id="account" class="account" hidden>
-        <button type="button" id="account-avatar" class="account-avatar" title="Profil resmini değiştir"></button>
-        <div class="account-text">
-          <strong id="account-name"></strong>
-          <div class="account-links small">
-            <button type="button" id="avatar-change" class="link">Resim ekle</button>
-            <button type="button" id="avatar-remove" class="link" hidden>Resmi kaldır</button>
-            <button type="button" id="logout" class="link">Çıkış yap</button>
-          </div>
-        </div>
-      </div>
-      <input id="avatar-file" type="file" accept="image/*" hidden>
       <p id="room-status" class="muted small"></p>
-      <button type="submit" id="join-btn" class="primary">Odaya katıl</button>
+      <button type="submit" id="join-btn" class="primary">Giriş yap</button>
       <p id="join-error" class="error" hidden></p>
     </form>
   </main>
+  <input id="avatar-file" type="file" accept="image/*" hidden>
+
+  <!-- Oda listesi: giriş yapınca açılır (public/lobby.js). /uyeler de bu ekrandadır (yalnız yönetici). -->
+  <div id="lobby-screen" hidden>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <span class="topbar-brand"><img src="/favicon.svg" alt="" width="22" height="22">Sesli Oda</span>
+        <nav class="top-tabs" role="tablist">
+          <button id="lobby-nav-rooms" class="top-tab active" role="tab"><svg class="ic"><use href="#i-music"></use></svg>Odalar</button>
+          <button id="lobby-nav-members" class="top-tab" role="tab" hidden><svg class="ic"><use href="#i-users"></use></svg>Üyeler</button>
+        </nav>
+      </div>
+    </header>
+    <div class="rooms-layout">
+      <div id="lobby-rooms" class="rooms-main">
+        <section class="panel">
+          <h2 class="rooms-title">Odalar</h2>
+          <ul id="room-list" class="room-list"></ul>
+          <p id="room-list-empty" class="muted empty" hidden>Henüz oda yok.</p>
+        </section>
+
+        <!-- Yönetici: bekleyen oda istekleri ve oda açma -->
+        <section id="admin-requests" class="panel" hidden>
+          <h2 id="request-title" class="rooms-title">İstekler (0)</h2>
+          <ul id="request-list" class="people-list"></ul>
+          <p id="request-empty" class="muted small" hidden>Bekleyen istek yok.</p>
+        </section>
+        <form id="room-create" class="panel rooms-form" hidden>
+          <h2 class="rooms-title">Oda aç</h2>
+          <label>Oda adı <input id="create-name" maxlength="24" autocomplete="off"></label>
+          <label>Şifre (isteğe bağlı) <input id="create-password" type="password" maxlength="200" autocomplete="new-password"></label>
+          <label>Tema <select id="create-theme"><option value="varsayilan">Varsayılan</option></select></label>
+          <label>Sahibi (boş bırakırsan sen) <input id="create-owner" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          <button type="submit" class="primary">Oda aç</button>
+          <p id="create-error" class="error" hidden></p>
+        </form>
+
+        <!-- Üye: oda isteği ve son isteğin durumu -->
+        <p id="my-request" class="panel my-request" hidden></p>
+        <form id="room-request" class="panel rooms-form" hidden>
+          <h2 class="rooms-title">Oda iste</h2>
+          <p class="muted small">Yönetici onaylayınca oda açılır ve sahibi sen olursun.</p>
+          <label>Oda adı <input id="request-name" maxlength="24" autocomplete="off"></label>
+          <label>Şifre (isteğe bağlı) <input id="request-password" type="password" maxlength="200" autocomplete="new-password"></label>
+          <label>Tema <select id="request-theme"><option value="varsayilan">Varsayılan</option></select></label>
+          <label>Not (isteğe bağlı) <input id="request-note" maxlength="200" autocomplete="off"></label>
+          <button type="submit" class="primary">İsteği gönder</button>
+          <p id="request-error" class="error" hidden></p>
+        </form>
+      </div>
+
+      <!-- Üyeler: açılmış bütün hesaplar; sadece yönetici görür -->
+      <section id="members" class="members rooms-main" hidden>
+        <div class="panel">
+          <div class="game-head">
+            <h2 class="members-title">Üyeler <span id="members-count" class="count"></span></h2>
+            <button id="members-refresh" class="ghost sm">Yenile</button>
+          </div>
+          <ul id="members-list" class="people-list members-list"></ul>
+          <p id="members-empty" class="muted empty" hidden></p>
+        </div>
+      </section>
+
+      <!-- Hesap paneli -->
+      <aside class="rooms-side">
+        <div class="panel rooms-account">
+          <div id="account" class="account">
+            <button type="button" id="account-avatar" class="account-avatar" title="Profil resmini değiştir"></button>
+            <div class="account-text">
+              <strong id="account-name"></strong>
+              <div class="account-links small">
+                <button type="button" id="avatar-change" class="link">Resim ekle</button>
+                <button type="button" id="avatar-remove" class="link" hidden>Resmi kaldır</button>
+                <button type="button" id="pass-open" class="link">Şifre değiştir</button>
+                <button type="button" id="logout" class="link">Çıkış yap</button>
+              </div>
+            </div>
+          </div>
+          <form id="pass-form" class="rooms-form" hidden>
+            <label>Mevcut şifre <input id="pass-current" type="password" maxlength="200" autocomplete="current-password"></label>
+            <label>Yeni şifre <input id="pass-new" type="password" maxlength="200" autocomplete="new-password" placeholder="En az 4 karakter"></label>
+            <label>Yeni şifre (tekrar) <input id="pass-new2" type="password" maxlength="200" autocomplete="new-password"></label>
+            <div class="rooms-row">
+              <button type="button" id="pass-cancel" class="ghost">Vazgeç</button>
+              <button type="submit" class="primary">Şifreyi değiştir</button>
+            </div>
+            <p id="pass-error" class="error" hidden></p>
+          </form>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Şifreli oda: join needPassword deyince açılır -->
+    <dialog id="room-pass" class="card room-pass">
+      <form id="room-pass-form" class="rooms-form">
+        <h2 id="room-pass-title" class="rooms-title"></h2>
+        <p class="muted small">Bu oda şifreli. Bir kez doğru yazınca bir daha sorulmaz.</p>
+        <label>Oda şifresi <input id="room-pass-input" type="password" maxlength="200" autocomplete="off"></label>
+        <p id="room-pass-error" class="error" hidden></p>
+        <div class="rooms-row">
+          <button type="button" id="room-pass-cancel" class="ghost">Vazgeç</button>
+          <button type="submit" id="room-pass-ok" class="primary">Odaya gir</button>
+        </div>
+      </form>
+    </dialog>
+  </div>
 
   <!-- Oda ekranı -->
   <div id="room-screen" class="room" hidden>
     <!-- Üst çubuk: oda ile oyunlar arasında geçiş. Oyunlardayken müzik ve sesli sohbet sürer. -->
     <header class="topbar">
       <div class="topbar-inner">
-        <span class="topbar-brand"><img src="/favicon.svg" alt="" width="22" height="22">Sesli Oda</span>
+        <!-- Oda listesine tam yenilemeyle döner: ses ve bağlantılar temiz kapanır -->
+        <button id="nav-rooms" class="ghost sm nav-rooms" title="Oda listesine dön"><svg class="ic"><use href="#i-back"></use></svg>Odalar</button>
+        <span id="topbar-room" class="topbar-brand"></span>
         <nav class="top-tabs" role="tablist">
           <button id="nav-room" class="top-tab active" role="tab"><svg class="ic"><use href="#i-music"></use></svg>Oda</button>
           <button id="nav-games" class="top-tab" role="tab"><svg class="ic"><use href="#i-trophy"></use></svg>Oyunlar</button>
           <button id="nav-radio" class="top-tab" role="tab"><svg class="ic"><use href="#i-radio"></use></svg>Radyo</button>
-          <button id="nav-members" class="top-tab" role="tab" hidden><svg class="ic"><use href="#i-users"></use></svg>Üyeler</button>
         </nav>
         <div class="topbar-right">
           <!-- Yalnızca yöneticide görünür: odadaki herkesin ekranına amuda kalkan eşek Enver'i çıkarır (public/esek.js) -->
@@ -906,18 +1000,6 @@
         <audio id="radio-audio" preload="none"></audio>
       </section>
 
-      <!-- Üyeler: açılmış bütün hesaplar; sadece yönetici görür -->
-      <section id="members" class="members" hidden>
-        <div class="panel">
-          <div class="game-head">
-            <h2 class="members-title">Üyeler <span id="members-count" class="count"></span></h2>
-            <button id="members-refresh" class="ghost sm">Yenile</button>
-          </div>
-          <ul id="members-list" class="people-list members-list"></ul>
-          <p id="members-empty" class="muted empty" hidden></p>
-        </div>
-      </section>
-
       <aside class="side">
         <!-- Araç çubuğu: kişiler ve ses eşiği açılır pencerede, sohbete yer kalsın -->
         <div class="toolbar">
@@ -1003,5 +1085,6 @@
   <script src="/tr-words.js"></script>
   <script src="/daktilo.js"></script>
   <script src="/okuma.js"></script>
+  <script src="/lobby.js"></script>
 </body>
 </html>

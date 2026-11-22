@@ -517,16 +517,21 @@ socket.on('disconnect', (reason) => {
 
 // Sunucu bağlantısı geri gelince odaya sayfa yenilenmeden yeniden girilir. Sunucu aynı
 // sekmeyi (clientId) tanır: "ayrıldı/katıldı" mesajı çıkmaz.
+// Odada değilken (oda listesinde) yeni bağlantı hello ile yeniden hesaba bağlanır.
 let rejoining = false;
 async function rejoin() {
-  if (!selfId || rejoining) return; // henüz odaya girilmemişti
+  if (!selfId) return account && !$('lobby-screen').hidden && helloLobby(); // henüz odaya girilmemişti
+  if (rejoining) return;
   rejoining = true;
-  const res = await emitAck(15000, 'join', { room: ROOM, token: authToken, clientId });
+  const res = await emitAck(15000, 'join', { room: roomId, token: authToken, clientId });
   rejoining = false;
   if (!res) {
     if (socket.connected) setTimeout(rejoin, 2000);
     return;
   }
+  // Oda kapanmış, şifresi değişmiş ya da oturum düşmüş: listeye dönülür, kendiliğinden yeniden girilmez.
+  if (res.auth) saveToken('');
+  if (res.gone || res.needPassword || res.auth) return backToList(res.error);
   if (res.error) return toast(`${res.error} Sayfayı yenileyip tekrar dene.`);
 
   applyJoin(res);
@@ -540,6 +545,18 @@ async function rejoin() {
   toast('Bağlantı geri geldi');
 }
 socket.io.on('reconnect', rejoin);
+
+// Odadan listeye tam yenilemeyle dönülür (ses ve bağlantılar temiz kapanır); mesaj listede bildirim olarak çıkar.
+// Atılan sekme kendiliğinden yeniden girmez.
+const NOTICE_KEY = 'lobbyNotice';
+function backToList(notice) {
+  try {
+    if (notice) sessionStorage.setItem(NOTICE_KEY, notice);
+  } catch {}
+  location.assign('/');
+}
+socket.on('kicked', ({ reason } = {}) => roomId && backToList(reason || 'Odadan çıkarıldın.'));
+socket.on('room:closed', ({ name } = {}) => roomId && backToList(`${name || 'Bu'} odası kapatıldı.`));
 
 // ---------- Mikrofon ----------
 
@@ -863,16 +880,12 @@ $('tab-history').onclick = () => go(() => showTab('history'));
 // Oyunlardayken oynatıcı ekrandan çıkarılır ama silinmez; müzik çalmaya devam eder.
 
 function showPage(page) {
-  if (page === 'members' && !account?.admin) page = 'room';
   $('nav-room').classList.toggle('active', page === 'room');
   $('nav-games').classList.toggle('active', page === 'games');
-  $('nav-members').classList.toggle('active', page === 'members');
   $('nav-radio').classList.toggle('active', page === 'radio');
   document.querySelector('.media').classList.toggle('away', page !== 'room');
   $('games').hidden = page !== 'games';
-  $('members').hidden = page !== 'members';
   $('radio').hidden = page !== 'radio';
-  if (page === 'members') loadMembers();
   if (page === 'radio') openRadioPage();
   else syncRadioAudio();
   document.querySelectorAll('.tier-name').forEach(fitTierName);
@@ -880,7 +893,6 @@ function showPage(page) {
 }
 $('nav-room').onclick = () => go(() => showPage('room'));
 $('nav-games').onclick = () => go(() => { showPage('games'); openGame('home'); }); // her seferinde oyun kartlarıyla açılır
-$('nav-members').onclick = () => go(() => showPage('members'));
 $('nav-radio').onclick = () => go(() => showPage('radio'));
 // Üst çubuktaki şarkıya basınca kumanda açılır (odaya dönmez); kumanda odadaki düğmeleri kullanır.
 function renderNowPop() {
@@ -905,24 +917,26 @@ $('now-pop-room').onclick = () => {
 
 // ---------- Gezinme geçmişi ----------
 // Sayfa, sekme, oyun ve açık tier list tarayıcı geçmişine yazılır: geri tuşu siteden çıkmak yerine
-// önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var:
-// / sıra, /gecmis, /oyunlar (oyun kartları), /oyunlar/tier, /oyunlar/tier/<liste no>, /oyunlar/kelime ... (sunucu hepsine aynı sayfayı verir).
+// önceki ekrana döner, yenileyince de aynı yerde açılır. Her ekranın kendi adresi var (sunucu hepsine aynı sayfayı verir):
+// / oda listesi, /uyeler (listede, yönetici); odanın içinde /oda/<id> sıra, /oda/<id>/gecmis, /oda/<id>/radyo,
+// /oda/<id>/oyunlar (oyun kartları), /oda/<id>/oyunlar/tier/<liste no>, /oda/<id>/oyunlar/kelime ...
 
 const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'kural', 'hedef', 'mantik', 'daktilo', 'okuma', 'peacock', 'oner'];
 const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
-  if (view.page === 'members') return '/uyeler';
-  if (view.page === 'radio') return '/radyo';
-  if (view.page === 'room') return view.tab === 'history' ? '/gecmis' : '/';
-  if (!GAME_PATHS[view.game]) return '/oyunlar';
-  return `/oyunlar/${GAME_PATHS[view.game]}` + (view.game === 'tier' && view.list != null ? `/${view.list}` : '');
+  const base = `/oda/${view.room}`;
+  if (view.page === 'radio') return `${base}/radyo`;
+  if (view.page === 'room') return view.tab === 'history' ? `${base}/gecmis` : base;
+  if (!GAME_PATHS[view.game]) return `${base}/oyunlar`;
+  return `${base}/oyunlar/${GAME_PATHS[view.game]}` + (view.game === 'tier' && view.list != null ? `/${view.list}` : '');
 }
 
+// Odanın dışındaki adresler { page: 'list' | 'members' } olur (oda listesi ekranı, public/lobby.js).
 function pathView(path) {
-  const [first, second, third] = path.split('/').filter(Boolean);
-  const view = { page: 'room', tab: first === 'gecmis' ? 'history' : 'queue', game: 'home', list: null };
-  if (first === 'uyeler') view.page = 'members';
+  const [top, room, first, second, third] = path.split('/').filter(Boolean);
+  if (top !== 'oda' || !/^[\w-]+$/.test(room || '')) return { page: top === 'uyeler' ? 'members' : 'list' };
+  const view = { room, page: 'room', tab: first === 'gecmis' ? 'history' : 'queue', game: 'home', list: null };
   if (first === 'radyo') view.page = 'radio';
   if (first !== 'oyunlar') return view;
   view.page = 'games';
@@ -932,13 +946,14 @@ function pathView(path) {
 }
 
 const currentView = () => ({
-  page: !$('members').hidden ? 'members' : !$('radio').hidden ? 'radio' : $('games').hidden ? 'room' : 'games',
+  room: roomId,
+  page: !$('radio').hidden ? 'radio' : $('games').hidden ? 'room' : 'games',
   tab: $('history-view').hidden ? 'queue' : 'history',
   game: GAMES.find((g) => !$(`game-${g}`).hidden) || 'home',
   list: openListId,
 });
 
-const sameView = (a, b) => a && b && ['page', 'tab', 'game', 'list'].every((k) => a[k] === b[k]);
+const sameView = (a, b) => a && b && ['room', 'page', 'tab', 'game', 'list'].every((k) => a[k] === b[k]);
 
 // Ekranı değiştirir, değiştiyse geçmişe yeni adım ekler.
 function go(fn) {
@@ -960,9 +975,12 @@ function applyView(view) {
   }
 }
 
+// Odanın dışına (listeye) geri gidilince sayfa o adreste yeniden açılır: ses ve bağlantılar temiz kapanır.
 addEventListener('popstate', (e) => {
   if ($('room-screen').hidden) return;
-  applyView(e.state || pathView(location.pathname));
+  const view = e.state?.page ? e.state : pathView(location.pathname);
+  if (view.room !== roomId) return location.reload();
+  applyView(view);
 });
 
 // Oyunlardayken çalan şarkı üst çubukta görünür.
@@ -974,44 +992,6 @@ function renderTopbarNow() {
   if (btn.hidden && $('now-pop').matches(':popover-open')) $('now-pop').hidePopover();
   else if ($('now-pop').matches(':popover-open')) renderNowPop();
 }
-
-// ---------- Üyeler ----------
-// Açılmış bütün hesaplar; sadece yönetici hesabında üst çubukta görünür.
-
-const DATE_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-const fmtDate = (ms) => (ms ? DATE_FMT.format(ms) : '—');
-
-async function loadMembers() {
-  const res = await api('GET', '/admin/members');
-  $('members-list').replaceChildren();
-  $('members-empty').hidden = !res.error && res.members.length > 0;
-  if (res.error) {
-    $('members-count').textContent = '';
-    $('members-empty').textContent = res.error;
-    return;
-  }
-  $('members-empty').textContent = 'Henüz hesap yok.';
-  const here = res.members.filter((m) => m.online).length;
-  $('members-count').textContent = `${res.members.length} hesap · ${here} odada`;
-  for (const m of res.members) {
-    const li = document.createElement('li');
-    li.innerHTML = `
-      <div class="p-info">
-        <div class="p-name"><span class="p-label"></span></div>
-        <div class="p-status"></div>
-      </div>
-      <span class="member-badge" hidden></span>`;
-    li.prepend(makeAvatar(m.name));
-    li.querySelector('.p-label').textContent = m.name + (m.name === myName ? ' (sen)' : '') + (m.admin ? ' · yönetici' : '');
-    li.querySelector('.p-status').textContent =
-      `Katıldı: ${fmtDate(m.createdAt)} · Son giriş: ${m.online ? 'şu an odada' : fmtDate(m.lastSeen)} · ${m.devices} cihazda açık`;
-    const badge = li.querySelector('.member-badge');
-    badge.hidden = !m.online;
-    badge.textContent = 'Odada';
-    $('members-list').append(li);
-  }
-}
-$('members-refresh').onclick = loadMembers;
 
 // ---------- Tier list ----------
 // Her liste oluşturanındır; sadece o değiştirir, diğerleri canlı izler. Başkasının listesi
@@ -5730,7 +5710,7 @@ function renderCustomSfx() {
 async function setCustomSfx(list) {
   customSfx = list;
   renderCustomSfx();
-  await Promise.all(list.map((fx) => Sfx.addCustom(audioCtx, fx.id, `/sfx-custom/${encodeURIComponent(ROOM)}/${fx.id}`).catch(() => {})));
+  await Promise.all(list.map((fx) => Sfx.addCustom(audioCtx, fx.id, `/sfx-custom/${encodeURIComponent(roomCode)}/${fx.id}`).catch(() => {})));
 }
 
 socket.on('sfx:list', setCustomSfx);
@@ -5881,17 +5861,19 @@ $('search-close').onclick = () => {
 };
 
 // ---------- Giriş / çıkış ----------
+// Giriş yapılmamışsa giriş ekranı; giriş yapınca oda listesi (public/lobby.js); karta basınca oda.
 
-// Tek oda var: "genel"; giriş ekranında kimlerin içeride olduğunu gösteririz.
-const ROOM = 'genel';
-const historyKey = () => 'history';
+let roomId = null;   // girilen oda (adresteki id); odaya girilince dolar
+let roomCode = null; // soketin bulunduğu canlı oda (birleşik odada ev sahibi); efekt adresleri bundan
+// genel odasının yerel şarkı geçmişi eski anahtarında kalır; öteki odalar kendi anahtarında.
+const historyKey = () => (roomId === 'genel' ? 'history' : `history:${roomId}`);
 
 // ---------- Hesap ----------
 // Giriş yapınca sunucunun verdiği oturum anahtarı tarayıcıda saklanır; çıkış yapılana kadar
 // bir daha şifre sorulmaz.
 
 let authToken = '';
-let account = null; // { name, avatar }
+let account = null; // { name, avatar, admin }
 let authMode = 'login';
 const AVATAR_SIDE = 256;
 
@@ -5928,8 +5910,6 @@ function showJoinError(text) {
 }
 
 function renderAccount() {
-  $('auth-fields').hidden = Boolean(account);
-  $('account').hidden = !account;
   if (!account) return;
   setProfile(account.name, account.avatar);
   $('account-name').textContent = account.name;
@@ -5938,7 +5918,6 @@ function renderAccount() {
   $('profile-name').textContent = account.name;
   $('profile-avatar').replaceChildren(makeAvatar(account.name));
   $('topbar-avatar').replaceChildren(makeAvatar(account.name));
-  $('nav-members').hidden = !account.admin;
   $('esek-btn').hidden = !account.admin;
   for (const id of ['avatar-change', 'profile-change']) $(id).textContent = account.avatar ? 'Resmi değiştir' : 'Resim ekle';
   for (const id of ['avatar-remove', 'profile-remove']) $(id).hidden = !account.avatar;
@@ -5984,36 +5963,32 @@ async function signIn() {
   return true;
 }
 
-function signedOut() {
+// Oturum düştü: giriş ekranına dönülür. Soket eski hesaba bağlı kaldığı için kapatılır; yeni giriş yeni soket açar.
+function signedOut(error) {
   saveToken('');
   account = null;
-  renderAccount();
+  socket.disconnect();
+  Lobby.hide();
+  $('room-screen').hidden = true;
+  $('join-screen').hidden = false;
+  if (error) showJoinError(error);
 }
 
-$('logout').onclick = async () => {
-  await api('POST', '/auth/logout');
-  signedOut();
-};
-
-$('sign-out').onclick = async () => {
+// Çıkış: sayfa listenin adresinde yeniden açılır (giriş ekranı).
+async function logout() {
   await api('POST', '/auth/logout');
   saveToken('');
+  location.assign('/');
+}
+$('logout').onclick = logout;
+
+$('sign-out').onclick = async () => {
   socket.disconnect();
   Sfx.leave(audioCtx, sfxBus);
-  setTimeout(() => location.reload(), 600);
+  await Promise.all([api('POST', '/auth/logout'), new Promise((r) => setTimeout(r, 600))]); // çıkış sesi bitsin
+  saveToken('');
+  location.assign('/');
 };
-
-// Kayıtlı oturum hâlâ geçerli mi?
-if (authToken) {
-  api('GET', '/auth/me').then((res) => {
-    if (res.error) {
-      if (res.status === 401) signedOut();
-      return;
-    }
-    account = res;
-    renderAccount();
-  });
-}
 
 const pickAvatar = () => $('avatar-file').click();
 $('account-avatar').onclick = pickAvatar;
@@ -6054,19 +6029,74 @@ fetch('/status')
 
 $('join-form').onsubmit = async (e) => {
   e.preventDefault();
-  const btn = e.submitter;
+  const btn = $('join-btn');
   btn.disabled = true;
   $('join-error').hidden = true;
-  if (!account && !(await signIn())) {
-    btn.disabled = false;
-    return;
+  if (await signIn()) openLobby();
+  btn.disabled = false;
+};
+
+// ---------- Oda listesi ----------
+// Liste açılınca soket bağlanır ve hello ile hesaba bağlanır; aynı soket sonra odaya girerken (join) kullanılır.
+
+function openLobby() {
+  $('join-screen').hidden = true;
+  renderAccount();
+  Lobby.show();
+  helloLobby();
+}
+
+async function helloLobby() {
+  // Bağlı ya da yeniden bağlanırken connect çağrılmaz: aynı bağlantıda ikinci bağlanma paketi sunucuyu koparır.
+  if (!socket.active) socket.connect();
+  // Ücretsiz sunucu uykudaysa uyanması yarım dakikayı bulabilir.
+  const res = (await emitAck(45000, 'hello', { token: authToken })) ?? {
+    error: 'Sunucuya bağlanılamadı. İnternetini kontrol edip tekrar dene.',
+  };
+  if (res.auth) return signedOut(res.error);
+  if (res.error) return toast(res.error);
+  Lobby.update({ rooms: res.rooms, pending: res.pending });
+}
+socket.on('rooms', ({ rooms } = {}) => Array.isArray(rooms) && Lobby.update({ rooms }));
+socket.on('room-request', ({ pending } = {}) => Lobby.update({ pending }));
+
+// ---------- Odaya giriş ----------
+// Oda kartına (ya da şifre penceresindeki düğmeye) basınca çağrılır: ses altyapısı ve mikrofon izni
+// kullanıcı hareketi içinde açılmalı. Cevap (hata dahil) listeye döner; hata varsa mikrofon bırakılır.
+
+let sfxLoaded = null;
+let entering = false;
+
+function releaseMic() {
+  localStream?.getTracks().forEach((t) => t.stop());
+  micSource?.disconnect();
+  if (gateNode) {
+    gateNode.port.onmessage = null;
+    gateNode.disconnect();
   }
+  localStream = sendStream = gateNode = micSource = null;
+  $('mic-note').hidden = true;
+  $('mic-toggle').disabled = false;
+  $('gate-btn').hidden = false;
+}
+
+async function enterRoomFlow(id, password) {
+  if (entering || selfId) return { error: 'Odaya giriliyor…', busy: true };
+  entering = true;
+  try {
+    return await enterRoom(id, password);
+  } finally {
+    entering = false;
+  }
+}
+
+async function enterRoom(id, password) {
   const { name } = account;
   myName = name;
 
   setupAudio();
   audioCtx.resume();
-  const sfxLoaded = Sfx.load(audioCtx);
+  sfxLoaded ||= Sfx.load(audioCtx);
 
   try {
     localStream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
@@ -6080,32 +6110,31 @@ $('join-form').onsubmit = async (e) => {
   }
   if (localStream) await setupMic();
 
-  try {
-    const config = await fetch('/config').then((r) => r.json());
-    iceServers = config.iceServers;
-    setSearchEnabled(config.search);
-  } catch {
-    iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+  if (!iceServers.length) {
+    try {
+      const config = await fetch('/config').then((r) => r.json());
+      iceServers = config.iceServers;
+      setSearchEnabled(config.search);
+    } catch {
+      iceServers = [{ urls: 'stun:stun.l.google.com:19302' }];
+    }
   }
-  socket.connect();
-  // Ücretsiz sunucu uykudaysa uyanması yarım dakikayı bulabilir.
-  const label = btn.textContent;
-  btn.textContent = 'Bağlanıyor…';
-  const res = (await emitAck(45000, 'join', { room: ROOM, token: authToken, clientId })) ?? {
+  if (!socket.active) socket.connect(); // listede bağlanmıştı; oturum düşüp yeniden girildiyse yeniden bağlanır
+  const res = (await emitAck(45000, 'join', { room: id, password, token: authToken, clientId })) ?? {
     error: 'Sunucuya bağlanılamadı. İnternetini kontrol edip tekrar dene.',
   };
-  btn.textContent = label;
 
   if (res.error) {
-    socket.disconnect();
-    localStream?.getTracks().forEach((t) => t.stop());
-    if (res.auth) signedOut();
-    showJoinError(res.error);
-    btn.disabled = false;
-    return;
+    releaseMic();
+    if (res.auth) signedOut(res.error);
+    return res;
   }
 
-  $('join-screen').hidden = true;
+  roomId = id;
+  roomCode = res.room?.id || id;
+  document.title = `${res.home?.name || res.room?.name || id} · Sesli Oda`;
+  $('topbar-room').textContent = res.home?.name || res.room?.name || id;
+  Lobby.hide();
   $('room-screen').hidden = false;
 
   const selfRow = personRow(name, true);
@@ -6123,15 +6152,17 @@ $('join-form').onsubmit = async (e) => {
   startUsageMeter();
 
   applyJoin(res);
-  // Yenilenen ya da linkle açılan sayfa adresteki ekranda açılır.
-  applyView(history.state?.page ? history.state : pathView(location.pathname));
-  history.replaceState(currentView(), '', viewPath(currentView()));
+  // Yenilenen ya da linkle açılan sayfa adresteki ekranda açılır; listeden girilince odanın adresi geçmişe eklenir.
+  const here = pathView(location.pathname);
+  applyView(history.state?.room === id ? history.state : here.room === id ? here : { room: id, page: 'room', tab: 'queue', game: 'home', list: null });
+  if (here.room === id) history.replaceState(currentView(), '', viewPath(currentView()));
+  else history.pushState(currentView(), '', viewPath(currentView()));
   sfxLoaded.then(() => Sfx.join(audioCtx, sfxBus));
 
   // YouTube yüklenemese de oda çalışır; oynatıcı hazır olunca video başlar.
-  await Promise.all([syncClock(), createPlayer()]);
-  applyMedia();
-};
+  Promise.all([syncClock(), createPlayer()]).then(applyMedia);
+  return res;
+}
 
 // Sunucudan gelen oda durumunu uygular: ilk girişte ve bağlantı kopup geri gelince.
 function applyJoin(res) {
@@ -6181,7 +6212,7 @@ function applyJoin(res) {
   applyMedia();
 }
 
-const inviteLink = () => location.origin;
+const inviteLink = () => `${location.origin}/oda/${roomId}`;
 
 $('copy-link').onclick = async () => {
   try {
@@ -6192,15 +6223,35 @@ $('copy-link').onclick = async () => {
   }
 };
 
-// Çıkış sesi bitsin diye sayfa biraz bekleyip yenilenir.
-$('leave').onclick = () => {
+// Odadan çıkış ("Odalar" ya da "Odadan çık"): çıkış sesi bitsin diye biraz beklenip liste tam yenilemeyle açılır.
+function leaveToList() {
   socket.disconnect();
   Sfx.leave(audioCtx, sfxBus);
-  setTimeout(() => location.reload(), 600);
-};
+  setTimeout(() => location.assign('/'), 600);
+}
+$('leave').onclick = leaveToList;
+$('nav-rooms').onclick = leaveToList;
 
 // Sekme kapanınca/yenilenince sunucuya hemen haber ver.
 addEventListener('pagehide', () => socket.disconnect());
+
+// Açılış: kayıtlı oturum geçerliyse oda listesi, değilse giriş ekranı. Liste public/lobby.js'tedir ve bu
+// dosyadan sonra yüklenir; bu yüzden açılış sayfanın bütün betikleri çalıştıktan sonra yapılır.
+addEventListener('DOMContentLoaded', async () => {
+  Lobby.onEnter(({ id, password }) => enterRoomFlow(id, password));
+  if (!authToken) {
+    $('join-screen').hidden = false;
+    return;
+  }
+  const res = await api('GET', '/auth/me');
+  if (res.error) {
+    if (res.status === 401) return signedOut();
+    $('join-screen').hidden = false;
+    return showJoinError(res.error);
+  }
+  account = res;
+  openLobby();
+});
 
 // ---------- Oyun seçici ----------
 // Oyunlar sayfası kart ızgarasıyla açılır (game-home); karta basınca oyun açılır. Oyundayken üstte
