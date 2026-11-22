@@ -95,6 +95,12 @@ async function newSession(key) {
   return token;
 }
 
+// Oturumu hafızadan ve kayıttan siler.
+function dropSession(hash) {
+  sessions.delete(hash);
+  store.remove('sessions', `token_hash=${eq(hash)}`).catch((err) => console.warn('oturum silme', err.message));
+}
+
 // Siteye her girişte (sayfa açılınca ya da odaya katılınca) son görülme güncellenir.
 function seen(key) {
   const a = accounts.get(key);
@@ -117,6 +123,7 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
   app.set('trust proxy', 1); // Render'ın vekil sunucusu: req.ip gerçek adres olsun
   const json = express.json({ limit: '4kb' });
   const fail = (res, status, error) => res.status(status).json({ error });
+  const PASSWORD_RULE = `Şifre ${PASSWORD_MIN}-${PASSWORD_MAX} karakter olmalı.`;
 
   // Şifre deneme sınırı: aynı yerden çok yanlış giriş olursa bir süre beklenir.
   const logins = attemptLimiter(LOGIN_FAIL_MAX, LOGIN_FAIL_WINDOW);
@@ -131,7 +138,7 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
   app.post('/auth/register', json, async (req, res) => {
     const { name, password, key } = readCredentials(req);
     if (!NAME_RE.test(name)) return fail(res, 400, 'Kullanıcı adı 2-24 karakter olmalı; harf, rakam, boşluk, nokta, tire kullanılabilir.');
-    if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) return fail(res, 400, `Şifre en az ${PASSWORD_MIN} karakter olmalı.`);
+    if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) return fail(res, 400, PASSWORD_RULE);
     if (accounts.has(key)) return fail(res, 409, 'Bu kullanıcı adı alınmış. Senin hesabınsa "Giriş yap"ı seç.');
     const account = { name, passHash: await hashPassword(password), avatar: null, createdAt: Date.now(), lastSeen: 0 };
     if (accounts.has(key)) return fail(res, 409, 'Bu kullanıcı adı alınmış.');
@@ -150,28 +157,36 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
     const release = logins.reserve(req.ip);
     if (!release) return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
     const account = accounts.get(key);
-    if (!account || !(await checkPassword(password, account.passHash))) {
+    const hash = account?.passHash; // denetlenirken şifre değişirse eski şifre oturum kazandırmasın
+    if (!account || !(await checkPassword(password, hash))) {
       return fail(res, 401, 'Kullanıcı adı ya da şifre yanlış.');
     }
     release();
+    const stale = () => account.passHash !== hash;
+    if (stale()) return fail(res, 401, 'Kullanıcı adı ya da şifre yanlış.');
     try {
-      res.json({ token: await newSession(key), ...me(account, key) });
+      const token = await newSession(key);
+      if (stale()) { // oturum yazılırken şifre değişti (değişim öteki oturumları kapattıktan sonra eklendi)
+        dropSession(sha256(token));
+        return fail(res, 401, 'Kullanıcı adı ya da şifre yanlış.');
+      }
+      res.json({ token, ...me(account, key) });
     } catch (err) {
       console.warn('giriş', err.message);
       fail(res, 500, 'Giriş yapılamadı, biraz sonra tekrar dene.');
     }
   });
 
-  // Şifre değiştirme: yanlış mevcut şifre hem IP hem hesap anahtarıyla sayılır.
-  // Başarıda çağıran oturum dışındaki bütün oturumlar kapanır.
+  // Şifre değiştirme: yanlış mevcut şifre hem IP hem oturumla sayılır (hesapla sayılsaydı çalınan bir oturum
+  // sahibini kilitleyebilirdi). Başarıda çağıran oturum dışındaki bütün oturumlar kapanır.
   app.post('/auth/password', json, async (req, res) => {
     const token = bearer(req);
     const a = accountByToken(token);
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
     const ipKey = `ip:${req.ip}`;
-    const keyKey = `hesap:${a.key}`;
+    const sessionKey = `oturum:${sha256(token)}`;
     const releaseIp = passwordChanges.reserve(ipKey);
-    const releaseKey = releaseIp && passwordChanges.reserve(keyKey);
+    const releaseKey = releaseIp && passwordChanges.reserve(sessionKey);
     if (!releaseKey) {
       releaseIp?.();
       return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
@@ -181,10 +196,12 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
     const password = String(req.body?.password || '');
     const account = accounts.get(a.key);
     if (!account) { release(); return fail(res, 401, 'Oturum kapanmış.'); }
-    if (!(await checkPassword(current, account.passHash))) return fail(res, 403, 'Mevcut şifre yanlış.');
+    const before = account.passHash; // denetlenirken başka bir istek şifreyi değiştirebilir
+    if (!(await checkPassword(current, before))) return fail(res, 403, 'Mevcut şifre yanlış.');
     release(); // mevcut şifre doğru: deneme hakkı harcanmaz
+    if (account.passHash !== before || !accountByToken(token)) return fail(res, 401, 'Oturum kapanmış.');
     if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
-      return fail(res, 400, `Şifre en az ${PASSWORD_MIN} karakter olmalı.`);
+      return fail(res, 400, PASSWORD_RULE);
     }
     if (password === current) return fail(res, 400, 'Yeni şifre eskisiyle aynı olamaz.');
     const passHash = await hashPassword(password);

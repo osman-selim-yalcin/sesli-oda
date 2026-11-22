@@ -98,3 +98,61 @@ test('başarılı denemeler sınırı tüketmez', async () => {
     await own.stop();
   }
 });
+
+test('çalınan oturumun 10 yanlış denemesi sahibin oturumunu kilitlemez; hırsız sınırda kalır', async () => {
+  const own = await startServer();
+  try {
+    const owner = (await http(own.url, 'POST', '/auth/register', { body: { name: 'PwKilit', password: 'dogrusifre' } })).json.token;
+    const thief = (await http(own.url, 'POST', '/auth/login', { body: { name: 'PwKilit', password: 'dogrusifre' } })).json.token;
+    // Hırsız ve sahip ayrı adreslerden (vekil sunucu X-Forwarded-For'un sonuna gerçek adresi yazar)
+    const call = (token, ip, current) => fetch(own.url + '/auth/password', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', 'x-forwarded-for': ip },
+      body: JSON.stringify({ current, password: 'sahibinsifresi' }),
+    }).then((r) => r.status);
+    for (let i = 0; i < 10; i++) assert.equal(await call(thief, '10.1.1.1', 'yanlis'), 403);
+    assert.equal(await call(thief, '10.1.1.2', 'dogrusifre'), 429); // adres değiştirse de oturumu sınırda
+    assert.equal(await call(owner, '10.2.2.2', 'dogrusifre'), 200);
+    assert.equal((await http(own.url, 'GET', '/auth/me', { token: thief })).status, 401);
+  } finally {
+    await own.stop();
+  }
+});
+
+test('şifre değişirken eski şifreyle doğrulanan giriş çalışan oturum vermez', async () => {
+  // scrypt onlarca ms sürer: değişim sırasında eski şifreyi doğrulamakta olan girişler olur.
+  const owner = await register('PwYaris', 'eski-sifre');
+  // Kendi adresinden: değişimden sonra başlayan girişler yanlış deneme sayılır, öteki testlerin sınırını yemesin.
+  const oldLogin = () => fetch(srv.url + '/auth/login', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.9.9.9' },
+    body: JSON.stringify({ name: 'PwYaris', password: 'eski-sifre' }),
+  }).then(async (r) => ({ status: r.status, json: await r.json() }));
+  const logins = [];
+  const changed = change(owner, 'eski-sifre', 'yeni-sifre');
+  for (let i = 0; i < 8; i++) {
+    logins.push(oldLogin());
+    await new Promise((r) => setTimeout(r, 4));
+  }
+  assert.equal((await changed).status, 200);
+  const results = await Promise.all(logins);
+  for (const r of results) {
+    if (r.status !== 200) {
+      assert.equal(r.status, 401);
+      continue;
+    }
+    assert.equal((await http(srv.url, 'GET', '/auth/me', { token: r.json.token })).status, 401, 'eski şifreyle alınan oturum çalışıyor');
+  }
+  assert.equal((await http(srv.url, 'GET', '/auth/me', { token: owner })).status, 200);
+});
+
+test('uzun şifrenin hata mesajı aralığı söyler', async () => {
+  const long = 'x'.repeat(201);
+  const reg = await http(srv.url, 'POST', '/auth/register', { body: { name: 'PwUzun', password: long } });
+  assert.equal(reg.status, 400);
+  assert.equal(reg.json.error, 'Şifre 4-200 karakter olmalı.');
+  const token = await register('PwUzun2', 'uzunsifre');
+  const r = await change(token, 'uzunsifre', long);
+  assert.equal(r.status, 400);
+  assert.equal(r.json.error, 'Şifre 4-200 karakter olmalı.');
+});
