@@ -117,6 +117,6 @@ window.Theme = (() => {
     list: LIST.slice(),
     apply,
     current: () => current,
-    preview: (id) => ({ ...(PREVIEW[id] || PREVIEW[DEFAULT]) }),
+    preview: (id) => ({ ...(Object.hasOwn(PREVIEW, id) ? PREVIEW[id] : PREVIEW[DEFAULT]) }),
   };
 })();

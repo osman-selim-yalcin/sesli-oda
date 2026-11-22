@@ -674,60 +674,63 @@ button.room-card.target { border-color: var(--accent); box-shadow: 0 0 0 3px var
 button.room-card.is-full { cursor: not-allowed; }
 .room-card.is-full .room-pv, .room-card.is-full .room-body { opacity: .5; }
 
-/* Tema önizleme şeridi: temanın zemin/panel/vurgu renginden küçük bir oda taslağı (oynatıcı + sohbet). Renkler
-   kartın yerel değişkenleri (--pv-*; theme.js Theme.preview). */
-.room-top { position: relative; display: block; height: 68px; flex-shrink: 0; border-bottom: var(--border-w) solid var(--border); }
+/* Tema önizleme şeridi: temanın zemin/panel/vurgu renginden ince bir oda taslağı (oynatıcı paneli + vurgu ilerleme
+   çizgisi, sohbet sütunu). Renkler kartın yerel değişkenleri (--pv-*; theme.js Theme.preview). Tek tema varken
+   ince bir ipucu; tema sayısı artınca --pv-h büyütülebilir. Rozetler şeridin alt kenarına biner. */
+.room-card { --pv-h: 28px; }
+.room-top { position: relative; display: block; height: var(--pv-h); flex-shrink: 0; border-bottom: var(--border-w) solid var(--border); }
 .room-pv {
   position: absolute;
   inset: 0;
   display: block;
   overflow: hidden;
   background:
-    radial-gradient(90% 130% at 100% 0%, color-mix(in srgb, var(--pv-accent) 24%, transparent), transparent 60%),
+    radial-gradient(90% 260% at 100% 0%, color-mix(in srgb, var(--pv-accent) 26%, transparent), transparent 60%),
     var(--pv-bg);
 }
 .room-pv-player, .room-pv-side {
   position: absolute;
-  top: 18px;
+  top: 38%;
   bottom: -1px;
-  border-radius: var(--radius-s) var(--radius-s) 0 0;
+  border-radius: var(--space-1) var(--space-1) 0 0;
   background: var(--pv-surface);
   box-shadow: inset 0 0 0 var(--border-w) color-mix(in srgb, var(--pv-surface) 75%, var(--pv-accent));
 }
 .room-pv-player { left: 16px; right: 40%; }
-/* oynatıcının ilerleme çubuğu: iz + vurgu */
-.room-pv-player::before, .room-pv-player::after {
+/* oynatıcının ilerleme çizgisi */
+.room-pv-player::after {
   content: '';
   position: absolute;
-  left: 12px;
-  bottom: 12px;
-  height: 3px;
+  left: 8px;
+  top: 40%;
+  width: 34%;
+  height: 2px;
   border-radius: var(--radius-pill);
+  background: var(--pv-accent);
 }
-.room-pv-player::before { right: 12px; background: color-mix(in srgb, var(--pv-bg) 55%, var(--pv-surface)); }
-.room-pv-player::after { width: 38%; background: var(--pv-accent); }
-/* sohbet sütunu: iki satır */
-.room-pv-side {
-  left: calc(60% + 8px);
-  right: 16px;
-  background:
-    linear-gradient(var(--pv-accent), var(--pv-accent)) no-repeat 10px 14px / 34% 3px,
-    linear-gradient(color-mix(in srgb, var(--pv-bg) 45%, var(--pv-surface)), color-mix(in srgb, var(--pv-bg) 45%, var(--pv-surface))) no-repeat 10px 24px / 62% 3px,
-    linear-gradient(color-mix(in srgb, var(--pv-bg) 45%, var(--pv-surface)), color-mix(in srgb, var(--pv-bg) 45%, var(--pv-surface))) no-repeat 10px 34px / 48% 3px,
-    var(--pv-surface);
+.room-pv-side { left: calc(60% + 8px); right: 16px; }
+.room-pv-side::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 40%;
+  top: 40%;
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--pv-bg) 45%, var(--pv-surface));
 }
-.room-badges { position: absolute; top: 10px; display: flex; gap: 6px; max-width: calc(50% - 14px); }
-.room-badges-start { left: 10px; }
-.room-badges-end { right: 10px; }
+
+.room-badges { position: absolute; top: calc(var(--pv-h) - 11px); z-index: 1; display: flex; gap: 6px; max-width: calc(50% - 14px); }
+.room-badges-start { left: 12px; }
+.room-badges-end { right: 12px; }
 .room-badges .badge {
   height: 22px;
   border: var(--border-w) solid var(--border-strong);
-  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  background: var(--surface-2);
   color: var(--text);
-  backdrop-filter: blur(6px);
 }
 .room-badges .badge .ic { width: 12px; height: 12px; color: var(--muted); }
-.room-badges .badge-accent { border-color: transparent; background: color-mix(in srgb, var(--surface) 70%, var(--accent)); }
+.room-badges .badge-accent { border-color: color-mix(in srgb, var(--surface) 50%, var(--accent)); background: color-mix(in srgb, var(--surface) 78%, var(--accent)); }
 .room-badges .badge-accent .ic { color: var(--accent); }
 
 .room-body { flex: 1; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); min-width: 0; }
@@ -956,10 +959,7 @@ button.room-card.is-busy .room-go {
   .roomlist { padding: var(--space-5) var(--space-4) 48px; }
   .roomlist-page { gap: var(--space-4); }
   .roomlist-title { font-size: 22px; }
-  .room-top { height: 52px; }
-  .room-pv-player, .room-pv-side { top: 12px; }
-  .room-pv-player::before, .room-pv-player::after { bottom: 9px; }
-  .room-pv-side { background-position: 10px 10px, 10px 20px, 10px 30px, 0 0; }
+  .room-card { --pv-h: 20px; }
 }
 @media (max-width: 859px) {
   .steps { flex-direction: column; }

@@ -53,7 +53,7 @@ window.Lobby = (() => {
   }
 
   // ---------- Oda amblemi ----------
-  // Odanın tek görsel imzası: baş harf + oda kimliğinden türetilen ton (--hue). Kartta, şifre penceresinde ve
+  // Odanın tek görsel imzası: baş harf + oda kimliğinden türetilen ton (--hue). Kartta ve (Lobby.emblem ile)
   // odanın üst çubuğunda aynı öğe kullanılır; ileride room.icon gelince yalnız bu işlev değişir.
   function roomHue(id) {
     let hash = 2166136261; // FNV-1a: benzer kimlikler de farklı tona düşsün
@@ -70,7 +70,9 @@ window.Lobby = (() => {
   // ---------- Odalar ----------
 
   const MAX_FACES = 5; // kartta en çok bu kadar yüz, fazlası "+N"
-  const isFull = (r) => r.users.length >= r.max;
+  // Dolu oda: hesabın kendisi zaten içerideyse (ör. telefondan dizüstüne geçiş) dolu sayılmaz; sunucu girişte o
+  // hesabın eski oturumunu düşürüp öyle sayar.
+  const isFull = (r) => r.users.length >= r.max && !r.users.includes(account?.name);
 
   // Tema önizleme şeridi: temanın üç renginden (Theme.preview) küçük bir oda taslağı: oynatıcı, sohbet, vurgu.
   function preview(room) {
@@ -151,12 +153,20 @@ window.Lobby = (() => {
     } else {
       go.append(r.locked && r.role === 'none' ? 'Şifreyle gir' : isTarget ? 'Odaya gir' : 'Gir');
     }
+    const action = go.textContent;
     foot.append(faces(r.users), occ, go);
     body.append(foot);
     card.append(top, body);
 
-    const label = [r.name, r.locked && 'şifreli', full ? 'dolu' : `${r.users.length} kişi içeride`, partner && `${partner.name} ile birleşik`]
-      .filter(Boolean).join(', ');
+    // Erişilebilir ad görünen eylemi de içerir (ör. "Şifreyle gir").
+    const label = [
+      `${r.name}: ${action}`,
+      r.role === 'owner' && 'Senin odan',
+      `sahibi ${r.owner}`,
+      r.locked && 'şifreli',
+      `${r.users.length}/${r.max} kişi`,
+      partner && `${partner.name} ile birleşik`,
+    ].filter(Boolean).join(', ');
     card.setAttribute('aria-label', label);
     card.onclick = () => (full ? toast(`${r.name} dolu.`) : tryEnter(r));
     return card;
@@ -240,7 +250,8 @@ window.Lobby = (() => {
     const left = passRoom ? (waitUntil.get(passRoom.id) || 0) - Date.now() : 0;
     const waiting = left > 0;
     $('room-pass-wait').hidden = !waiting;
-    $('room-pass-wait').textContent = waiting ? `Tekrar deneyebilmen için ${fmtLeft(left)}` : '';
+    $('room-pass-wait').textContent = waiting ? `Çok fazla yanlış deneme; ${fmtLeft(left)} sonra tekrar dene.` : '';
+    if (waiting) showError('room-pass-error', ''); // beklerken tek satır: geri sayım
     $('room-pass-ok').disabled = waiting || Boolean(busyId);
     $('room-pass-input').disabled = waiting;
     if (!waiting) {
@@ -292,7 +303,7 @@ window.Lobby = (() => {
   // (kapatılan sonuç bu tarayıcıda hatırlanır).
 
   const SEEN_KEY = 'requestSeen';
-  const seenKey = (q) => `${q.name}|${q.status}`;
+  const seenKey = (q) => `${q.id ?? q.name}|${q.status}`; // aynı adla sonraki istek yeniden görünsün
   const isSeen = (q) => {
     try {
       return localStorage.getItem(SEEN_KEY) === seenKey(q);
@@ -397,11 +408,19 @@ window.Lobby = (() => {
     }
   }
 
+  // Karardan sonra klavye odağı pencerede kalır: aynı sıradaki (yoksa son) isteğin ilk düğmesine, liste boşsa
+  // kapat düğmesine geçer.
   async function decide(q, approve, buttons) {
+    const row = buttons[0].closest('li');
+    const index = [...$('request-list').children].indexOf(row);
     for (const b of buttons) b.disabled = true;
     const res = await api('POST', `/admin/room-requests/${encodeURIComponent(q.id)}`, { approve });
     toast(res.error || (approve ? `${q.name} odası açıldı.` : `${q.name} isteği reddedildi.`));
-    loadRequests();
+    await loadRequests();
+    if (!$('requests-dialog').open) return;
+    const rows = $('request-list').children;
+    const next = rows[Math.min(index, rows.length - 1)]?.querySelector('button');
+    (next || $('requests-dialog').querySelector('.dialog-close')).focus();
   }
   $('requests-open').onclick = () => {
     openDialog('requests-dialog');
