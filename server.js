@@ -136,6 +136,11 @@ accounts.setup(app, {
 });
 roomStore.setup(app, {
   live: (id) => ({ users: [...(rooms.get(id)?.users.values() || [])].map((u) => u.name), max: MAX_USERS, mergedWith: null }),
+  // 'rooms' (liste değişti) ve 'request' (bekleyen istek sayısı) Görev 8'de yayılacak.
+  onChange: (kind, info) => {
+    if (kind === 'settings') io.to(info.id).emit('room:theme', { theme: info.theme });
+    else if (kind === 'closed') closeRoom(info);
+  },
 });
 
 // ICE sunucuları: STUN herkese yeter, ama mobil hat ve bazı modemlerde (CGNAT) doğrudan
@@ -705,6 +710,23 @@ function leaveRoom(socket, { grace }) {
     depart();
   }
   if (room.users.size === 0) dropRoom(roomCode);
+}
+
+// Kapatılan odadakiler çıkarılır (oyun ve lobi temizliği hemen yapılır) ve sokete haber verilir;
+// soket bağlı kalır, başka odaya girebilir.
+function closeRoom({ id, name }) {
+  for (const socketId of [...(rooms.get(id)?.users.keys() || [])]) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket) continue;
+    leaveRoom(socket, { grace: false });
+    socket.emit('room:closed', { name });
+  }
+  for (const [key, timer] of pendingLeaves) {
+    if (!key.startsWith(`${id}:`)) continue; // yenileme bekleyenler geri dönemez
+    clearTimeout(timer);
+    pendingLeaves.delete(key);
+  }
+  if (rooms.has(id)) dropRoom(id);
 }
 
 // Boşalan odanın canlı durumunu ve zamanlayıcılarını siler (kalıcı kayıtları silmez).

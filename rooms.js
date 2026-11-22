@@ -76,20 +76,33 @@ async function load() {
 }
 
 // Ad, şifre ve tema doğrulaması (create ve oda isteği ortak kullanır). Hata { error } döner.
-// pendingName: bekleyen başka bir istek de aynı adı tutamaz.
-function check({ name, password, theme = 'varsayilan' }, { pendingName = false } = {}) {
+// pendingName: bekleyen başka bir istek de aynı adı tutamaz. self: adı değişen oda (kendi adıyla çakışmaz).
+function checkName(name, { pendingName = false, self = null } = {}) {
   name = cleanName(name);
   if (!accounts.NAME_RE.test(name)) return { error: 'Oda adı 2-24 karakter olmalı; harf, rakam, boşluk, nokta, tire kullanılabilir.' };
   if (nameKey(name) === RESERVED) return { error: 'Bu ad oda adı olarak kullanılamaz.' };
-  if (all().some((r) => nameKey(r.name) === nameKey(name))) return { error: 'Bu adda bir oda zaten var.' };
+  if (all().some((r) => r !== self && nameKey(r.name) === nameKey(name))) return { error: 'Bu adda bir oda zaten var.' };
   if (pendingName && requests.some((q) => nameKey(q.name) === nameKey(name))) return { error: 'Bu adda bir oda isteği zaten bekliyor.' };
+  return { name };
+}
+function checkPassword(password) {
   if (password != null && typeof password !== 'string') return { error: 'Oda şifresi geçersiz.' };
   password = password || '';
   if (password && (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX)) {
     return { error: `Oda şifresi en az ${PASSWORD_MIN}, en çok ${PASSWORD_MAX} karakter olmalı.` };
   }
-  if (!THEMES.includes(theme)) return { error: 'Bu tema yok.' };
-  return { name, password, theme };
+  return { password };
+}
+const checkTheme = (theme) => (THEMES.includes(theme) ? { theme } : { error: 'Bu tema yok.' });
+
+function check({ name, password, theme = 'varsayilan' }, opts = {}) {
+  const v = checkName(name, opts);
+  if (v.error) return v;
+  const p = checkPassword(password);
+  if (p.error) return p;
+  const t = checkTheme(theme);
+  if (t.error) return t;
+  return { name: v.name, password: p.password, theme };
 }
 
 // Doğrulama hatası fırlatılmaz, { error } döner. Kayıt hatası fırlatılır.
@@ -128,6 +141,13 @@ async function addMember(roomId, key) {
   } catch (err) {
     if (!/ 409 /.test(err.message)) throw err; // birincil anahtar çakışması: üyelik zaten kayıtlı
   }
+}
+
+// Şifre değişince ya da kalkınca eski üyelikler geçersiz: hafızadan ve tablodan silinir.
+// Tablo silinemezse hata fırlatılır (hafıza olduğu gibi kalır).
+async function clearMembers(roomId) {
+  await store.remove('room_members', `room_id=eq.${encodeURIComponent(roomId)}`);
+  members.delete(roomId);
 }
 
 function role(room, account) {
@@ -192,6 +212,93 @@ function setup(app, opts) {
       console.warn('oda açma', err.message);
       fail(res, 500, 'Oda açılamadı, biraz sonra tekrar dene.');
     }
+  });
+
+  // Hangi alanı kim değiştirebilir (spec bölüm 5). Yetkisiz alan içeren istek tümüyle reddedilir.
+  const SETTINGS = { theme: ['owner', 'admin'], password: ['owner', 'admin'], name: ['admin'], owner: ['admin'] };
+
+  app.patch('/rooms/:id', json, async (req, res) => {
+    const a = accounts.accountByToken(bearer(req));
+    if (!a) return fail(res, 401, 'Oturum kapanmış.');
+    const room = get(req.params.id);
+    if (!room) return fail(res, 404, 'Böyle bir oda yok.');
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const fields = Object.keys(SETTINGS).filter((f) => body[f] !== undefined);
+    if (!fields.length) return fail(res, 400, 'Değişecek bir ayar yok.');
+    const r = role(room, a);
+    if (fields.some((f) => !SETTINGS[f].includes(r))) {
+      return fail(res, 403, r === 'owner' ? 'Odanın adını ve sahibini sadece yönetici değiştirebilir.' : 'Bu odanın ayarlarını değiştiremezsin.');
+    }
+    // Önce hepsi doğrulanır, sonra hepsi birden uygulanır.
+    const next = {};
+    if ('theme' in body) {
+      const t = checkTheme(body.theme);
+      if (t.error) return fail(res, 400, t.error);
+      next.theme = t.theme;
+    }
+    if ('name' in body) {
+      if (typeof body.name !== 'string') return fail(res, 400, 'Oda adı geçersiz.');
+      const v = checkName(body.name, { self: room });
+      if (v.error) return fail(res, 400, v.error);
+      next.name = v.name;
+    }
+    if ('owner' in body) {
+      const owner = typeof body.owner === 'string' && accounts.byKey(accounts.keyOf(cleanName(body.owner)));
+      if (!owner) return fail(res, 400, 'Bu adda bir hesap yok.');
+      next.ownerId = owner.key;
+    }
+    const passChange = 'password' in body;
+    if (passChange && body.password !== null) {
+      if (typeof body.password !== 'string' || !body.password) return fail(res, 400, 'Oda şifresi geçersiz.');
+      const p = checkPassword(body.password);
+      if (p.error) return fail(res, 400, p.error);
+    }
+    try {
+      if (passChange) next.passHash = body.password === null ? null : await accounts.hashPassword(body.password); // düz şifre saklanmaz
+      if (!get(room.id)) return fail(res, 404, 'Böyle bir oda yok.'); // özet hesaplanırken kapanmış olabilir
+      if (next.name && checkName(next.name, { self: room }).error) return fail(res, 400, 'Bu adda bir oda zaten var.');
+      const old = { ...room };
+      Object.assign(room, next); // await sırasında aynı ad başka odaya verilmesin
+      try {
+        if (passChange) await clearMembers(room.id);
+        const row = {};
+        if ('theme' in next) row.theme = next.theme;
+        if ('name' in next) row.name = next.name;
+        if ('ownerId' in next) row.owner_id = next.ownerId;
+        if (passChange) row.pass_hash = next.passHash;
+        await store.update('rooms', `id=eq.${encodeURIComponent(room.id)}`, row);
+      } catch (err) {
+        Object.assign(room, old);
+        throw err;
+      }
+      if ('theme' in next) onChange('settings', { id: room.id, theme: room.theme });
+      onChange('rooms', { id: room.id });
+      res.json({ room: view(room, a) });
+    } catch (err) {
+      console.warn('oda ayarı', err.message);
+      fail(res, 500, 'Ayar kaydedilemedi, biraz sonra tekrar dene.');
+    }
+  });
+
+  app.delete('/rooms/:id', async (req, res) => {
+    const a = accounts.accountByToken(bearer(req));
+    if (!a) return fail(res, 401, 'Oturum kapanmış.');
+    if (!accounts.isAdmin(a.key)) return fail(res, 403, 'Odayı sadece yönetici kapatabilir.');
+    const room = get(req.params.id);
+    if (!room) return fail(res, 404, 'Böyle bir oda yok.');
+    if (room.id === DEFAULT_ROOM.id) return fail(res, 400, 'genel odası kapatılamaz.');
+    room.closedAt = Date.now(); // await sırasında kimse giremesin
+    try {
+      await store.update('rooms', `id=eq.${encodeURIComponent(room.id)}`, { closed_at: new Date(room.closedAt).toISOString() });
+    } catch (err) {
+      room.closedAt = null;
+      console.warn('oda kapatma', err.message);
+      return fail(res, 500, 'Oda kapatılamadı, biraz sonra tekrar dene.');
+    }
+    // Odanın kayıtları (geçmiş, efektler, tier listler, kelimeler) silinmez; id bir daha kullanılmaz.
+    onChange('closed', { id: room.id, name: room.name });
+    onChange('rooms', { id: room.id });
+    res.json({});
   });
 
   const admin = (req, res) => {
