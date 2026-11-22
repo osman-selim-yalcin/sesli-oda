@@ -1088,7 +1088,35 @@ function bindMergeEvents(socket) {
   });
 }
 
+const BAD_REQUEST = { error: 'İstek işlenemedi.' };
+
+// Soketin bütün işleyicileri korumalı kaydedilir: bozuk istek (ör. null gövde, açılamayan argüman)
+// işleyicide hata atarsa ya da async işleyici reddedilirse süreç düşmez; uyarı yazılır (gövde yazılmaz),
+// ack'li istek cevap almadıysa BAD_REQUEST alır.
+function guardHandlers(socket) {
+  const on = socket.on.bind(socket);
+  socket.on = (event, handler) => on(event, (...args) => {
+    let acked = false;
+    const last = args.length - 1;
+    if (typeof args[last] === 'function') {
+      const reply = args[last];
+      args[last] = (...res) => { acked = true; reply(...res); };
+    }
+    const fail = (err) => {
+      console.warn(`soket işleyicisi hata verdi (${event}):`, err?.message || err);
+      if (!acked && typeof args[last] === 'function') args[last](BAD_REQUEST);
+    };
+    try {
+      const out = handler(...args);
+      if (out && typeof out.catch === 'function') out.catch(fail);
+    } catch (err) {
+      fail(err);
+    }
+  });
+}
+
 io.on('connection', (socket) => {
+  guardHandlers(socket);
   let code = null;
   // leaveRoom/enterRoom (ve ileride oda taşıma) soketin odasını dışarıdan değiştirir.
   socket.data.code = null;
