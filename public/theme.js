@@ -6,6 +6,9 @@
 window.Theme = (() => {
   const LIST = ['gece'];
   const DEFAULT = 'gece';
+  // Temanın ikon seti: public/icons/ui/<set>.svg, hepsi aynı adları (i-play, i-mic…) taşır.
+  // Varsayılan set index.html'de <svg id="ui-icons" data-set="lucide"> olarak gömülüdür (ilk boyamada ikon olsun diye).
+  const ICON_SETS = { gece: 'lucide' };
   const root = document.documentElement;
   let current = root.dataset.theme || DEFAULT;
   let wanted = current;
@@ -13,10 +16,39 @@ window.Theme = (() => {
 
   const href = (id) => `/themes/${id}.css`;
 
-  // İkon seti kancası (Task 2): temanın ikonlarını hazırlar ve bir "uygula" işlevi döndürür.
-  // Şimdilik index.html'deki satır içi SVG seti kullanılır; hazırlanacak bir şey yok.
+  // İkon seti: temanın seti gömülü olandan farklıysa dosyayı alır ve bir "uygula" işlevi döndürür.
+  // Uygulama tema değiştiği anda yapılır (yeni renk + eski ikon görünmez). Hata verirse apply eski temada kalır.
+  const iconFiles = new Map(); // set → Promise<symbol[]>
+  const iconSprite = () => document.getElementById('ui-icons');
+
+  function fetchIcons(set) {
+    if (!iconFiles.has(set)) {
+      const p = fetch(`/icons/ui/${set}.svg`)
+        .then((res) => {
+          if (!res.ok) throw new Error(`ikon seti alınamadı: ${set} (${res.status})`);
+          return res.text();
+        })
+        .then((text) => {
+          const doc = new DOMParser().parseFromString(text, 'image/svg+xml');
+          const symbols = [...doc.querySelectorAll('symbol[id^="i-"]')];
+          if (doc.querySelector('parsererror') || !symbols.length) throw new Error(`ikon seti bozuk: ${set}`);
+          return symbols;
+        });
+      p.catch(() => iconFiles.delete(set)); // sonraki deneme yeniden alır
+      iconFiles.set(set, p);
+    }
+    return iconFiles.get(set);
+  }
+
   async function prepareIcons(id) {
-    return () => {};
+    const set = ICON_SETS[id] || ICON_SETS[DEFAULT];
+    if (iconSprite()?.dataset.set === set) return () => {};
+    const symbols = await fetchIcons(set);
+    return () => {
+      const sprite = iconSprite();
+      sprite.replaceChildren(...symbols.map((s) => document.importNode(s, true)));
+      sprite.dataset.set = set;
+    };
   }
 
   function loadCss(id) {

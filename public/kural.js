@@ -172,7 +172,8 @@ function renderKuralRules() {
       renderKuralRules();
     };
     if (bad) pickBtn.append(kuralEl('small', 'kural-rule-tag', 'yanlış tahmin'));
-    const strike = kuralEl('button', 'sm ghost kural-strike', struck ? '↺' : '✕');
+    const strike = kuralEl('button', 'sm ghost kural-strike');
+    setIcon(strike, struck ? 'undo' : 'x');
     strike.type = 'button';
     strike.title = struck ? 'Çizgiyi kaldır' : 'Üstünü çiz (sadece sende)';
     strike.setAttribute('aria-label', strike.title);
@@ -218,7 +219,7 @@ function renderKuralTimer() {
   const draw = () => {
     const mine = game.finished?.[myName];
     const end = mine ? game.startedAt + mine.ms : game.done ? game.endedAt : Date.now() + kuralClock;
-    el.textContent = `⏱ ${fmtTime((end - game.startedAt) / 1000)}`;
+    setIcon(el, 'timer', fmtTime((end - game.startedAt) / 1000));
   };
   draw();
   if (!game.done && !game.finished?.[myName]) kuralTick = setInterval(draw, 1000);

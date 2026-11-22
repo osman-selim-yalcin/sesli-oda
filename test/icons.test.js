@@ -1,0 +1,94 @@
+// İkon seti: gömülü kopya dosyayla aynı mı, kullanılan her #i-… adı sette var mı, tema → set eşlemesi tutarlı mı.
+const { test } = require('node:test');
+const assert = require('node:assert');
+const fs = require('fs');
+const path = require('path');
+
+const PUB = path.join(__dirname, '..', 'public');
+const read = (f) => fs.readFileSync(path.join(PUB, f), 'utf8');
+const symbolIds = (svg) => [...svg.matchAll(/<symbol id="(i-[a-z0-9-]+)"/g)].map((m) => m[1]);
+const symbolsOf = (svg) => [...svg.matchAll(/<symbol [\s\S]*?<\/symbol>/g)].map((m) => m[0]);
+
+// Bir çağrının n. argümanını (0'dan) metin olarak döndürür: parantez/tırnak derinliğini izler.
+function arg(src, start, n) {
+  let depth = 0, i = start, quote = null, idx = 0, from = start;
+  for (; i < src.length; i++) {
+    const c = src[i];
+    if (quote) {
+      if (c === '\\') i++;
+      else if (c === quote) quote = null;
+      continue;
+    }
+    if (c === "'" || c === '"' || c === '`') quote = c;
+    else if ('([{'.includes(c)) depth++;
+    else if (')]}'.includes(c)) {
+      if (depth === 0) break;
+      depth--;
+    } else if (c === ',' && depth === 0) {
+      if (idx === n) return src.slice(from, i);
+      idx++;
+      from = i + 1;
+    }
+  }
+  return idx === n ? src.slice(from, i) : '';
+}
+
+// Bütün ikon başvuruları: { name, where } ve adı değişkenden gelen çağrılar.
+function references() {
+  const refs = [];
+  const dynamic = [];
+  const files = ['index.html', ...fs.readdirSync(PUB).filter((f) => f.endsWith('.js') && !f.endsWith('.min.js'))];
+  for (const file of files) {
+    const src = read(file);
+    const line = (i) => src.slice(0, i).split('\n').length;
+    // index.html'deki gömülü set başvuru değildir
+    const body = file === 'index.html' ? src.replace(/<svg id="ui-icons"[\s\S]*?<\/svg><!-- \/ui-icons -->/, '') : src;
+    for (const m of body.matchAll(/#i-([a-z0-9-]+)/g)) {
+      if (m[1].endsWith('-')) continue; // href="#i-${name}" kalıbı
+      refs.push({ name: `i-${m[1]}`, where: `${file}:${line(m.index)}` });
+    }
+    if (!file.endsWith('.js')) continue;
+    for (const m of src.matchAll(/(?<![\w.])(setIcon|icon)\(/g)) {
+      const a = arg(src, m.index + m[0].length, m[1] === 'setIcon' ? 1 : 0).trim();
+      if (/^function|^name$/.test(a) || src.slice(m.index - 9, m.index) === 'function ') continue; // tanımlar
+      const lits = [...a.matchAll(/'([a-z0-9-]+)'/g)].map((x) => x[1]);
+      if (!lits.length) dynamic.push(`${file}:${line(m.index)} ${m[1]}(${a})`);
+      for (const n of lits) refs.push({ name: `i-${n}`, where: `${file}:${line(m.index)}` });
+    }
+  }
+  return { refs, dynamic };
+}
+
+test('gömülü ikon kopyası public/icons/ui/lucide.svg ile aynı', () => {
+  const html = read('index.html');
+  const block = html.match(/<svg id="ui-icons"[^>]*data-set="lucide"[^>]*>([\s\S]*?)<\/svg><!-- \/ui-icons -->/);
+  assert.ok(block, 'index.html içinde <svg id="ui-icons" data-set="lucide"> yok');
+  assert.deepStrictEqual(symbolsOf(block[1]), symbolsOf(read('icons/ui/lucide.svg')));
+  assert.ok(fs.existsSync(path.join(PUB, 'icons/ui/LICENSE')), 'Lucide lisans dosyası yok');
+});
+
+test('kullanılan her ikon adı sette var; set renk/kalınlık taşımaz', () => {
+  const svg = read('icons/ui/lucide.svg');
+  const ids = new Set(symbolIds(svg));
+  assert.strictEqual(ids.size, symbolIds(svg).length, 'aynı ad iki kez');
+  const { refs, dynamic } = references();
+  const missing = refs.filter((r) => !ids.has(r.name));
+  const used = new Set(refs.map((r) => r.name));
+  if (process.env.ICONS_REPORT) {
+    console.log(`set: ${ids.size} ikon; başvuru: ${refs.length} (${used.size} farklı ad); eksik: ${missing.length}`);
+    console.log(`değişkenden gelen ad: ${dynamic.join(' | ') || 'yok'}`);
+    console.log(`kullanılmayan: ${[...ids].filter((n) => !used.has(n)).join(' ') || 'yok'}`);
+  }
+  assert.deepStrictEqual(missing, []);
+  assert.ok(!/stroke-width|stroke="(?!none)|fill="(?!currentColor|none)/.test(svg), 'sette sabit renk/kalınlık var');
+});
+
+test('her temanın bir ikon seti var ve dosyası duruyor', () => {
+  const src = read('theme.js');
+  const list = JSON.parse(src.match(/const LIST = (\[[^\]]*\])/)[1].replace(/'/g, '"'));
+  const sets = Object.fromEntries([...src.match(/const ICON_SETS = \{([^}]*)\}/)[1].matchAll(/(\w+): '([\w-]+)'/g)].map((m) => [m[1], m[2]]));
+  for (const id of list) {
+    assert.ok(sets[id], `${id} temasının ikon seti yok`);
+    assert.ok(fs.existsSync(path.join(PUB, 'icons/ui', `${sets[id]}.svg`)), `${sets[id]}.svg yok`);
+  }
+});

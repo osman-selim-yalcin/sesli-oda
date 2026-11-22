@@ -173,7 +173,7 @@ function hedefTick() {
   const play = game.phase === 'play';
   const left = Math.max(0, Math.ceil((game.roundEnd - serverNow()) / 1000));
   el.hidden = !play;
-  el.textContent = `⏱ ${fmtTime(left)}`;
+  setIcon(el, 'timer', fmtTime(left));
   el.classList.toggle('low', play && left <= 10);
   // Süre dolunca sunucunun turu bitirmesi beklenir; bu arada kutular kilitlenir.
   if (play && hedefCanPlay() === $('game-hedef').classList.contains('hedef-locked')) renderHedef();

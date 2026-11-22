@@ -119,7 +119,9 @@ function renderOkuma() {
   }
   const def = OKUMA_EXERCISES.find((e) => e.key === okumaEx);
   const head = okEl('div', 'okuma-head');
-  head.append(okBtn('‹ Alıştırmalar', 'sm ghost', () => okumaOpen(null)), okEl('strong', 'okuma-title', `${def.icon} ${def.title}`));
+  const back = okBtn('Alıştırmalar', 'sm ghost', () => okumaOpen(null));
+  back.insertAdjacentHTML('afterbegin', icon('back'));
+  head.append(back, okEl('strong', 'okuma-title', `${def.icon} ${def.title}`));
   const body = okEl('div', 'okuma-body');
   ex.replaceChildren(head, okEl('p', 'muted small okuma-desc', def.desc), body);
   if (BLOK[okumaEx]) blokView(body, okumaEx);

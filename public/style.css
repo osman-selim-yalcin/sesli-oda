@@ -4,18 +4,23 @@
 .small { font-size: 13px; }
 .error { color: var(--danger); margin: 0; }
 
-/* İkonlar: index.html'deki SVG seti */
+/* İkonlar: temanın ikon seti (index.html <svg id="ui-icons">, theme.js). Çizgi rengi ve kalınlığı buradan. */
 .ic {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
   fill: none;
   stroke: currentColor;
-  stroke-width: 2;
+  stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
   vertical-align: -.2em;
 }
+/* Yazının içindeki ikonlar yazı boyunda (kilit işareti, süre, birleşik oda etiketi, küçük notlar) */
+.lock-mark .ic, #topbar-merged .ic, .sayi-timer .ic, .hedef-clock .ic, .kelime-trash .ic,
+.lobby-player .small .ic, .lobby-opts > .small .ic { width: 1.1em; height: 1.1em; vertical-align: -.18em; }
+#topbar-merged .ic, .sayi-timer .ic, .hedef-clock .ic, .lobby-player .small .ic, .lobby-opts > .small .ic { margin-right: .3em; }
+.lock-mark { color: var(--muted); }
 
 
 input, select {

@@ -24,6 +24,20 @@ window.Lobby = (() => {
     if (text != null) e.textContent = text;
     return e;
   };
+  // Şifreli oda işareti: ad metninden önce kilit ikonu (ekran okuyucuya "Şifreli").
+  const lockMark = () => {
+    const s = el('span', 'lock-mark');
+    s.innerHTML = icon('lock');
+    s.title = 'Şifreli';
+    s.setAttribute('role', 'img');
+    s.setAttribute('aria-label', 'Şifreli');
+    return s;
+  };
+  const withLock = (node, locked, text) => {
+    if (locked) node.append(lockMark(), ' ');
+    node.append(text);
+    return node;
+  };
   const isAdmin = () => Boolean(account?.admin);
   function showError(id, text) {
     $(id).textContent = text || '';
@@ -41,7 +55,7 @@ window.Lobby = (() => {
       btn.type = 'button';
       btn.disabled = Boolean(busyId);
       const info = el('span', 'room-info');
-      info.append(el('strong', 'room-name', (r.locked ? '🔒 ' : '') + r.name));
+      info.append(withLock(el('strong', 'room-name'), r.locked, r.name));
       const partner = r.mergedWith && rooms.find((x) => x.id === r.mergedWith);
       const meta = [
         `Sahibi: ${r.owner}`,
@@ -184,7 +198,7 @@ window.Lobby = (() => {
     for (const q of res.requests) {
       const li = el('li');
       const info = el('div', 'p-info');
-      info.append(el('div', 'p-name', (q.locked ? '🔒 ' : '') + q.name));
+      info.append(withLock(el('div', 'p-name'), q.locked, q.name));
       info.append(el('div', 'p-status', [`İsteyen: ${q.by}`, fmtDate(q.createdAt), q.note].filter(Boolean).join(' · ')));
       const yes = el('button', 'primary sm', 'Onayla');
       const no = el('button', 'danger sm', 'Reddet');

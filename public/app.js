@@ -38,7 +38,7 @@ const clientId = (() => {
 
 // ---------- Yardımcılar ----------
 
-// İkonlar index.html'deki SVG setinden gelir (Lucide).
+// İkonlar temanın ikon setinden gelir (index.html <svg id="ui-icons">, theme.js).
 function icon(name) {
   return `<svg class="ic" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
 }
@@ -47,6 +47,12 @@ function icon(name) {
 function setIcon(el, name, text) {
   el.innerHTML = icon(name);
   if (text) el.append(text);
+}
+
+// Var olan içeriğin önüne ikon koyar; öğeyi döndürür.
+function withIcon(el, name) {
+  el.insertAdjacentHTML('afterbegin', icon(name));
+  return el;
 }
 
 // Cevap gelmezse sonsuza kadar beklenmez: süre dolunca null döner.
@@ -2740,7 +2746,7 @@ function renderSayiTimer() {
   const draw = () => {
     const mine = game.finished?.[myName];
     const end = mine ? game.startedAt + mine.ms : game.done ? game.endedAt : Date.now() + sayiClock;
-    el.textContent = `⏱ ${fmtTime((end - game.startedAt) / 1000)}`;
+    setIcon(el, 'timer', fmtTime((end - game.startedAt) / 1000));
   };
   draw();
   if (!game.done && !game.finished?.[myName]) sayiTick = setInterval(draw, 1000);
@@ -3537,7 +3543,7 @@ function renderLobby(game) {
     chip.className = 'lobby-player' + (name === myName ? ' me' : '');
     chip.append(makeAvatar(name), name);
     if (name === lobby.host) chip.append(kelimeSmall('kurucu'));
-    if (name === lobby.opts.narrator) chip.append(kelimeSmall('🎙️ anlatıcı'));
+    if (name === lobby.opts.narrator) chip.append(withIcon(kelimeSmall('anlatıcı'), 'mic'));
     list.append(chip);
   }
   box.append(list);
@@ -3572,10 +3578,10 @@ function renderLobby(game) {
     row.className = 'lobby-opts';
     const seat = lobby.opts.narrator;
     if (seat) {
-      row.append(kelimeSmall(`🎙️ İlk anlatıcı: ${seat}`));
+      row.append(withIcon(kelimeSmall(`İlk anlatıcı: ${seat}`), 'mic'));
       if (mine && (seat === myName || seat === BOT_NAME)) row.append(lobbyButton('Bırak', 'sm ghost', () => lobbyEmit('lobby:opts', game, { narrator: null })));
     } else {
-      if (mine) row.append(lobbyButton('🎙️ İlk ben anlatayım', 'sm', () => lobbyEmit('lobby:opts', game, { narrator: 'me' })));
+      if (mine) row.append(withIcon(lobbyButton('İlk ben anlatayım', 'sm', () => lobbyEmit('lobby:opts', game, { narrator: 'me' })), 'mic'));
       if (mine && lobby.players.includes(BOT_NAME)) row.append(lobbyButton('Bot anlatsın', 'sm', () => lobbyEmit('lobby:opts', game, { narrator: 'bot' })));
       row.append(kelimeSmall(`Kimse seçmezse ${lobby.host} anlatır.`));
     }
@@ -3657,7 +3663,7 @@ let botOn = false;
 
 function setBot(on) {
   botOn = on;
-  $('bot-toggle').textContent = on ? '🤖 Bot var · çıkar' : '🤖 Bot ekle';
+  setIcon($('bot-toggle'), 'bot', on ? 'Bot var · çıkar' : 'Bot ekle');
   $('bot-toggle').classList.toggle('on', on);
   renderKelime();
   renderLobbies();
@@ -6300,7 +6306,8 @@ function renderRoomInfo() {
   $('topbar-room').textContent = curRoom.name;
   const other = curRoom.mergedWith;
   $('topbar-merged').hidden = !other;
-  $('topbar-merged').textContent = other ? `⇄ ${roomNames.get(other) || other}` : '';
+  if (other) setIcon($('topbar-merged'), 'merge', roomNames.get(other) || other);
+  else $('topbar-merged').textContent = '';
   $('room-settings-open').hidden = !canManage(curHome);
   renderPeopleCount();
 }
@@ -6712,7 +6719,7 @@ function renderGameSwitch() {
   homeBtn.classList.toggle('lobby-open', tabs.some((t) => t !== current && lobbyOpen(t)));
   homeBtn.disabled = !current;
   homeBtn.replaceChildren(...(current
-    ? [Object.assign(document.createElement('span'), { className: 'game-home-back', textContent: '‹' }),
+    ? [Object.assign(document.createElement('span'), { className: 'game-home-back', innerHTML: icon('back') }),
       gameIcon(current.key, 'game-home-icon'),
       Object.assign(document.createElement('strong'), { textContent: current.name })]
     : [Object.assign(document.createElement('strong'), { textContent: 'Oyunlar' })]));

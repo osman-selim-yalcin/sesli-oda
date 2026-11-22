@@ -246,7 +246,7 @@ function renderMantikTimer() {
   const draw = () => {
     const mine = game.finished?.[myName];
     const end = mine ? game.startedAt + mine.ms : game.done ? game.endedAt : Date.now() + mantikClock;
-    el.textContent = `⏱ ${fmtTime((end - game.startedAt) / 1000)}`;
+    setIcon(el, 'timer', fmtTime((end - game.startedAt) / 1000));
   };
   draw();
   if (!game.done && !game.finished?.[myName]) mantikTick = setInterval(draw, 1000);
