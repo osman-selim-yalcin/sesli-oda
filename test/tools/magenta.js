@@ -1,8 +1,13 @@
 #!/usr/bin/env node
 // Macenta denemesi: temaya bağlanmamış (sabit yazılmış) renkleri ortaya çıkarır.
 // Sayfayı başsız Chrome'da açar, değişken sözleşmesindeki bütün renkleri çiğ renklere çeker
-// (zeminler/vurgular #FF00FF, metin #00FF00, kenarlık #FFFF00) ve ekran görüntüsü alır.
-// Görüntüde bu üç renkten başka bir renkte kalan her öğe temaya bağlanmamıştır.
+// ve ekran görüntüsü alır:
+//   #FF00FF  zeminler ve yumuşak zeminler (--bg, --surface*, --accent-soft, --danger-soft, --overlay)
+//   #00FFFF  vurgu ve durum renkleri (--accent, --accent-2, --live, --danger); zemin üstünde de görünür
+//   #00FF00  metin (--text, --muted, --accent-contrast)
+//   #FFFF00  kenarlık (--border, --border-strong)
+// Görüntüde bu dört renkten başka bir renkte kalan her öğe temaya bağlanmamıştır.
+// (Kişi tonu --hue gibi oyun içeriği renkleri kural gereği kendi renginde kalır.)
 //
 // Kullanım:
 //   node test/tools/magenta.js <url> <çıktı.png> [genişlik] [seçenekler]
@@ -17,7 +22,8 @@
 //   --wait <ms>         görüntüden önce ek bekleme (varsayılan 800)
 //   --no-magenta        renkleri değiştirmeden normal görüntü al
 //   --eval <js>         görüntüden önce sayfada çalıştırılacak ifade (örn. bir pencereyi açmak)
-//   --profile <klasör>  Chrome profil klasörü (varsayılan: geçici klasör; iş bitince silinir)
+//   --profile <klasör>  Chrome profil klasörü (varsayılan: deponun git'e girmeyen .superpowers/ altında
+//                       geçici bir klasör; iş bitince silinir)
 //   --chrome <yol>      Chrome yolu (varsayılan: CHROME ortam değişkeni ya da macOS'taki Google Chrome)
 // Sunucu yalnız test önyüklemesiyle çalıştırılır: PORT=<port> node -r ./test/preload.js server.js
 // Bağımlılık yok: Node'un yerleşik WebSocket ve fetch'i (Node 22+) ile CDP konuşur.
@@ -25,12 +31,11 @@
 
 const { spawn } = require('child_process');
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
 
 const CONTRACT = {
-  '#FF00FF': ['--bg', '--surface', '--surface-2', '--surface-3', '--accent', '--accent-soft', '--accent-2',
-    '--live', '--danger', '--danger-soft', '--overlay'],
+  '#FF00FF': ['--bg', '--surface', '--surface-2', '--surface-3', '--accent-soft', '--danger-soft', '--overlay'],
+  '#00FFFF': ['--accent', '--accent-2', '--live', '--danger'],
   '#00FF00': ['--text', '--muted', '--accent-contrast'],
   '#FFFF00': ['--border', '--border-strong'],
 };
@@ -117,7 +122,10 @@ function chromePath(opts) {
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
   const tempProfile = !opts.profile;
-  const profile = opts.profile || fs.mkdtempSync(path.join(os.tmpdir(), 'magenta-chrome-'));
+  // Varsayılan profil deponun .superpowers/ klasöründe (git'e girmez; /tmp kullanılmaz).
+  const scratch = path.join(__dirname, '..', '..', '.superpowers', 'tmp');
+  if (tempProfile) fs.mkdirSync(scratch, { recursive: true });
+  const profile = opts.profile || fs.mkdtempSync(path.join(scratch, 'magenta-chrome-'));
   const chrome = spawn(chromePath(opts), [
     '--headless=new', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
     '--mute-audio', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',

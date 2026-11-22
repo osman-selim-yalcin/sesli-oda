@@ -51,8 +51,8 @@ button:hover { background: var(--surface-3); border-color: var(--border-strong);
 button:active:not(:disabled) { transform: scale(.96); }
 button:disabled { opacity: .5; cursor: default; }
 button:focus-visible, .attach:focus-within, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-button.primary { background: var(--accent); border-color: transparent; color: #fff; font-weight: 600; }
-button.primary:hover { background: #7f9bff; }
+button.primary { background: var(--accent); border-color: transparent; color: var(--accent-contrast); font-weight: 600; }
+button.primary:hover { background: var(--accent); filter: brightness(1.08); }
 button.ghost { background: transparent; border-color: transparent; }
 button.ghost:hover { background: var(--surface-2); }
 button.danger { color: var(--danger); }
@@ -197,13 +197,13 @@ button.link:hover { background: none; text-decoration: underline; }
   position: relative;
   background: var(--accent);
   border: none;
-  color: #fff;
+  color: var(--accent-contrast);
   font-weight: 600;
   padding: 12px 20px;
   border-radius: 999px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
 }
-.poster-play:hover { background: #7f9bff; }
+.poster-play:hover { filter: brightness(1.08); }
 
 /* Video altı: kartlar */
 .panel {
@@ -434,7 +434,7 @@ button.link:hover { background: none; text-decoration: underline; }
 .tier-cover-pick { flex-shrink: 0; display: grid; position: relative; }
 .tier-cover-pick:not(.disabled) { cursor: pointer; }
 .tier-cover-pick:not(.disabled):hover .tier-cover { outline: 2px solid var(--accent); }
-.tier-cover-pick:not(.disabled)::after { content: '✎'; position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; display: grid; place-items: center; }
+.tier-cover-pick:not(.disabled)::after { content: '✎'; position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: var(--accent-contrast); font-size: 11px; display: grid; place-items: center; }
 .link-btn { display: inline; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
 .link-btn:hover { background: none; }
 .tier-owner { margin: -4px 0 10px; }
@@ -638,7 +638,7 @@ button.lobby-start:active:not(:disabled) { transform: translateY(3px); box-shado
 .kelime-lobby { display: grid; gap: 12px; padding: 12px; background: var(--surface-2); border-radius: var(--radius-s); }
 .kelime-roles { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .kelime-role { min-width: 150px; padding: 10px 14px; font-weight: 600; }
-.kelime-role.on { background: var(--accent); border-color: transparent; color: #fff; }
+.kelime-role.on { background: var(--accent); border-color: transparent; color: var(--accent-contrast); }
 .kelime-players { display: flex; flex-wrap: wrap; gap: 6px; }
 .kelime-players:empty { display: none; }
 .kelime-player { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--surface-3); font-size: 13px; }
@@ -1013,7 +1013,7 @@ button.lobby-start:active:not(:disabled) { transform: translateY(3px); box-shado
 .toolbar .tool { flex-shrink: 0; background: transparent; border-color: transparent; color: var(--muted); }
 .toolbar .tool:hover { background: var(--surface-2); color: var(--text); }
 .toolbar .tool.off { background: var(--danger); color: #fff; }
-.tool.on { background: var(--accent) !important; color: #fff !important; }
+.tool.on { background: var(--accent) !important; color: var(--accent-contrast) !important; }
 .people-btn {
   --ring: var(--surface);
   flex: 1;
@@ -1403,7 +1403,7 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .hedef-ops { display: flex; gap: 8px; justify-content: center; }
 .hedef-ops[hidden] { display: none; }
 .hedef-ops button { width: 56px; height: 52px; padding: 0; font-size: 26px; font-weight: 700; border-radius: var(--radius-s); touch-action: manipulation; }
-.hedef-ops button.active { background: var(--accent); border-color: transparent; color: #fff; }
+.hedef-ops button.active { background: var(--accent); border-color: transparent; color: var(--accent-contrast); }
 .hedef-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; font-variant-numeric: tabular-nums; }
 .hedef-steps li { padding: 4px 10px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 14px; font-weight: 600; }
 .hedef-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; width: 100%; }
@@ -1706,7 +1706,7 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .room-name { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .room-info .avatar-strip { margin: 0; padding: 2px 0; }
 .room-go { flex-shrink: 0; font-size: 13px; font-weight: 600; color: var(--muted); }
-.room-go.primary { padding: 8px 14px; border-radius: var(--radius-s); background: var(--accent); color: #fff; }
+.room-go.primary { padding: 8px 14px; border-radius: var(--radius-s); background: var(--accent); color: var(--accent-contrast); }
 .rooms-form { display: grid; gap: 12px; }
 .rooms-form label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .rooms-form p { margin: 0; }

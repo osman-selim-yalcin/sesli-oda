@@ -52,16 +52,25 @@ window.Theme = (() => {
       return job?.promise ?? Promise.resolve();
     }
     if (job?.id === id) return job.promise;
-    const promise = Promise.all([loadCss(id), prepareIcons(id)]).then(([link, commitIcons]) => {
-      if (job?.promise === promise) job = null;
-      if (!link) return; // yüklenemedi: eski tema kalır
-      if (wanted !== id) return link.remove(); // bu arada başka tema istendi
-      document.getElementById('theme-css')?.remove();
-      link.id = 'theme-css';
-      commitIcons();
-      root.dataset.theme = current = id;
-      syncMeta();
-    });
+    const css = loadCss(id);
+    // apply hiçbir zaman reddetmez: ikon ya da yükleme hatasında uyarı yazılır, önceki tema kalır.
+    const promise = Promise.all([css, prepareIcons(id)])
+      .then(([link, commitIcons]) => {
+        if (!link) return; // yüklenemedi: eski tema kalır
+        if (wanted !== id) return link.remove(); // bu arada başka tema istendi
+        commitIcons(); // hata verirse aşağıdaki catch yeni bağlantıyı kaldırır, eski tema kalır
+        document.getElementById('theme-css')?.remove();
+        link.id = 'theme-css';
+        root.dataset.theme = current = id;
+        syncMeta();
+      })
+      .catch((err) => {
+        console.warn(`Tema uygulanamadı (${id}), önceki tema kalıyor:`, err);
+        css.then((link) => link?.id !== 'theme-css' && link?.remove());
+      })
+      .finally(() => {
+        if (job?.promise === promise) job = null;
+      });
     job = { id, promise };
     return promise;
   }
