@@ -39,7 +39,9 @@ const clientId = (() => {
 // ---------- Yardımcılar ----------
 
 // İkonlar temanın ikon setinden gelir (index.html <svg id="ui-icons">, theme.js).
+// Ad işaretlemenin içine yazıldığı için yalnız küçük harf, rakam ve tire kabul edilir.
 function icon(name) {
+  if (typeof name !== 'string' || !/^[a-z0-9-]+$/.test(name)) throw new Error(`Geçersiz ikon adı: ${name}`);
   return `<svg class="ic" aria-hidden="true"><use href="#i-${name}"></use></svg>`;
 }
 

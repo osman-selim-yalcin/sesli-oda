@@ -92,3 +92,14 @@ test('her temanın bir ikon seti var ve dosyası duruyor', () => {
     assert.ok(fs.existsSync(path.join(PUB, 'icons/ui', `${sets[id]}.svg`)), `${sets[id]}.svg yok`);
   }
 });
+
+test('icon() yalnız güvenli adları kabul eder', () => {
+  // app.js tarayıcı betiği; icon() DOM'a dokunmadığı için kaynağından alınıp ayrı çalıştırılır.
+  const src = read('app.js').match(/\nfunction icon\(name\) \{[\s\S]*?\n\}/);
+  assert.ok(src, 'app.js içinde icon() yok');
+  const icon = new Function(`${src[0]}; return icon;`)();
+  assert.match(icon('mic-off'), /href="#i-mic-off"/);
+  for (const bad of ['x"><img src=x onerror=alert(1)>', 'Mic', 'a b', '', '../x', null, undefined, 5]) {
+    assert.throws(() => icon(bad), /Geçersiz ikon adı/, String(bad));
+  }
+});
