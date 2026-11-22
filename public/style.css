@@ -1774,9 +1774,11 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   .rooms-layout { grid-template-columns: minmax(0, 1fr); padding: 12px; gap: 12px; }
   .rooms-side { order: -1; }
 }
-/* Telefonda "Odalar" düğmesi de üst çubuğa sığsın: sekmelerin simgeleri gizlenir */
+/* Telefonda "Odalar" düğmesi de üst çubuğa sığsın: sekmelerin simgeleri ve düğmenin yazısı gizlenir
+   (yöneticide eşek ve çalan şarkı düğmesiyle birlikte 390 px'e sığar) */
 @media (max-width: 520px) {
   .top-tab { padding: 0 8px; }
   .top-tab .ic { display: none; }
   button.nav-rooms { padding: 5px 6px; }
+  .nav-rooms-text { display: none; }
 }
