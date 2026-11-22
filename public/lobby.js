@@ -320,7 +320,7 @@ window.Lobby = (() => {
 
   function show() {
     const view = pathView(location.pathname);
-    target = view.room || null;
+    target = view.room ? homeAfterReload(view.room) : null; // birleşik odada misafir kökenliyse kendi odası
     targetChecked = false;
     $('lobby-screen').hidden = false;
     $('lobby-nav-members').hidden = !isAdmin();

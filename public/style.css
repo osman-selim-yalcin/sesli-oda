@@ -1764,6 +1764,12 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
 .room-pass:not([open]) { display: none; } /* .card display: grid kapalı pencereyi göstermesin */
 .room-pass::backdrop { background: rgba(0, 0, 0, .6); }
 .room-pass .rooms-row button { flex: 1; }
+/* Oda ayarları ve birleşme penceresi (Task 11): uzun pencere ekranda kayar */
+.room-settings { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.room-settings .rs-sub { margin: 4px 0 0; font-size: 15px; }
+.room-settings select, .room-settings input { min-width: 0; width: 100%; }
+.settings-actions .room-settings-open { grid-column: 1 / -1; }
+#topbar-merged { margin-left: 8px; font-weight: 400; white-space: nowrap; }
 @media (max-width: 800px) {
   .rooms-layout { grid-template-columns: minmax(0, 1fr); padding: 12px; gap: 12px; }
   .rooms-side { order: -1; }

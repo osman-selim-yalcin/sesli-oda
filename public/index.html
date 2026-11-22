@@ -205,7 +205,7 @@
       <div class="topbar-inner">
         <!-- Oda listesine tam yenilemeyle döner: ses ve bağlantılar temiz kapanır -->
         <button id="nav-rooms" class="ghost sm nav-rooms" title="Oda listesine dön"><svg class="ic"><use href="#i-back"></use></svg>Odalar</button>
-        <span id="topbar-room" class="topbar-brand"></span>
+        <span class="topbar-brand"><span id="topbar-room"></span><span id="topbar-merged" class="muted small" hidden></span></span>
         <nav class="top-tabs" role="tablist">
           <button id="nav-room" class="top-tab active" role="tab"><svg class="ic"><use href="#i-music"></use></svg>Oda</button>
           <button id="nav-games" class="top-tab" role="tab"><svg class="ic"><use href="#i-trophy"></use></svg>Oyunlar</button>
@@ -269,12 +269,56 @@
           <input id="sfx-vol" type="range" min="0" max="100" value="60">
         </label>
         <div class="settings-actions">
+          <!-- Yalnız oda sahibi ve yöneticide görünür; birleşik odada misafir kökenliye kendi odasını açar -->
+          <button id="room-settings-open" class="room-settings-open" hidden>Oda ayarları</button>
           <button id="copy-link"><svg class="ic"><use href="#i-link"></use></svg>Davet linki</button>
           <button id="leave" class="danger"><svg class="ic"><use href="#i-logout"></use></svg>Odadan çık</button>
           <button id="sign-out" class="danger">Hesaptan çık</button>
         </div>
       </div>
     </div>
+
+    <!-- Oda ayarları (sahip/yönetici): tema, şifre, birleştirme; yöneticide ad, sahip, kapatma -->
+    <dialog id="room-settings" class="card room-pass room-settings">
+      <div class="rooms-form">
+        <h2 id="rs-title" class="rooms-title"></h2>
+        <form id="rs-theme-form" class="rooms-form">
+          <label>Tema <select id="rs-theme"></select></label>
+          <div class="rooms-row"><button type="submit" class="primary">Temayı kaydet</button></div>
+        </form>
+        <form id="rs-pass-form" class="rooms-form">
+          <p id="rs-pass-state" class="muted small"></p>
+          <label>Yeni şifre <input id="rs-pass" type="password" maxlength="200" autocomplete="new-password" placeholder="En az 4 karakter"></label>
+          <div class="rooms-row">
+            <button type="button" id="rs-pass-remove" class="danger" hidden>Şifreyi kaldır</button>
+            <button type="submit" id="rs-pass-save" class="primary">Şifre koy</button>
+          </div>
+        </form>
+        <form id="rs-merge-form" class="rooms-form">
+          <h3 class="rs-sub">Başka odayla birleştir</h3>
+          <p id="rs-merged" class="small" hidden></p>
+          <label id="rs-merge-field">Oda <select id="rs-merge-target"></select></label>
+          <div class="rooms-row">
+            <button type="button" id="rs-split" class="danger" hidden>Ayır</button>
+            <button type="submit" id="rs-merge" class="primary">Birleştir</button>
+          </div>
+        </form>
+        <div id="rs-admin" class="rooms-form" hidden>
+          <h3 class="rs-sub">Yönetici</h3>
+          <form id="rs-name-form" class="rooms-form">
+            <label>Oda adı <input id="rs-name" maxlength="24" autocomplete="off"></label>
+            <div class="rooms-row"><button type="submit">Adı kaydet</button></div>
+          </form>
+          <form id="rs-owner-form" class="rooms-form">
+            <label>Sahibi <input id="rs-owner" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+            <div class="rooms-row"><button type="submit">Sahibi kaydet</button></div>
+          </form>
+          <div class="rooms-row"><button type="button" id="rs-close-room" class="danger">Odayı kapat</button></div>
+        </div>
+        <p id="rs-error" class="error" hidden></p>
+        <div class="rooms-row"><button type="button" id="rs-done" class="ghost">Kapat</button></div>
+      </div>
+    </dialog>
 
     <div class="layout">
       <section class="media">
@@ -1073,6 +1117,18 @@
     </div>
   </div>
 
+  <!-- Birleşme isteği: hedef odanın sahibine ve yöneticilere; odada da oda listesinde de aynı pencere -->
+  <dialog id="merge-prompt" class="card room-pass">
+    <div class="rooms-form">
+      <h2 id="merge-prompt-title" class="rooms-title"></h2>
+      <p id="merge-prompt-by" class="muted small"></p>
+      <p id="merge-prompt-warn" class="error" hidden>Süren oyun bitecek, müzik duracak</p>
+      <div class="rooms-row">
+        <button type="button" id="merge-reject" class="ghost">Reddet</button>
+        <button type="button" id="merge-accept" class="primary">Kabul</button>
+      </div>
+    </div>
+  </dialog>
   <div id="toasts" class="toasts"></div>
 
   <script src="/socket.io/socket.io.js"></script>

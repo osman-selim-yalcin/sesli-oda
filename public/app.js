@@ -493,11 +493,13 @@ socket.on('user-joined', ({ id, name, muted }) => {
   addPeer(id, name, muted);
   createPc(id);
   renderRecBanner();
+  refreshRoomViewSoon(); // birleşmede öteki odadakiler böyle gelir
 });
 
 socket.on('user-left', (id) => {
   removePeer(id);
   renderRecBanner();
+  refreshRoomViewSoon();
 });
 
 socket.on('user-muted', ({ id, muted }) => {
@@ -523,7 +525,8 @@ async function rejoin() {
   if (!selfId) return account && !$('lobby-screen').hidden && helloLobby(); // henüz odaya girilmemişti
   if (rejoining) return;
   rejoining = true;
-  const res = await emitAck(15000, 'join', { room: roomId, token: authToken, clientId });
+  // Kendi odasına (home) girilir; birleşikse sunucu misafiri ev sahibi odaya yerleştirir.
+  const res = await emitAck(15000, 'join', { room: homeId, token: authToken, clientId });
   rejoining = false;
   if (!res) {
     if (socket.connected) setTimeout(rejoin, 2000);
@@ -534,7 +537,12 @@ async function rejoin() {
   if (res.gone || res.needPassword || res.auth) return backToList(res.error);
   if (res.error) return toast(`${res.error} Sayfayı yenileyip tekrar dene.`);
 
+  // Bağlantı kopukken birleşme başlamış ya da bitmiş olabilir: soket başka odadaysa önceki oda temizlenir.
+  const moved = res.room?.id !== roomId;
+  if (moved) resetRoomState();
+  setRoomInfo(res);
   applyJoin(res);
+  if (moved) showRoomView();
   if (!micOn) socket.emit('mute', true);
   if (recorder) socket.emit('rec', true);
   if (screenStream) {
@@ -552,6 +560,7 @@ const NOTICE_KEY = 'lobbyNotice';
 function backToList(notice) {
   try {
     if (notice) sessionStorage.setItem(NOTICE_KEY, notice);
+    sessionStorage.removeItem(HOME_KEY);
   } catch {}
   location.assign('/');
 }
@@ -739,7 +748,8 @@ async function startScreen() {
   else if (!screenStream.getAudioTracks().length) toast('Ses paylaşılmıyor. Ses için bir sekme seçip "Sekme sesini de paylaş"ı aç.');
 }
 
-function stopScreen() {
+// quiet: sunucuya bildirilmez (oda değişti; eski odadaki paylaşımı sunucu zaten bitirdi).
+function stopScreen({ quiet = false } = {}) {
   if (!screenStream) return;
   screenStream.getTracks().forEach((t) => t.stop());
   screenStream = null;
@@ -747,7 +757,7 @@ function stopScreen() {
     peer.screenSenders?.forEach((sender) => peer.pc.removeTrack(sender));
     peer.screenSenders = null;
   }
-  socket.emit('screen:stop');
+  if (!quiet) socket.emit('screen:stop');
   renderScreen();
 }
 
@@ -4894,13 +4904,14 @@ async function startMp3(input) {
   };
 }
 
-function stopRecording() {
+// quiet: sunucuya bildirilmez (oda değişti; yeni odadakilere "kaydı durdurdu" gitmesin).
+function stopRecording({ quiet = false } = {}) {
   if (!recorder) return;
   recorder.stop();
   recorder = null;
   recCleanup.splice(0).forEach((fn) => fn());
   clearInterval(recTimer);
-  socket.emit('rec', false);
+  if (!quiet) socket.emit('rec', false);
   renderRec();
 }
 
@@ -5863,8 +5874,11 @@ $('search-close').onclick = () => {
 // ---------- Giriş / çıkış ----------
 // Giriş yapılmamışsa giriş ekranı; giriş yapınca oda listesi (public/lobby.js); karta basınca oda.
 
-let roomId = null;   // girilen oda (adresteki id); odaya girilince dolar
-let roomCode = null; // soketin bulunduğu canlı oda (birleşik odada ev sahibi); efekt adresleri bundan
+let roomId = null;   // soketin bulunduğu oda (adresteki id); odaya girilince dolar
+let roomCode = null; // soketin bulunduğu canlı oda (roomId ile aynı); efekt adresleri bundan
+let homeId = null;   // kişinin kendi odası: birleşik odada misafir kökenlinin odası; yeniden bağlanma buna girer
+let curRoom = null;  // soketin bulunduğu odanın görünümü { id, name, owner, locked, theme, users, max, mergedWith, role }
+let curHome = null;  // kendi odasının görünümü (birleşik değilse curRoom ile aynı oda); oda ayarları bunu değiştirir
 // genel odasının yerel şarkı geçmişi eski anahtarında kalır; öteki odalar kendi anahtarında.
 const historyKey = () => (roomId === 'genel' ? 'history' : `history:${roomId}`);
 
@@ -6040,6 +6054,7 @@ $('join-form').onsubmit = async (e) => {
 // Liste açılınca soket bağlanır ve hello ile hesaba bağlanır; aynı soket sonra odaya girerken (join) kullanılır.
 
 function openLobby() {
+  delete document.documentElement.dataset.theme; // tema yalnız odada
   $('join-screen').hidden = true;
   renderAccount();
   Lobby.show();
@@ -6131,10 +6146,7 @@ async function enterRoom(id, password) {
     return res;
   }
 
-  roomId = id;
-  roomCode = res.room?.id || id;
-  document.title = `${res.home?.name || res.room?.name || id} · Sesli Oda`;
-  $('topbar-room').textContent = res.home?.name || res.room?.name || id;
+  setRoomInfo(res);
   Lobby.hide();
   $('room-screen').hidden = false;
 
@@ -6154,9 +6166,11 @@ async function enterRoom(id, password) {
 
   applyJoin(res);
   // Yenilenen ya da linkle açılan sayfa adresteki ekranda açılır; listeden girilince odanın adresi geçmişe eklenir.
+  // Birleşik misafir odaya girildiyse (soket ev sahibi odada) adres ev sahibi odanın id'sini alır.
   const here = pathView(location.pathname);
-  applyView(history.state?.room === id ? history.state : here.room === id ? here : { room: id, page: 'room', tab: 'queue', game: 'home', list: null });
-  if (here.room === id) history.replaceState(currentView(), '', viewPath(currentView()));
+  const sameRoom = (room) => room === id || room === roomId;
+  applyView(sameRoom(history.state?.room) ? history.state : sameRoom(here.room) ? here : { room: roomId, page: 'room', tab: 'queue', game: 'home', list: null });
+  if (sameRoom(here.room)) history.replaceState(currentView(), '', viewPath(currentView()));
   else history.pushState(currentView(), '', viewPath(currentView()));
   sfxLoaded.then(() => Sfx.join(audioCtx, sfxBus));
 
@@ -6213,6 +6227,344 @@ function applyJoin(res) {
   applyMedia();
 }
 
+// ---------- Oda bilgisi, oda değiştirme ----------
+// join cevabı ve room:moved { room, home } taşır. room: soketin bulunduğu oda, home: kişinin kendi odası
+// (birleşik odada misafir kökenli için misafir oda). Adres ve üst çubuk room'u gösterir.
+
+const roomNames = new Map(); // oda id -> ad (birleşik odanın adını göstermek için; GET /rooms'tan)
+const canManage = (view) => ['owner', 'admin'].includes(view?.role);
+
+// Birleşik odada misafir kökenlinin adresi ev sahibi odayı gösterir. Sekme yenilenince listede adresteki
+// oda değil kendi odası seçili gelsin (public/lobby.js); sunucu birleşikse yine ev sahibi odaya yerleştirir,
+// kökeni korunur (ayrılınca kendi odasına döner).
+const HOME_KEY = 'roomHome';
+function homeAfterReload(id) {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(HOME_KEY));
+    if (saved?.room === id && pathView(location.pathname).room === id && typeof saved.home === 'string') return saved.home;
+  } catch {}
+  return id;
+}
+
+function setRoomInfo(res) {
+  curRoom = res.room;
+  curHome = res.home || res.room;
+  roomId = roomCode = curRoom.id;
+  homeId = curHome.id;
+  try {
+    sessionStorage.setItem(HOME_KEY, JSON.stringify({ room: roomId, home: homeId }));
+  } catch {}
+  roomNames.set(curRoom.id, curRoom.name);
+  roomNames.set(curHome.id, curHome.name);
+  document.documentElement.dataset.theme = curRoom.theme;
+  renderRoomInfo();
+  if (curRoom.mergedWith && !roomNames.has(curRoom.mergedWith)) refreshRoomView();
+}
+
+function renderRoomInfo() {
+  if (!curRoom) return;
+  document.title = `${curRoom.name} · Sesli Oda`;
+  $('topbar-room').textContent = curRoom.name;
+  const other = curRoom.mergedWith;
+  $('topbar-merged').hidden = !other;
+  $('topbar-merged').textContent = other ? `⇄ ${roomNames.get(other) || other}` : '';
+  $('room-settings-open').hidden = !canManage(curHome);
+}
+
+// Odaların güncel görünümü (soket odadayken rooms olayı gelmez). Birleşme ya da ayrılma ev sahibi
+// odadakilere ayrı bir olayla gelmez, kişiler girip çıkar; o zaman da buradan öğrenilir.
+async function refreshRoomView() {
+  const res = await api('GET', '/rooms');
+  if (res.error || !curRoom) return null;
+  for (const r of res.rooms) roomNames.set(r.id, r.name);
+  curRoom = res.rooms.find((r) => r.id === curRoom.id) || curRoom;
+  curHome = res.rooms.find((r) => r.id === curHome.id) || curHome;
+  renderRoomInfo();
+  return res.rooms;
+}
+let roomViewTimer = null;
+function refreshRoomViewSoon() {
+  if (!selfId) return;
+  clearTimeout(roomViewTimer);
+  roomViewTimer = setTimeout(refreshRoomView, 400);
+}
+
+socket.on('room:theme', ({ theme } = {}) => {
+  if (!curRoom || typeof theme !== 'string') return;
+  curRoom.theme = theme;
+  document.documentElement.dataset.theme = theme;
+});
+
+// Odadan kalan her şeyi temizler (oda değişirken): eş bağlantıları, ekran paylaşımı, kayıt, sohbet,
+// sıra, geçmiş, tier listler, oyunlar, lobiler, radyo. Mikrofon akışı ve AudioContext kalır.
+// Ardından applyJoin yeni odayı doldurur.
+function resetRoomState() {
+  stopScreen({ quiet: true });
+  stopRecording({ quiet: true });
+  for (const id of [...peers.keys()]) {
+    removePeer(id); // user-left temizliği
+    renderRecBanner();
+  }
+  sharerId = null;
+  renderScreen();
+  if ($('room-settings').open) $('room-settings').close(); // birleşme penceresi odadan bağımsız, açık kalır
+  for (const pop of document.querySelectorAll('#room-screen .pop:popover-open')) pop.hidePopover();
+  $('chat-list').replaceChildren();
+  $('chat-empty').hidden = false;
+  playHistory = [];
+  renderHistory();
+  media = null;
+  clearTimeout(nudgeTimer);
+  nudgeBase = null;
+  seeking = false;
+  stalled = buffering = 0;
+  $('seek').value = $('seek').max = 0; // yeni odada bir şey çalmıyorsa eski şarkının süresi kalmasın
+  $('time-cur').textContent = $('time-dur').textContent = fmtTime(0);
+  openListId = null;
+  selectedCard = null;
+  drag = null;
+  setTierLists([]);
+  timingRun = timingLast = raceLocal = null;
+  clearInterval(raceTicker);
+  raceTicker = 0;
+  raceShown = '';
+  setKelime(null);
+  setMemory(null);
+  setSayi(null);
+  setHedef(null);
+  window.setKural?.(null);
+  setMantik(null);
+  setDaktilo(null);
+  setDino(null);
+  Chip.stop();
+  setRadio(null);
+  lobbies = {};
+  renderLobbies();
+}
+
+// Oda değişince ekran yeni odanın adresine geçer: sayfa (oda/oyunlar/radyo) korunur, açık oyun ve liste kapanır.
+function showRoomView() {
+  applyView({ ...currentView(), room: roomId, game: 'home', list: null });
+  history.replaceState(currentView(), '', viewPath(currentView()));
+}
+
+// Birleşme (misafir odadakiler ev sahibi odaya) ya da ayrılma (kendi odasına dönüş): sayfa yenilenmez.
+// Hedef oda doluysa sunucu room:moved yerine kicked gönderir (listeye dönülür).
+socket.on('room:moved', (res = {}) => {
+  if (!selfId || !res.room || res.error) return;
+  resetRoomState();
+  setRoomInfo(res);
+  applyJoin(res);
+  if (!micOn) socket.emit('mute', true);
+  showRoomView();
+  syncClock().then(applyMedia);
+  toast(res.reason === 'split' ? 'Odalar ayrıldı' : `Odalar birleşti: ${res.room.name}`);
+});
+
+// ---------- Oda ayarları ----------
+// Düğme yalnız kendi odasında sahip ya da yönetici olana görünür (yetkiyi yine sunucu denetler).
+// Tema listesi oda isteği formundaki seçeneklerden gelir.
+
+let settingsRoom = null; // pencerenin değiştirdiği oda (curHome)
+
+function rsError(text) {
+  $('rs-error').textContent = text || '';
+  $('rs-error').hidden = !text;
+}
+
+function renderRoomSettings(list) {
+  const r = settingsRoom;
+  if (!r) return;
+  const admin = r.role === 'admin';
+  $('rs-title').textContent = `${r.name} ayarları`;
+  if ($('rs-theme').options.length === 0) {
+    for (const o of $('request-theme').options) $('rs-theme').append(new Option(o.textContent, o.value));
+  }
+  $('rs-theme').value = r.theme;
+  $('rs-pass-state').textContent = r.locked ? 'Oda şifreli. Şifre değişince üyeler yeni şifreyi yazar.' : 'Oda şifresiz.';
+  $('rs-pass-save').textContent = r.locked ? 'Şifreyi değiştir' : 'Şifre koy';
+  $('rs-pass-remove').hidden = !r.locked;
+  const partner = r.mergedWith;
+  $('rs-merged').hidden = !partner;
+  $('rs-merged').textContent = partner ? `${roomNames.get(partner) || partner} ile birleşik.` : '';
+  $('rs-split').hidden = !partner;
+  $('rs-merge-field').hidden = $('rs-merge').hidden = Boolean(partner);
+  if (!partner && list) {
+    const others = list.filter((x) => x.id !== r.id && !x.mergedWith);
+    $('rs-merge-target').replaceChildren(...others.map((x) => new Option(`${x.name} (${x.users.length} kişi)`, x.id)));
+    $('rs-merge').disabled = others.length === 0;
+    if (!others.length) $('rs-merge-target').append(new Option('Birleşilecek oda yok', ''));
+  }
+  $('rs-admin').hidden = !admin;
+  if (admin) {
+    $('rs-name').value = r.name;
+    $('rs-owner').value = r.owner;
+    $('rs-close-room').hidden = r.id === 'genel';
+  }
+}
+
+$('room-settings-open').onclick = async () => {
+  $('settings-pop').hidePopover();
+  settingsRoom = curHome;
+  rsError('');
+  $('rs-pass').value = '';
+  renderRoomSettings();
+  if (!$('room-settings').open) $('room-settings').showModal();
+  const list = await refreshRoomView(); // birleşme durumu ve listesi güncel olsun
+  if (!$('room-settings').open) return;
+  settingsRoom = curHome;
+  if (list) renderRoomSettings(list);
+  else rsError('Oda listesi alınamadı.');
+};
+$('rs-done').onclick = () => $('room-settings').close();
+
+// Ayarı kaydeder; cevap odanın yeni görünümüdür.
+async function saveRoomSetting(body, done, btn) {
+  if (!settingsRoom) return;
+  rsError('');
+  if (btn) btn.disabled = true;
+  const res = await api('PATCH', `/rooms/${encodeURIComponent(settingsRoom.id)}`, body);
+  if (btn) btn.disabled = false;
+  if (res.error) return rsError(res.error);
+  settingsRoom = res.room;
+  if (curHome?.id === res.room.id) curHome = res.room;
+  if (curRoom?.id === res.room.id) curRoom = res.room;
+  roomNames.set(res.room.id, res.room.name);
+  renderRoomInfo();
+  renderRoomSettings();
+  toast(done);
+}
+const submitter = (e) => e.submitter || e.target.querySelector('button[type=submit]');
+$('rs-theme-form').onsubmit = (e) => {
+  e.preventDefault();
+  saveRoomSetting({ theme: $('rs-theme').value }, 'Tema kaydedildi.', submitter(e));
+};
+$('rs-pass-form').onsubmit = (e) => {
+  e.preventDefault();
+  const password = $('rs-pass').value;
+  if (!password) return rsError('Yeni şifreyi yaz.');
+  $('rs-pass').value = '';
+  saveRoomSetting({ password }, 'Oda şifresi kaydedildi.', submitter(e));
+};
+$('rs-pass-remove').onclick = (e) => saveRoomSetting({ password: null }, 'Oda şifresi kaldırıldı.', e.currentTarget);
+$('rs-name-form').onsubmit = (e) => {
+  e.preventDefault();
+  saveRoomSetting({ name: $('rs-name').value }, 'Oda adı kaydedildi.', submitter(e));
+};
+$('rs-owner-form').onsubmit = (e) => {
+  e.preventDefault();
+  saveRoomSetting({ owner: $('rs-owner').value.trim() }, 'Odanın sahibi kaydedildi.', submitter(e));
+};
+// Kapanınca içerideki herkes (bu sekme dahil) room:closed alıp listeye döner.
+confirmButton($('rs-close-room'), 'Emin misin? Tekrar bas', async () => {
+  if (!settingsRoom) return;
+  rsError('');
+  const res = await api('DELETE', `/rooms/${encodeURIComponent(settingsRoom.id)}`);
+  if (res.error) return rsError(res.error);
+  if ($('room-settings').open) $('room-settings').close();
+  toast(`${settingsRoom.name} odası kapatıldı.`);
+});
+
+// ---------- Birleşme ----------
+// İsteyen: oda ayarlarından istek gönderir; karşı odanın sahibine (ya da yöneticilere) pencere çıkar.
+// Yönetici isterse hemen birleşir. Kabul edilince karşı odadakiler bu odaya taşınır (room:moved).
+
+const MERGE_PROMPT_MS = 60 * 1000; // sunucudaki istek süresiyle aynı
+const MERGE_CLOSED = { declined: 'Birleşme isteği reddedildi.', expired: 'Birleşme isteğinin süresi doldu.', cancelled: 'Birleşme isteği geçersiz oldu.' };
+const mergeAsked = new Set(); // gönderdiğim bekleyen istekler
+
+$('rs-merge-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const to = $('rs-merge-target').value;
+  if (!settingsRoom || !to) return;
+  const btn = submitter(e);
+  rsError('');
+  btn.disabled = true;
+  const res = (await emitAck(10000, 'merge:request', { from: settingsRoom.id, to })) ?? { error: 'Sunucuya ulaşılamadı.' };
+  btn.disabled = false;
+  if (res.error) return rsError(res.error);
+  $('room-settings').close();
+  if (res.merged) {
+    toast(`Odalar birleşti: ${roomNames.get(to) || to}`);
+    refreshRoomViewSoon();
+    return;
+  }
+  mergeAsked.add(res.id);
+  toast(`Birleşme isteği gönderildi: ${roomNames.get(to) || to}`);
+};
+
+$('rs-split').onclick = async (e) => {
+  if (!settingsRoom) return;
+  const btn = e.currentTarget;
+  rsError('');
+  btn.disabled = true;
+  const res = (await emitAck(10000, 'merge:split', { room: settingsRoom.id })) ?? { error: 'Sunucuya ulaşılamadı.' };
+  btn.disabled = false;
+  if (res.error) return rsError(res.error);
+  if ($('room-settings').open) $('room-settings').close();
+  refreshRoomViewSoon(); // misafir kökenliyse room:moved da gelir
+};
+
+// Gelen istek penceresi: odada da listede de aynı pencere. Sırayla gösterilir; cevaplanınca,
+// sunucu isteği kapatınca (merge:closed) ya da 60 sn sonra kapanır.
+const mergeQueue = [];
+let mergeShown = null;
+let mergeTimer = null;
+
+function showNextMerge() {
+  clearTimeout(mergeTimer);
+  mergeShown = mergeQueue.shift() || null;
+  const dialog = $('merge-prompt');
+  if (!mergeShown) {
+    if (dialog.open) dialog.close();
+    return;
+  }
+  const q = mergeShown;
+  $('merge-prompt-title').textContent = `${q.from?.name || 'Bir'} odası birleşmek istiyor`;
+  $('merge-prompt-by').textContent = q.by ? `İsteyen: ${q.by}` : '';
+  $('merge-prompt-warn').hidden = !(q.warn?.game || q.warn?.music);
+  $('merge-accept').disabled = $('merge-reject').disabled = false;
+  mergeTimer = setTimeout(() => dropMerge(q.id), MERGE_PROMPT_MS);
+  if (!dialog.open) dialog.showModal();
+}
+
+function dropMerge(id) {
+  const at = mergeQueue.findIndex((q) => q.id === id);
+  if (at >= 0) mergeQueue.splice(at, 1);
+  if (mergeShown?.id === id) showNextMerge();
+}
+
+socket.on('merge:incoming', (q = {}) => {
+  if (typeof q.id !== 'string' || mergeShown?.id === q.id || mergeQueue.some((x) => x.id === q.id)) return;
+  mergeQueue.push(q);
+  if (!mergeShown) showNextMerge();
+});
+
+socket.on('merge:closed', ({ id, reason } = {}) => {
+  const mine = mergeAsked.delete(id);
+  const shown = mergeShown?.id === id || mergeQueue.some((q) => q.id === id);
+  if (shown) dropMerge(id);
+  // İsteyen reddi, süre dolmasını ve iptali duyar; pencerede bekleyen süre dolmasını ve iptali.
+  // merged için ayrıca bildirim yok: taşınma kendisi haber verir.
+  if (mine ? MERGE_CLOSED[reason] : shown && (reason === 'expired' || reason === 'cancelled')) toast(MERGE_CLOSED[reason]);
+});
+
+async function answerMerge(accept) {
+  const q = mergeShown;
+  if (!q) return;
+  $('merge-accept').disabled = $('merge-reject').disabled = true;
+  const res = (await emitAck(10000, 'merge:answer', { id: q.id, accept })) ?? { error: 'Sunucuya ulaşılamadı.' };
+  if (res.error) toast(res.error);
+  dropMerge(q.id);
+}
+$('merge-accept').onclick = () => answerMerge(true);
+$('merge-reject').onclick = () => answerMerge(false);
+// Esc pencereyi yalnız bu sekmede kapatır; istek süresi dolana kadar bekler.
+$('merge-prompt').addEventListener('cancel', (e) => {
+  e.preventDefault();
+  if (mergeShown) dropMerge(mergeShown.id);
+});
+
 const inviteLink = () => `${location.origin}/oda/${roomId}`;
 
 $('copy-link').onclick = async () => {
@@ -6226,6 +6578,9 @@ $('copy-link').onclick = async () => {
 
 // Odadan çıkış ("Odalar" ya da "Odadan çık"): çıkış sesi bitsin diye biraz beklenip liste tam yenilemeyle açılır.
 function leaveToList() {
+  try {
+    sessionStorage.removeItem(HOME_KEY);
+  } catch {}
   socket.disconnect();
   Sfx.leave(audioCtx, sfxBus);
   setTimeout(() => location.assign('/'), 600);
