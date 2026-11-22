@@ -20,7 +20,23 @@ const ADMINS = new Set(['osyalcin']); // üyeler listesini görebilen hesaplar
 const accounts = new Map(); // anahtar (küçük harfli ad) -> { name, passHash, avatar, createdAt, lastSeen }
 const sessions = new Map(); // oturum özeti -> anahtar
 const avatarCache = new Map(); // anahtar -> { buf, type }
-const loginFails = new Map(); // ip -> { count, since }
+
+// Deneme sınırı: bir anahtar (ip, hesap...) pencere içinde max kez başarısız olursa engellenir.
+function attemptLimiter(max, windowMs) {
+  const fails = new Map(); // anahtar -> { count, since }
+  return {
+    blocked(key) {
+      const f = fails.get(key);
+      if (f && Date.now() - f.since > windowMs) fails.delete(key);
+      return (fails.get(key)?.count || 0) >= max;
+    },
+    fail(key) {
+      const f = fails.get(key) || { count: 0, since: Date.now() };
+      f.count++;
+      fails.set(key, f);
+    },
+  };
+}
 
 const keyOf = (name) => name.toLocaleLowerCase('tr-TR');
 const sha256 = (s) => crypto.createHash('sha256').update(s).digest('hex');
@@ -93,16 +109,8 @@ function setup(app, { imageTypes, onProfile, online }) {
   const fail = (res, status, error) => res.status(status).json({ error });
 
   // Şifre deneme sınırı: aynı yerden çok yanlış giriş olursa bir süre beklenir.
-  const blocked = (ip) => {
-    const f = loginFails.get(ip);
-    if (f && Date.now() - f.since > LOGIN_FAIL_WINDOW) loginFails.delete(ip);
-    return (loginFails.get(ip)?.count || 0) >= LOGIN_FAIL_MAX;
-  };
-  const addFail = (ip) => {
-    const f = loginFails.get(ip) || { count: 0, since: Date.now() };
-    f.count++;
-    loginFails.set(ip, f);
-  };
+  const logins = attemptLimiter(LOGIN_FAIL_MAX, LOGIN_FAIL_WINDOW);
+  const passwordChanges = attemptLimiter(LOGIN_FAIL_MAX, LOGIN_FAIL_WINDOW);
 
   const readCredentials = (req) => {
     const name = String(req.body?.name || '').trim().replace(/\s+/g, ' ');
@@ -129,10 +137,10 @@ function setup(app, { imageTypes, onProfile, online }) {
 
   app.post('/auth/login', json, async (req, res) => {
     const { password, key } = readCredentials(req);
-    if (blocked(req.ip)) return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
+    if (logins.blocked(req.ip)) return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
     const account = accounts.get(key);
     if (!account || !(await checkPassword(password, account.passHash))) {
-      addFail(req.ip);
+      logins.fail(req.ip);
       return fail(res, 401, 'Kullanıcı adı ya da şifre yanlış.');
     }
     try {
@@ -141,6 +149,45 @@ function setup(app, { imageTypes, onProfile, online }) {
       console.warn('giriş', err.message);
       fail(res, 500, 'Giriş yapılamadı, biraz sonra tekrar dene.');
     }
+  });
+
+  // Şifre değiştirme: yanlış mevcut şifre hem IP hem hesap anahtarıyla sayılır.
+  // Başarıda çağıran oturum dışındaki bütün oturumlar kapanır.
+  app.post('/auth/password', json, async (req, res) => {
+    const token = bearer(req);
+    const a = accountByToken(token);
+    if (!a) return fail(res, 401, 'Oturum kapanmış.');
+    const ipKey = `ip:${req.ip}`;
+    const keyKey = `hesap:${a.key}`;
+    if (passwordChanges.blocked(ipKey) || passwordChanges.blocked(keyKey)) {
+      return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
+    }
+    const current = String(req.body?.current || '');
+    const password = String(req.body?.password || '');
+    const account = accounts.get(a.key);
+    if (!account) return fail(res, 401, 'Oturum kapanmış.');
+    if (!(await checkPassword(current, account.passHash))) {
+      passwordChanges.fail(ipKey);
+      passwordChanges.fail(keyKey);
+      return fail(res, 403, 'Mevcut şifre yanlış.');
+    }
+    if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
+      return fail(res, 400, `Şifre en az ${PASSWORD_MIN} karakter olmalı.`);
+    }
+    if (password === current) return fail(res, 400, 'Yeni şifre eskisiyle aynı olamaz.');
+    const passHash = await hashPassword(password);
+    const keep = sha256(token);
+    try {
+      await store.update('accounts', `id=${eq(a.key)}`, { pass_hash: passHash });
+    } catch (err) {
+      console.warn('şifre değiştirme', err.message);
+      return fail(res, 500, 'Şifre değiştirilemedi, biraz sonra tekrar dene.');
+    }
+    account.passHash = passHash;
+    for (const [hash, k] of sessions) if (k === a.key && hash !== keep) sessions.delete(hash);
+    store.remove('sessions', `account_id=${eq(a.key)}&token_hash=neq.${encodeURIComponent(keep)}`)
+      .catch((err) => console.warn('oturumları kapatma', err.message));
+    res.json({});
   });
 
   app.get('/auth/me', (req, res) => {
@@ -228,4 +275,4 @@ function setup(app, { imageTypes, onProfile, online }) {
 
 const isAdmin = (key) => ADMINS.has(key);
 
-module.exports = { setup, load, accountByToken, profiles, seen, isAdmin };
+module.exports = { setup, load, accountByToken, profiles, seen, isAdmin, hashPassword, checkPassword, keyOf, NAME_RE, attemptLimiter };
