@@ -1,13 +1,18 @@
 <!doctype html>
-<html lang="tr">
+<html lang="tr" data-theme="gece">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sesli Oda</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
-  <meta name="theme-color" content="#0f1115">
+  <meta name="theme-color" content="#0E0F13">
+  <!-- Tema: varsayılan tema baştan bağlıdır (ilk boyama temalı); Theme.apply (theme.js) bu bağlantıyı değiştirir. -->
+  <link id="theme-css" rel="stylesheet" href="/themes/gece.css" data-theme="gece">
+  <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/style.css">
+  <link rel="preload" href="/vendor/fonts/nunito/Nunito-wght.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/vendor/fonts/geist/Geist-wght.woff2" as="font" type="font/woff2" crossorigin>
 </head>
 <body>
   <!-- İkon seti: Lucide (lucide.dev, ISC lisansı). Kullanım: <svg class="ic"><use href="#i-mic"></use></svg> -->
@@ -122,7 +127,7 @@
           <h2 class="rooms-title">Oda aç</h2>
           <label>Oda adı <input id="create-name" maxlength="24" autocomplete="off"></label>
           <label>Şifre (isteğe bağlı) <input id="create-password" type="password" maxlength="200" autocomplete="new-password"></label>
-          <label>Tema <select id="create-theme"><option value="varsayilan">Varsayılan</option></select></label>
+          <label>Tema <select id="create-theme"><option value="gece">Gece Odası</option></select></label>
           <label>Sahibi (boş bırakırsan sen) <input id="create-owner" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
           <button type="submit" class="primary">Oda aç</button>
           <p id="create-error" class="error" hidden></p>
@@ -135,7 +140,7 @@
           <p class="muted small">Yönetici onaylayınca oda açılır ve sahibi sen olursun.</p>
           <label>Oda adı <input id="request-name" maxlength="24" autocomplete="off"></label>
           <label>Şifre (isteğe bağlı) <input id="request-password" type="password" maxlength="200" autocomplete="new-password"></label>
-          <label>Tema <select id="request-theme"><option value="varsayilan">Varsayılan</option></select></label>
+          <label>Tema <select id="request-theme"><option value="gece">Gece Odası</option></select></label>
           <label>Not (isteğe bağlı) <input id="request-note" maxlength="200" autocomplete="off"></label>
           <button type="submit" class="primary">İsteği gönder</button>
           <p id="request-error" class="error" hidden></p>
@@ -1133,6 +1138,7 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
+  <script src="/theme.js"></script>
   <script src="/sfx.js"></script>
   <script src="/app.js"></script>
   <script src="/hedef.js"></script>

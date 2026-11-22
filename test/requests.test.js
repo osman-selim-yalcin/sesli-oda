@@ -29,7 +29,7 @@ test('istek yöneticinin listesinde görünür; locked doğru; şifre hiçbir ce
   assert.equal(l.status, 200);
   const item = l.json.requests.find((q) => q.id === r.json.request.id);
   assert.deepEqual(item, {
-    id: r.json.request.id, by: 'ali', name: 'Ali Salonu', locked: true, theme: 'varsayilan',
+    id: r.json.request.id, by: 'ali', name: 'Ali Salonu', locked: true, theme: 'gece',
     note: 'Arkadaşlarla', createdAt: item.createdAt,
   });
   assert.equal(typeof item.createdAt, 'number');

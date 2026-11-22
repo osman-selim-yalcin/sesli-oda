@@ -6015,6 +6015,7 @@ function signedOut(error) {
   socket.disconnect();
   Lobby.hide();
   $('room-screen').hidden = true;
+  Theme.apply('gece'); // giriş ekranı her zaman Gece Odası
   $('join-screen').hidden = false;
   if (error) showJoinError(error);
 }
@@ -6085,7 +6086,7 @@ $('join-form').onsubmit = async (e) => {
 // Liste açılınca soket bağlanır ve hello ile hesaba bağlanır; aynı soket sonra odaya girerken (join) kullanılır.
 
 function openLobby() {
-  delete document.documentElement.dataset.theme; // tema yalnız odada
+  Theme.apply('gece'); // oda listesi her zaman Gece Odası; odanın teması yalnız odada
   $('join-screen').hidden = true;
   renderAccount();
   Lobby.show();
@@ -6288,7 +6289,7 @@ function setRoomInfo(res) {
   } catch {}
   roomNames.set(curRoom.id, curRoom.name);
   roomNames.set(curHome.id, curHome.name);
-  document.documentElement.dataset.theme = curRoom.theme;
+  Theme.apply(curRoom.theme);
   renderRoomInfo();
   if (curRoom.mergedWith && !roomNames.has(curRoom.mergedWith)) refreshRoomView();
 }
@@ -6327,7 +6328,7 @@ socket.on('room:merge', ({ mergedWith = null, name = null } = {}) => {
 socket.on('room:theme', ({ theme } = {}) => {
   if (!curRoom || typeof theme !== 'string') return;
   curRoom.theme = theme;
-  document.documentElement.dataset.theme = theme;
+  Theme.apply(theme);
 });
 
 // Odadan kalan her şeyi temizler (oda değişirken): eş bağlantıları, ekran paylaşımı, kayıt, sohbet,

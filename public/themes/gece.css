@@ -1,0 +1,50 @@
+/* Tema: Gece Odası. Neredeyse siyah sakin yüzeyler, 1 px çizgiler, tek lavanta-mavi vurgu.
+   Bir tema dosyası değişken sözleşmesinin hepsini tanımlar (sözleşme ve yedek değerler: css/base.css).
+   Renk yalnız canlı olan şeylerde: konuşan kişi (--live), oynayan video, senin sıran.
+   --accent-2 (sarı) yalnız skor, taç ve "senin sıran" için. */
+:root {
+  color-scheme: dark;
+
+  --bg: #0E0F13;
+  --surface: #16181E;
+  --surface-2: #1E2129;
+  --surface-3: #272B35;
+  --border: #2A2E38;
+  --border-strong: #3A3F4C;
+  --text: #E8E9ED;
+  --muted: #8B90A0;
+  --accent: #8B9CFF;
+  --accent-contrast: #0E0F13;
+  --accent-soft: rgba(139, 156, 255, .16);
+  --accent-2: #FFD23F;
+  --live: #4ADE80;
+  --danger: #FF6B7A;
+  --danger-soft: rgba(255, 107, 122, .14);
+  --overlay: rgba(6, 7, 10, .72);
+
+  --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-2: 0 16px 40px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .03);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+
+  --focus-ring: 0 0 0 3px rgba(139, 156, 255, .45);
+}

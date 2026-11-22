@@ -6,11 +6,11 @@ const express = require('express');
 const store = require('./store');
 const accounts = require('./accounts');
 
-const THEMES = ['varsayilan']; // Aşama 2 genişletir
+const THEMES = ['gece']; // ilk tema: Gece Odası; yeni temalar buraya ve public/theme.js listesine
 const RESERVED = 'ortak';      // ortak kayıt anahtarı: oda adı ya da id'si olamaz
 const PASSWORD_MIN = 4;
 const PASSWORD_MAX = 200;
-const DEFAULT_ROOM = { id: 'genel', name: 'genel', ownerId: 'osyalcin', passHash: null, theme: 'varsayilan', createdAt: 0, closedAt: null };
+const DEFAULT_ROOM = { id: 'genel', name: 'genel', ownerId: 'osyalcin', passHash: null, theme: 'gece', createdAt: 0, closedAt: null };
 
 // Room = { id, name, ownerId, passHash|null, theme, createdAt, closedAt|null }
 const registry = new Map(); // id -> Room (kapalılar da: id bir daha kullanılamaz)
@@ -112,7 +112,7 @@ function checkPassword(password) {
 }
 const checkTheme = (theme) => (THEMES.includes(theme) ? { theme } : { error: 'Bu tema yok.' });
 
-function check({ name, password, theme = 'varsayilan' }, opts = {}) {
+function check({ name, password, theme = 'gece' }, opts = {}) {
   const v = checkName(name, opts);
   if (v.error) return v;
   const p = checkPassword(password);

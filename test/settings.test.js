@@ -58,21 +58,21 @@ const chatText = (s, text) => new Promise((resolve) => s.on('chat', (m) => m.tex
 test('tema: üye 403, başka odanın sahibi 403, sahip 200 ve odadaki istemci room:theme alır', async () => {
   const uye = await user('Uye');
   assert.equal((await join(uye, 'ayar-oda')).error, undefined);
-  assert.equal((await patch('ayar-oda', 'test:Uye', { theme: 'varsayilan' })).status, 403);
-  assert.equal((await patch('ayar-oda', OTHER, { theme: 'varsayilan' })).status, 403);
+  assert.equal((await patch('ayar-oda', 'test:Uye', { theme: 'gece' })).status, 403);
+  assert.equal((await patch('ayar-oda', OTHER, { theme: 'gece' })).status, 403);
   const got = next(uye, 'room:theme');
-  const r = await patch('ayar-oda', OWNER, { theme: 'varsayilan' });
+  const r = await patch('ayar-oda', OWNER, { theme: 'gece' });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.room.id, 'ayar-oda');
-  assert.equal(r.json.room.theme, 'varsayilan');
-  assert.deepEqual(await got, { theme: 'varsayilan' });
+  assert.equal(r.json.room.theme, 'gece');
+  assert.deepEqual(await got, { theme: 'gece' });
   // yönetici de tema değiştirebilir
-  assert.equal((await patch('ayar-oda', ADMIN, { theme: 'varsayilan' })).status, 200);
+  assert.equal((await patch('ayar-oda', ADMIN, { theme: 'gece' })).status, 200);
 });
 
 test('oturumsuz 401, olmayan oda 404, tanınan alan yoksa 400', async () => {
-  assert.equal((await patch('ayar-oda', undefined, { theme: 'varsayilan' })).status, 401);
-  assert.equal((await patch('yok-oda', OWNER, { theme: 'varsayilan' })).status, 404);
+  assert.equal((await patch('ayar-oda', undefined, { theme: 'gece' })).status, 401);
+  assert.equal((await patch('yok-oda', OWNER, { theme: 'gece' })).status, 404);
   assert.equal((await patch('ayar-oda', OWNER, {})).status, 400);
   assert.equal((await patch('ayar-oda', OWNER, { renk: 'mavi' })).status, 400);
   assert.equal((await remove('ayar-oda', undefined)).status, 401);
@@ -135,8 +135,8 @@ test('sahip ad ya da sahip gönderirse 403 ve hiçbir alan uygulanmaz (aynı ist
   assert.equal((await join(uye, 'baska-oda')).error, undefined);
   await sleep(100); // "katıldı" mesajı geçsin
   const got = collect(uye);
-  assert.equal((await patch('baska-oda', OTHER, { name: 'Yeni Ad', theme: 'varsayilan' })).status, 403);
-  assert.equal((await patch('baska-oda', OTHER, { owner: 'Sahip', theme: 'varsayilan', password: 'olmasin1' })).status, 403);
+  assert.equal((await patch('baska-oda', OTHER, { name: 'Yeni Ad', theme: 'gece' })).status, 403);
+  assert.equal((await patch('baska-oda', OTHER, { owner: 'Sahip', theme: 'gece', password: 'olmasin1' })).status, 403);
   await sleep(150);
   assert.deepEqual(got.map((g) => g.event), []); // room:theme gelmedi
   const room = await listed('baska-oda');
@@ -162,8 +162,8 @@ test('yönetici sahibi değiştirir: eski sahip 403, yenisi 200; olmayan hesap 4
   const r = await patch('baska-oda', ADMIN, { owner: 'Yeni Sahip' });
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.room.owner, 'Yeni Sahip');
-  assert.equal((await patch('baska-oda', OTHER, { theme: 'varsayilan' })).status, 403);
-  assert.equal((await patch('baska-oda', 'test:Yeni Sahip', { theme: 'varsayilan' })).status, 200);
+  assert.equal((await patch('baska-oda', OTHER, { theme: 'gece' })).status, 403);
+  assert.equal((await patch('baska-oda', 'test:Yeni Sahip', { theme: 'gece' })).status, 200);
 });
 
 test('kapatma: sahip 403; yönetici kapatır, içeridekiler room:closed alır, listede yok, join gone; genel 400', async () => {
@@ -182,7 +182,7 @@ test('kapatma: sahip 403; yönetici kapatır, içeridekiler room:closed alır, l
   assert.deepEqual(await closedB, { name: 'Kapat Oda' });
   assert.equal(await listed('kapat-oda'), undefined);
   assert.equal((await join(a, 'kapat-oda')).gone, true);
-  assert.equal((await patch('kapat-oda', ADMIN, { theme: 'varsayilan' })).status, 404);
+  assert.equal((await patch('kapat-oda', ADMIN, { theme: 'gece' })).status, 404);
   assert.equal((await remove('kapat-oda', ADMIN)).status, 404);
   // aynı soket başka odaya girebilir
   assert.equal((await join(b, 'genel')).error, undefined);

@@ -1,0 +1,99 @@
+/* Temel katman: değişken sözleşmesi (yedek değerler), gömülü yazı tipleri, sıfırlama ve temel tipografi.
+   Yükleme sırası (index.html): themes/<tema>.css → css/base.css → style.css.
+
+   Değişken sözleşmesi: her tema dosyası (public/themes/*.css) bunların hepsini :root üstünde tanımlar.
+     Renk:    --bg --surface --surface-2 --surface-3 --border --border-strong --text --muted
+              --accent --accent-contrast --accent-soft --accent-2 --live --danger --danger-soft --overlay
+     Yazı:    --font-display (başlık) --font-body (gövde) --font-mono
+     Biçim:   --radius-s --radius-m --radius-l --radius-pill --border-w --shadow-1 --shadow-2 --focus-ring
+     Aralık:  --space-1 … --space-6 (4, 8, 12, 16, 24, 32 px)
+     Hareket: --dur-fast (120ms) --dur (200ms) --ease
+   --accent-2 yalnız skor, taç ve "senin sıran" içindir.
+   Kurallarda sabit renk, yazı tipi adı, köşe yarıçapı ya da gölge yazılmaz; yalnız bu değişkenler.
+   (Oyun içeriğinin kendi yerel değişkenleri, örn. --hue, sözleşmenin dışındadır.)
+
+   Aşağıdaki yedekler :where(:root) ile sıfır özgüllüktedir: tema dosyası önce yüklense de temanın
+   :root değerleri kazanır. Tema dosyası yüklenemezse sayfa bu değerlerle (Gece Odası) açılır. */
+:where(:root) {
+  color-scheme: dark;
+
+  --bg: #0E0F13;
+  --surface: #16181E;
+  --surface-2: #1E2129;
+  --surface-3: #272B35;
+  --border: #2A2E38;
+  --border-strong: #3A3F4C;
+  --text: #E8E9ED;
+  --muted: #8B90A0;
+  --accent: #8B9CFF;
+  --accent-contrast: #0E0F13;
+  --accent-soft: rgba(139, 156, 255, .16);
+  --accent-2: #FFD23F;
+  --live: #4ADE80;
+  --danger: #FF6B7A;
+  --danger-soft: rgba(255, 107, 122, .14);
+  --overlay: rgba(6, 7, 10, .72);
+
+  --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-2: 0 16px 40px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .03);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+
+  --focus-ring: 0 0 0 3px rgba(139, 156, 255, .45);
+}
+
+/* Gömülü yazı tipleri (SIL OFL 1.1, lisanslar dosyaların yanında). Değişken wght; Latin + Latin Extended
+   alt kümesi (Türkçe harflerin hepsi var). Kaynak: github.com/google/fonts (Geist 1.800, Nunito 3.602). */
+@font-face {
+  font-family: 'Geist';
+  src: url('/vendor/fonts/geist/Geist-wght.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito';
+  src: url('/vendor/fonts/nunito/Nunito-wght.woff2') format('woff2');
+  font-weight: 200 1000;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Sıfırlama */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+/* Temel tipografi */
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { font-family: var(--font-display); }
+h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 20px 0 10px; font-weight: 600; }
+
+::selection { background: var(--accent-soft); }
+* { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }

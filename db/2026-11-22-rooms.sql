@@ -9,7 +9,7 @@ create table rooms (
   name text not null,
   owner_id text not null references accounts(id),
   pass_hash text,
-  theme text not null default 'varsayilan',
+  theme text not null default 'gece',
   created_at timestamptz not null default now(),
   closed_at timestamptz
 );
