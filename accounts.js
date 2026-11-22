@@ -111,7 +111,9 @@ const me = (a, key) => ({ name: a.name, avatar: a.avatar, admin: ADMINS.has(key)
 
 // onProfile(ad, sürüm): profil resmi değişince odadakilere haber vermek için.
 // online(): şu an odada olanların adları.
-function setup(app, { imageTypes, onProfile, online }) {
+// onRevoke(anahtar, { keepHash, onlyHash }): oturum kapandı; açık bağlantıları kesmek için. Şifre değişince
+// keepHash (değiştiren oturum) dışındakiler, çıkışta yalnız onlyHash kapanır.
+function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
   app.set('trust proxy', 1); // Render'ın vekil sunucusu: req.ip gerçek adres olsun
   const json = express.json({ limit: '4kb' });
   const fail = (res, status, error) => res.status(status).json({ error });
@@ -197,6 +199,7 @@ function setup(app, { imageTypes, onProfile, online }) {
     for (const [hash, k] of sessions) if (k === a.key && hash !== keep) sessions.delete(hash);
     store.remove('sessions', `account_id=${eq(a.key)}&token_hash=neq.${encodeURIComponent(keep)}`)
       .catch((err) => console.warn('oturumları kapatma', err.message));
+    onRevoke(a.key, { keepHash: keep });
     res.json({});
   });
 
@@ -229,7 +232,11 @@ function setup(app, { imageTypes, onProfile, online }) {
 
   app.post('/auth/logout', (req, res) => {
     const hash = sha256(bearer(req));
-    if (sessions.delete(hash)) store.remove('sessions', `token_hash=${eq(hash)}`).catch((err) => console.warn('çıkış', err.message));
+    const key = sessions.get(hash);
+    if (sessions.delete(hash)) {
+      store.remove('sessions', `token_hash=${eq(hash)}`).catch((err) => console.warn('çıkış', err.message));
+      onRevoke(key, { onlyHash: hash });
+    }
     res.json({});
   });
 
@@ -287,4 +294,4 @@ const isAdmin = (key) => ADMINS.has(key);
 // Anahtarla hesap: { key, name } ya da yoksa null (şifre özeti dışarı verilmez).
 const byKey = (key) => (accounts.has(key) ? { key, name: accounts.get(key).name } : null);
 
-module.exports = { setup, load, accountByToken, byKey, profiles, seen, isAdmin, hashPassword, checkPassword, keyOf, NAME_RE, attemptLimiter };
+module.exports = { setup, load, accountByToken, sha256, byKey, profiles, seen, isAdmin, hashPassword, checkPassword, keyOf, NAME_RE, attemptLimiter };

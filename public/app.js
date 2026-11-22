@@ -564,7 +564,19 @@ function backToList(notice) {
   } catch {}
   location.assign('/');
 }
-socket.on('kicked', ({ reason } = {}) => roomId && backToList(reason || 'Odadan çıkarıldın.'));
+socket.on('kicked', ({ reason, auth } = {}) => {
+  if (auth) return sessionRevoked(reason);
+  if (roomId) backToList(reason || 'Odadan çıkarıldın.');
+});
+// Bu sekmenin oturumu kapatıldı (şifre başka oturumdan değişti ya da çıkış yapıldı): giriş ekranına
+// dönülür. Kayıtlı anahtar yalnız kapanan oturumunsa silinir (başka sekme yeni oturumla girmiş olabilir).
+function sessionRevoked(reason) {
+  try {
+    if (localStorage.getItem('token') === authToken) localStorage.removeItem('token');
+  } catch {}
+  authToken = '';
+  backToList(reason);
+}
 socket.on('room:closed', ({ name } = {}) => roomId && backToList(`${name || 'Bu'} odası kapatıldı.`));
 
 // ---------- Mikrofon ----------
@@ -6598,6 +6610,12 @@ addEventListener('DOMContentLoaded', async () => {
   Lobby.onEnter(({ id, password }) => enterRoomFlow(id, password));
   if (!authToken) {
     $('join-screen').hidden = false;
+    // Oturumu kapatılıp buraya dönüldüyse nedeni giriş ekranında yazar.
+    try {
+      const notice = sessionStorage.getItem(NOTICE_KEY);
+      sessionStorage.removeItem(NOTICE_KEY);
+      if (notice) showJoinError(notice);
+    } catch {}
     return;
   }
   const res = await api('GET', '/auth/me');

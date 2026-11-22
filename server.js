@@ -138,6 +138,7 @@ accounts.setup(app, {
   imageTypes: IMAGE_TYPES,
   onProfile: (name, avatar) => io.emit('profile', { name, avatar }),
   online: () => [...rooms.values()].flatMap((room) => [...room.users.values()].map((u) => u.name)),
+  onRevoke: (key, opts) => revokeSockets(key, opts),
 });
 roomStore.setup(app, {
   live: mergeLive,
@@ -173,6 +174,20 @@ function bindAccount(socket, account) {
   if (!socketsByKey.has(account.key)) socketsByKey.set(account.key, new Set());
   socketsByKey.get(account.key).add(socket);
   return true;
+}
+// Soketin hangi oturumla bağlandığı (oturum kapanınca bağlantı da kesilsin). Test belirteçleri de aynı özetle.
+function bindToken(socket, token) {
+  socket.data.tokenHash = accounts.sha256(String(token));
+}
+// Kapanan oturumların soketleri: keepHash dışındakiler ya da yalnız onlyHash. Soket atılır; normal
+// kopma yolu onu odasından çıkarır (odadakilere user-left gider).
+function revokeSockets(key, { keepHash, onlyHash } = {}) {
+  for (const socket of onlineSockets(key)) {
+    const hash = socket.data.tokenHash;
+    if (onlyHash ? hash !== onlyHash : hash === keepHash) continue;
+    socket.emit('kicked', { reason: 'Oturumun kapatıldı, tekrar giriş yap.', auth: true });
+    socket.disconnect(true);
+  }
 }
 function unbindAccount(socket) {
   const key = socket.data.account?.key;
@@ -693,6 +708,8 @@ async function admit(socket, { token, clientId, roomId, password }) {
     }
     if (!roomStore.get(reg.id)) return gone;
     if (changed()) return changed();
+    // Denetlenirken oturum kapanmış olabilir (şifre değişti, çıkış yapıldı)
+    if (!accounts.accountByToken(token)) return { error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true };
   }
   return { account, clientId, roomId: reg.id };
 }
@@ -1155,6 +1172,7 @@ io.on('connection', (socket) => {
       if (!socket.connected) return; // şifre denetlenirken ayrıldı
       if (res.error) return ack(res);
       if (!bindAccount(socket, res.account)) return ack(OTHER_ACCOUNT); // denetlenirken hello başka hesapla bağladı
+      bindToken(socket, token);
       // Birleşik misafir odaya giren ev sahibi odaya yerleşir; kökeni misafir oda kalır.
       ({ rejoined, ...payload } = enterRoom(socket, res.account, res.clientId, merge.hostOf(res.roomId), res.roomId));
     } catch (err) {
@@ -1179,6 +1197,7 @@ io.on('connection', (socket) => {
     const account = accounts.accountByToken(token);
     if (!account) return ack(SESSION_GONE);
     if (!bindAccount(socket, account)) return ack(OTHER_ACCOUNT);
+    bindToken(socket, token);
     accounts.seen(account.key);
     if (!code) socket.join(LOBBY);
     const res = { rooms: roomList(account) };
