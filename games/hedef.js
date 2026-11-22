@@ -21,22 +21,21 @@ let rand;
 let pick;
 let BOT;
 let store;
+let SHARED; // ortak kayıt anahtarı: tablo bütün odalarda ortak
+let JOINED; // odaya girmiş bütün soketlerin Socket.IO odası
 const timers = new Map(); // oda kodu -> { round, bot }
 const BOARD = 10; // puan tablosunda her tur sayısı için en iyi 10 oyun
-const boards = new Map(); // oda kodu -> { 3: [{ name, points, at }], 5: [...], 7: [...] } kalıcı puan tablosu
 
 function init(deps) {
-  ({ io, rooms, postSystem, rand, pick, BOT, store } = deps);
+  ({ io, rooms, postSystem, rand, pick, BOT, store, SHARED, JOINED } = deps);
 }
 
 // ---------- Puan tablosu ----------
 // Sonuna kadar oynanan her oyunun toplam puanı, tur sayısına göre ayrı tabloya girer (aynı kişi birden çok kez
 // girebilir). Bilgisayardaki sunucu da canlıyla aynı kaydı kullandığından kaydetmeden önce kayıttakiyle birleştirilir.
 const emptyBoard = () => Object.fromEntries(ROUNDS.map((n) => [n, []]));
-const board = (code) => {
-  if (!boards.has(code)) boards.set(code, emptyBoard());
-  return boards.get(code);
-};
+const shared = emptyBoard(); // { 3: [{ name, points, at }], 5: [...], 7: [...] } bütün odaların kalıcı puan tablosu
+const board = () => shared;
 
 function mergeBoard(into, from) {
   for (const n of ROUNDS) {
@@ -52,27 +51,25 @@ function mergeBoard(into, from) {
 }
 
 // Sunucu açılırken kayıttan gelir.
-function loadBoard(code, data) {
-  const b = emptyBoard();
-  mergeBoard(b, data);
-  boards.set(code, b);
+function loadBoard(data) {
+  mergeBoard(shared, data);
 }
 
 async function addScores(room, rounds, scores) {
   if (!scores.length) return;
-  const b = board(room.code);
+  const b = board();
   b[rounds].push(...scores);
   if (store.enabled) {
     try {
-      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.hedefboard&select=data`);
+      const [row] = await store.select('room_state', `room=eq.${SHARED}&kind=eq.hedefboard&select=data`);
       mergeBoard(b, row?.data);
     } catch (err) {
       console.warn('hedef puan tablosu okuma', err.message);
     }
   }
   mergeBoard(b);
-  store.save(room.code, 'hedefboard', () => b);
-  io.to(room.code).emit('hedef:board', b);
+  store.save(SHARED, 'hedefboard', () => b);
+  io.to(JOINED).emit('hedef:board', b);
 }
 
 const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));

@@ -2,7 +2,7 @@
 // Lobidekilere aynı rastgele kelime dizisi gelir; geri sayımdan sonra herkes aynı anda yazmaya başlar. Her kelime
 // boşlukla gönderilir; sunucu sıradaki kelimeyle karşılaştırıp doğru/yanlış sayar. Süre (1-3 dk) bitince doğru
 // kelime sayısı (kelime/dk) en yüksek olan kazanır; eşitse yanlışı az olan. 1-6 kişi, tek başına da oynanır.
-// Rekorlar süreye göre ayrı tabloda, room_state 'daktiloboard' kaydında durur.
+// Rekorlar süreye göre ayrı tabloda, room_state 'daktiloboard' kaydında durur (bütün odalarda ortak, SHARED satırı).
 
 const WORDS = require('../public/tr-words');
 
@@ -14,15 +14,11 @@ const BOARD = 10;
 const BOT_WPM = [28, 42];
 const BOT_MISS = 0.06;
 
-function create({ io, rooms, getRoom, postSystem, rand, pick, BOT, store }) {
+function create({ io, rooms, getRoom, postSystem, rand, pick, BOT, store, SHARED, JOINED }) {
   const timers = new Map(); // oda kodu -> { end, bot }
-  const boards = new Map(); // oda kodu -> { 60: [{ name, wpm, wrong, at }], 120: [...], 180: [...] }
-
   const emptyBoard = () => Object.fromEntries(DURATIONS.map((d) => [d, []]));
-  const board = (code) => {
-    if (!boards.has(code)) boards.set(code, emptyBoard());
-    return boards.get(code);
-  };
+  const shared = emptyBoard(); // { 60: [{ name, wpm, wrong, at }], 120: [...], 180: [...] } bütün odaların tablosu
+  const board = () => shared;
   function mergeBoard(into, from) {
     for (const d of DURATIONS) {
       const seen = new Set();
@@ -35,10 +31,9 @@ function create({ io, rooms, getRoom, postSystem, rand, pick, BOT, store }) {
         .slice(0, BOARD);
     }
   }
-  function loadBoard(code, data) {
-    const b = emptyBoard();
-    mergeBoard(b, data);
-    boards.set(code, b);
+  // Sunucu açılırken kayıttan gelir.
+  function loadBoard(data) {
+    mergeBoard(shared, data);
   }
 
   // Kelime listesi yalnızca oyun başlarken ve katılınca gider; yazarken gelen ilerlemede yoktur (istemci saklar).
@@ -115,18 +110,18 @@ function create({ io, rooms, getRoom, postSystem, rand, pick, BOT, store }) {
     const entries = ranked.filter((p) => p !== BOT && game.scores[p].correct > 0)
       .map((p) => ({ name: p, wpm: wpm(game, game.scores[p]), wrong: game.scores[p].wrong, at: game.endAt }));
     if (!entries.length) return;
-    const b = board(room.code);
+    const b = board();
     if (store?.enabled) {
       try {
-        const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.daktiloboard&select=data`);
+        const [row] = await store.select('room_state', `room=eq.${SHARED}&kind=eq.daktiloboard&select=data`);
         mergeBoard(b, row?.data);
       } catch (err) {
         console.warn('daktilo tablosu okuma', err.message);
       }
     }
     mergeBoard(b, { [game.secs]: entries });
-    store?.save(room.code, 'daktiloboard', () => b);
-    io.to(room.code).emit('daktilo:board', b);
+    store?.save(SHARED, 'daktiloboard', () => b);
+    io.to(JOINED).emit('daktilo:board', b);
   }
 
   // Biri bitirirse oyun o anki sonuçlarla biter (rekora girmez).

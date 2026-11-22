@@ -16,6 +16,8 @@ const hedef = require('./games/hedef');
 
 const PORT = process.env.PORT || 3030;
 const MAX_USERS = 6;
+const SHARED = 'ortak';    // room_state'te bütün odaların ortak kaydı (skor tabloları, öneriler); oda adı olamaz
+const JOINED = '@joined';  // Socket.IO odası: bir odaya girmiş bütün soketler (ortak tablolar buraya yayılır)
 const RADIO_COOLDOWN = 1000; // ms; bir kişi radyoyu bu sıklıktan fazla değiştiremez
 const VIDEO_ID = /^[\w-]{11}$/;
 const TWEET_ID = /^x:(\d{1,25})$/; // X (Twitter) postu; videoId olarak "x:<post no>" tutulur
@@ -294,7 +296,7 @@ const io = new Server(server, { maxHttpBufferSize: IMAGE_MAX_BYTES + 64 * 1024 }
 
 // oda kodu -> { users: Map<socketId, {name, muted}>, current, queue, playing, position, updatedAt }
 const rooms = new Map();
-hedef.init({ io, rooms, postSystem, rand, pick, BOT, store });
+hedef.init({ io, rooms, postSystem, rand, pick, BOT, store, SHARED, JOINED });
 const mantik = require('./games/mantik').create({ io, postSystem, getRoom, rooms, BOT }); // Mantık tablosu
 
 // Önceden çalanlar, özel efektler ve tier listler oda boşalınca silinmez; Supabase ayarlıysa
@@ -302,30 +304,30 @@ const mantik = require('./games/mantik').create({ io, postSystem, getRoom, rooms
 const histories = new Map(); // oda kodu -> [{ videoId, title, by, playedAt }]
 const customSfxByRoom = new Map(); // oda kodu -> Map<id, { buf, label, by }>
 const tierListsByRoom = new Map(); // oda kodu -> [tier list] (aşağıda)
-const dinoBoards = new Map(); // oda kodu -> { hold: [{ name, dist, at }], tap: [...] } en iyi skorlar
-const memoryLogs = new Map(); // oda kodu -> [{ at, pairs, ms, full, players: [{ name, pairs, moves }] }] biten Eşini Bul oyunları
 const kelimePools = new Map(); // oda kodu -> [{ text, by }] kelime oyununun havuzu
-const klotskiLogs = new Map(); // oda kodu -> [{ level, name, moves, ms, at }] bitirilen Kaydırmaca bulmacaları
-const timingLogs = new Map(); // oda kodu -> [{ name, target, elapsed, at, race? }] süre tahmini denemeleri
-const oneriler = []; // oyun önerileri (tek oda var): [{ id, by, at, fields, status, note, updatedAt }]
+// Skor tabloları bütün odalarda ortak: her oda aynı nesneleri bağlar, kayıt SHARED satırında durur.
+// (Daktilo ve hedef sayının tabloları kendi dosyalarında, aynı kuralla.)
+const shared = {
+  dinoBoard: { auto: [], hold: [], tap: [] }, // { auto: [{ name, dist, at }], ... } en iyi skorlar
+  memoryLog: [], // [{ at, pairs, ms, full, players: [{ name, pairs, moves }] }] biten Eşini Bul oyunları
+  klotskiLog: [], // [{ level, name, moves, ms, at }] bitirilen Kaydırmaca bulmacaları
+  timingLog: [], // [{ name, target, elapsed, at, race? }] süre tahmini denemeleri
+};
+const oneriler = []; // oyun önerileri (bütün odalarda ortak): [{ id, by, at, fields, status, note, updatedAt }]
 
 function getRoom(code) {
   if (!rooms.has(code)) {
     if (!histories.has(code)) histories.set(code, []);
     if (!customSfxByRoom.has(code)) customSfxByRoom.set(code, new Map());
     if (!tierListsByRoom.has(code)) tierListsByRoom.set(code, []);
-    if (!dinoBoards.has(code)) dinoBoards.set(code, { auto: [], hold: [], tap: [] });
     if (!kelimePools.has(code)) kelimePools.set(code, []);
-    if (!memoryLogs.has(code)) memoryLogs.set(code, []);
-    if (!klotskiLogs.has(code)) klotskiLogs.set(code, []);
-    if (!timingLogs.has(code)) timingLogs.set(code, []);
     rooms.set(code, {
       code,
       history: histories.get(code),
       customSfx: customSfxByRoom.get(code),
       tierLists: tierListsByRoom.get(code),
-      timing: { target: 10, results: timingLogs.get(code), race: null }, // süre tahmini; denemeler kalıcı (timingboard), istemciye timingView gider
-      dinoBoard: dinoBoards.get(code),
+      timing: { target: 10, results: shared.timingLog, race: null }, // süre tahmini; hedef ve yarış odanın, denemeler ortak (timingboard), istemciye timingView gider
+      dinoBoard: shared.dinoBoard,
       kelimePool: kelimePools.get(code),
       kelime: null, // kelime oyunu (aşağıda); hedef kelime sadece anlatıcıya gider
       kelimeRecent: [],
@@ -335,8 +337,8 @@ function getRoom(code) {
       kural: null, // gizli kural (games/kural.js); kural oyun bitene kadar istemciye gitmez
       mantik: null, // mantık tablosu (games/mantik.js); çözüm bitene kadar gönderilmez
       daktilo: null, // daktilo düellosu (games/daktilo.js)
-      memoryLog: memoryLogs.get(code),
-      klotskiLog: klotskiLogs.get(code),
+      memoryLog: shared.memoryLog,
+      klotskiLog: shared.klotskiLog,
       radio: null, // odada çalan radyo istasyonu
       memorySeen: new Map(),
       lobbyOpts: {}, // oyun -> son başlatılan lobinin ayarları
@@ -652,9 +654,9 @@ function enterRoom(socket, account, clientId, roomId) {
   const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
   socket.data.setCode(roomCode);
   room.users.set(socket.id, { name, key: account.key, home: roomCode, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
-  socket.join(roomCode);
+  socket.join([roomCode, JOINED]);
   socket.to(roomCode).emit('user-joined', { id: socket.id, name, muted: false });
-  return { rejoined, id: socket.id, room: roomStore.view(reg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(room.code), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(room.code), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+  return { rejoined, id: socket.id, room: roomStore.view(reg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
 // Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
@@ -664,6 +666,7 @@ function leaveRoom(socket, { grace }) {
   if (!roomCode) return;
   socket.data.setCode(null);
   socket.leave(roomCode);
+  socket.leave(JOINED);
   const room = rooms.get(roomCode);
   // Yenileme sırasında zaten silinmiş olabilir.
   const user = room?.users.get(socket.id);
@@ -1725,6 +1728,8 @@ function timingView(room) {
 }
 
 const sendTiming = (room) => io.to(room.code).emit('timing', timingView(room));
+// Denemeler ortak olduğundan sonuç değişince açık her odaya kendi görünümü (hedefi, yarışı) gider.
+const sendTimingAll = () => { for (const room of rooms.values()) sendTiming(room); };
 
 function mergeTimingLog(log, from) {
   const seen = new Set();
@@ -1739,18 +1744,18 @@ function mergeTimingLog(log, from) {
 async function logTiming(room, entries) {
   if (!entries.length) return sendTiming(room);
   room.timing.results.push(...entries);
-  sendTiming(room); // önce hemen göster, kayıtla birleştirince yeniden gönder
+  sendTimingAll(); // önce hemen göster, kayıtla birleştirince yeniden gönder
   if (store.enabled) {
     try {
-      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.timingboard&select=data`);
+      const [row] = await store.select('room_state', `room=eq.${SHARED}&kind=eq.timingboard&select=data`);
       mergeTimingLog(room.timing.results, row?.data);
     } catch (err) {
       console.warn('süre tahmini kaydı okuma', err.message);
     }
   }
   mergeTimingLog(room.timing.results);
-  store.save(room.code, 'timingboard', () => room.timing.results);
-  sendTiming(room);
+  store.save(SHARED, 'timingboard', () => room.timing.results);
+  sendTimingAll();
 }
 
 // ---------- Oyun önerileri ----------
@@ -1777,7 +1782,7 @@ function mergeOneriler(from) {
 async function readOneriler() {
   if (!store.enabled) return false;
   try {
-    const [row] = await store.select('room_state', 'room=eq.genel&kind=eq.oneriler&select=data');
+    const [row] = await store.select('room_state', `room=eq.${SHARED}&kind=eq.oneriler&select=data`);
     return mergeOneriler(row?.data);
   } catch (err) {
     console.warn('öneri okuma', err.message);
@@ -1787,7 +1792,7 @@ async function readOneriler() {
 
 async function saveOneriler() {
   await readOneriler();
-  store.save('genel', 'oneriler', () => oneriler);
+  store.save(SHARED, 'oneriler', () => oneriler);
 }
 
 setInterval(async () => {
@@ -2560,7 +2565,7 @@ const kural = require('./games/kural')({ io, rooms, getRoom, postSystem, rand, p
 
 // ---------- Daktilo düellosu ----------
 // Oyunun kodu games/daktilo.js içinde.
-const daktilo = require('./games/daktilo').create({ io, rooms, getRoom, postSystem, rand, pick, BOT, store });
+const daktilo = require('./games/daktilo').create({ io, rooms, getRoom, postSystem, rand, pick, BOT, store, SHARED, JOINED });
 
 // ---------- Kaydırmaca (Klotski) ----------
 // 4×5 tahtada parçalar kaydırılır; büyük kare alttaki çıkışa (alt orta) gelince bulmaca biter. Oyun tarayıcıda
@@ -2655,15 +2660,15 @@ function klotskiBoard(room) {
 async function saveKlotski(room) {
   if (store.enabled) {
     try {
-      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.klotskiboard&select=data`);
+      const [row] = await store.select('room_state', `room=eq.${SHARED}&kind=eq.klotskiboard&select=data`);
       mergeKlotskiLog(room.klotskiLog, row?.data);
     } catch (err) {
       console.warn('kaydırmaca tablosu okuma', err.message);
     }
   }
   mergeKlotskiLog(room.klotskiLog);
-  store.save(room.code, 'klotskiboard', () => room.klotskiLog);
-  io.to(room.code).emit('klotski:board', klotskiBoard(room));
+  store.save(SHARED, 'klotskiboard', () => room.klotskiLog);
+  io.to(JOINED).emit('klotski:board', klotskiBoard(room));
 }
 
 // ---------- Eşini bul skor tablosu ----------
@@ -2714,15 +2719,15 @@ async function logMemory(room, game, full) {
   // Bilgisayardaki sunucu da aynı kaydı kullanır; kaydetmeden önce kayıttakilerle birleştirilir.
   if (store.enabled) {
     try {
-      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.memoryboard&select=data`);
+      const [row] = await store.select('room_state', `room=eq.${SHARED}&kind=eq.memoryboard&select=data`);
       mergeMemoryLog(room.memoryLog, row?.data);
     } catch (err) {
       console.warn('eşini bul tablosu okuma', err.message);
     }
   }
   mergeMemoryLog(room.memoryLog);
-  store.save(room.code, 'memoryboard', () => room.memoryLog);
-  io.to(room.code).emit('memory:board', memoryBoard(room));
+  store.save(SHARED, 'memoryboard', () => room.memoryLog);
+  io.to(JOINED).emit('memory:board', memoryBoard(room));
 }
 
 // ---------- Dinozor koşusu ----------
@@ -2794,15 +2799,15 @@ async function addDinoScores(room, mode, scores) {
   room.dinoBoard[mode].push(...scores);
   if (store.enabled) {
     try {
-      const [row] = await store.select('room_state', `room=eq.${encodeURIComponent(room.code)}&kind=eq.dinoboard&select=data`);
+      const [row] = await store.select('room_state', `room=eq.${SHARED}&kind=eq.dinoboard&select=data`);
       mergeDinoBoard(room.dinoBoard, row?.data);
     } catch (err) {
       console.warn('skor tablosu okuma', err.message);
     }
   }
   mergeDinoBoard(room.dinoBoard);
-  store.save(room.code, 'dinoboard', () => room.dinoBoard);
-  io.to(room.code).emit('dino:board', room.dinoBoard);
+  store.save(SHARED, 'dinoboard', () => room.dinoBoard);
+  io.to(JOINED).emit('dino:board', room.dinoBoard);
 }
 
 // Lobiden gelen ekiple başlar. Tek mod: hız otomatik, oyuncu sadece zıplar ve eğilir. (Eski 'hold' ve 'tap'
@@ -2855,15 +2860,19 @@ async function loadSaved() {
     return console.warn('Kayıtlar okunamadı, bu oturumda kaydetme kapalı:', err.message);
   }
   for (const { room, kind, data } of rows) {
+    // Ortak tablolar ve öneriler yalnız SHARED satırından okunur; eski oda satırları ('genel') yok sayılır.
+    if (room === SHARED) {
+      if (kind === 'memoryboard' && Array.isArray(data)) shared.memoryLog.push(...data);
+      if (kind === 'klotskiboard' && Array.isArray(data)) shared.klotskiLog.push(...data);
+      if (kind === 'timingboard' && Array.isArray(data)) shared.timingLog.push(...data);
+      if (kind === 'daktiloboard') daktilo.loadBoard(data);
+      if (kind === 'hedefboard') hedef.loadBoard(data);
+      if (kind === 'oneriler') mergeOneriler(data);
+      if (kind === 'dinoboard') Object.assign(shared.dinoBoard, data);
+      continue;
+    }
     if (kind === 'history') histories.set(room, data);
     if (kind === 'kelimeler') kelimePools.set(room, data);
-    if (kind === 'memoryboard') memoryLogs.set(room, data);
-    if (kind === 'klotskiboard') klotskiLogs.set(room, data);
-    if (kind === 'timingboard') timingLogs.set(room, data);
-    if (kind === 'daktiloboard') daktilo.loadBoard(room, data);
-    if (kind === 'hedefboard') hedef.loadBoard(room, data);
-    if (kind === 'oneriler') mergeOneriler(data);
-    if (kind === 'dinoboard') dinoBoards.set(room, { auto: [], hold: [], tap: [], ...data });
     if (kind === 'sfx') customSfxByRoom.set(room, new Map(data.map((fx) => [fx.id, { buf: null, label: fx.label, by: fx.by }])));
     if (kind === 'tierlists') {
       tierListsByRoom.set(room, data.map((l) => ({ ...l, cards: new Map(l.cards.map((c) => [c.id, c])) })));
