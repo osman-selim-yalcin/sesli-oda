@@ -305,6 +305,8 @@
             <button id="game-tab-hedef" class="tab" role="tab">Hedef sayı</button>
             <button id="game-tab-mantik" class="tab" role="tab">Mantık tablosu</button>
             <button id="game-tab-xox" class="tab" role="tab">İttirmeli XOX</button>
+            <button id="game-tab-daktilo" class="tab" role="tab">Daktilo düellosu</button>
+            <button id="game-tab-okuma" class="tab" role="tab">Hızlı okuma</button>
             <button id="game-tab-peacock" class="tab" role="tab">Tavus kuşu</button>
             <button id="game-tab-oner" class="tab" role="tab">Oyun öner</button>
             <button id="bot-toggle" class="sm ghost bot-toggle" title="Bot rastgele oynar; tek başınayken oyunların gidişatını görmek için"></button>
@@ -721,6 +723,38 @@
             </div>
           </div>
 
+          <!-- Daktilo düellosu: herkese aynı kelimeler, süre bitene kadar en çok doğru kelimeyi yazan kazanır (public/daktilo.js) -->
+          <div id="game-daktilo" class="daktilo" hidden>
+            <div class="memory-head">
+              <span id="daktilo-status" class="muted small"></span>
+              <button id="daktilo-end" class="sm ghost danger" hidden>Düelloyu bitir</button>
+              <button id="daktilo-close" class="sm ghost" hidden>Kapat</button>
+              <span id="daktilo-timer" class="sayi-timer" hidden></span>
+              <button type="button" class="sayi-info-btn" popovertarget="daktilo-rules-pop" title="Nasıl oynanır" aria-label="Nasıl oynanır">i</button>
+            </div>
+            <div id="daktilo-rules-pop" class="pop sayi-pop" popover>
+              <p>Lobidekilere aynı rastgele kelime dizisi gelir. 3 saniyelik geri sayımdan sonra herkes aynı anda yazmaya başlar.</p>
+              <p>Sıradaki kelimeyi yaz ve boşluğa bas; kelime gönderilir, doğruysa yeşil, yanlışsa kırmızı olur. Yanlış yazdığın kelimeye geri dönülmez. Yazarken harf yanlışsa kelime kırmızı yanar. Yapıştırma kapalı.</p>
+              <p>Süre (1, 2 ya da 3 dakika) bitince en çok doğru kelimeyi yazan kazanır; eşitse yanlışı az olan. Hız, doğru kelime sayısının dakikaya bölümüdür (kelime/dk). Süresi dolana kadar oynanan düellolar rekor tablosuna girer.</p>
+            </div>
+            <div id="lobby-daktilo" class="lobby"></div>
+            <div id="daktilo-play" class="daktilo-play" hidden>
+              <div id="daktilo-text" class="daktilo-text"></div>
+              <input id="daktilo-input" class="daktilo-input" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="next" aria-label="Yazı alanı">
+              <ol id="daktilo-scores" class="daktilo-scores"></ol>
+            </div>
+            <div id="daktilo-records" class="daktilo-records">
+              <div class="race-head"><h2>Rekorlar</h2><div id="daktilo-records-secs" class="lobby-opts"></div></div>
+              <ol id="daktilo-records-list" class="timing-list"></ol>
+            </div>
+          </div>
+
+          <!-- Hızlı okuma: tek kişilik alıştırmalar; sonuçlar bu tarayıcıda (public/okuma.js) -->
+          <div id="game-okuma" class="okuma" hidden>
+            <div id="okuma-menu" class="okuma-menu"></div>
+            <div id="okuma-ex" class="okuma-ex" hidden></div>
+          </div>
+
           <!-- Mantık tablosu: ipuçlarıyla dört kişinin kim olduğunu bul; herkes aynı bulmacayı aynı anda çözer (public/mantik.js) -->
           <div id="game-mantik" class="mantik" hidden>
             <div class="memory-head">
@@ -987,5 +1021,8 @@
   <script src="/kural.js"></script>
   <script src="/mantik.js"></script>
   <script src="/xox.js"></script>
+  <script src="/tr-words.js"></script>
+  <script src="/daktilo.js"></script>
+  <script src="/okuma.js"></script>
 </body>
 </html>

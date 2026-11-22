@@ -1643,3 +1643,92 @@ button.primary:hover:not(:disabled)::after { opacity: 1; animation: shine .7s ea
   .xox-board { gap: 5px; padding: 8px; }
   .xox-cell { border-radius: 10px; }
 }
+
+/* ---------- Daktilo düellosu ---------- */
+.daktilo { display: grid; gap: 12px; }
+#daktilo-status { flex: 1; min-width: 0; }
+.sayi-timer.urgent { color: var(--danger); border-color: var(--danger); }
+.daktilo-play { display: grid; gap: 12px; }
+.daktilo-text { --lh: 44px; height: calc(var(--lh) * 3); overflow: hidden; display: flex; flex-wrap: wrap; align-content: flex-start; column-gap: 12px;
+  padding: 0 16px; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line-2); font-size: 22px; line-height: var(--lh); box-sizing: content-box; scroll-behavior: smooth; }
+.dk-word { color: var(--text); border-radius: 6px; padding: 0 3px; }
+.dk-word.ok { color: var(--speak); }
+.dk-word.bad { color: var(--danger); text-decoration: line-through; text-decoration-thickness: 1px; }
+.dk-word.current { background: var(--panel-3); box-shadow: inset 0 -2px 0 var(--accent); }
+.dk-word.current.typo { background: var(--danger-soft); box-shadow: inset 0 -2px 0 var(--danger); }
+.daktilo-input { font-size: 22px; padding: 12px 16px; text-align: center; }
+.daktilo-input[hidden] { display: none; }
+.daktilo-scores { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dk-row { display: grid; grid-template-columns: 24px minmax(70px, 140px) 1fr 44px auto; align-items: center; gap: 10px; padding: 6px 12px; border-radius: var(--radius-sm); background: var(--panel-2); border: 1px solid var(--line); }
+.dk-row .avatar { width: 24px; height: 24px; font-size: 10px; }
+.dk-row.me { border-color: var(--accent); }
+.dk-row.won { border-color: var(--speak); }
+.dk-row.gone { opacity: .5; }
+.dk-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+.dk-track { height: 8px; border-radius: 99px; background: var(--panel-3); overflow: hidden; }
+.dk-bar { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, hsl(280 60% 55%), hsl(280 80% 70%)); transition: width .3s; }
+.dk-wpm { text-align: right; font-size: 18px; font-variant-numeric: tabular-nums; }
+.dk-sub { white-space: nowrap; }
+.daktilo-records[hidden] { display: none; }
+.daktilo-records .race-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+@media (max-width: 520px) {
+  .daktilo-text { --lh: 34px; font-size: 19px; padding: 0 10px; column-gap: 9px; }
+  .dk-row { grid-template-columns: 22px minmax(50px, 90px) 1fr 36px; }
+  .dk-sub { display: none; }
+}
+
+/* ---------- Hızlı okuma ---------- */
+.okuma { display: grid; gap: 12px; }
+.okuma-menu { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.okuma-menu[hidden], .okuma-ex[hidden] { display: none; }
+.okuma-card { --hue: 35; display: grid; justify-items: start; gap: 6px; text-align: left; padding: 16px; border-radius: 16px;
+  background: linear-gradient(180deg, hsl(var(--hue) 40% 22%), hsl(var(--hue) 35% 15%)); border: 1px solid hsl(var(--hue) 55% 45% / .45);
+  box-shadow: 0 4px 0 hsl(var(--hue) 40% 10%); }
+.okuma-card:nth-child(2) { --hue: 200; }
+.okuma-card:nth-child(3) { --hue: 350; }
+.okuma-card:nth-child(4) { --hue: 140; }
+.okuma-card:hover { filter: brightness(1.1); background: linear-gradient(180deg, hsl(var(--hue) 40% 22%), hsl(var(--hue) 35% 15%)); }
+.okuma-card-icon { font-size: 28px; }
+.okuma-card strong { font-size: 16px; }
+.okuma-card small { color: hsl(var(--hue) 20% 78%); line-height: 1.4; }
+.okuma-card-best { font-size: 12px; font-weight: 600; color: var(--speak); }
+.okuma-ex { display: grid; gap: 12px; }
+.okuma-head { display: flex; align-items: center; gap: 10px; }
+.okuma-title { font-size: 18px; }
+.okuma-desc { margin: 0; }
+.okuma-body { display: grid; gap: 14px; justify-items: center; --hue: 35; }
+.okuma-opts { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; }
+.okuma-opts button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+.okuma-gap { margin-left: 10px; }
+.okuma-info { margin: 0; text-align: center; max-width: 520px; }
+.okuma-start { min-width: 150px; }
+.okuma-answer { display: flex; gap: 8px; }
+.okuma-answer[hidden] { display: none; }
+.okuma-answer input { width: min(320px, 60vw); font-size: 18px; text-align: center; }
+.takisto-stage, .akis-stage { width: min(560px, 100%); height: 140px; display: grid; place-items: center; border-radius: var(--radius); background: var(--panel-2); border: 1px solid var(--line-2); }
+.takisto-word, .akis-word { font-size: 34px; font-weight: 700; letter-spacing: .02em; text-align: center; padding: 0 12px; }
+.takisto-word.dot { color: var(--accent); font-size: 40px; }
+.takisto-word.mask { color: var(--muted); }
+.takisto-word.right { color: var(--speak); font-size: 26px; }
+.takisto-word.wrong { color: var(--danger); font-size: 26px; }
+.tekcift-task { font-size: 20px; font-weight: 800; }
+.tekcift-task.odd { color: #ffb36b; }
+.tekcift-task.even { color: #6fc3ff; }
+.tekcift-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; width: min(520px, 100%); }
+.tekcift-cell { padding: 10px 0; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tekcift-cell.hit, .tekcift-cell.hit:disabled { opacity: 1; background: rgba(61, 220, 132, .2); border-color: var(--speak); color: var(--speak); }
+.tekcift-cell.miss { animation: ok-miss .4s; }
+@keyframes ok-miss { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); background: var(--danger-soft); } 75% { transform: translateX(4px); } }
+.tablo-grid { --n: 5; display: grid; grid-template-columns: repeat(var(--n), 1fr); gap: 6px; width: min(calc(var(--n) * 76px), 100%); }
+.tablo-cell { aspect-ratio: 1; padding: 0; font-size: clamp(18px, 5vw, 26px); font-weight: 800; }
+.tablo-grid.idle .tablo-cell { cursor: default; }
+.tablo-cell.done { color: var(--muted); background: var(--panel-2); border-color: transparent; }
+.tablo-cell.miss { animation: ok-miss .4s; }
+.akis-progress { width: min(560px, 100%); height: 6px; border-radius: 99px; background: var(--panel-3); overflow: hidden; }
+.akis-progress span { display: block; height: 100%; background: var(--accent); transition: width .2s linear; }
+.akis-custom { width: min(560px, 100%); }
+.akis-custom[hidden] { display: none; }
+@media (max-width: 520px) {
+  .takisto-word, .akis-word { font-size: 26px; }
+  .tekcift-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
