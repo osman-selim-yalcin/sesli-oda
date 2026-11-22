@@ -35,6 +35,14 @@ function attemptLimiter(max, windowMs) {
       f.count++;
       fails.set(key, f);
     },
+    // Denemeyi await'ten ÖNCE sayar (paralel istekler sınırı aşamasın); engelliyse null döner.
+    // Dönen fonksiyon rezervasyonu geri alır: deneme başarılıysa çağrılır.
+    reserve(key) {
+      if (this.blocked(key)) return null;
+      this.fail(key);
+      const f = fails.get(key);
+      return () => { if (fails.get(key) === f && f.count > 0) f.count--; };
+    },
   };
 }
 
@@ -137,12 +145,13 @@ function setup(app, { imageTypes, onProfile, online }) {
 
   app.post('/auth/login', json, async (req, res) => {
     const { password, key } = readCredentials(req);
-    if (logins.blocked(req.ip)) return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
+    const release = logins.reserve(req.ip);
+    if (!release) return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
     const account = accounts.get(key);
     if (!account || !(await checkPassword(password, account.passHash))) {
-      logins.fail(req.ip);
       return fail(res, 401, 'Kullanıcı adı ya da şifre yanlış.');
     }
+    release();
     try {
       res.json({ token: await newSession(key), ...me(account, key) });
     } catch (err) {
@@ -159,18 +168,19 @@ function setup(app, { imageTypes, onProfile, online }) {
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
     const ipKey = `ip:${req.ip}`;
     const keyKey = `hesap:${a.key}`;
-    if (passwordChanges.blocked(ipKey) || passwordChanges.blocked(keyKey)) {
+    const releaseIp = passwordChanges.reserve(ipKey);
+    const releaseKey = releaseIp && passwordChanges.reserve(keyKey);
+    if (!releaseKey) {
+      releaseIp?.();
       return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
     }
+    const release = () => { releaseIp(); releaseKey(); };
     const current = String(req.body?.current || '');
     const password = String(req.body?.password || '');
     const account = accounts.get(a.key);
-    if (!account) return fail(res, 401, 'Oturum kapanmış.');
-    if (!(await checkPassword(current, account.passHash))) {
-      passwordChanges.fail(ipKey);
-      passwordChanges.fail(keyKey);
-      return fail(res, 403, 'Mevcut şifre yanlış.');
-    }
+    if (!account) { release(); return fail(res, 401, 'Oturum kapanmış.'); }
+    if (!(await checkPassword(current, account.passHash))) return fail(res, 403, 'Mevcut şifre yanlış.');
+    release(); // mevcut şifre doğru: deneme hakkı harcanmaz
     if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) {
       return fail(res, 400, `Şifre en az ${PASSWORD_MIN} karakter olmalı.`);
     }

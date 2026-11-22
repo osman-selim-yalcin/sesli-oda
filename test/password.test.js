@@ -68,3 +68,33 @@ test('10 yanlış denemeden sonra doğru şifre de 429', async () => {
     await own.stop();
   }
 });
+
+test('paralel 11 yanlış istek: sınır aşılamaz, en az biri 429', async () => {
+  const own = await startServer();
+  try {
+    const reg = await http(own.url, 'POST', '/auth/register', { body: { name: 'PwParalel', password: 'dogrusifre' } });
+    const token = reg.json.token;
+    const rs = await Promise.all(Array.from({ length: 11 }, () =>
+      http(own.url, 'POST', '/auth/password', { token, body: { current: 'yanlis', password: 'yenisifre' } })));
+    assert.ok(rs.some((r) => r.status === 429));
+    assert.ok(rs.filter((r) => r.status === 403).length <= 10);
+  } finally {
+    await own.stop();
+  }
+});
+
+test('başarılı denemeler sınırı tüketmez', async () => {
+  const own = await startServer();
+  try {
+    const reg = await http(own.url, 'POST', '/auth/register', { body: { name: 'PwBasari', password: 'dogrusifre' } });
+    let pw = 'dogrusifre';
+    for (let i = 0; i < 12; i++) {
+      const next = 'sifre' + i + 'xx';
+      const r = await http(own.url, 'POST', '/auth/password', { token: reg.json.token, body: { current: pw, password: next } });
+      assert.equal(r.status, 200);
+      pw = next;
+    }
+  } finally {
+    await own.stop();
+  }
+});
