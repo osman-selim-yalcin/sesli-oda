@@ -12,6 +12,7 @@ try {
 const store = require('./store');
 const accounts = require('./accounts');
 const roomStore = require('./rooms'); // oda kayıtları (canlı durum aşağıdaki rooms haritasında)
+const merge = require('./merge'); // oda birleştirme durumu (aşağıda "Oda birleştirme" bölümü bağlar)
 const hedef = require('./games/hedef');
 
 const PORT = process.env.PORT || 3030;
@@ -136,7 +137,7 @@ accounts.setup(app, {
   online: () => [...rooms.values()].flatMap((room) => [...room.users.values()].map((u) => u.name)),
 });
 roomStore.setup(app, {
-  live: (id) => ({ users: [...(rooms.get(id)?.users.values() || [])].map((u) => u.name), max: MAX_USERS, mergedWith: null }),
+  live: mergeLive,
   onChange: (kind, info) => {
     if (kind === 'settings') io.to(info.id).emit('room:theme', { theme: info.theme });
     else if (kind === 'closed') closeRoom(info);
@@ -690,8 +691,9 @@ async function admit(socket, { token, clientId, roomId, password }) {
 
 // Soketi odaya yerleştirir ve join cevabını kurar (izin denetimi çağıranda).
 // Hesabın başka bir odadaki soketi oradan düşürülür; aynı odadaki eski soketi (aynı sekme ya da hesap) kapatılır.
+// home: kişinin kökeni (birleşik odada misafir odanın id'si; değilse girdiği oda).
 // Döner: join cevabı ve rejoined (sayfa yenilendi: "katıldı" mesajı yazılmaz) ya da { error }.
-function enterRoom(socket, account, clientId, roomId) {
+function enterRoom(socket, account, clientId, roomId, home = roomId) {
   const reg = roomStore.get(roomId);
   if (!reg) return { error: 'Böyle bir oda yok.', gone: true }; // canlı durum yalnız açık kayıtlı odaya kurulur
   const roomCode = reg.id;
@@ -714,7 +716,10 @@ function enterRoom(socket, account, clientId, roomId) {
     io.sockets.sockets.get(id)?.disconnect(true);
   }
 
-  if (room.users.size >= MAX_USERS) {
+  // Birleşik odada doluluk kökene göre: her odadan en fazla MAX_USERS.
+  const merged = Boolean(merge.partnerOf(roomCode));
+  const count = merged ? [...room.users.values()].filter((u) => u.home === home).length : room.users.size;
+  if (count >= MAX_USERS) {
     return { error: `Oda dolu (en fazla ${MAX_USERS} kişi).` };
   }
 
@@ -731,17 +736,19 @@ function enterRoom(socket, account, clientId, roomId) {
 
   const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
   socket.data.setCode(roomCode);
-  room.users.set(socket.id, { name, key: account.key, home: roomCode, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
+  room.users.set(socket.id, { name, key: account.key, home, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
   socket.leave(LOBBY);
   socket.join([roomCode, JOINED]);
   socket.to(roomCode).emit('user-joined', { id: socket.id, name, muted: false });
   roomsChanged();
-  return { rejoined, id: socket.id, room: roomStore.view(reg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+  const homeReg = (home !== roomCode && roomStore.get(home)) || reg;
+  return { rejoined, id: socket.id, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
 // Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
 // mesajı ve oyun/lobi temizliği REJOIN_GRACE kadar bekletilir; false iken hemen yapılır.
-function leaveRoom(socket, { grace }) {
+// quiet: "ayrıldı" yazılmaz (birleşmede taşınan kişi).
+function leaveRoom(socket, { grace, quiet = false }) {
   const roomCode = socket.data.code;
   if (!roomCode) return;
   socket.data.setCode(null);
@@ -761,7 +768,7 @@ function leaveRoom(socket, { grace }) {
     pendingLeaves.delete(leaveKey);
     const current = rooms.get(roomCode);
     if (!current) return;
-    postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
+    if (!quiet) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
     checkRaceRound(current); // çıkan kişi durdurmamışsa kalanlar beklemesin
     killDino(current, user.name);
     kelimeLeft(current, user.name);
@@ -779,12 +786,13 @@ function leaveRoom(socket, { grace }) {
   } else {
     depart();
   }
-  if (room.users.size === 0) dropRoom(roomCode);
+  if (room.users.size === 0) roomEmptied(roomCode);
 }
 
 // Kapatılan odadakiler çıkarılır (oyun ve lobi temizliği hemen yapılır) ve sokete haber verilir;
 // soket bağlı kalır, başka odaya girebilir.
 function closeRoom({ id, name }) {
+  mergeRoomClosed(id, name);
   for (const socketId of [...(rooms.get(id)?.users.keys() || [])]) {
     const socket = io.sockets.sockets.get(socketId);
     if (!socket) continue;
@@ -812,6 +820,208 @@ function dropRoom(roomCode) {
   deleteRoomImages(roomCode);
 }
 
+// ---------- Oda birleştirme ----------
+// Durum merge.js'te (saf). Burada soketler taşınır: misafir odadakiler ev sahibi odanın canlı durumuna
+// girer, kullanıcı kaydındaki home kökenlerini (misafir odanın id'si) tutar. Ayrılınca home'u misafir
+// oda olanlar geri taşınır. Birleşme yalnız hafızadadır; sunucu yeniden başlayınca biter.
+
+const MERGE_EXPIRE_EVERY = 5000; // ms; 60 sn'yi geçen istekler bu aralıkla düşürülür
+setInterval(() => merge.expire(), MERGE_EXPIRE_EVERY).unref();
+const NO_MERGE_RIGHT = { error: 'Birleştirmeyi yalnız oda sahibi ya da yönetici yapabilir.' };
+const MERGE_GONE = { error: 'Birleşme isteği bulunamadı ya da süresi doldu.' };
+
+const canMerge = (reg, account) => ['owner', 'admin'].includes(roomStore.role(reg, account));
+
+// Oda listesi (rooms.js live): birleşik iki oda birbirini gösterir, kişiler kökene göre ayrılır.
+function mergeLive(id) {
+  const partner = merge.partnerOf(id);
+  const live = rooms.get(merge.hostOf(id));
+  const users = [...(live?.users.values() || [])].filter((u) => !partner || u.home === id).map((u) => u.name);
+  return { users, max: MAX_USERS, mergedWith: partner };
+}
+
+// Kişi sınırı: her taraf en fazla MAX_USERS, toplam en fazla iki katı. Taraf, odanın canlı durumundaki
+// herkestir (başka odayla birleşmiş ev sahibinde iki kökenin toplamı).
+function mergeCapacityError(from, to) {
+  const a = rooms.get(from)?.users.size || 0;
+  const b = rooms.get(to)?.users.size || 0;
+  if (a > MAX_USERS || b > MAX_USERS || a + b > 2 * MAX_USERS) {
+    return { error: `Birleşik oda en fazla ${2 * MAX_USERS} kişi olabilir (her odadan en fazla ${MAX_USERS}).` };
+  }
+  return null;
+}
+
+// Onay ekranının uyarısı: misafir odada süren oyun/açık lobi, çalan müzik ya da radyo.
+function mergeWarn(id) {
+  const room = rooms.get(id);
+  if (!room) return { game: false, music: false };
+  return {
+    game: Object.keys(room.lobbies).length > 0 || Object.keys(LOBBY_GAMES).some((game) => gameRunning(room, game)),
+    music: Boolean((room.current && room.playing) || room.radio),
+  };
+}
+
+// İsteği görüp cevaplayabilecekler: hedef odanın sahibinin ve çevrimiçi site yöneticilerinin soketleri.
+function mergeDeciders(reg) {
+  const out = new Set(onlineSockets(reg.ownerId));
+  for (const [key, set] of socketsByKey) if (accounts.isAdmin(key)) for (const s of set) out.add(s);
+  return out;
+}
+
+// Soketi başka odaya taşır: odadakilere normal çıkış/giriş gibi user-left / user-joined gider,
+// sohbete "ayrıldı"/"katıldı" yazılmaz; sokete room:moved { reason, ...join cevabı } gider.
+function moveSocket(socket, target, home, reason) {
+  const user = rooms.get(socket.data.code)?.users.get(socket.id);
+  const account = socket.data.account;
+  if (!user || !account) return;
+  leaveRoom(socket, { grace: false, quiet: true });
+  const { rejoined, ...payload } = enterRoom(socket, account, user.clientId, target, home);
+  if (payload.error) return socket.emit('kicked', { reason: payload.error }); // soket listede kalır
+  socket.emit('room:moved', { reason, ...payload });
+}
+
+// Birleşme anı: misafir odanın müziği duraklar (sıra durur), lobileri kapanır, oyunları çıkan
+// kişilerin temizliğiyle biter; herkes ev sahibi odaya taşınır.
+function startMerge({ host, guest }) {
+  const room = rooms.get(guest);
+  if (room) {
+    if (room.playing) {
+      setPlayback(room, false, currentPosition(room));
+      broadcastMedia(guest);
+    }
+    if (Object.keys(room.lobbies).length) {
+      for (const game of Object.keys(room.lobbies)) delete room.lobbies[game];
+      sendLobbies(room);
+    }
+    for (const id of [...room.users.keys()]) {
+      const socket = io.sockets.sockets.get(id);
+      if (socket) moveSocket(socket, host, guest, 'merge');
+      else room.users.delete(id); // bağlantısı çoktan gitmiş eski kayıt
+    }
+    if (rooms.get(guest)?.users.size === 0) dropRoom(guest);
+  }
+  const hostRoom = rooms.get(host);
+  if (hostRoom) postSystem(hostRoom, `${roomStore.get(guest)?.name || guest} odası birleşti`);
+  else merge.split(host); // iki oda da boştu: boş ev sahibi birleşik kalmaz
+  roomsChanged();
+}
+
+// Ayrılma: home'u misafir oda olanlar kendi odasına döner. Birleşik değilse null.
+function splitRooms(roomId) {
+  const pair = merge.split(roomId);
+  if (!pair) return null;
+  for (const [id, user] of [...(rooms.get(pair.host)?.users || [])]) {
+    if (user.home !== pair.guest) continue;
+    const socket = io.sockets.sockets.get(id);
+    if (socket) moveSocket(socket, pair.guest, pair.guest, 'split');
+  }
+  const hostRoom = rooms.get(pair.host);
+  if (hostRoom) postSystem(hostRoom, `${roomStore.get(pair.guest)?.name || pair.guest} odası ayrıldı`);
+  roomsChanged();
+  return pair;
+}
+
+// Kapanan oda (closeRoom'dan önce): bekleyen istekleri düşer. Ev sahibi kapanıyorsa önce ayrılır
+// (misafirler kendi odasına döner); misafir kapanıyorsa onun kökenlileri ev sahibinden listeye döner.
+function mergeRoomClosed(id, name) {
+  merge.forget(id);
+  const partner = merge.partnerOf(id);
+  if (!partner) return;
+  if (merge.hostOf(id) === id) {
+    splitRooms(id);
+    return;
+  }
+  merge.split(id);
+  for (const [socketId, user] of [...(rooms.get(partner)?.users || [])]) {
+    if (user.home !== id) continue;
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket) continue;
+    leaveRoom(socket, { grace: false });
+    socket.emit('room:closed', { name });
+  }
+  const hostRoom = rooms.get(partner);
+  if (hostRoom) postSystem(hostRoom, `${name} odası ayrıldı`);
+  roomsChanged();
+}
+
+// Canlı oda boşaldı: ev sahibiyse birleşme biter (içeride misafir kökenli kimse kalmadı), durum silinir.
+function roomEmptied(roomCode) {
+  if (merge.partnerOf(roomCode) && merge.hostOf(roomCode) === roomCode) {
+    merge.split(roomCode);
+    roomsChanged();
+  }
+  dropRoom(roomCode);
+}
+
+// Soket olayları; hepsi ack'li, hepsi hello ya da join ile kimliklenmiş soketten.
+function bindMergeEvents(socket) {
+  const caller = (ack) => {
+    if (typeof ack !== 'function') return null;
+    if (!socket.data.account) ack(SESSION_GONE);
+    return socket.data.account || null;
+  };
+  const regOf = (id) => (typeof id === 'string' ? roomStore.get(id) : undefined);
+
+  // from odasının sahibi (ya da yönetici) to odasıyla birleşmek ister. Yönetici isterse hemen birleşir.
+  socket.on('merge:request', ({ from, to } = {}, ack) => {
+    const account = caller(ack);
+    if (!account) return;
+    const fromReg = regOf(from);
+    const toReg = regOf(to);
+    if (!fromReg || !toReg) return ack({ error: 'Böyle bir oda yok.' });
+    if (!canMerge(fromReg, account)) return ack(NO_MERGE_RIGHT);
+    const full = mergeCapacityError(fromReg.id, toReg.id);
+    if (full) return ack(full);
+    const admin = accounts.isAdmin(account.key);
+    if (!admin && !onlineSockets(toReg.ownerId).length) return ack({ error: 'Karşı odanın sahibi şu an çevrimiçi değil.' });
+    const req = merge.propose(fromReg.id, toReg.id, account.name);
+    if (req.error) return ack(req);
+    if (admin) {
+      const pair = merge.answer(req.id, true);
+      if (pair.error) return ack(pair);
+      startMerge(pair);
+      return ack({ merged: true });
+    }
+    const incoming = { id: req.id, from: { id: fromReg.id, name: fromReg.name }, by: account.name, warn: mergeWarn(toReg.id) };
+    for (const s of mergeDeciders(toReg)) s.emit('merge:incoming', incoming);
+    ack({ id: req.id });
+  });
+
+  // Hedef odanın sahibi (ya da yönetici) cevaplar; ilk geçerli cevap kazanır.
+  socket.on('merge:answer', ({ id, accept } = {}, ack) => {
+    const account = caller(ack);
+    if (!account) return;
+    const req = typeof id === 'string' ? merge.pending(id) : undefined;
+    const toReg = req && regOf(req.to);
+    if (!toReg || !regOf(req.from)) return ack(MERGE_GONE);
+    if (!canMerge(toReg, account)) return ack(NO_MERGE_RIGHT);
+    if (accept) {
+      const full = mergeCapacityError(req.from, req.to); // istek beklerken kişi sayısı değişmiş olabilir
+      if (full) {
+        merge.answer(id, false);
+        return ack(full);
+      }
+    }
+    const pair = merge.answer(id, Boolean(accept));
+    if (pair?.error) return ack(pair);
+    if (pair) startMerge(pair);
+    ack({ merged: Boolean(pair) });
+  });
+
+  // İki odadan birinin sahibi (ya da yönetici) ayırır.
+  socket.on('merge:split', ({ room } = {}, ack) => {
+    const account = caller(ack);
+    if (!account) return;
+    const reg = regOf(room);
+    const partner = reg && merge.partnerOf(reg.id);
+    if (!partner) return ack({ error: 'Bu oda birleşik değil.' });
+    const partnerReg = roomStore.get(partner);
+    if (!canMerge(reg, account) && !(partnerReg && canMerge(partnerReg, account))) return ack(NO_MERGE_RIGHT);
+    splitRooms(reg.id);
+    ack({});
+  });
+}
+
 io.on('connection', (socket) => {
   let code = null;
   // leaveRoom/enterRoom (ve ileride oda taşıma) soketin odasını dışarıdan değiştirir.
@@ -834,7 +1044,7 @@ io.on('connection', (socket) => {
     socket.leave(JOINED);
     backToLobby(socket);
     socket.data.setCode(null);
-    if (room && room.users.size === 0) dropRoom(roomCode);
+    if (room && room.users.size === 0) roomEmptied(roomCode);
   };
   socket.on('join', async ({ token, clientId, room: roomId = 'genel', password } = {}, ack) => {
     if (typeof ack !== 'function' || code || joining) return;
@@ -851,7 +1061,8 @@ io.on('connection', (socket) => {
       if (!socket.connected) return; // şifre denetlenirken ayrıldı
       if (res.error) return ack(res);
       if (!bindAccount(socket, res.account)) return ack(OTHER_ACCOUNT); // denetlenirken hello başka hesapla bağladı
-      ({ rejoined, ...payload } = enterRoom(socket, res.account, res.clientId, res.roomId));
+      // Birleşik misafir odaya giren ev sahibi odaya yerleşir; kökeni misafir oda kalır.
+      ({ rejoined, ...payload } = enterRoom(socket, res.account, res.clientId, merge.hostOf(res.roomId), res.roomId));
     } catch (err) {
       // Beklenmeyen hata sunucuyu düşürmesin (yakalanmayan ret süreci kapatır); istemci cevapsız kalmasın.
       console.warn('odaya giriş', err.message);
@@ -1706,6 +1917,8 @@ io.on('connection', (socket) => {
     room.kelime = null;
     sendKelime(room);
   });
+
+  bindMergeEvents(socket);
 
   socket.on('disconnect', () => {
     leaveRoom(socket, { grace: true });
