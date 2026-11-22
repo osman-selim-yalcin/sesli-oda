@@ -195,6 +195,7 @@ const bearer = (req) => req.get('authorization')?.replace(/^Bearer /, '') || '';
 
 // live(oda id) -> { users, max, mergedWith }: canlı durum sunucudan gelir.
 // onChange(tür, bilgi): kayıtlar değişince ('rooms' | 'request' | 'settings' | 'closed').
+// 'request' bilgisi { pending, decided? }: decided = { key, status, name } (karar verildiyse isteyen hesap).
 function setup(app, opts) {
   live = opts.live;
   if (opts.onChange) onChange = opts.onChange;
@@ -402,7 +403,8 @@ function setup(app, opts) {
         console.warn('oda isteği kararı yazılamadı', err.message); // oda açıldı; kayıt bir sonraki açılışta beklemede görünebilir
       }
       if (room) onChange('rooms', { id: room.id });
-      onChange('request', { pending: pendingCount() });
+      // decided: isteyen hesaba sonucu anında bildirmek için (anahtar yalnız sunucuda kalır)
+      onChange('request', { pending: pendingCount(), decided: { key: q.accountId, status: approve ? 'approved' : 'rejected', name: q.name } });
       res.json(room ? { room: view(room, a) } : {});
     } catch (err) {
       restore();

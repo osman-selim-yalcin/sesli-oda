@@ -343,8 +343,14 @@ window.Lobby = (() => {
     $('lobby-screen').hidden = true;
   }
 
-  // Sunucudan gelen liste ({ rooms }) ya da yöneticide bekleyen istek sayısı ({ pending }).
-  function update({ rooms: next, pending: count } = {}) {
+  // Sunucudan gelen liste ({ rooms }), yöneticide bekleyen istek sayısı ({ pending }) ya da
+  // isteğimin sonucu ({ decided: { status, name } }; reddedilince istek formu yeniden görünür).
+  function update({ rooms: next, pending: count, decided } = {}) {
+    if (decided && !isAdmin()) {
+      mine = { ...mine, name: decided.name, status: decided.status };
+      renderMine();
+      toast(decided.status === 'approved' ? `Oda isteğin onaylandı: ${decided.name}` : `Oda isteğin reddedildi: ${decided.name}`);
+    }
     if (next) {
       rooms = next;
       if (passRoom) passRoom = rooms.find((r) => r.id === passRoom.id) || passRoom;

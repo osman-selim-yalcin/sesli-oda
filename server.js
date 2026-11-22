@@ -150,6 +150,11 @@ roomStore.setup(app, {
       for (const [key, set] of socketsByKey) {
         if (accounts.isAdmin(key)) for (const s of set) s.emit('room-request', { pending: info.pending });
       }
+      // İsteyen hesabın bütün soketlerine karar (listedeki durum satırı yenilenmeden güncellensin)
+      if (info.decided) {
+        const { key, status, name } = info.decided;
+        for (const s of onlineSockets(key)) s.emit('room-request:decided', { status, name });
+      }
     }
   },
 });

@@ -6059,6 +6059,7 @@ async function helloLobby() {
 }
 socket.on('rooms', ({ rooms } = {}) => Array.isArray(rooms) && Lobby.update({ rooms }));
 socket.on('room-request', ({ pending } = {}) => Lobby.update({ pending }));
+socket.on('room-request:decided', ({ status, name } = {}) => status && Lobby.update({ decided: { status, name } }));
 
 // ---------- Odaya giriş ----------
 // Oda kartına (ya da şifre penceresindeki düğmeye) basınca çağrılır: ses altyapısı ve mikrofon izni

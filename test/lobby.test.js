@@ -207,3 +207,29 @@ test('hello demeden dolu odaya giremeyen soket listeye alınır ve rooms alır',
   for (const s of inside) s.close();
   late.close();
 });
+
+test('yönetici karar verince isteyen hesabın bütün soketleri room-request:decided alır, başkası almaz', async () => {
+  const ayse = await user('Ayse');
+  await hello(ayse);
+  const ayseInRoom = await user('Ayse'); // aynı hesabın odadaki soketi
+  assert.equal((await join(ayseInRoom)).error, undefined);
+  const veli = await user('Veli');
+  await hello(veli);
+  const gotVeli = collect(veli);
+  const decided = async (name, approve) => {
+    const r = await http(srv.url, 'POST', '/rooms/requests', { token: 'test:Ayse', body: { name } });
+    assert.equal(r.status, 200, JSON.stringify(r.json));
+    const got = next(ayse, 'room-request:decided');
+    const gotInRoom = next(ayseInRoom, 'room-request:decided');
+    const d = await http(srv.url, 'POST', `/admin/room-requests/${r.json.request.id}`, { token: ADMIN, body: { approve } });
+    assert.equal(d.status, 200, JSON.stringify(d.json));
+    return Promise.all([got, gotInRoom]);
+  };
+  assert.deepEqual(await decided('Ayse Reddi', false), [{ status: 'rejected', name: 'Ayse Reddi' }, { status: 'rejected', name: 'Ayse Reddi' }]);
+  assert.deepEqual(await decided('Ayse Odasi', true), [{ status: 'approved', name: 'Ayse Odasi' }, { status: 'approved', name: 'Ayse Odasi' }]);
+  await sleep(100);
+  assert.ok(!gotVeli.some((e) => e.event === 'room-request:decided'));
+  ayse.close();
+  ayseInRoom.close();
+  veli.close();
+});
