@@ -761,13 +761,15 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
 
   const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
   socket.data.setCode(roomCode);
+  // Her girişte (taşınma dahil) yeni dönem: önceki bağlantının geç kalan sinyalleri yeni odaya geçmesin.
+  const epoch = socket.data.epoch = (socket.data.epoch || 0) + 1;
   room.users.set(socket.id, { name, key: account.key, home, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
   socket.leave(LOBBY);
   socket.join([roomCode, JOINED]);
   socket.to(roomCode).emit('user-joined', { id: socket.id, name, muted: false });
   roomsChanged();
   const homeReg = (home !== roomCode && roomStore.get(home)) || reg;
-  return { rejoined, id: socket.id, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
 // Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
@@ -1205,9 +1207,11 @@ io.on('connection', (socket) => {
     ack(res);
   });
 
-  // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir.
-  socket.on('signal', ({ to, data } = {}) => {
+  // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir. epoch: gönderen bağlantının
+  // kurulduğu giriş; eski girişinkiler düşer (epoch'suz eski istemci sekmeleri yine iletilir).
+  socket.on('signal', ({ to, data, epoch } = {}) => {
     if (!code || !getRoom(code).users.has(to)) return;
+    if (epoch != null && epoch !== socket.data.epoch) return;
     io.to(to).emit('signal', { from: socket.id, data });
   });
 

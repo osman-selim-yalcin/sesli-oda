@@ -19,6 +19,7 @@ let sharerId = null;          // odada ekranını paylaşan kişi
 let micOn = true;
 let myName = '';
 let selfId = null;
+let roomEpoch = null;          // sunucunun bu girişe verdiği dönem (taşınınca artar); bağlantılar sinyale ekler
 let audioCtx = null;
 let voiceBus = null;          // tüm konuşmaların geçtiği kompresör
 let sfxBus = null;
@@ -321,8 +322,9 @@ function tuneOpus(sdp) {
   );
 }
 
-function sendDescription(to, desc) {
-  socket.emit('signal', { to, data: { type: desc.type, sdp: tuneOpus(desc.sdp) } });
+// epoch: bağlantının kurulduğu giriş (peer.epoch); taşınmadan sonra eski bağlantının sinyallerini sunucu düşürür.
+function sendDescription(to, desc, epoch) {
+  socket.emit('signal', { to, data: { type: desc.type, sdp: tuneOpus(desc.sdp) }, epoch });
 }
 
 // Gönderilen ses ve görüntüye bitrate sınırı koyar (sınırlar anlaşmadan sonra uygulanabilir).
@@ -347,9 +349,12 @@ function createPc(id) {
   const peer = peers.get(id);
   const pc = new RTCPeerConnection({ iceServers });
   peer.pc = pc;
+  peer.epoch = roomEpoch;
+  peer.createdAt = Date.now();
   peer.polite = selfId < id;
   peer.makingOffer = false;
   peer.badSince = Date.now();
+  const { epoch } = peer;
 
   if (sendStream) {
     for (const track of sendStream.getAudioTracks()) pc.addTrack(track, sendStream);
@@ -362,7 +367,8 @@ function createPc(id) {
     try {
       peer.makingOffer = true;
       await pc.setLocalDescription();
-      sendDescription(id, pc.localDescription);
+      if (peer.pc !== pc) return; // bu arada bağlantı yenilendi
+      sendDescription(id, pc.localDescription, epoch);
       applyLimits(pc);
     } catch (err) {
       console.warn('negotiation', err);
@@ -372,7 +378,7 @@ function createPc(id) {
   };
 
   pc.onicecandidate = (e) => {
-    if (e.candidate) socket.emit('signal', { to: id, data: { candidate: e.candidate } });
+    if (e.candidate && peer.pc === pc) socket.emit('signal', { to: id, data: { candidate: e.candidate }, epoch });
   };
 
   pc.ontrack = (e) => {
@@ -439,7 +445,7 @@ function resetPeer(id, notify) {
   peer.screenSenders = null;
   if (peer.screenAudio) peer.screenAudio.srcObject = null;
   peer.pendingIce = [];
-  if (notify) socket.emit('signal', { to: id, data: { reset: true } });
+  if (notify) socket.emit('signal', { to: id, data: { reset: true }, epoch: peer.epoch });
   createPc(id);
   setStatus(peer.row, 'Yeniden bağlanıyor…');
   renderScreen();
@@ -449,9 +455,18 @@ function resetPeer(id, notify) {
 // Kaba taraf önce dener; o denemezse (sekmesi arka planda vb.) kibar taraf daha geç dener.
 // Her başarısız denemede bekleme ikiye katlanır.
 const PEER_RETRY = 12000; // ms
+// Kurulumu hiç başlamamış ('new' kalan) bağlantı ilk seferde erken yenilenir (kaba taraf önce).
+const PEER_STUCK_NEW = 5000; // ms
 setInterval(() => {
   for (const [id, peer] of peers) {
     if (!peer.pc || peer.badSince == null) continue;
+    const stuck = !peer.retries && peer.pc.connectionState === 'new'
+      && Date.now() - peer.createdAt >= PEER_STUCK_NEW * (peer.polite ? 1.6 : 1);
+    if (stuck) {
+      peer.retries++;
+      resetPeer(id, true);
+      continue;
+    }
     const wait = PEER_RETRY * Math.min(2 ** peer.retries, 8) * (peer.polite ? 2.5 : 1);
     if (Date.now() - peer.badSince < wait) continue;
     peer.retries++;
@@ -470,15 +485,19 @@ socket.on('signal', async ({ from, data }) => {
   const peer = peers.get(from);
   const pc = peer?.pc;
   if (!pc) return;
+  // Her await'ten sonra: bağlantı bu arada yenilendiyse (taşınma, sıfırlama) eski işe devam edilmez.
+  const current = () => peers.get(from) === peer && peer.pc === pc;
 
   try {
     if (data.type) {
       const collision = data.type === 'offer' && (peer.makingOffer || pc.signalingState !== 'stable');
       if (collision && !peer.polite) return;
       await pc.setRemoteDescription(data);
+      if (!current()) return;
       if (data.type === 'offer') {
         await pc.setLocalDescription();
-        sendDescription(from, pc.localDescription);
+        if (!current()) return;
+        sendDescription(from, pc.localDescription, peer.epoch);
       }
       applyLimits(pc);
       await flushIce(peer);
@@ -6194,6 +6213,7 @@ async function enterRoom(id, password) {
 // Sunucudan gelen oda durumunu uygular: ilk girişte ve bağlantı kopup geri gelince.
 function applyJoin(res) {
   selfId = res.id;
+  roomEpoch = res.epoch ?? null;
   for (const id of [...peers.keys()]) removePeer(id);
   // Bağlantıları hemen kur: odadakiler de bize teklif gönderiyor, gecikirsek kaybolur.
   for (const p of res.peers) {
