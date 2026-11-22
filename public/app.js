@@ -5982,7 +5982,10 @@ function renderAccount() {
   $('profile-avatar').replaceChildren(makeAvatar(account.name));
   $('topbar-avatar').replaceChildren(makeAvatar(account.name));
   $('esek-btn').hidden = !account.admin;
-  for (const id of ['avatar-change', 'profile-change']) $(id).textContent = account.avatar ? 'Resmi değiştir' : 'Resim ekle';
+  for (const id of ['avatar-change', 'profile-change']) {
+    const label = $(id).querySelector('.label') || $(id); // liste penceresinde ikonun yanındaki yazı
+    label.textContent = account.avatar ? 'Resmi değiştir' : 'Resim ekle';
+  }
   for (const id of ['avatar-remove', 'profile-remove']) $(id).hidden = !account.avatar;
 }
 
@@ -5990,6 +5993,9 @@ function setAuthMode(mode) {
   authMode = mode;
   $('auth-login').classList.toggle('active', mode === 'login');
   $('auth-register').classList.toggle('active', mode === 'register');
+  $('auth-login').setAttribute('aria-selected', String(mode === 'login'));
+  $('auth-register').setAttribute('aria-selected', String(mode === 'register'));
+  $('join-btn').textContent = mode === 'login' ? 'Giriş yap' : 'Kayıt ol';
   $('password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
   $('password').placeholder = mode === 'login' ? '' : 'En az 4 karakter';
   $('password2-field').hidden = mode === 'login';
@@ -6038,8 +6044,10 @@ function signedOut(error) {
   if (error) showJoinError(error);
 }
 
-// Çıkış: sayfa listenin adresinde yeniden açılır (giriş ekranı).
+// Çıkış: sayfa listenin adresinde yeniden açılır (giriş ekranı). Soket önce kapatılır: sunucu çıkış yapan
+// oturumun soketini keser, açık kalırsa giriş ekranı "Oturumun kapatıldı" hatasıyla açılırdı.
 async function logout() {
+  socket.disconnect();
   await api('POST', '/auth/logout');
   saveToken('');
   location.assign('/');
@@ -6088,6 +6096,7 @@ fetch('/status')
   .then((r) => r.json())
   .then(({ online }) => {
     $('room-status').textContent = online ? `Şu an sitede ${online} kişi var.` : 'Şu an sitede kimse yok.';
+    $('room-status').parentElement.classList.toggle('is-live', online > 0);
   })
   .catch(() => {});
 

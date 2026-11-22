@@ -9,6 +9,12 @@ window.Theme = (() => {
   // Temanın ikon seti: public/icons/ui/<set>.svg, hepsi aynı adları (i-play, i-mic…) taşır.
   // Varsayılan set index.html'de <svg id="ui-icons" data-set="lucide"> olarak gömülüdür (ilk boyamada ikon olsun diye).
   const ICON_SETS = { gece: 'lucide' };
+  // Oda kartındaki tema önizleme şeridinin üç rengi (zemin, panel, vurgu). Kart başka bir temanın odasını da
+  // gösterebildiği için bu renkler o anki temanın değişkenlerinden değil, bu tablodan gelir; sabit renkler
+  // yalnız burada durur (kart onları --pv-bg/--pv-surface/--pv-accent yerel değişkenleriyle kullanır).
+  const PREVIEW = {
+    gece: { bg: '#0E0F13', surface: '#1E2129', accent: '#8B9CFF' },
+  };
   const root = document.documentElement;
   let current = root.dataset.theme || DEFAULT;
   let wanted = current;
@@ -111,5 +117,6 @@ window.Theme = (() => {
     list: LIST.slice(),
     apply,
     current: () => current,
+    preview: (id) => ({ ...(PREVIEW[id] || PREVIEW[DEFAULT]) }),
   };
 })();

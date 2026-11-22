@@ -96,137 +96,209 @@
 
   <!-- Giriş ekranı -->
   <main id="join-screen" class="join" hidden>
-    <form id="join-form" class="card">
+    <form id="join-form" class="card join-card" novalidate>
       <div class="brand">
-        <img src="/favicon.svg" alt="" width="44" height="44">
-        <div>
-          <h1>Sesli Oda</h1>
-          <p class="muted">Arkadaşlarınla konuş, aynı anda YouTube izle/dinle.</p>
-        </div>
+        <span class="brand-mark brand-mark-lg" aria-hidden="true"><svg class="ic"><use href="#i-gate"></use></svg></span>
+        <h1>Sesli Oda</h1>
+        <p class="muted">Arkadaşlarınla konuş, birlikte izle ve oyna.</p>
       </div>
       <!-- Kullanıcı adı + şifre; giriş yapınca oda listesi açılır -->
       <div id="auth-fields" class="auth-fields">
-        <div class="tabs auth-tabs" role="tablist">
-          <button type="button" id="auth-login" class="tab active" role="tab">Giriş yap</button>
-          <button type="button" id="auth-register" class="tab" role="tab">Kayıt ol</button>
+        <div class="tabs auth-tabs" role="tablist" aria-label="Giriş ya da kayıt">
+          <button type="button" id="auth-login" class="tab active" role="tab" aria-selected="true">Giriş yap</button>
+          <button type="button" id="auth-register" class="tab" role="tab" aria-selected="false">Kayıt ol</button>
         </div>
-        <label>Kullanıcı adı
-          <input id="name" maxlength="24" autocomplete="username" autocapitalize="off" spellcheck="false">
+        <label class="field" for="name">Kullanıcı adı
+          <input id="name" class="input" maxlength="24" autocomplete="username" autocapitalize="off" spellcheck="false">
         </label>
-        <label>Şifre
-          <input id="password" type="password" maxlength="200" autocomplete="current-password">
+        <label class="field" for="password">Şifre
+          <input id="password" class="input" type="password" maxlength="200" autocomplete="current-password">
         </label>
-        <label id="password2-field" hidden>Şifre (tekrar)
-          <input id="password2" type="password" maxlength="200" autocomplete="new-password">
+        <label id="password2-field" class="field" for="password2" hidden>Şifre (tekrar)
+          <input id="password2" class="input" type="password" maxlength="200" autocomplete="new-password">
         </label>
       </div>
-      <p id="room-status" class="muted small"></p>
-      <button type="submit" id="join-btn" class="primary">Giriş yap</button>
-      <p id="join-error" class="error" hidden></p>
+      <p id="join-error" class="join-error" role="alert" hidden></p>
+      <button type="submit" id="join-btn" class="btn btn-primary btn-block">Giriş yap</button>
+      <p class="join-status"><span class="status-dot" aria-hidden="true"></span><span id="room-status"></span></p>
     </form>
   </main>
   <input id="avatar-file" type="file" accept="image/*" hidden>
 
   <!-- Oda listesi: giriş yapınca açılır (public/lobby.js). /uyeler de bu ekrandadır (yalnız yönetici). -->
-  <div id="lobby-screen" hidden>
-    <header class="topbar">
+  <div id="lobby-screen" class="lobby-screen" hidden>
+    <header class="topbar roomlist-topbar">
       <div class="topbar-inner">
-        <span class="topbar-brand"><img src="/favicon.svg" alt="" width="22" height="22">Sesli Oda</span>
-        <nav class="top-tabs" role="tablist">
-          <button id="lobby-nav-rooms" class="top-tab active" role="tab"><svg class="ic"><use href="#i-music"></use></svg>Odalar</button>
+        <span class="topbar-brand"><span class="brand-mark" aria-hidden="true"><svg class="ic"><use href="#i-gate"></use></svg></span><span class="brand-name">Sesli Oda</span></span>
+        <nav id="lobby-nav" class="top-tabs" role="tablist" aria-label="Sayfalar">
+          <button id="lobby-nav-rooms" class="top-tab active" role="tab"><svg class="ic"><use href="#i-home"></use></svg>Odalar</button>
           <button id="lobby-nav-members" class="top-tab" role="tab" hidden><svg class="ic"><use href="#i-users"></use></svg>Üyeler</button>
         </nav>
+        <div class="topbar-right">
+          <!-- Yönetici: bekleyen oda istekleri penceresi -->
+          <button type="button" id="requests-open" class="btn btn-ghost btn-sm requests-btn" aria-haspopup="dialog" hidden>
+            <svg class="ic"><use href="#i-bell"></use></svg><span class="requests-btn-text">İstekler</span><span id="request-count" class="count"></span>
+          </button>
+          <!-- Hesap: avatar → hesap penceresi -->
+          <button type="button" id="account-open" class="account-chip" aria-haspopup="dialog" aria-label="Hesabım">
+            <span id="account-chip-avatar" class="account-chip-avatar"></span>
+            <span id="account-chip-name" class="account-chip-name"></span>
+            <svg class="ic"><use href="#i-chevron"></use></svg>
+          </button>
+        </div>
       </div>
     </header>
-    <div class="rooms-layout">
-      <div id="lobby-rooms" class="rooms-main">
-        <section class="panel">
-          <h2 class="rooms-title">Odalar</h2>
-          <ul id="room-list" class="room-list"></ul>
-          <p id="room-list-empty" class="muted empty" hidden>Henüz oda yok.</p>
-        </section>
 
-        <!-- Yönetici: bekleyen oda istekleri ve oda açma -->
-        <section id="admin-requests" class="panel" hidden>
-          <h2 id="request-title" class="rooms-title">İstekler (0)</h2>
-          <ul id="request-list" class="people-list"></ul>
-          <p id="request-empty" class="muted small" hidden>Bekleyen istek yok.</p>
-        </section>
-        <form id="room-create" class="panel rooms-form" hidden>
-          <h2 class="rooms-title">Oda aç</h2>
-          <label>Oda adı <input id="create-name" maxlength="24" autocomplete="off"></label>
-          <label>Şifre (isteğe bağlı) <input id="create-password" type="password" maxlength="200" autocomplete="new-password"></label>
-          <label>Tema <select id="create-theme"><option value="gece">Gece Odası</option></select></label>
-          <label>Sahibi (boş bırakırsan sen) <input id="create-owner" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
-          <button type="submit" class="primary">Oda aç</button>
-          <p id="create-error" class="error" hidden></p>
-        </form>
+    <main class="roomlist">
+      <div id="lobby-rooms" class="roomlist-page">
+        <div class="roomlist-head">
+          <div class="roomlist-head-text">
+            <h1 class="roomlist-title">Odalar</h1>
+            <p id="lobby-summary" class="roomlist-summary"></p>
+          </div>
+          <!-- Üye: oda iste; yönetici: oda aç (ikisi de pencere açar) -->
+          <button type="button" id="request-open" class="btn btn-primary" aria-haspopup="dialog" hidden><svg class="ic"><use href="#i-plus"></use></svg>Oda iste</button>
+          <button type="button" id="create-open" class="btn btn-primary" aria-haspopup="dialog" hidden><svg class="ic"><use href="#i-plus"></use></svg>Oda aç</button>
+        </div>
 
-        <!-- Üye: oda isteği ve son isteğin durumu -->
-        <p id="my-request" class="panel my-request" hidden></p>
-        <form id="room-request" class="panel rooms-form" hidden>
-          <h2 class="rooms-title">Oda iste</h2>
-          <p class="muted small">Yönetici onaylayınca oda açılır ve sahibi sen olursun.</p>
-          <label>Oda adı <input id="request-name" maxlength="24" autocomplete="off"></label>
-          <label>Şifre (isteğe bağlı) <input id="request-password" type="password" maxlength="200" autocomplete="new-password"></label>
-          <label>Tema <select id="request-theme"><option value="gece">Gece Odası</option></select></label>
-          <label>Not (isteğe bağlı) <input id="request-note" maxlength="200" autocomplete="off"></label>
-          <button type="submit" class="primary">İsteği gönder</button>
-          <p id="request-error" class="error" hidden></p>
-        </form>
+        <!-- Üye: son oda isteğinin durumu (ince şerit; sonuçlanınca kapatılabilir) -->
+        <div id="my-request" class="roomlist-strip" role="status" hidden>
+          <svg class="ic"><use href="#i-info"></use></svg>
+          <span id="my-request-text" class="roomlist-strip-text"></span>
+          <button type="button" id="my-request-dismiss" class="btn btn-ghost btn-icon btn-sm" aria-label="Kapat" hidden><svg class="ic"><use href="#i-x"></use></svg></button>
+        </div>
+
+        <ul id="room-list" class="room-grid" aria-label="Odalar"></ul>
+
+        <!-- Boş liste: üç adım şeridi -->
+        <div id="room-list-empty" class="room-empty" hidden>
+          <svg class="ic room-empty-icon"><use href="#i-door"></use></svg>
+          <p class="room-empty-title">Henüz oda yok</p>
+          <p id="room-empty-text" class="room-empty-text"></p>
+          <ol class="steps" aria-label="Nasıl başlanır">
+            <li><span class="step-num">1</span><span id="step-first">Oda iste</span></li>
+            <li><span class="step-num">2</span>Arkadaşlarını çağır</li>
+            <li><span class="step-num">3</span>Konuşun, izleyin, oynayın</li>
+          </ol>
+          <button type="button" id="empty-action" class="btn btn-primary"><svg class="ic"><use href="#i-plus"></use></svg><span id="empty-action-text">Oda iste</span></button>
+        </div>
       </div>
 
       <!-- Üyeler: açılmış bütün hesaplar; sadece yönetici görür -->
-      <section id="members" class="members rooms-main" hidden>
-        <div class="panel">
-          <div class="game-head">
-            <h2 class="members-title">Üyeler <span id="members-count" class="count"></span></h2>
-            <button id="members-refresh" class="ghost sm">Yenile</button>
+      <section id="members" class="members roomlist-page" hidden>
+        <div class="roomlist-head">
+          <div class="roomlist-head-text">
+            <h1 class="roomlist-title">Üyeler</h1>
+            <p class="roomlist-summary"><span id="members-count"></span></p>
           </div>
+          <button id="members-refresh" class="btn btn-ghost btn-sm"><svg class="ic"><use href="#i-undo"></use></svg>Yenile</button>
+        </div>
+        <div class="panel members-panel">
           <ul id="members-list" class="people-list members-list"></ul>
           <p id="members-empty" class="muted empty" hidden></p>
         </div>
       </section>
+    </main>
 
-      <!-- Hesap paneli -->
-      <aside class="rooms-side">
-        <div class="panel rooms-account">
-          <div id="account" class="account">
-            <button type="button" id="account-avatar" class="account-avatar" title="Profil resmini değiştir"></button>
-            <div class="account-text">
-              <strong id="account-name"></strong>
-              <div class="account-links small">
-                <button type="button" id="avatar-change" class="link">Resim ekle</button>
-                <button type="button" id="avatar-remove" class="link" hidden>Resmi kaldır</button>
-                <button type="button" id="pass-open" class="link">Şifre değiştir</button>
-                <button type="button" id="logout" class="link">Çıkış yap</button>
-              </div>
-            </div>
+    <!-- Hesap penceresi: profil resmi, şifre değiştirme, çıkış -->
+    <dialog id="account-dialog" class="dialog account-dialog" aria-labelledby="account-name">
+      <div class="dialog-head">
+        <div id="account" class="account">
+          <button type="button" id="account-avatar" class="account-avatar" title="Profil resmini değiştir" aria-label="Profil resmini değiştir"></button>
+          <div class="account-text">
+            <strong id="account-name"></strong>
+            <span id="account-role" class="account-role"></span>
           </div>
-          <form id="pass-form" class="rooms-form" hidden>
-            <label>Mevcut şifre <input id="pass-current" type="password" maxlength="200" autocomplete="current-password"></label>
-            <label>Yeni şifre <input id="pass-new" type="password" maxlength="200" autocomplete="new-password" placeholder="En az 4 karakter"></label>
-            <label>Yeni şifre (tekrar) <input id="pass-new2" type="password" maxlength="200" autocomplete="new-password"></label>
-            <div class="rooms-row">
-              <button type="button" id="pass-cancel" class="ghost">Vazgeç</button>
-              <button type="submit" class="primary">Şifreyi değiştir</button>
-            </div>
-            <p id="pass-error" class="error" hidden></p>
-          </form>
         </div>
-      </aside>
-    </div>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm dialog-close" data-close aria-label="Kapat"><svg class="ic"><use href="#i-x"></use></svg></button>
+      </div>
+      <div class="list account-actions">
+        <button type="button" id="avatar-change" class="list-row"><svg class="ic"><use href="#i-image"></use></svg><span class="label">Resim ekle</span></button>
+        <button type="button" id="avatar-remove" class="list-row" hidden><svg class="ic"><use href="#i-trash"></use></svg><span class="label">Resmi kaldır</span></button>
+        <button type="button" id="pass-open" class="list-row" aria-controls="pass-form"><svg class="ic"><use href="#i-key"></use></svg><span class="label">Şifre değiştir</span></button>
+      </div>
+      <form id="pass-form" class="dialog-form pass-form" hidden>
+        <label class="field">Mevcut şifre <input id="pass-current" class="input" type="password" maxlength="200" autocomplete="current-password"></label>
+        <label class="field">Yeni şifre <input id="pass-new" class="input" type="password" maxlength="200" autocomplete="new-password" placeholder="En az 4 karakter"></label>
+        <label class="field">Yeni şifre (tekrar) <input id="pass-new2" class="input" type="password" maxlength="200" autocomplete="new-password"></label>
+        <p id="pass-error" class="field-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" id="pass-cancel" class="btn btn-ghost">Vazgeç</button>
+          <button type="submit" class="btn btn-primary">Şifreyi değiştir</button>
+        </div>
+      </form>
+      <div class="account-foot">
+        <button type="button" id="logout" class="list-row account-logout"><svg class="ic"><use href="#i-logout"></use></svg><span class="label">Çıkış yap</span></button>
+      </div>
+    </dialog>
+
+    <!-- Üye: oda isteği -->
+    <dialog id="request-dialog" class="dialog" aria-labelledby="request-dialog-title">
+      <form id="room-request" class="dialog-form">
+        <div class="dialog-head">
+          <div class="dialog-head-text">
+            <h2 id="request-dialog-title" class="dialog-title">Oda iste</h2>
+            <p class="dialog-sub">Yönetici onaylayınca oda açılır ve sahibi sen olursun.</p>
+          </div>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm dialog-close" data-close aria-label="Kapat"><svg class="ic"><use href="#i-x"></use></svg></button>
+        </div>
+        <label class="field">Oda adı <input id="request-name" class="input" maxlength="24" autocomplete="off" required></label>
+        <label class="field">Şifre <span class="field-hint">İsteğe bağlı; boş bırakırsan herkes girer.</span><input id="request-password" class="input" type="password" maxlength="200" autocomplete="new-password"></label>
+        <label class="field">Tema <select id="request-theme" class="select"><option value="gece">Gece Odası</option></select></label>
+        <label class="field">Not <span class="field-hint">İsteğe bağlı, yöneticiye.</span><input id="request-note" class="input" maxlength="200" autocomplete="off"></label>
+        <p id="request-error" class="field-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-ghost" data-close>Vazgeç</button>
+          <button type="submit" class="btn btn-primary">İsteği gönder</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Yönetici: oda açma -->
+    <dialog id="create-dialog" class="dialog" aria-labelledby="create-dialog-title">
+      <form id="room-create" class="dialog-form">
+        <div class="dialog-head">
+          <h2 id="create-dialog-title" class="dialog-title">Oda aç</h2>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm dialog-close" data-close aria-label="Kapat"><svg class="ic"><use href="#i-x"></use></svg></button>
+        </div>
+        <label class="field">Oda adı <input id="create-name" class="input" maxlength="24" autocomplete="off" required></label>
+        <label class="field">Şifre <span class="field-hint">İsteğe bağlı.</span><input id="create-password" class="input" type="password" maxlength="200" autocomplete="new-password"></label>
+        <label class="field">Tema <select id="create-theme" class="select"><option value="gece">Gece Odası</option></select></label>
+        <label class="field">Sahibi <span class="field-hint">Boş bırakırsan sen.</span><input id="create-owner" class="input" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <p id="create-error" class="field-error" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" class="btn btn-ghost" data-close>Vazgeç</button>
+          <button type="submit" class="btn btn-primary">Oda aç</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Yönetici: bekleyen oda istekleri (onay/ret tek tıkla) -->
+    <dialog id="requests-dialog" class="dialog requests-dialog" aria-labelledby="request-title">
+      <div class="dialog-head">
+        <h2 id="request-title" class="dialog-title">Oda istekleri</h2>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm dialog-close" data-close aria-label="Kapat"><svg class="ic"><use href="#i-x"></use></svg></button>
+      </div>
+      <ul id="request-list" class="list request-list"></ul>
+      <div id="request-empty" class="empty" hidden><svg class="ic"><use href="#i-check"></use></svg><p id="request-empty-text">Bekleyen istek yok.</p></div>
+    </dialog>
 
     <!-- Şifreli oda: join needPassword deyince açılır -->
-    <dialog id="room-pass" class="card room-pass">
-      <form id="room-pass-form" class="rooms-form">
-        <h2 id="room-pass-title" class="rooms-title"></h2>
-        <p class="muted small">Bu oda şifreli. Bir kez doğru yazınca bir daha sorulmaz.</p>
-        <label>Oda şifresi <input id="room-pass-input" type="password" maxlength="200" autocomplete="off"></label>
-        <p id="room-pass-error" class="error" hidden></p>
-        <div class="rooms-row">
-          <button type="button" id="room-pass-cancel" class="ghost">Vazgeç</button>
-          <button type="submit" id="room-pass-ok" class="primary">Odaya gir</button>
+    <dialog id="room-pass" class="dialog pass-dialog" aria-labelledby="room-pass-title">
+      <form id="room-pass-form" class="dialog-form">
+        <div class="dialog-head">
+          <span class="dialog-icon" aria-hidden="true"><svg class="ic"><use href="#i-lock"></use></svg></span>
+          <div class="dialog-head-text">
+            <h2 id="room-pass-title" class="dialog-title"></h2>
+            <p class="dialog-sub">Bu oda şifreli. Bir kez doğru yazınca bir daha sorulmaz.</p>
+          </div>
+        </div>
+        <label class="field">Oda şifresi <input id="room-pass-input" class="input" type="password" maxlength="200" autocomplete="off"></label>
+        <p id="room-pass-error" class="field-error" role="alert" hidden></p>
+        <p id="room-pass-wait" class="pass-wait" hidden></p>
+        <div class="dialog-actions">
+          <button type="button" id="room-pass-cancel" class="btn btn-ghost">Vazgeç</button>
+          <button type="submit" id="room-pass-ok" class="btn btn-primary">Odaya gir</button>
         </div>
       </form>
     </dialog>
