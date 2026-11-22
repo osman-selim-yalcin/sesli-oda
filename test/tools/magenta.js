@@ -2,9 +2,9 @@
 // Macenta denemesi: temaya bağlanmamış (sabit yazılmış) renkleri ortaya çıkarır.
 // Sayfayı başsız Chrome'da açar, değişken sözleşmesindeki bütün renkleri çiğ renklere çeker
 // ve ekran görüntüsü alır:
-//   #FF00FF  zeminler ve yumuşak zeminler (--bg, --surface*, --accent-soft, --danger-soft, --overlay)
+//   #FF00FF  zeminler ve yumuşak zeminler (--bg, --surface*, --accent-soft, --danger-soft, --live-soft, --overlay)
 //   #00FFFF  vurgu ve durum renkleri (--accent, --accent-2, --live, --danger); zemin üstünde de görünür
-//   #00FF00  metin (--text, --muted, --accent-contrast)
+//   #00FF00  metin (--text, --muted, --accent-contrast, --danger-contrast, --avatar-text)
 //   #FFFF00  kenarlık (--border, --border-strong)
 // Görüntüde bu dört renkten başka bir renkte kalan her öğe temaya bağlanmamıştır.
 // (Kişi tonu --hue gibi oyun içeriği renkleri kural gereği kendi renginde kalır.)
@@ -22,6 +22,8 @@
 //   --wait <ms>         görüntüden önce ek bekleme (varsayılan 800)
 //   --no-magenta        renkleri değiştirmeden normal görüntü al
 //   --eval <js>         görüntüden önce sayfada çalıştırılacak ifade (örn. bir pencereyi açmak)
+//   --force-pseudo      data-pseudo="hover focus-visible …" taşıyan öğelere o durumları zorlar
+//                       (bileşen vitrini: test/tools/components.html, file:// adresiyle açılır)
 //   --profile <klasör>  Chrome profil klasörü (varsayılan: deponun git'e girmeyen .superpowers/ altında
 //                       geçici bir klasör; iş bitince silinir)
 //   --chrome <yol>      Chrome yolu (varsayılan: CHROME ortam değişkeni ya da macOS'taki Google Chrome)
@@ -34,9 +36,9 @@ const fs = require('fs');
 const path = require('path');
 
 const CONTRACT = {
-  '#FF00FF': ['--bg', '--surface', '--surface-2', '--surface-3', '--accent-soft', '--danger-soft', '--overlay'],
+  '#FF00FF': ['--bg', '--surface', '--surface-2', '--surface-3', '--accent-soft', '--danger-soft', '--live-soft', '--overlay'],
   '#00FFFF': ['--accent', '--accent-2', '--live', '--danger'],
-  '#00FF00': ['--text', '--muted', '--accent-contrast'],
+  '#00FF00': ['--text', '--muted', '--accent-contrast', '--danger-contrast', '--avatar-text'],
   '#FFFF00': ['--border', '--border-strong'],
 };
 const EXTRA = { '--shadow-1': '0 0 0 1px #FF00FF', '--shadow-2': '0 0 0 1px #FF00FF', '--focus-ring': '0 0 0 3px #FF00FF' };
@@ -55,6 +57,7 @@ function parseArgs(argv) {
     else if (a === '--full') opts.full = true;
     else if (a === '--no-magenta') opts.magenta = false;
     else if (a === '--eval') opts.eval = argv[++i];
+    else if (a === '--force-pseudo') opts.forcePseudo = true;
     else if (a.startsWith('--')) throw new Error(`Bilinmeyen seçenek: ${a}`);
     else pos.push(a);
   }
@@ -196,6 +199,17 @@ async function main() {
       await waitFor(() => evaluate(`document.readyState === 'complete'`), 10000, 'sayfa yüklenmedi');
     }
     if (opts.eval) await evaluate(opts.eval);
+    if (opts.forcePseudo) {
+      await send('DOM.enable');
+      await send('CSS.enable');
+      const { root } = await send('DOM.getDocument', { depth: 0 });
+      const { nodeIds } = await send('DOM.querySelectorAll', { nodeId: root.nodeId, selector: '[data-pseudo]' });
+      for (const nodeId of nodeIds) {
+        const { attributes } = await send('DOM.getAttributes', { nodeId });
+        const states = attributes[attributes.indexOf('data-pseudo') + 1].split(/\s+/).filter(Boolean);
+        await send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: states });
+      }
+    }
     await evaluate('document.fonts.ready.then(() => true)');
     if (opts.magenta) {
       const decls = [];

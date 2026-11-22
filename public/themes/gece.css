@@ -18,9 +18,12 @@
   --accent-soft: rgba(139, 156, 255, .16);
   --accent-2: #FFD23F;
   --live: #4ADE80;
+  --live-soft: rgba(74, 222, 128, .14);
   --danger: #FF6B7A;
   --danger-soft: rgba(255, 107, 122, .14);
+  --danger-contrast: #0E0F13;
   --overlay: rgba(6, 7, 10, .72);
+  --avatar-text: #FFFFFF;
 
   --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
