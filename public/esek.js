@@ -1,6 +1,6 @@
 // ---------- Amuda kalkan eşek: Enver ----------
 // Yönetici üst çubuktaki 🫏 düğmesine basınca odadaki herkesin ekranında ortada belirir (sunucu: 'esek:show' → 'esek').
-// Gösteri ~8 sn: yukarıdan takla atarak düşer, ön ayaklarının üstüne konar, dengede durmaya çalışır, bir ara düşecek
+// Gösteri ~8 sn: yukarıdan amut duruşunda dönerek düşer, ön ayaklarının üstüne konar, dengede durmaya çalışır, bir ara düşecek
 // gibi olup toparlanır, "İ-haaa!" diye anırır, sonra zıplayıp dönerek gider. Sürükleyince çevrilir; Esc ya da
 // boşluğa tıklamak gösteriyi kapatır. Model basit parçalardan (kapsül, silindir, küre) kurulur; dosya indirilmez.
 // app.js bunu ilk gösteride dinamik import ile yükler (three.js ~730 KB, yalnızca o zaman iner).
@@ -229,16 +229,10 @@ export function showDonkey({ by } = {}) {
   scene.add(ground);
 
   const d = buildDonkey();
-  // pivot: ayakların bastığı nokta (sallanma ve düşüş yüksekliği); squash: konarken basılıp yaylanma;
-  // spinner: gövdenin ortası, takla buradan döner (ayaktan dönerse gövde ekrandan dışarı savrulur)
-  const CENTER = 1.75;
+  // pivot: ayakların bastığı nokta (sallanma, dönüş ve düşüş yüksekliği); squash: konarken basılıp yaylanma
   const pivot = new THREE.Group();
   const squash = new THREE.Group();
-  const spinner = new THREE.Group();
-  spinner.position.y = CENTER;
-  d.group.position.y = -CENTER;
-  spinner.add(d.group);
-  squash.add(spinner);
+  squash.add(d.group);
   pivot.add(squash);
   scene.add(pivot);
 
@@ -281,12 +275,12 @@ export function showDonkey({ by } = {}) {
     raf = requestAnimationFrame(frame);
     if (!drag) yaw += 0.22 * dt;
 
-    // Düşüş: ekranın hemen üstünden başlar, gövdesinin ortası etrafında bir takla atarak ellerinin üstüne iner
+    // Düşüş: ekranın üstünden doğrudan amut duruşunda, elleri önde iner; inerken kendi etrafında yarım tur döner.
+    // (Havada takla atınca dönüş sahneye inmeden yukarıda bitiyor, kötü görünüyordu.)
     const f = span(t, 0, T.fall);
-    let y = (1 - easeIn(f)) * 3.9;
+    let y = (1 - easeIn(f)) * 4.8;
     let flip = 0;
-    const roll = (1 - f) * -Math.PI * 2; // takla düşüş boyunca eşit hızda, ekranın içinde görünür
-    let spinY = 0;
+    let spinY = (1 - easeOut(f)) * Math.PI;
     // Konma: basılıp yaylanır
     const l = span(t, T.fall, T.land);
     const sq = t < T.fall ? 1 : 1 - Math.sin(l * Math.PI) * 0.16 * (1 - l * 0.5);
@@ -303,14 +297,13 @@ export function showDonkey({ by } = {}) {
     if (j > 0) {
       sqOut = 1 + 0.06 * (1 - j);
       y += easeIn(j) * 9;
-      spinY = easeIn(j) * Math.PI * 4;
+      spinY += easeIn(j) * Math.PI * 4;
       flip = easeIn(j) * 0.4;
     }
 
     const s = sq * sqOut;
     pivot.position.y = y;
     pivot.rotation.set(flip + (t > T.fall ? Math.sin(t * 1.2 + 1) * 0.03 : 0), yaw + spinY, t > T.fall ? tilt : 0);
-    spinner.rotation.x = roll;
     squash.scale.set(1 + (1 - s) * 0.6, s, 1 + (1 - s) * 0.6);
     d.head.rotation.z = -pivot.rotation.z * 1.6;
     d.hind[0].rotation.z = -0.1 - flail;
