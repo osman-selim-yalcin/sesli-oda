@@ -171,8 +171,10 @@ function watchLevel(source, row, state) {
 
 // ---------- Katılımcı listesi ----------
 
+// Birleşik odada sınır iki katı (her odadan en fazla 6).
 function renderPeopleCount() {
-  $('people-count').textContent = `${peers.size + 1}/6`;
+  const max = curRoom?.max || 6;
+  $('people-count').textContent = `${peers.size + 1}/${curRoom?.mergedWith ? 2 * max : max}`;
 }
 
 // İsimden sabit bir renk: herkes her yerde (liste, sohbet) aynı renkte görünür.
@@ -6267,6 +6269,7 @@ function renderRoomInfo() {
   $('topbar-merged').hidden = !other;
   $('topbar-merged').textContent = other ? `⇄ ${roomNames.get(other) || other}` : '';
   $('room-settings-open').hidden = !canManage(curHome);
+  renderPeopleCount();
 }
 
 // Odaların güncel görünümü (soket odadayken rooms olayı gelmez); ayarlar penceresi ve bilinmeyen oda adı için.
