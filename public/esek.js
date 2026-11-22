@@ -1,7 +1,7 @@
 // ---------- Amuda kalkan eşek: Enver ----------
 // Yönetici üst çubuktaki 🫏 düğmesine basınca odadaki herkesin ekranında ortada belirir (sunucu: 'esek:show' → 'esek').
-// Gösteri ~8 sn: yukarıdan amut duruşunda dönerek düşer, ön ayaklarının üstüne konar, dengede durmaya çalışır, bir ara düşecek
-// gibi olup toparlanır, "İ-haaa!" diye anırır, sonra zıplayıp dönerek gider. Sürükleyince çevrilir; Esc ya da
+// Gösteri ~8 sn: yukarıdan amut duruşunda dönerek düşer, ön ayaklarının üstüne konar, sahnede zıplayıp ters takla
+// atar, dengede durmaya çalışır, bir ara düşecek gibi olup toparlanır, "İ-haaa!" diye anırır, sonra zıplayıp dönerek gider. Sürükleyince çevrilir; Esc ya da
 // boşluğa tıklamak gösteriyi kapatır. Model basit parçalardan (kapsül, silindir, küre) kurulur; dosya indirilmez.
 // app.js bunu ilk gösteride dinamik import ile yükler (three.js ~730 KB, yalnızca o zaman iner).
 
@@ -171,7 +171,7 @@ function buildDonkey() {
 }
 
 // ---------- Gösteri zaman çizelgesi (sn) ----------
-const T = { fall: 1.1, land: 1.45, wobbleBig: 3.0, wobbleBigEnd: 4.1, bray: 4.4, brayEnd: 5.9, crouch: 6.5, jump: 6.8, fade: 7.4, end: 8.0 };
+const T = { fall: 1.0, land: 1.3, flip: 1.45, flipEnd: 2.35, flipLand: 2.65, wobbleBig: 3.2, wobbleBigEnd: 4.1, bray: 4.4, brayEnd: 5.9, crouch: 6.5, jump: 6.8, fade: 7.4, end: 8.0 };
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const easeOut = (x) => 1 - (1 - x) ** 3;
 const easeIn = (x) => x ** 2;
@@ -210,7 +210,7 @@ export function showDonkey({ by } = {}) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 60);
-  camera.position.set(0, 2.2, 8.6);
+  camera.position.set(0, 2.2, 9.2);
   camera.lookAt(0, 1.8, 0);
 
   scene.add(new THREE.HemisphereLight(0xdfe6ff, 0x3a3226, 1.4));
@@ -229,10 +229,16 @@ export function showDonkey({ by } = {}) {
   scene.add(ground);
 
   const d = buildDonkey();
-  // pivot: ayakların bastığı nokta (sallanma, dönüş ve düşüş yüksekliği); squash: konarken basılıp yaylanma
+  // pivot: ayakların bastığı nokta (sallanma, dönüş ve yükseklik); squash: konarken basılıp yaylanma;
+  // spinner: gövdenin ortası, ters takla buradan döner (ayaktan dönerse gövde sahneden dışarı savrulur)
+  const CENTER = 1.75;
   const pivot = new THREE.Group();
   const squash = new THREE.Group();
-  squash.add(d.group);
+  const spinner = new THREE.Group();
+  spinner.position.y = CENTER;
+  d.group.position.y = -CENTER;
+  spinner.add(d.group);
+  squash.add(spinner);
   pivot.add(squash);
   scene.add(pivot);
 
@@ -276,16 +282,25 @@ export function showDonkey({ by } = {}) {
     if (!drag) yaw += 0.22 * dt;
 
     // Düşüş: ekranın üstünden doğrudan amut duruşunda, elleri önde iner; inerken kendi etrafında yarım tur döner.
-    // (Havada takla atınca dönüş sahneye inmeden yukarıda bitiyor, kötü görünüyordu.)
+    // (Takla havada değil, yere indikten sonra sahnede atılır; havada atınca sahneye inmeden yukarıda bitiyordu.)
     const f = span(t, 0, T.fall);
     let y = (1 - easeIn(f)) * 4.8;
     let flip = 0;
     let spinY = (1 - easeOut(f)) * Math.PI;
-    // Konma: basılıp yaylanır
+    // Konma: basılıp yaylanır (inişte ve taklanın sonunda)
     const l = span(t, T.fall, T.land);
-    const sq = t < T.fall ? 1 : 1 - Math.sin(l * Math.PI) * 0.16 * (1 - l * 0.5);
+    const l2 = span(t, T.flipEnd, T.flipLand);
+    let sq = t < T.fall ? 1 : 1 - Math.sin(l * Math.PI) * 0.16 * (1 - l * 0.5);
+    if (t > T.flipEnd) sq = 1 - Math.sin(l2 * Math.PI) * 0.18 * (1 - l2 * 0.5);
+    // Ters takla: sahnede zıplar, gövdesinin ortası etrafında geriye bir tur döner, yine ellerinin üstüne konar
+    const fl = span(t, T.flip, T.flipEnd);
+    const flipping = fl > 0 && fl < 1;
+    if (flipping) y += Math.sin(fl * Math.PI) * 0.6; // dönerken boyu kadar yer kaplar; yüksek zıplarsa sahneden taşar
+    const roll = flipping ? -(fl * fl * (3 - 2 * fl)) * Math.PI * 2 : 0;
+    // Zıplamadan hemen önce çömelir
+    if (t > T.flip - 0.15 && t < T.flip) sq = 1 - span(t, T.flip - 0.15, T.flip) * 0.12;
     // Denge: sürekli hafif salınım + bir kez büyük sendeleme
-    let tilt = Math.sin(t * 1.7) * 0.045 + Math.sin(t * 3.1) * 0.012;
+    let tilt = flipping ? 0 : Math.sin(t * 1.7) * 0.045 + Math.sin(t * 3.1) * 0.012;
     const big = span(t, T.wobbleBig, T.wobbleBigEnd);
     if (big > 0 && big < 1) tilt += Math.sin(big * Math.PI) * 0.32 * Math.cos(big * Math.PI * 2.2 - 0.6);
     let flail = 0.08 * Math.sin(t * 2.3);
@@ -305,6 +320,7 @@ export function showDonkey({ by } = {}) {
     pivot.position.y = y;
     pivot.rotation.set(flip + (t > T.fall ? Math.sin(t * 1.2 + 1) * 0.03 : 0), yaw + spinY, t > T.fall ? tilt : 0);
     squash.scale.set(1 + (1 - s) * 0.6, s, 1 + (1 - s) * 0.6);
+    spinner.rotation.x = roll;
     d.head.rotation.z = -pivot.rotation.z * 1.6;
     d.hind[0].rotation.z = -0.1 - flail;
     d.hind[1].rotation.z = 0.1 + flail * 0.9;
