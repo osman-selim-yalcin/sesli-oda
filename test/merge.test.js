@@ -107,6 +107,39 @@ async function mergeRooms({ A, B, ownerA, ownerB }, bSockets) {
 
 // ---------- merge.js (süreç içinde) ----------
 
+test('merge.js throttle: ret ve düşmeden sonra 60 sn bekleme (yalnız o yön), hesap başına 60 sn\'de 3 istek', () => {
+  const now = 1e9;
+  const COOL = 'Bu odaya az önce istek gönderildi; biraz sonra tekrar dene.';
+  // Ret: aynı yön 60 sn bekler, ters yön ve başka oda serbest
+  assert.equal(merge.throttle('t-sahip1', 't-a', 't-b', now), null);
+  const q = merge.propose('t-a', 't-b', 'x', now);
+  assert.equal(merge.answer(q.id, false, now + 10), null);
+  assert.deepEqual(merge.throttle('t-sahip2', 't-a', 't-b', now + 20), { error: COOL });
+  assert.equal(merge.throttle('t-sahip3', 't-b', 't-a', now + 20), null, 'ters yön');
+  assert.deepEqual(merge.throttle('t-sahip2', 't-a', 't-b', now + 10 + merge.COOLDOWN - 1), { error: COOL });
+  assert.equal(merge.throttle('t-sahip4', 't-a', 't-b', now + 10 + merge.COOLDOWN), null, 'süre bitti');
+
+  // Düşme (zaman aşımı) de bekletir
+  const e = merge.propose('t-c', 't-d', 'x', now);
+  assert.equal(merge.expire(now + merge.REQUEST_TTL).length, 1);
+  assert.deepEqual(merge.throttle('t-sahip5', 't-c', 't-d', now + merge.REQUEST_TTL + 1), { error: COOL });
+  assert.ok(e.id);
+
+  // Kabul bekletmez
+  const k = merge.propose('t-e', 't-f', 'x', now);
+  assert.deepEqual(merge.answer(k.id, true, now), { host: 't-e', guest: 't-f' });
+  merge.split('t-e');
+  assert.equal(merge.throttle('t-sahip6', 't-e', 't-f', now + 1), null);
+
+  // Hesap başına 60 sn'de en çok 3 çağrı (bütün hedeflere toplam); pencere kayınca yeniden
+  assert.equal(merge.throttle('t-yogun', 't-g', 't-h1', now), null);
+  assert.equal(merge.throttle('t-yogun', 't-g', 't-h2', now + 1), null);
+  assert.equal(merge.throttle('t-yogun', 't-g', 't-h3', now + 2), null);
+  assert.match(merge.throttle('t-yogun', 't-g', 't-h4', now + 3).error, /Çok fazla birleşme isteği/);
+  assert.equal(merge.throttle('t-baska', 't-g', 't-h4', now + 3), null, 'başka hesap etkilenmez');
+  assert.equal(merge.throttle('t-yogun', 't-g', 't-h4', now + merge.RATE_WINDOW), null);
+});
+
 test('merge.js: aynı oda, bekleyen çift, birleşik oda hata; ret ve zaman aşımı durumu temizler', () => {
   const now = 1_000_000;
   assert.ok(merge.propose('u-a', 'u-a', 'x', now).error);
@@ -292,7 +325,7 @@ test('ayrılma: B kökenliler kendi geçmişini ve tier listlerini görür; birl
   assert.ok(r.chat.some((c) => c.text === 'birleşikken'));
 });
 
-test('ret ve 60 sn zaman aşımı: durum temiz, yeniden istek gönderilebilir', async () => {
+test('ret ve 60 sn zaman aşımı: durum temiz; aynı yöne bekleme süresi, ters yön serbest', async () => {
   const p = await pair();
   const bside = await fill(p.B, `Bade${p.t}-`, 1);
   const a = await online(p.ownerA);
@@ -310,11 +343,13 @@ test('ret ve 60 sn zaman aşımı: durum temiz, yeniden istek gönderilebilir', 
   await moved;
   assert.equal((await listed(p.B)).mergedWith, null);
 
-  // Zaman aşımı: merge.expire saatle çağrılır (sunucu süreci ayrı; burada aynı kural süreç içinde)
-  inc = next(b, 'merge:incoming');
-  assert.equal((await request(a, p.A, p.B)).error, undefined, 'retten sonra yeniden');
-  const { id } = await inc;
-  assert.ok(id);
+  // Retten sonra aynı yöne 60 sn yeni istek yok (karşı odanın sahibi rahatsız edilmesin); ters yön serbest
+  const silent = next(b, 'merge:incoming', 500).then(() => assert.fail('bekleme süresinde istek gitmemeli'), () => {});
+  assert.deepEqual(await request(a, p.A, p.B), { error: 'Bu odaya az önce istek gönderildi; biraz sonra tekrar dene.' });
+  await silent;
+  inc = next(a, 'merge:incoming');
+  assert.equal((await request(b, p.B, p.A)).error, undefined, 'ters yön');
+  assert.ok((await inc).id);
   // Sunucunun 5 sn'de bir çalışan expire'ı 60 sn sonra düşürür; süreç içi kural aşağıda denetlenir.
   const local = merge.propose(`${p.A}-x`, `${p.B}-x`, 'x', 0);
   merge.expire(merge.REQUEST_TTL);

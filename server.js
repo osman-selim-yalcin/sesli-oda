@@ -1044,9 +1044,12 @@ function bindMergeEvents(socket) {
     const toReg = regOf(to);
     if (!fromReg || !toReg) return ack({ error: 'Böyle bir oda yok.' });
     if (!canMerge(fromReg, account)) return ack(NO_MERGE_RIGHT);
+    const admin = accounts.isAdmin(account.key);
+    // Sahip başka odanın sahibini art arda isteklerle rahatsız edemez (yönetici muaf).
+    const slow = !admin && merge.throttle(account.key, fromReg.id, toReg.id);
+    if (slow) return ack(slow);
     const full = mergeCapacityError(fromReg.id, toReg.id);
     if (full) return ack(full);
-    const admin = accounts.isAdmin(account.key);
     if (!admin && !onlineSockets(toReg.ownerId).length) return ack({ error: 'Karşı odanın sahibi şu an çevrimiçi değil.' });
     const req = merge.propose(fromReg.id, toReg.id, account.name);
     if (req.error) return ack(req);

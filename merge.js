@@ -1,10 +1,16 @@
 // Oda birleştirme: saf durum makinesi (soket, zamanlayıcı bilmez; sunucu bağlar).
 // İsteği gönderen oda ev sahibi (host), kabul eden oda misafir (guest) olur. Birleşme yalnız hafızadadır.
 const REQUEST_TTL = 60 * 1000; // ms; cevaplanmayan istek bu kadar sonra düşer
+const COOLDOWN = 60 * 1000;    // ms; reddedilen ya da düşen istekten sonra aynı yöne (from -> to) yeni istek yok
+const RATE_WINDOW = 60 * 1000; // ms; bir hesap bu sürede...
+const RATE_MAX = 3;            // ...en fazla bu kadar istek gönderebilir (bütün odalara toplam)
 
 const requests = new Map(); // istek id -> { id, from, to, by, at }
 const pairs = new Map();    // oda id -> { host, guest } (iki oda da aynı nesneyi gösterir)
 let nextId = 1;
+const cooldowns = new Map(); // "from>to" -> bu zamana kadar yeni istek yok
+const sent = new Map();      // hesap anahtarı -> son RATE_WINDOW içindeki istek zamanları
+const dir = (from, to) => `${from}>${to}`;
 
 // Oda misafirse ev sahibinin id'si, değilse kendisi.
 const hostOf = (roomId) => pairs.get(roomId)?.host || roomId;
@@ -41,7 +47,10 @@ function answer(id, accept, now = Date.now()) {
   const q = pending(id, now);
   if (!q) return { error: 'Birleşme isteği bulunamadı ya da süresi doldu.' };
   requests.delete(id);
-  if (!accept) return null;
+  if (!accept) {
+    cooldowns.set(dir(q.from, q.to), now + COOLDOWN);
+    return null;
+  }
   if (pairs.has(q.from) || pairs.has(q.to)) return { error: 'Birleşik bir oda başka bir odayla birleşemez.' };
   const pair = { host: q.from, guest: q.to };
   pairs.set(pair.host, pair);
@@ -73,9 +82,24 @@ function expire(now = Date.now()) {
   for (const [id, q] of requests) {
     if (live(q, now)) continue;
     requests.delete(id);
+    cooldowns.set(dir(q.from, q.to), now + COOLDOWN);
     dropped.push(q);
   }
   return dropped;
 }
 
-module.exports = { REQUEST_TTL, hostOf, partnerOf, pending, propose, answer, split, forget, expire };
+// Başka bir odanın sahibini rahatsız etmeye karşı (site yöneticisine uygulanmaz; çağıran ayırır): hesabın
+// her merge:request çağrısı sayılır. Hesap son RATE_WINDOW'da RATE_MAX istek gönderdiyse ya da bu yöne
+// istek az önce reddedildi / düştüyse { error }, yoksa null.
+function throttle(key, fromId, toId, now = Date.now()) {
+  const times = (sent.get(key) || []).filter((t) => now - t < RATE_WINDOW);
+  const full = times.length >= RATE_MAX;
+  if (!full) times.push(now);
+  sent.set(key, times);
+  for (const [k, until] of cooldowns) if (until <= now) cooldowns.delete(k);
+  if ((cooldowns.get(dir(fromId, toId)) || 0) > now) return { error: 'Bu odaya az önce istek gönderildi; biraz sonra tekrar dene.' };
+  if (full) return { error: 'Çok fazla birleşme isteği gönderdin; biraz sonra tekrar dene.' };
+  return null;
+}
+
+module.exports = { REQUEST_TTL, COOLDOWN, RATE_MAX, RATE_WINDOW, throttle, hostOf, partnerOf, pending, propose, answer, split, forget, expire };
