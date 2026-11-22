@@ -6047,10 +6047,8 @@ $('avatar-remove').onclick = $('profile-remove').onclick = async () => {
 
 fetch('/status')
   .then((r) => r.json())
-  .then(({ names, max }) => {
-    $('room-status').textContent = names.length
-      ? `Şu an odada (${names.length}/${max}): ${names.join(', ')}`
-      : 'Oda şu an boş.';
+  .then(({ online }) => {
+    $('room-status').textContent = online ? `Şu an sitede ${online} kişi var.` : 'Şu an sitede kimse yok.';
   })
   .catch(() => {});
 

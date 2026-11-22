@@ -46,10 +46,10 @@ async function startServer() {
   return { url: `http://localhost:${port}`, port, stop };
 }
 
-// Bağlı socket.io istemcisi; token 'test:<ad>'.
-function client(url, name) {
+// Bağlı socket.io istemcisi; token 'test:<ad>'. opts socket.io-client'a geçer (ör. extraHeaders).
+function client(url, name, opts = {}) {
   return new Promise((resolve, reject) => {
-    const socket = io(url, { transports: ['websocket'], forceNew: true });
+    const socket = io(url, { transports: ['websocket'], forceNew: true, ...opts });
     socket.token = 'test:' + name;
     socket.once('connect', () => resolve(socket));
     socket.once('connect_error', reject);

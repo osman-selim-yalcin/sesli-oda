@@ -130,7 +130,7 @@ app.get(/^\/(gecmis|oyunlar|uyeler|radyo)(\/[\w-]*)*\/?$/, (req, res) => res.sen
 accounts.setup(app, {
   imageTypes: IMAGE_TYPES,
   onProfile: (name, avatar) => io.emit('profile', { name, avatar }),
-  online: () => [...(rooms.get('genel')?.users.values() || [])].map((u) => u.name),
+  online: () => [...rooms.values()].flatMap((room) => [...room.users.values()].map((u) => u.name)),
 });
 roomStore.setup(app, {
   live: (id) => ({ users: [...(rooms.get(id)?.users.values() || [])].map((u) => u.name), max: MAX_USERS, mergedWith: null }),
@@ -282,10 +282,11 @@ app.get('/search', async (req, res) => {
   }
 });
 
-// Giriş ekranı için: tek odada kimler var.
+// Giriş ekranı için: sitede (bütün odalarda) kaç kişi var. Adlar oturumsuz ziyaretçiye verilmez.
 app.get('/status', (req, res) => {
-  const room = rooms.get('genel');
-  res.json({ names: room ? [...room.users.values()].map((u) => u.name) : [], max: MAX_USERS });
+  let online = 0;
+  for (const room of rooms.values()) online += room.users.size;
+  res.json({ online });
 });
 
 const server = http.createServer(app);
@@ -560,51 +561,177 @@ function deleteCard(room, list, cardId) {
   dropImage(room, card?.image);
 }
 
+// ---------- Odaya giriş ve çıkış ----------
+
+const ROOM_PASS_FAIL_MAX = 10;                 // yanlış oda şifresi: bu kadar denemeden sonra...
+const ROOM_PASS_FAIL_WINDOW = 10 * 60 * 1000;  // ...bu süre beklenir
+const roomPassTries = accounts.attemptLimiter(ROOM_PASS_FAIL_MAX, ROOM_PASS_FAIL_WINDOW);
+
+// Bağlananın adresi. Render'ın vekil sunucusu adresi X-Forwarded-For'un sonuna ekler; Express'teki
+// 'trust proxy' 1 ayarıyla aynı kuralla son değer alınır (öncekileri istemci kendisi yazabilir).
+function socketIp(socket) {
+  const forwarded = socket.handshake.headers['x-forwarded-for'];
+  const last = typeof forwarded === 'string' ? forwarded.split(',').pop().trim() : '';
+  return last || socket.handshake.address;
+}
+
+// join'in izin kısmı: oturum, oda, şifre. Hata ya da { account, clientId, roomId } döner.
+// Şifre yanlışsa oda hakkında hiçbir veri dönmez.
+async function admit(socket, { token, clientId, roomId, password }) {
+  clientId = String(clientId || '').slice(0, 64);
+  const account = accounts.accountByToken(token);
+  if (!account) return { error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true };
+  accounts.seen(account.key);
+  const gone = { error: 'Böyle bir oda yok.', gone: true };
+  const reg = typeof roomId === 'string' ? roomStore.get(roomId) : undefined;
+  if (!reg) return gone;
+  if (roomStore.role(reg, account) === 'none') {
+    if (password == null || password === '') return { error: 'Bu oda şifreli.', needPassword: true };
+    // Deneme await'ten önce sayılır (paralel denemeler sınırı aşamasın); doğru şifrede geri alınır.
+    const releaseIp = roomPassTries.reserve(`ip:${socketIp(socket)}`);
+    const releaseKey = releaseIp && roomPassTries.reserve(`hesap:${account.key}:${reg.id}`);
+    if (!releaseKey) {
+      releaseIp?.();
+      return { error: 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.', wait: true };
+    }
+    const ok = typeof password === 'string' && password.length <= 200 && await accounts.checkPassword(password, reg.passHash);
+    if (!ok) return { error: 'Şifre yanlış.', needPassword: true };
+    releaseIp();
+    releaseKey();
+    try {
+      await roomStore.addMember(reg.id, account.key);
+    } catch (err) {
+      console.warn('oda üyeliği yazılamadı', err.message); // hafızada üye; yeniden başlayınca şifre yine sorulur
+    }
+    if (!roomStore.get(reg.id)) return gone; // denetlenirken oda kapanmış olabilir
+  }
+  return { account, clientId, roomId: reg.id };
+}
+
+// Soketi odaya yerleştirir ve join cevabını kurar (izin denetimi çağıranda).
+// Hesabın başka bir odadaki soketi oradan düşürülür; aynı odadaki eski soketi (aynı sekme ya da hesap) kapatılır.
+// Döner: join cevabı ve rejoined (sayfa yenilendi: "katıldı" mesajı yazılmaz) ya da { error }.
+function enterRoom(socket, account, clientId, roomId) {
+  const reg = roomStore.get(roomId);
+  if (!reg) return { error: 'Böyle bir oda yok.', gone: true }; // canlı durum yalnız açık kayıtlı odaya kurulur
+  const roomCode = reg.id;
+  const { name } = account;
+  const room = getRoom(roomCode);
+
+  // Sayfa yenilenince eski bağlantı hemen kapanmayabilir; aynı sekmenin eski kaydını sileriz.
+  // Aynı hesapla başka bir sekmeden/cihazdan girilirse eskisi odadan çıkarılır.
+  const leaveKey = `${roomCode}:${clientId}`;
+  let rejoined = pendingLeaves.has(leaveKey);
+  clearTimeout(pendingLeaves.get(leaveKey));
+  pendingLeaves.delete(leaveKey);
+
+  for (const [id, user] of room.users) {
+    if (!(clientId && user.clientId === clientId) && user.name !== name) continue;
+    rejoined = true;
+    room.users.delete(id);
+    stopSharing(room, roomCode, id);
+    io.to(roomCode).emit('user-left', id);
+    io.sockets.sockets.get(id)?.disconnect(true);
+  }
+
+  if (room.users.size >= MAX_USERS) {
+    return { error: `Oda dolu (en fazla ${MAX_USERS} kişi).` };
+  }
+
+  // Hesap aynı anda tek odada: başka odadaki soketi oradan çıkar (soket bağlı kalır).
+  for (const other of rooms.values()) {
+    if (other === room) continue;
+    for (const [id, user] of other.users) {
+      if (user.key !== account.key) continue;
+      const old = io.sockets.sockets.get(id);
+      old?.emit('kicked', { reason: 'Başka bir odaya girdin.' });
+      if (old) leaveRoom(old, { grace: false });
+    }
+  }
+
+  const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
+  socket.data.setCode(roomCode);
+  room.users.set(socket.id, { name, key: account.key, home: roomCode, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
+  socket.join(roomCode);
+  socket.to(roomCode).emit('user-joined', { id: socket.id, name, muted: false });
+  return { rejoined, id: socket.id, room: roomStore.view(reg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(room.code), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(room.code), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+}
+
+// Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
+// mesajı ve oyun/lobi temizliği REJOIN_GRACE kadar bekletilir; false iken hemen yapılır.
+function leaveRoom(socket, { grace }) {
+  const roomCode = socket.data.code;
+  if (!roomCode) return;
+  socket.data.setCode(null);
+  socket.leave(roomCode);
+  const room = rooms.get(roomCode);
+  // Yenileme sırasında zaten silinmiş olabilir.
+  const user = room?.users.get(socket.id);
+  if (!room || !room.users.delete(socket.id)) return;
+  stopSharing(room, roomCode, socket.id);
+  io.to(roomCode).emit('user-left', socket.id);
+
+  const leaveKey = `${roomCode}:${user.clientId}`;
+  const depart = () => {
+    pendingLeaves.delete(leaveKey);
+    const current = rooms.get(roomCode);
+    if (!current) return;
+    postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
+    checkRaceRound(current); // çıkan kişi durdurmamışsa kalanlar beklemesin
+    killDino(current, user.name);
+    kelimeLeft(current, user.name);
+    memoryLeft(current, user.name);
+    sayiLeft(current, user.name);
+    hedef.left(current, user.name);
+    kural.left(current, user.name);
+    mantik.left(current, user.name);
+    daktilo.left(current, user.name);
+    for (const game of Object.keys(current.lobbies)) leaveLobby(current, game, user.name);
+  };
+  if (grace) {
+    clearTimeout(pendingLeaves.get(leaveKey));
+    pendingLeaves.set(leaveKey, setTimeout(depart, REJOIN_GRACE));
+  } else {
+    depart();
+  }
+  if (room.users.size === 0) {
+    clearKelimeTimers(roomCode);
+    clearMemoryTimers(roomCode);
+    clearTimeout(sayiTimers.get(roomCode));
+    hedef.clearTimers(roomCode);
+    kural.clear(roomCode);
+    mantik.clear(roomCode);
+    daktilo.clear(roomCode);
+    rooms.delete(roomCode);
+    deleteRoomImages(roomCode);
+  }
+}
+
 io.on('connection', (socket) => {
   let code = null;
+  // leaveRoom/enterRoom (ve ileride oda taşıma) soketin odasını dışarıdan değiştirir.
+  socket.data.code = null;
+  socket.data.setCode = (c) => { code = c; socket.data.code = c; };
 
   socket.on('time', (ack) => typeof ack === 'function' && ack(Date.now()));
 
-  // İsim hesaptan gelir; herkes kendi hesabıyla girer.
-  socket.on('join', ({ token, clientId } = {}, ack) => {
-    if (typeof ack !== 'function' || code) return;
-    const roomCode = 'genel'; // tek oda var
-    clientId = String(clientId || '').slice(0, 64);
-    const account = accounts.accountByToken(token);
-    if (!account) return ack({ error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true });
-    accounts.seen(account.key);
-    const { name } = account;
-
-    const room = getRoom(roomCode);
-
-    // Sayfa yenilenince eski bağlantı hemen kapanmayabilir; aynı sekmenin eski kaydını sileriz.
-    // Aynı hesapla başka bir sekmeden/cihazdan girilirse eskisi odadan çıkarılır.
-    const leaveKey = `${roomCode}:${clientId}`;
-    let rejoined = pendingLeaves.has(leaveKey);
-    clearTimeout(pendingLeaves.get(leaveKey));
-    pendingLeaves.delete(leaveKey);
-
-    for (const [id, user] of room.users) {
-      if (!(clientId && user.clientId === clientId) && user.name !== name) continue;
-      rejoined = true;
-      room.users.delete(id);
-      stopSharing(room, roomCode, id);
-      io.to(roomCode).emit('user-left', id);
-      io.sockets.sockets.get(id)?.disconnect(true);
+  // İsim hesaptan gelir; herkes kendi hesabıyla girer. Şifreli odada üye olmayan şifre yazar.
+  let joining = false; // şifre denetlenirken ikinci join gelmesin
+  socket.on('join', async ({ token, clientId, room: roomId = 'genel', password } = {}, ack) => {
+    if (typeof ack !== 'function' || code || joining) return;
+    joining = true;
+    let res;
+    try {
+      res = await admit(socket, { token, clientId, roomId, password });
+    } finally {
+      joining = false;
     }
-
-    if (room.users.size >= MAX_USERS) {
-      return ack({ error: `Oda dolu (en fazla ${MAX_USERS} kişi).` });
-    }
-
-    const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
-    code = roomCode;
-    room.users.set(socket.id, { name, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
-    socket.join(code);
-    socket.to(code).emit('user-joined', { id: socket.id, name, muted: false });
-    ack({ id: socket.id, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(room.code), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(room.code), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() });
+    if (!socket.connected) return; // şifre denetlenirken ayrıldı
+    if (res.error) return ack(res);
+    const { rejoined, ...payload } = enterRoom(socket, res.account, res.clientId, res.roomId);
+    ack(payload);
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
-    if (!rejoined) postSystem(room, `${name} odaya katıldı`, { event: 'join', from: socket.id });
+    if (!payload.error && !rejoined) postSystem(getRoom(code), `${res.account.name} odaya katıldı`, { event: 'join', from: socket.id });
   });
 
   // WebRTC sinyal mesajlarını (offer/answer/ice) aynı odadaki hedefe iletir.
@@ -1433,44 +1560,7 @@ io.on('connection', (socket) => {
     sendKelime(room);
   });
 
-  socket.on('disconnect', () => {
-    if (!code) return;
-    const room = getRoom(code);
-    // Yenileme sırasında zaten silinmiş olabilir.
-    const user = room.users.get(socket.id);
-    if (!room.users.delete(socket.id)) return;
-    stopSharing(room, code, socket.id);
-    socket.to(code).emit('user-left', socket.id);
-
-    const roomCode = code;
-    const leaveKey = `${roomCode}:${user.clientId}`;
-    pendingLeaves.set(leaveKey, setTimeout(() => {
-      pendingLeaves.delete(leaveKey);
-      const current = rooms.get(roomCode);
-      if (current) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
-      if (current) checkRaceRound(current); // çıkan kişi durdurmamışsa kalanlar beklemesin
-      if (current) killDino(current, user.name);
-      if (current) kelimeLeft(current, user.name);
-      if (current) memoryLeft(current, user.name);
-      if (current) sayiLeft(current, user.name);
-      if (current) hedef.left(current, user.name);
-      if (current) kural.left(current, user.name);
-      if (current) mantik.left(current, user.name);
-      if (current) daktilo.left(current, user.name);
-      if (current) for (const game of Object.keys(current.lobbies)) leaveLobby(current, game, user.name);
-    }, REJOIN_GRACE));
-    if (room.users.size === 0) {
-      clearKelimeTimers(code);
-      clearMemoryTimers(code);
-      clearTimeout(sayiTimers.get(code));
-      hedef.clearTimers(code);
-      kural.clear(code);
-      mantik.clear(code);
-      daktilo.clear(code);
-      rooms.delete(code);
-      deleteRoomImages(code);
-    }
-  });
+  socket.on('disconnect', () => leaveRoom(socket, { grace: true }));
 });
 
 // ---------- Süre yarışı ----------

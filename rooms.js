@@ -115,11 +115,26 @@ async function create({ name, ownerId, password, passHash: ready, theme }) {
   return room;
 }
 
+const isMember = (roomId, key) => Boolean(members.get(roomId)?.has(key));
+
+// Şifreyi bir kez doğru yazan hesap odanın üyesi olur; bir daha şifre sorulmaz.
+// Hafızaya hemen eklenir; kayıt hatası fırlatılır (aynı satır zaten varsa hata sayılmaz).
+async function addMember(roomId, key) {
+  if (isMember(roomId, key)) return;
+  if (!members.has(roomId)) members.set(roomId, new Set());
+  members.get(roomId).add(key);
+  try {
+    await store.insert('room_members', { room_id: roomId, account_id: key, joined_at: new Date().toISOString() });
+  } catch (err) {
+    if (!/ 409 /.test(err.message)) throw err; // birincil anahtar çakışması: üyelik zaten kayıtlı
+  }
+}
+
 function role(room, account) {
   if (!room || !account?.key) return 'none';
   if (accounts.isAdmin(account.key)) return 'admin';
   if (room.ownerId === account.key) return 'owner';
-  if (!room.passHash || members.get(room.id)?.has(account.key)) return 'member';
+  if (!room.passHash || isMember(room.id, account.key)) return 'member';
   return 'none';
 }
 
@@ -274,4 +289,4 @@ function setup(app, opts) {
   });
 }
 
-module.exports = { load, get, all, slugOf, create, role, view, setup, THEMES };
+module.exports = { load, get, all, slugOf, create, role, view, setup, addMember, isMember, THEMES };
