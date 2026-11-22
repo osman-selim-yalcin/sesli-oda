@@ -14,6 +14,8 @@ before(async () => {
   assert.equal(r.status, 200, JSON.stringify(r.json));
   const k = await http(srv.url, 'POST', '/rooms', { token: ADMIN, body: { name: 'Kapanan Oda' } });
   assert.equal(k.status, 200, JSON.stringify(k.json));
+  const d = await http(srv.url, 'POST', '/rooms', { token: ADMIN, body: { name: 'Dolu Oda' } });
+  assert.equal(d.status, 200, JSON.stringify(d.json));
 });
 after(async () => {
   for (const s of sockets) s.close();
@@ -128,6 +130,10 @@ test('aynı sokette başka hesabın tokenı reddedilir', async () => {
   assert.equal(typeof other.error, 'string');
   const j = await ack(s, 'join', { token: 'test:Ikinci', clientId: 'x1', room: 'genel' });
   assert.equal(j.auth, true);
+  const expired = await ack(s, 'join', { token: 'yanlis', clientId: 'x1', room: 'genel' });
+  assert.deepEqual(expired, { error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true });
+  const missing = await ack(s, 'join', { clientId: 'x1', room: 'genel' });
+  assert.deepEqual(missing, { error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true });
   const j2 = await ack(s, 'join', { token: 'test:Birinci', clientId: 'x1', room: 'genel' });
   assert.equal(j2.error, undefined);
   s.close();
@@ -183,4 +189,21 @@ test('oda kapanınca içerideki soket listeye döner ve rooms alır', async () =
   const { rooms } = await listed;
   assert.equal(rooms.find((x) => x.id === 'genel').role, 'member');
   s.close();
+});
+
+test('hello demeden dolu odaya giremeyen soket listeye alınır ve rooms alır', async () => {
+  const inside = [];
+  for (let i = 1; i <= 6; i++) {
+    const s = await user(`Dolu${i}`);
+    assert.equal((await join(s, 'dolu-oda')).error, undefined);
+    inside.push(s);
+  }
+  const late = await user('Gec');
+  const res = await join(late, 'dolu-oda');
+  assert.match(res.error, /Oda dolu/);
+  const got = roomsWhere(late, (d) => d.rooms.find((r) => r.id === 'dolu-oda')?.users.length === 5);
+  inside[0].close();
+  await got;
+  for (const s of inside) s.close();
+  late.close();
 });

@@ -173,6 +173,7 @@ function unbindAccount(socket) {
   if (!set.size) socketsByKey.delete(key);
 }
 const OTHER_ACCOUNT = { error: 'Bu bağlantı başka bir hesaba ait; sayfayı yenile.', auth: true };
+const SESSION_GONE = { error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true };
 
 const roomList = (account) => roomStore.all().map((r) => roomStore.view(r, account));
 
@@ -186,7 +187,12 @@ function roomsChanged() {
     roomsTimer = null;
     for (const id of io.sockets.adapter.rooms.get(LOBBY) || []) {
       const socket = io.sockets.sockets.get(id);
-      if (socket?.data.account) socket.emit('rooms', { rooms: roomList(socket.data.account) });
+      if (!socket?.data.account) continue;
+      try {
+        socket.emit('rooms', { rooms: roomList(socket.data.account) });
+      } catch (err) {
+        console.warn('oda listesi', err.message); // bozuk bir kayıt yalnız bu soketi atlatsın, sunucu düşmesin
+      }
     }
   }, ROOMS_COALESCE);
 }
@@ -833,7 +839,11 @@ io.on('connection', (socket) => {
   socket.on('join', async ({ token, clientId, room: roomId = 'genel', password } = {}, ack) => {
     if (typeof ack !== 'function' || code || joining) return;
     const bound = socket.data.account;
-    if (bound && accounts.accountByToken(token)?.key !== bound.key) return ack(OTHER_ACCOUNT);
+    if (bound) {
+      const account = accounts.accountByToken(token);
+      if (!account) return ack(SESSION_GONE);
+      if (account.key !== bound.key) return ack(OTHER_ACCOUNT);
+    }
     joining = true;
     let res, rejoined, payload;
     try {
@@ -846,10 +856,12 @@ io.on('connection', (socket) => {
       // Beklenmeyen hata sunucuyu düşürmesin (yakalanmayan ret süreci kapatır); istemci cevapsız kalmasın.
       console.warn('odaya giriş', err.message);
       if (code) undoEnter(); // enterRoom yarıda kaldıysa code dolu kalır ve yeniden deneme yok sayılırdı
+      else backToLobby(socket); // kimliklendi ama odaya giremedi: listede beklesin
       return ack({ error: 'Odaya girilemedi, biraz sonra tekrar dene.' });
     } finally {
       joining = false;
     }
+    if (payload.error) backToLobby(socket); // kimliklendi ama odaya giremedi (oda dolu): listede beklesin
     ack(payload);
     // Cevaptan sonra: giren kişi bu mesajı hem geçmişte hem bildirimde iki kez görmesin.
     if (!payload.error && !rejoined) postSystem(getRoom(code), `${res.account.name} odaya katıldı`, { event: 'join', from: socket.id });
@@ -860,7 +872,7 @@ io.on('connection', (socket) => {
   socket.on('hello', ({ token } = {}, ack) => {
     if (typeof ack !== 'function') return;
     const account = accounts.accountByToken(token);
-    if (!account) return ack({ error: 'Oturumun kapanmış, tekrar giriş yap.', auth: true });
+    if (!account) return ack(SESSION_GONE);
     if (!bindAccount(socket, account)) return ack(OTHER_ACCOUNT);
     accounts.seen(account.key);
     if (!code) socket.join(LOBBY);
