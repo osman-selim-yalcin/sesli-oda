@@ -201,7 +201,10 @@ function setup(app, opts) {
     else return a;
     return null;
   };
-  const pendingCount = () => ({ pending: requests.length });
+  // Kayıt sürerken istek id'siz durur (aynı ad ya da ikinci istek geçmesin diye listede); id'siz istek
+  // listede, mine'da ve kararda görünmez.
+  const ready = () => requests.filter((q) => q.id != null);
+  const pendingCount = () => ({ pending: ready().length });
 
   app.post('/rooms/requests', json, async (req, res) => {
     const a = accounts.accountByToken(bearer(req));
@@ -225,9 +228,11 @@ function setup(app, opts) {
         const row = await store.insertReturning('room_requests', {
           account_id: a.key, name: q.name, pass_hash: passHash, theme: q.theme, note, created_at: new Date(q.createdAt).toISOString(),
         });
+        if (!row && store.enabled) throw new Error('room_requests ekleme satır döndürmedi'); // hafıza sayacı veritabanı id'leriyle çakışır
         q.id = row ? row.id : ++memId;
       } catch (err) {
-        requests.splice(requests.indexOf(q), 1);
+        const at = requests.indexOf(q);
+        if (at >= 0) requests.splice(at, 1);
         throw err;
       }
       onChange('request', pendingCount());
@@ -241,7 +246,7 @@ function setup(app, opts) {
   app.get('/rooms/requests/mine', (req, res) => {
     const a = accounts.accountByToken(bearer(req));
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
-    const q = requests.find((r) => r.accountId === a.key);
+    const q = ready().find((r) => r.accountId === a.key);
     if (q) return res.json({ request: { id: q.id, name: q.name, status: 'pending', decidedAt: null } });
     res.json({ request: latest.get(a.key) || null });
   });
@@ -249,7 +254,7 @@ function setup(app, opts) {
   app.get('/admin/room-requests', (req, res) => {
     if (!admin(req, res)) return;
     res.json({
-      requests: requests.map((q) => ({
+      requests: ready().map((q) => ({
         id: q.id, by: accounts.byKey(q.accountId)?.name || q.accountId, name: q.name,
         locked: Boolean(q.passHash), theme: q.theme, note: q.note, createdAt: q.createdAt,
       })),
@@ -261,7 +266,7 @@ function setup(app, opts) {
     if (!a) return;
     const approve = req.body?.approve;
     if (typeof approve !== 'boolean') return fail(res, 400, 'approve true ya da false olmalı.');
-    const at = requests.findIndex((q) => String(q.id) === req.params.id);
+    const at = requests.findIndex((q) => q.id != null && String(q.id) === req.params.id);
     if (at < 0) return fail(res, 409, 'Bu istek zaten karara bağlanmış ya da yok.');
     const [q] = requests.splice(at, 1); // karar sürerken ikinci karar aynı isteği bulamasın
     const restore = () => requests.splice(Math.min(at, requests.length), 0, q);

@@ -134,3 +134,56 @@ test('create metin olmayan şifreyi reddeder', async () => {
   }
   assert.equal(roomStore.all().some((x) => x.name === 'Şifre Denemesi'), false);
 });
+
+// Bu süreçte (sunucu süreci değil) rooms.js uçları: kayıt yazması elle geciktirilir.
+async function inProcess(fn) {
+  const express = require('express');
+  const store = require('../store');
+  const app = express();
+  roomStore.setup(app, { live: () => ({ users: [], max: 6, mergedWith: null }) });
+  const server = app.listen(0);
+  await new Promise((r) => server.once('listening', r));
+  const url = `http://localhost:${server.address().port}`;
+  const saved = { insertReturning: store.insertReturning, enabled: store.enabled, update: store.update };
+  try {
+    await fn(url, store);
+  } finally {
+    Object.assign(store, saved);
+    server.closeAllConnections(); // test yarıda kalırsa bekleyen istek sunucuyu açık tutmasın
+    await new Promise((r) => server.close(r));
+  }
+}
+
+test('kayıt sürerken kimliksiz istek listede, mine ve kararda görünmez; kayıt hatası başka isteği silmez', async () => {
+  await inProcess(async (url, store) => {
+    store.update = async () => {};
+    const other = await http(url, 'POST', '/rooms/requests', { token: 'test:Bekleyen', body: { name: 'Bekleyen Oda' } });
+    assert.equal(other.status, 200);
+    let fail;
+    store.insertReturning = () => new Promise((resolve, reject) => { fail = reject; setTimeout(() => reject(new Error('zaman aşımı')), 3000); });
+    const slow = http(url, 'POST', '/rooms/requests', { token: 'test:Yavas', body: { name: 'Yavaş Oda' } });
+    slow.catch(() => {});
+    while (!fail) await new Promise((r) => setTimeout(r, 5));
+    const list = (await http(url, 'GET', '/admin/room-requests', { token: ADMIN })).json.requests;
+    assert.deepEqual(list.map((q) => q.name), ['Bekleyen Oda']);
+    assert.equal((await http(url, 'GET', '/rooms/requests/mine', { token: 'test:Yavas' })).json.request, null);
+    assert.equal((await http(url, 'POST', '/admin/room-requests/null', { token: ADMIN, body: { approve: false } })).status, 409);
+    fail(new Error('yazılamadı'));
+    assert.equal((await slow).status, 500);
+    const after = (await http(url, 'GET', '/admin/room-requests', { token: ADMIN })).json.requests;
+    assert.deepEqual(after.map((q) => q.name), ['Bekleyen Oda']);
+    assert.equal((await http(url, 'POST', `/admin/room-requests/${other.json.request.id}`, { token: ADMIN, body: { approve: false } })).status, 200);
+  });
+});
+
+test('Supabase açıkken kayıt satır döndürmezse istek hata verir, hafıza sayacına düşmez', async () => {
+  await inProcess(async (url, store) => {
+    store.enabled = true;
+    store.insertReturning = async () => null;
+    const r = await http(url, 'POST', '/rooms/requests', { token: 'test:Satirsiz', body: { name: 'Satırsız Oda' } });
+    assert.equal(r.status, 500);
+    store.enabled = false;
+    assert.deepEqual((await http(url, 'GET', '/admin/room-requests', { token: ADMIN })).json.requests, []);
+    assert.equal((await http(url, 'GET', '/rooms/requests/mine', { token: 'test:Satirsiz' })).json.request, null);
+  });
+});
