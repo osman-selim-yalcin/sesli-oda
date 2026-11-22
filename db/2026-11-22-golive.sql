@@ -8,8 +8,15 @@
 -- o zaman çalıştırma.
 --
 -- Çoklu oda canlıya geçiş: skor tabloları ve oyun önerileri bütün odalarda ortak.
--- Canlıya geçerken Supabase SQL düzenleyicisinde bir kez elle, yeni sunucu açılmadan önce çalıştırılır
--- (sunucu çalıştırmaz). Tek işlem: biri başarısız olursa hiçbiri yazılmaz.
+-- Supabase SQL düzenleyicisinde bir kez elle çalıştırılır (sunucu çalıştırmaz). Tek işlem: biri başarısız
+-- olursa hiçbiri yazılmaz.
+-- SIRA (tam olarak bu):
+--   1) db/2026-11-22-rooms.sql uygulanır (bundan önce herhangi bir zamanda; eski sunucu bu tabloları kullanmaz).
+--   2) Eski sunucu durdurulur.
+--   3) Bu dosya (golive.sql) çalıştırılır.
+--   4) Yeni sunucu açılır.
+-- Yeni sunucu 1) ya da 3) eksikse açılmaz (rooms tabloları okunamıyor, rooms'ta genel yok ya da genel'in
+-- skorları 'ortak'a kopyalanmamış): log'da "SUNUCU AÇILMIYOR" satırı çıkar.
 -- ZAMANLAMA: kopya satırların tamamını değiştirir (data üzerine yazılır, birleştirilmez). Bu yüzden eski
 -- sunucu durdurulmuşken (ya da tam geçiş anında) çalıştırılır: yeni sunucu 'ortak' satırlarına yazmaya
 -- başladıktan sonra çalıştırılırsa o yazılanlar silinir; eski sunucu hâlâ 'genel' satırlarına yazabiliyorken

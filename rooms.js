@@ -46,9 +46,10 @@ function slugOf(name) {
   return `${base}-${n}`;
 }
 
+// Döner: kayıt açıksa rooms tablosundaki oda id'leri (startupProblem için), kapalıysa undefined.
 async function load() {
   try {
-    if (!store.enabled) return;
+    if (!store.enabled) return undefined;
     const rows = await store.select('rooms', 'select=id,name,owner_id,pass_hash,theme,created_at,closed_at&order=created_at.asc');
     const reqs = await store.select('room_requests', 'select=id,account_id,name,pass_hash,theme,note,created_at&status=eq.pending&order=created_at.asc');
     const decided = await store.select('room_requests', 'select=id,account_id,name,status,decided_at&status=neq.pending&order=created_at.asc');
@@ -68,11 +69,27 @@ async function load() {
       members.get(m.room_id).add(m.account_id);
     }
     console.log(`Odalar: ${registry.size} oda, ${requests.length} bekleyen istek yüklendi.`);
+    return rows.map((r) => r.id);
   } finally {
     // genel yoksa (Supabase kapalı, tablo boş ya da okunamadı) hafızada açılır; canlıya geçiş SQL'i
     // (db/2026-11-22-golive.sql) onu veritabanına da ekler.
     if (!registry.has('genel')) registry.set(DEFAULT_ROOM.id, { ...DEFAULT_ROOM, createdAt: Date.now() });
   }
+}
+
+// Canlıya alma koruması: kayıt açıkken sunucu bu durumlarda açılmamalı (kayıtlar sessizce kaybolur).
+// roomIds: rooms tablosundaki id'ler; stateRows: room_state satırları ({ room, kind }).
+// Açılmaması gerekiyorsa nedeni (Türkçe), yoksa null döner.
+const SHARED_KINDS = ['dinoboard', 'memoryboard', 'klotskiboard', 'timingboard', 'daktiloboard', 'hedefboard', 'oneriler'];
+function startupProblem({ roomIds = [], stateRows = [] }) {
+  if (!roomIds.includes(DEFAULT_ROOM.id)) {
+    return 'rooms tablosunda genel odası yok: db/2026-11-22-golive.sql çalıştırılmamış.';
+  }
+  const kinds = (room) => stateRows.some((r) => r.room === room && SHARED_KINDS.includes(r.kind));
+  if (kinds(DEFAULT_ROOM.id) && !kinds(RESERVED)) {
+    return `room_state'te genel odasının skor tabloları ya da önerileri var ama ${RESERVED} satırı yok: db/2026-11-22-golive.sql çalıştırılmamış.`;
+  }
+  return null;
 }
 
 // Ad, şifre ve tema doğrulaması (create ve oda isteği ortak kullanır). Hata { error } döner.
@@ -135,6 +152,7 @@ const memberFilter = (roomId, key) => `room_id=eq.${encodeURIComponent(roomId)}&
 
 // Şifreyi bir kez doğru yazan hesap odanın üyesi olur; bir daha şifre sorulmaz.
 // Hafızaya hemen eklenir; kayıt hatası fırlatılır (aynı satır zaten varsa hata sayılmaz).
+// Yabancı anahtar hatasında (oda ya da hesap tabloda yok) uyarı yazılır, üyelik geri alınır; false döner.
 // Kayıt sürerken üyelikler silindiyse (şifre değişti) yazılan satır geri silinir; false döner.
 async function addMember(roomId, key) {
   if (isMember(roomId, key)) return true;
@@ -144,7 +162,13 @@ async function addMember(roomId, key) {
   try {
     await store.insert('room_members', { room_id: roomId, account_id: key, joined_at: new Date().toISOString() });
   } catch (err) {
-    if (!/ 409 /.test(err.message)) throw err; // birincil anahtar çakışması: üyelik zaten kayıtlı
+    if (!/ 409 /.test(err.message)) throw err;
+    if (/23503/.test(err.message)) {
+      console.warn(`oda üyeliği yazılamadı (oda ${roomId} ya da hesap tabloda yok)`);
+      members.get(roomId)?.delete(key);
+      return false;
+    }
+    // birincil anahtar çakışması: üyelik zaten kayıtlı
   }
   if (genOf(roomId) === gen) return true;
   members.get(roomId)?.delete(key);
@@ -414,4 +438,4 @@ function setup(app, opts) {
   });
 }
 
-module.exports = { load, get, all, slugOf, create, role, view, setup, addMember, isMember, pendingCount, THEMES };
+module.exports = { load, startupProblem, get, all, slugOf, create, role, view, setup, addMember, isMember, pendingCount, THEMES };

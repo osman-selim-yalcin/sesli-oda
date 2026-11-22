@@ -3331,11 +3331,25 @@ async function loadSaved() {
   try {
     rows = await store.loadAll();
     await accounts.load();
-    await roomStore.load(); // okunamazsa da genel odası hafızada açılır
   } catch (err) {
     store.enabled = false;
+    await roomStore.load(); // kayıt kapalı: genel odası hafızada açılır
     return console.warn('Kayıtlar okunamadı, bu oturumda kaydetme kapalı:', err.message);
   }
+  // Canlıya alma koruması: Supabase'e ulaşılıyor ama oda tabloları ya da ortak skorlar hazır değilse sunucu
+  // hiç açılmaz (açılsaydı yeni hesaplar, şifreler, skorlar ilk yeniden başlatmada kaybolurdu).
+  const refuse = (why) => {
+    console.error(`SUNUCU AÇILMIYOR: ${why} Sıra: rooms.sql, eski sunucuyu durdur, golive.sql, yeni sunucuyu aç.`);
+    process.exit(1);
+  };
+  let roomIds;
+  try {
+    roomIds = await roomStore.load();
+  } catch (err) {
+    return refuse(`rooms / room_requests / room_members tabloları okunamadı (db/2026-11-22-rooms.sql uygulanmış mı?): ${err.message}.`);
+  }
+  const problem = roomStore.startupProblem({ roomIds, stateRows: rows });
+  if (problem) return refuse(problem);
   for (const { room, kind, data } of rows) {
     // Ortak tablolar ve öneriler yalnız SHARED satırından okunur; eski oda satırları ('genel') yok sayılır.
     if (room === SHARED) {

@@ -36,3 +36,9 @@ create table room_members (
 alter table rooms enable row level security;
 alter table room_requests enable row level security;
 alter table room_members enable row level security;
+
+-- Supabase varsayılanı anon ve authenticated rollerine yeni tablolarda yetki verir; RLS politikasız olduğu
+-- için zaten erişemezler, yine de yetkiler açıkça kaldırılır (RLS kapanırsa da açık kalmasın).
+revoke all on table rooms from anon, authenticated;
+revoke all on table room_requests from anon, authenticated;
+revoke all on table room_members from anon, authenticated;
