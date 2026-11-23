@@ -161,7 +161,9 @@ function hedefStepEl(text) {
 }
 
 // Sağ üstteki sayaç: turda kalan süre (son 10 sn kırmızı); arada gizli (yeni tur "Sonraki tur" ile başlar).
-function hedefTick() {
+// fromTimer: yalnız 250 ms'lik sayaç yeniden çizdirebilir. renderHedef de hedefTick'i (fromTimer olmadan) çağırır;
+// ikisi birbirini çağırınca sonsuz döngü olmasın diye (izleyicide kilit sınıfı henüz konmadan) zincir en çok bir adım.
+function hedefTick(fromTimer = false) {
   const game = hedefActive();
   const el = $('hedef-clock');
   if (!game) {
@@ -176,7 +178,7 @@ function hedefTick() {
   setIcon(el, 'timer', fmtTime(left));
   el.classList.toggle('low', play && left <= 10);
   // Süre dolunca sunucunun turu bitirmesi beklenir; bu arada kutular kilitlenir.
-  if (play && hedefCanPlay() === $('game-hedef').classList.contains('hedef-locked')) renderHedef();
+  if (fromTimer && play && hedefCanPlay() === $('game-hedef').classList.contains('hedef-locked')) renderHedef();
 }
 
 function renderHedefBoard(game) {
@@ -284,7 +286,7 @@ function renderHedef() {
     return;
   }
   if (hedefLocal?.key !== `${game.id}:${game.round}`) hedefReset();
-  if (active && !hedefTicker) hedefTicker = setInterval(hedefTick, 250);
+  if (active && !hedefTicker) hedefTicker = setInterval(() => hedefTick(true), 250);
   hedefTick();
 
   $('hedef-status').textContent = game.done ? (game.reason ? `${game.round + 1}/${game.rounds} turda bitti` : `${game.rounds} tur bitti`)
