@@ -15,6 +15,7 @@ const accounts = require('./accounts');
 const roomStore = require('./rooms'); // oda kayıtları (canlı durum aşağıdaki rooms haritasında)
 const merge = require('./merge'); // oda birleştirme durumu (aşağıda "Oda birleştirme" bölümü bağlar)
 const mutes = require('./mutes'); // moderatör susturması (aşağıda "Susturma" bölümü bağlar)
+const colors = require('./colors'); // oda içi avatar renkleri
 const hedef = require('./games/hedef');
 
 const PORT = process.env.PORT || 3030;
@@ -147,6 +148,8 @@ roomStore.setup(app, {
   live: mergeLive,
   onChange: (kind, info) => {
     if (kind === 'settings') io.to(info.id).emit('room:theme', { id: info.id, theme: info.theme });
+    // Sahip değişti: odadakiler (birleşikse misafir kökenlilerin bulunduğu ev sahibi oda dahil) rollerini tazeler.
+    else if (kind === 'roles') io.to([...new Set([info.id, merge.hostOf(info.id)])]).emit('room:roles', { id: info.id });
     else if (kind === 'closed') closeRoom(info);
     else if (kind === 'rooms') roomsChanged();
     else if (kind === 'request') {
@@ -765,14 +768,16 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
   const epoch = socket.data.epoch = (socket.data.epoch || 0) + 1;
   // Susturulmuş (köken odası + hesap) kişi girerken de sessizdedir; kendi mikrofonunu açamaz.
   const modMuted = mutes.get(home, account.key)?.by || null;
-  const user = { name, key: account.key, home, muted: Boolean(modMuted), clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) };
+  // Avatar rengi: odadakilerle çakışmayan renk (herkes aynısını görür; odada kaldıkça değişmez)
+  const color = colors.pick(name, [...room.users.values()].map((u) => u.color));
+  const user = { name, key: account.key, home, muted: Boolean(modMuted), color, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) };
   room.users.set(socket.id, user);
   socket.leave(LOBBY);
   socket.join([roomCode, JOINED]);
   socket.to(roomCode).emit('user-joined', peerView(socket.id, user));
   roomsChanged();
   const homeReg = (home !== roomCode && roomStore.get(home)) || reg;
-  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, color, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
 // Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
@@ -1133,7 +1138,7 @@ const MOD_RATE = { max: 8, window: 4000 }; // bir soket 4 sn'de en çok 8 sustur
 
 // Kişi satırı (join cevabındaki peers ve user-joined): modMuted 'owner' | 'admin' | null, home köken oda.
 function peerView(id, u) {
-  return { id, name: u.name, muted: u.muted, recording: u.recording, home: u.home, admin: Boolean(u.admin), modMuted: mutes.get(u.home, u.key)?.by || null };
+  return { id, name: u.name, muted: u.muted, recording: u.recording, home: u.home, admin: Boolean(u.admin), color: u.color, modMuted: mutes.get(u.home, u.key)?.by || null };
 }
 
 // Birleşik odaya giren kişinin susturmaya göre kökeni: girdiği kapıda (home) susturma yoksa ve çiftin öteki

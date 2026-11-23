@@ -177,8 +177,10 @@ function setupAudio() {
 const SPEAK_THRESHOLD = 12;
 const SPEAK_HOLD = 350; // ms; kelime aralarında gösterge titremesin
 
-// Bütün göstergeler tek zamanlayıcıyla ölçülür (20 kişilik birleşik odada 20 ayrı zamanlayıcı yerine biri);
-// sekme görünmezken ölçülmez (halka zaten görünmüyor; "konuşurken müziği kıs" sekme dönünce yeniden ölçer).
+const SPEAK_HOLD_HIDDEN = 1600; // ms; gizli sekmede (seyrek ölçüm)
+// Bütün göstergeler tek zamanlayıcıyla ölçülür (20 kişilik birleşik odada 20 ayrı zamanlayıcı yerine biri).
+// Sekme görünmezken de ölçülür ("konuşurken müziği kıs" peer.speaking'i okur, YouTube arka planda çalar); yalnız
+// halkaların DOM'u yazılmaz, sekme dönünce ilk ölçümde düzelir. Tarayıcı gizli sekmede zamanlayıcıyı zaten seyreltir.
 const levelMeters = new Set();
 let levelTimer = 0;
 function watchLevel(source, row, state) {
@@ -190,7 +192,7 @@ function watchLevel(source, row, state) {
   levelTimer ||= setInterval(tickLevels, 100);
 }
 function tickLevels() {
-  if (document.hidden) return;
+  const hidden = document.hidden;
   for (const m of levelMeters) {
     if (!m.row.isConnected) {
       levelMeters.delete(m);
@@ -200,10 +202,11 @@ function tickLevels() {
     let peak = 0;
     for (const v of m.data) peak = Math.max(peak, Math.abs(v - 128));
     if (peak > SPEAK_THRESHOLD) m.lastLoud = Date.now();
-    const speaking = !m.state.silenced?.() && Date.now() - m.lastLoud < SPEAK_HOLD;
-    if (speaking === m.state.speaking && m.row.classList.contains('speaking') === speaking) continue; // DOM'a yalnız değişince
+    // Gizli sekmede zamanlayıcı ~1 sn'de bir çalışır: konuşma arada kaçmasın diye bekleme uzar.
+    const speaking = !m.state.silenced?.() && Date.now() - m.lastLoud < (hidden ? SPEAK_HOLD_HIDDEN : SPEAK_HOLD);
     m.state.speaking = speaking;
     m.row.classList.toggle('speaking', speaking);
+    if (hidden || m.row.classList.contains('speaking') === speaking) continue; // DOM'a yalnız görünürken ve değişince
     m.row.mini?.classList.toggle('speaking', speaking);
   }
   if (!levelMeters.size) {
@@ -218,7 +221,6 @@ function tickLevels() {
 function renderPeopleCount() {
   const max = curRoom?.max || 10;
   $('people-count').textContent = `${peers.size + 1}/${curRoom?.mergedWith ? 2 * max : max}`;
-  assignRoomColors();
 }
 
 // İsimden sabit bir renk: herkes her yerde (liste, sohbet) aynı renkte görünür.
@@ -263,31 +265,20 @@ function avatarHash(name) {
   for (const ch of name) hash = Math.imul(hash ^ ch.codePointAt(0), 16777619);
   return (hash >>> 0) % AVATAR_COLORS.length;
 }
-// Odadakiler aynı renge düşmesin: oda içinde giriş sırasıyla, ismin rengi alınmışsa sıradaki boş renk verilir
-// (önce girenin rengi değişmez). 10 renk var: 10 kişiye kadar herkes ayrı renkte, birleşik odada (20) her renk
-// en çok iki kişide. Odada olmayan (sohbet geçmişi, oda listesi) isim kendi rengindedir.
+// Oda içindeki renk sunucudan gelir (colors.js: odadakilerle çakışmaz, herkes aynısını görür, odada kaldıkça
+// değişmez; 10 kişide hepsi ayrı, birleşik odada 20 kişide her renk en çok iki). Bu sekmenin odadaki kişileri
+// (kişi sırası, Odadakiler, lobiler, oyun listeleri, sohbetteki avatarları) bu rengi kullanır; odada olmayan isim
+// (oda listesi, ayrılmış kişinin eski sohbet satırları sonradan çizilirse) isimden gelen karma rengindedir.
 const roomColors = new Map(); // isim -> renk sırası
 function avatarColor(name) {
   return AVATAR_COLORS[roomColors.get(name) ?? avatarHash(name)];
 }
-function assignRoomColors() {
-  const names = [...(selfRow ? [myName] : []), ...[...peers.values()].map((p) => p.name)];
-  const kept = new Map([...roomColors].filter(([n]) => names.includes(n)));
-  const count = new Array(AVATAR_COLORS.length).fill(0);
-  for (const i of kept.values()) count[i]++;
-  for (const n of names) {
-    if (kept.has(n)) continue;
-    const want = avatarHash(n);
-    const least = Math.min(...count);
-    let i = want;
-    for (let k = 0; k < AVATAR_COLORS.length && count[i] > least; k++) i = (want + k + 1) % AVATAR_COLORS.length;
-    kept.set(n, i);
-    count[i]++;
-  }
-  const changed = kept.size !== roomColors.size || [...kept].some(([n, i]) => roomColors.get(n) !== i);
-  roomColors.clear();
-  for (const [n, i] of kept) roomColors.set(n, i);
-  if (changed) for (const el of document.querySelectorAll('.avatar')) if (roomColors.has(el.dataset.name)) fillAvatar(el);
+function setRoomColor(name, index) {
+  const before = roomColors.get(name);
+  if (Number.isInteger(index) && index >= 0 && index < AVATAR_COLORS.length) roomColors.set(name, index);
+  else roomColors.delete(name);
+  if (roomColors.get(name) === before) return;
+  for (const el of document.querySelectorAll('.avatar')) if (el.dataset.name === name) fillAvatar(el);
 }
 
 function setProfile(name, version) {
@@ -367,6 +358,7 @@ function addPeer(id, name, info = {}) {
   if (peers.has(id)) return peers.get(id);
   const { muted = false } = info;
   const row = personRow(name, false);
+  setRoomColor(name, info.color);
   const vol = document.createElement('input');
   vol.type = 'range';
   vol.min = 0;
@@ -490,6 +482,7 @@ function applyLimits(pc) {
   }
 }
 
+  if (![...peers.values()].some((p) => p.name === peer.name)) setRoomColor(peer.name, null);
 // Paylaşan görüntüyü her kişiye ayrı gönderir: kişi başı 1 Mbps, ama toplam yükleme SCREEN_UPLOAD'u geçmesin
 // (10 kişide kişi başı ~670 kbps, 20 kişide ~315 kbps). Kişi gelip gidince bütün bağlantılarda yeniden ayarlanır.
 const SCREEN_UPLOAD = 6000000; // bps
@@ -6854,6 +6847,7 @@ function renderRoomInfo() {
   const other = curRoom.mergedWith;
   $('topbar-merged').hidden = !other;
   $('topbar-merged').innerHTML = other ? '<span aria-hidden="true">⇄</span><span class="topbar-merged-name"></span>' : '';
+  setRoomColor(myName, res.color);
   if (other) $('topbar-merged').lastChild.textContent = roomNames.get(other) || other;
   $('topbar-merged').title = other ? `${roomNames.get(other) || other} ile birleşik` : '';
   $('room-settings-open').hidden = $('room-settings-top').hidden = !canManage(curHome);
@@ -6974,6 +6968,12 @@ socket.on('room:moved', (res = {}) => {
 // Odanın içinden (yalnız kendi odasında sahip ya da yöneticiyse) ve oda listesindeki kartın ayar düğmesinden
 // (sahip kendi odasında, site yöneticisi her odada; lobby.js onManage) aynı pencere açılır. Yetkiyi yine sunucu
 // denetler. Tema listesi oda isteği formundaki seçeneklerden gelir.
+// Bir odanın sahibi değişti (bu oda ya da birleşik odanın öteki yarısı): roller (Sustur düğmeleri, oda ayarları
+// düğmesi) yeniden alınır. Sunucu yalnız o odanın ve ev sahibi odanın soketlerine gönderir.
+socket.on('room:roles', () => {
+  if (curRoom) refreshRoomView();
+});
+
 
 let settingsRoom = null; // pencerenin değiştirdiği oda (odada curHome; listede kartın odası)
 let rsList = null; // son oda listesi (birleşme hedefleri)

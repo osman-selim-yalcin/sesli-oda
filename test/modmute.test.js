@@ -383,6 +383,39 @@ test('boş misafir odayla birleşmede susturma, birleşme bitince bayatlamaz', a
   assert.equal(again.joinRes.modMuted, null);
 });
 
+test('sahip değişince: eski sahip susturmayı kaldıramaz, yeni sahip ve yönetici kaldırır; odadakilere room:roles gider', async () => {
+  const { A, ownerA } = await rooms(1);
+  const newOwner = `Yeni${tag}`;
+  assert.equal((await http(srv.url, 'POST', '/auth/register', { body: { name: newOwner, password: 'hesap-sifre' } })).status, 200);
+  const oa = await enter(ownerA, A);
+  const m = await enter(`Kalan${tag}`, A);
+  const n = await enter(newOwner, A);
+  assert.deepEqual(await mute(oa, m), {});
+  const roles = [eventWhere(oa, 'room:roles', (d) => d.id === A), eventWhere(n, 'room:roles', (d) => d.id === A)];
+  assert.equal((await http(srv.url, 'PATCH', `/rooms/${A}`, { token: ADMIN, body: { owner: newOwner } })).status, 200);
+  await Promise.all(roles);
+  assert.ok((await mute(oa, m, false)).error, 'eski sahip');
+  assert.deepEqual(await mute(n, m, false), {}, 'yeni sahip');
+  assert.deepEqual(await mute(n, m), {});
+  const adminIn = await enter('osyalcin', A);
+  assert.deepEqual(await mute(adminIn, m, false), {}, 'yönetici');
+});
+
+test('room:roles birleşik odada misafir odanın sahibi değişince ev sahibi odadakilere de gider; tema değişiminde gitmez', async () => {
+  const { A, B, ownerA, ownerB } = await rooms();
+  const oa = await enter(ownerA, A);
+  const admin = await adminLobby();
+  assert.deepEqual(await ack(admin, 'merge:request', { from: A, to: B }), { merged: true });
+  const got = [];
+  oa.on('room:roles', (d) => got.push(d));
+  assert.equal((await http(srv.url, 'PATCH', `/rooms/${A}`, { token: ADMIN, body: { theme: 'piksel' } })).status, 200);
+  const roles = eventWhere(oa, 'room:roles', (d) => d.id === B);
+  assert.equal((await http(srv.url, 'PATCH', `/rooms/${B}`, { token: ADMIN, body: { owner: ownerA } })).status, 200);
+  await roles;
+  assert.deepEqual(got.map((d) => d.id), [B]);
+  void ownerB;
+});
+
 test('birleş → ayrıl → yeniden birleş: her kişinin susturması doğru kalır', async () => {
   const { A, B, ownerA, ownerB } = await rooms();
   const oa = await enter(ownerA, A);

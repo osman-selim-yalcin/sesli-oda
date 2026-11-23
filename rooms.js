@@ -222,7 +222,7 @@ function view(room, account) {
 const bearer = (req) => req.get('authorization')?.replace(/^Bearer /, '') || '';
 
 // live(oda id) -> { users, max, mergedWith }: canlı durum sunucudan gelir.
-// onChange(tür, bilgi): kayıtlar değişince ('rooms' | 'request' | 'settings' | 'closed').
+// onChange(tür, bilgi): kayıtlar değişince ('rooms' | 'request' | 'settings' | 'roles' | 'closed').
 // 'request' bilgisi { pending, decided? }: decided = { key, status, name } (karar verildiyse isteyen hesap).
 function setup(app, opts) {
   live = opts.live;
@@ -322,6 +322,7 @@ function setup(app, opts) {
         throw err;
       }
       if ('theme' in next) onChange('settings', { id: room.id, theme: room.theme });
+      if ('ownerId' in next) onChange('roles', { id: room.id }); // susturma yetkileri değişti
       onChange('rooms', { id: room.id });
       res.json({ room: view(room, a) });
     } catch (err) {
