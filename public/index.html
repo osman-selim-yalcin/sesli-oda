@@ -471,6 +471,7 @@
       <button id="rec-voice" class="wide"><svg class="ic"><use href="#i-mic"></use></svg>Sadece konuşmaları kaydet</button>
     </div>
     <div id="sfx-pop" class="pop sfx-pop" popover>
+      <p id="sfx-locked" class="notice notice-danger sfx-locked" role="status" hidden>Susturuldun; susturman kalkana kadar ses efekti çalamaz ve yükleyemezsin.</p>
       <div id="sfx" class="sfx" aria-label="Ses efektleri"></div>
       <div id="sfx-custom" class="sfx sfx-custom"></div>
       <form id="sfx-upload" class="sfx-upload">
@@ -488,81 +489,6 @@
     <div id="emoji-pop" class="pop emoji-pop" popover>
       <div id="emoji-grid" class="emoji-grid"></div>
     </div>
-
-    <!-- Oda ayarları (sahip/yönetici): tema, şifre, birleştirme; yöneticide ad, sahip, kapatma -->
-    <dialog id="room-settings" class="dialog room-settings" aria-labelledby="rs-title">
-      <div class="dialog-head">
-        <span id="rs-emblem" class="rs-emblem"></span>
-        <div class="dialog-head-text">
-          <h2 id="rs-title" class="dialog-title"></h2>
-          <p class="dialog-sub">Oda ayarları</p>
-        </div>
-        <button type="button" class="btn btn-icon btn-ghost dialog-close" data-close aria-label="Kapat"><svg class="ic"><use href="#i-x"></use></svg></button>
-      </div>
-      <div class="rs-body">
-        <section class="rs-section" aria-labelledby="rs-theme-h">
-          <h3 id="rs-theme-h" class="rs-head"><svg class="ic"><use href="#i-palette"></use></svg>Tema</h3>
-          <form id="rs-theme-form" class="rs-form">
-            <fieldset id="rs-theme" class="theme-picker" aria-labelledby="rs-theme-h"></fieldset>
-            <div class="rs-theme-actions">
-              <p id="rs-theme-hint" class="rs-theme-hint">Seçtiğin tema odadaki herkeste değişir.</p>
-              <button type="submit" id="rs-theme-apply" class="btn" disabled>Uygula</button>
-            </div>
-          </form>
-        </section>
-        <section class="rs-section" aria-labelledby="rs-pass-h">
-          <h3 id="rs-pass-h" class="rs-head"><svg class="ic"><use href="#i-key"></use></svg>Şifre</h3>
-          <form id="rs-pass-form" class="rs-form">
-            <p id="rs-pass-state" class="rs-state"></p>
-            <div class="rs-inline">
-              <input id="rs-pass" class="input" type="password" maxlength="200" autocomplete="new-password" placeholder="Yeni şifre (en az 4 karakter)" aria-label="Yeni şifre">
-              <button type="submit" id="rs-pass-save" class="btn">Şifre koy</button>
-            </div>
-            <button type="button" id="rs-pass-remove" class="btn btn-ghost btn-danger btn-sm rs-remove" hidden><svg class="ic"><use href="#i-unlock"></use></svg>Şifreyi kaldır</button>
-          </form>
-        </section>
-        <section class="rs-section" aria-labelledby="rs-merge-h">
-          <h3 id="rs-merge-h" class="rs-head"><svg class="ic"><use href="#i-merge"></use></svg>Birleştirme</h3>
-          <form id="rs-merge-form" class="rs-form">
-            <p id="rs-merged" class="rs-state" hidden></p>
-            <div id="rs-merge-field" class="rs-inline">
-              <select id="rs-merge-target" class="select" aria-label="Birleşilecek oda"></select>
-              <button type="submit" id="rs-merge" class="btn">Birleştir</button>
-            </div>
-            <p class="rs-hint">Karşı odanın sahibi kabul edince iki oda tek oda olur (en fazla 12 kişi).</p>
-            <button type="button" id="rs-split" class="btn btn-ghost btn-danger btn-sm rs-remove" hidden><svg class="ic"><use href="#i-split"></use></svg>Odaları ayır</button>
-          </form>
-        </section>
-        <section id="rs-admin" class="rs-section" aria-labelledby="rs-admin-h" hidden>
-          <h3 id="rs-admin-h" class="rs-head"><svg class="ic"><use href="#i-shield"></use></svg>Yönetim</h3>
-          <form id="rs-name-form" class="rs-form">
-            <label class="field" for="rs-name">Oda adı</label>
-            <div class="rs-inline">
-              <input id="rs-name" class="input" maxlength="24" autocomplete="off">
-              <button type="submit" class="btn">Kaydet</button>
-            </div>
-          </form>
-          <form id="rs-owner-form" class="rs-form">
-            <label class="field" for="rs-owner">Sahibi</label>
-            <div class="rs-inline">
-              <input id="rs-owner" class="input" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false">
-              <button type="submit" class="btn">Kaydet</button>
-            </div>
-          </form>
-          <div class="rs-danger">
-            <div class="rs-danger-text">
-              <strong>Odayı kapat</strong>
-              <span>İçeridekiler oda listesine döner. Geri alınamaz.</span>
-            </div>
-            <button type="button" id="rs-close-room" class="btn btn-danger btn-sm">Odayı kapat</button>
-          </div>
-        </section>
-        <p id="rs-error" class="field-error rs-error" role="alert" hidden></p>
-      </div>
-      <div class="dialog-actions">
-        <button type="button" id="rs-done" class="btn">Kapat</button>
-      </div>
-    </dialog>
 
     <div class="layout room-layout">
       <!-- Sahne: oynatıcı, çalan şarkının denetimleri ve araç satırı, kişi sırası. Sahne görünmezken (oyunlar,
@@ -1344,6 +1270,96 @@
       <button id="tabbar-radio" class="tabbar-btn"><svg class="ic"><use href="#i-radio"></use></svg><span>Radyo</span></button>
     </nav>
   </div>
+
+  <!-- Oda ayarları (sahip/yönetici): içeridekiler, tema, şifre, birleştirme; yöneticide ad, sahip, kapatma.
+       Odanın içinden ve oda listesindeki kartın ayar düğmesinden aynı pencere açılır (app.js openRoomSettings). -->
+  <dialog id="room-settings" class="dialog room-settings" aria-labelledby="rs-title">
+    <div class="dialog-head">
+      <span id="rs-emblem" class="rs-emblem"></span>
+      <div class="dialog-head-text">
+        <h2 id="rs-title" class="dialog-title"></h2>
+        <p class="dialog-sub">Oda ayarları</p>
+      </div>
+      <button type="button" class="btn btn-icon btn-ghost dialog-close" data-close aria-label="Kapat"><svg class="ic"><use href="#i-x"></use></svg></button>
+    </div>
+    <div class="rs-body">
+      <section class="rs-section" aria-labelledby="rs-people-h">
+        <h3 id="rs-people-h" class="rs-head"><svg class="ic"><use href="#i-users"></use></svg>İçeridekiler<span id="rs-people-count" class="rs-count"></span></h3>
+        <ul id="rs-people" class="rs-people" aria-labelledby="rs-people-h"></ul>
+      </section>
+      <section class="rs-section" aria-labelledby="rs-theme-h">
+        <h3 id="rs-theme-h" class="rs-head"><svg class="ic"><use href="#i-palette"></use></svg>Tema</h3>
+        <form id="rs-theme-form" class="rs-form">
+          <fieldset id="rs-theme" class="theme-picker" aria-labelledby="rs-theme-h"></fieldset>
+          <div class="rs-theme-actions">
+            <p id="rs-theme-hint" class="rs-theme-hint">Seçtiğin tema odadaki herkeste değişir.</p>
+            <button type="submit" id="rs-theme-apply" class="btn" disabled>Uygula</button>
+          </div>
+        </form>
+      </section>
+      <section class="rs-section" aria-labelledby="rs-pass-h">
+        <h3 id="rs-pass-h" class="rs-head"><svg class="ic"><use href="#i-key"></use></svg>Şifre</h3>
+        <form id="rs-pass-form" class="rs-form">
+          <p id="rs-pass-state" class="rs-state"></p>
+          <div class="rs-inline">
+            <input id="rs-pass" class="input" type="password" maxlength="200" autocomplete="new-password" placeholder="Yeni şifre (en az 4 karakter)" aria-label="Yeni şifre">
+            <button type="submit" id="rs-pass-save" class="btn">Şifre koy</button>
+          </div>
+          <button type="button" id="rs-pass-remove" class="btn btn-ghost btn-danger btn-sm rs-remove" hidden><svg class="ic"><use href="#i-unlock"></use></svg>Şifreyi kaldır</button>
+        </form>
+      </section>
+      <section class="rs-section" aria-labelledby="rs-merge-h">
+        <h3 id="rs-merge-h" class="rs-head"><svg class="ic"><use href="#i-merge"></use></svg>Birleştirme</h3>
+        <form id="rs-merge-form" class="rs-form">
+          <p id="rs-merged" class="rs-state" hidden></p>
+          <div id="rs-merge-field" class="rs-inline">
+            <select id="rs-merge-target" class="select" aria-label="Birleşilecek oda"></select>
+            <button type="submit" id="rs-merge" class="btn">Birleştir</button>
+          </div>
+          <p id="rs-merge-hint" class="rs-hint">Karşı odanın sahibi kabul edince iki oda tek oda olur.</p>
+          <button type="button" id="rs-split" class="btn btn-ghost btn-danger btn-sm rs-remove" hidden><svg class="ic"><use href="#i-split"></use></svg>Odaları ayır</button>
+        </form>
+      </section>
+      <section id="rs-admin" class="rs-section" aria-labelledby="rs-admin-h" hidden>
+        <h3 id="rs-admin-h" class="rs-head"><svg class="ic"><use href="#i-shield"></use></svg>Yönetim</h3>
+        <form id="rs-name-form" class="rs-form">
+          <label class="field" for="rs-name">Oda adı</label>
+          <div class="rs-inline">
+            <input id="rs-name" class="input" maxlength="24" autocomplete="off">
+            <button type="submit" class="btn">Kaydet</button>
+          </div>
+        </form>
+        <form id="rs-owner-form" class="rs-form">
+          <label class="field" for="rs-owner">Sahibi</label>
+          <div class="rs-inline">
+            <input id="rs-owner" class="input" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" list="rs-owner-list" aria-describedby="rs-owner-hint">
+            <datalist id="rs-owner-list"></datalist>
+            <button type="submit" class="btn">Kaydet</button>
+          </div>
+        </form>
+        <p id="rs-owner-hint" class="rs-hint">Var olan bir hesabın adını yaz ya da listeden seç.</p>
+        <div class="rs-danger">
+          <div class="rs-danger-text">
+            <strong>Odayı kapat</strong>
+            <span>İçeridekiler oda listesine döner. Geri alınamaz.</span>
+          </div>
+          <button type="button" id="rs-close-room" class="btn btn-danger btn-sm" aria-controls="rs-close-confirm" aria-expanded="false">Odayı kapat</button>
+        </div>
+        <!-- Kapatma onayı: odanın adı ve içerideki kişi sayısı (app.js renderCloseConfirm) -->
+        <div id="rs-close-confirm" class="rs-confirm" role="group" aria-labelledby="rs-close-ask" hidden>
+          <p id="rs-close-ask" class="rs-confirm-text"></p>
+          <div class="rs-confirm-actions">
+            <button type="button" id="rs-close-cancel" class="btn btn-ghost btn-sm">Vazgeç</button>
+            <button type="button" id="rs-close-yes" class="btn btn-danger btn-sm">Evet, kapat</button>
+          </div>
+        </div>
+      </section>
+      <p id="rs-error" class="field-error rs-error" role="alert" hidden></p>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" id="rs-done" class="btn">Kapat</button>
+    </div>
+  </dialog>
 
   <!-- Birleşme isteği: hedef odanın sahibine ve yöneticilere; odada da oda listesinde de aynı pencere -->
   <dialog id="merge-prompt" class="dialog merge-dialog" aria-labelledby="merge-prompt-title">

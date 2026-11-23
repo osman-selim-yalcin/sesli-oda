@@ -16,6 +16,7 @@ window.Lobby = (() => {
   let retry = null;       // app.js: listeyi yeniden iste (soket hello)
   let pending = null;     // yönetici: bekleyen oda isteği sayısı
   let enter = null;       // app.js'in giriş akışı: ({ id, password }) => join cevabı
+  let manage = null;      // app.js: oda ayarları penceresini kartın odasıyla açar
   let target = null;      // /oda/<id> ile açıldıysa o oda: kartı vurgulu, tek tıkla girilir
   let targetChecked = false;
   let busyId = null;      // girilmeye çalışılan oda
@@ -139,7 +140,11 @@ window.Lobby = (() => {
   const MAX_FACES = 5; // kartta en çok bu kadar yüz, fazlası "+N"
   // Dolu oda: hesabın kendisi zaten içerideyse (ör. telefondan dizüstüne geçiş) dolu sayılmaz; sunucu girişte o
   // hesabın eski oturumunu düşürüp öyle sayar.
-  const isFull = (r) => r.users.length >= r.max && !r.users.includes(account?.name);
+  // Doluluk count'la (site yöneticisi sayılmaz; yönetici dolu odaya da girer).
+  const countOf = (r) => r.count ?? r.users.length;
+  const isFull = (r) => countOf(r) >= r.max && !r.users.includes(account?.name) && !isAdmin();
+  // Ayar düğmesi: sahip kendi odasında, site yöneticisi her odada (şifreli, dolu ya da hiç girmediği odada da).
+  const canManage = (r) => r.role === 'owner' || r.role === 'admin';
 
   // Tema önizleme şeridi: temanın üç renginden (Theme.preview) küçük bir oda taslağı: oynatıcı, sohbet, vurgu.
   function preview(room) {
@@ -170,6 +175,7 @@ window.Lobby = (() => {
     const card = el('button', 'room-card');
     card.type = 'button';
     card.dataset.id = r.id;
+    card.classList.toggle('has-manage', canManage(r));
     card.classList.toggle('target', isTarget);
     card.classList.toggle('is-full', full);
     card.classList.toggle('is-busy', busyId === r.id);
@@ -209,8 +215,8 @@ window.Lobby = (() => {
 
     // Alt satır: yüzler, doluluk, eylem
     const foot = el('span', 'room-foot');
-    const occ = el('span', `room-occ${r.users.length ? ' is-live' : ''}`, `${r.users.length}/${r.max}`);
-    occ.title = `${r.users.length} kişi içeride, en fazla ${r.max}`;
+    const occ = el('span', `room-occ${r.users.length ? ' is-live' : ''}`, `${countOf(r)}/${r.max}`);
+    occ.title = `${countOf(r)} kişi içeride${r.users.length > countOf(r) ? ' (yönetici sayılmaz)' : ''}, en fazla ${r.max}`;
     const go = el('span', 'room-go');
     if (busyId === r.id) {
       go.innerHTML = icon('loader');
@@ -231,7 +237,7 @@ window.Lobby = (() => {
       r.role === 'owner' && 'Senin odan',
       `sahibi ${r.owner}`,
       r.locked && 'şifreli',
-      `${r.users.length}/${r.max} kişi`,
+      `${countOf(r)}/${r.max} kişi`,
       partner && `${partner.name} ile birleşik`,
     ].filter(Boolean).join(', ');
     card.setAttribute('aria-label', label);
@@ -253,7 +259,8 @@ window.Lobby = (() => {
   // Liste canlı yenilenir: klavyeyle bir kartın üstündeyken yenilense de odak aynı odada kalır.
   function renderRooms() {
     const list = $('room-list');
-    const focused = list.contains(document.activeElement) ? document.activeElement.dataset.id : null;
+    const active = list.contains(document.activeElement) ? document.activeElement : null;
+    const focused = active?.dataset.id ? { id: active.dataset.id, cls: active.classList.contains('room-manage') ? 'room-manage' : 'room-card' } : null;
     list.replaceChildren();
     $('room-list-error').hidden = !(rooms === null && loadError);
     if (rooms === null) {
@@ -269,8 +276,8 @@ window.Lobby = (() => {
     list.removeAttribute('aria-busy');
     $('room-list-empty').hidden = rooms.length > 0;
     list.hidden = rooms.length === 0;
-    for (const r of rooms) list.append(wrap(roomCard(r)));
-    if (focused) list.querySelector(`.room-card[data-id="${CSS.escape(focused)}"]`)?.focus();
+    for (const r of rooms) list.append(roomItem(r));
+    if (focused) list.querySelector(`.${focused.cls}[data-id="${CSS.escape(focused.id)}"]`)?.focus();
     renderSummary();
   }
   // İskelet kart: gerçek kartın iskeleti (önizleme şeridi, amblem, ad ve sahibi, yüzler ve eylem), aynı dış ölçü
@@ -290,6 +297,22 @@ window.Lobby = (() => {
     body.append(head, foot);
     card.append(top, body);
     return card;
+  }
+  // Kartın yanında (içinde değil: düğme içinde düğme olmaz) ayar düğmesi; kartın tıklaması (odaya gir) ayrı kalır.
+  function roomItem(r) {
+    const li = wrap(roomCard(r));
+    if (!canManage(r)) return li;
+    const b = el('button', 'btn btn-icon btn-ghost btn-sm room-manage');
+    b.type = 'button';
+    b.dataset.id = r.id;
+    b.innerHTML = icon('cog');
+    b.title = 'Oda ayarları';
+    b.setAttribute('aria-label', `${r.name}: oda ayarları`);
+    b.setAttribute('aria-haspopup', 'dialog');
+    b.disabled = Boolean(busyId);
+    b.onclick = () => manage?.(r);
+    li.append(b);
+    return li;
   }
   const wrap = (child) => {
     const li = el('li');
@@ -821,6 +844,9 @@ window.Lobby = (() => {
     },
     onEnter(fn) {
       enter = fn;
+    },
+    onManage(fn) {
+      manage = fn;
     },
     emblem: roomEmblem, // odanın üst çubuğu da aynı amblemi kullanır
     themePicker, // oda ayarları penceresi de aynı seçiciyi kullanır

@@ -58,6 +58,12 @@ function addTestTheme(rooms) {
         .replace(/<\/symbol>/g, '</g></symbol>');
       res.type('image/svg+xml').send(svg);
     });
+    // Yalnız test sunucusunda: susturma kayıtlarını (oda + hesabın sahip kaydı, hesabın yönetici kaydı) okur (temizliği zamanlamaya değil duruma bakarak beklemek için).
+    app.get('/__test/mute', (req, res) => {
+      const mutes = require(path.join(ROOT, 'mutes.js'));
+      const key = String(req.query.key);
+      res.json({ record: mutes.getOwner(String(req.query.room), key), admin: mutes.getAdmin(key) });
+    });
     return setup(app, opts);
   };
 }

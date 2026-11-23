@@ -14,10 +14,12 @@ const { clientKey } = require('./clientip'); // deneme sınırı anahtarı: ger�
 const accounts = require('./accounts');
 const roomStore = require('./rooms'); // oda kayıtları (canlı durum aşağıdaki rooms haritasında)
 const merge = require('./merge'); // oda birleştirme durumu (aşağıda "Oda birleştirme" bölümü bağlar)
+const mutes = require('./mutes'); // moderatör susturması (aşağıda "Susturma" bölümü bağlar)
+const colors = require('./colors'); // oda içi avatar renkleri
 const hedef = require('./games/hedef');
 
 const PORT = process.env.PORT || 3030;
-const MAX_USERS = 6;
+const MAX_USERS = 10; // oda başına; birleşik odada her odadan bu kadar (toplam iki katı)
 const SHARED = 'ortak';    // room_state'te bütün odaların ortak kaydı (skor tabloları, öneriler); oda adı olamaz
 const JOINED = '@joined';  // Socket.IO odası: bir odaya girmiş bütün soketler (ortak tablolar buraya yayılır)
 const LOBBY = '@lobby';    // Socket.IO odası: oda listesinde bekleyen (hello demiş, odada olmayan) soketler
@@ -70,7 +72,8 @@ const KELIME_COOLDOWN = 5000;    // ms; bir oyuncunun iki tahmini arasında en a
 const KELIME_REVEAL = 3000;      // ms; tur başlayınca hedef kelime anlatıcının ekranında kalır
 const KELIME_COUNTDOWN = 3000;   // ms; ardından herkeste 3, 2, 1
 const KELIME_ROLLS = 6;          // "rastgele": ilk kelime + 5 kez değiştirme
-const KELIME_PLAYERS = 6;        // bir anlatıcı + 5 bilen
+const KELIME_PLAYERS = 6;        // bir anlatıcı + 5 bilen (odada 10 kişi olsa da)
+const DINO_PLAYERS = 7;          // dinozor lobisi (bot dahil): daha fazlası tuvalin solundan taşar
 const KELIME_MAX_LENGTH = 50;
 const KELIME_POOL_MAX = 1000;    // odanın kelime havuzundaki en fazla kelime
 const KELIME_WORDS_MAX = 200;    // bir turda yazılabilecek en fazla tahmin
@@ -145,6 +148,8 @@ roomStore.setup(app, {
   live: mergeLive,
   onChange: (kind, info) => {
     if (kind === 'settings') io.to(info.id).emit('room:theme', { id: info.id, theme: info.theme });
+    // Sahip değişti: odadakiler (birleşikse misafir kökenlilerin bulunduğu ev sahibi oda dahil) rollerini tazeler.
+    else if (kind === 'roles') io.to([...new Set([info.id, merge.hostOf(info.id)])]).emit('room:roles', { id: info.id });
     else if (kind === 'closed') closeRoom(info);
     else if (kind === 'rooms') roomsChanged();
     else if (kind === 'request') {
@@ -545,6 +550,7 @@ const saveCustomSfx = (room) => store.save(room.code, 'sfx', () => customSfxList
 // çıkış mesajı biraz bekletilir; o sürede aynı hesap (aynı ya da başka sekmeden) geri dönerse ikisi de atlanır.
 const REJOIN_GRACE = Number(process.env.REJOIN_GRACE_MS) || 5000; // ms; testler kısaltır
 const pendingLeaves = new Map(); // `${oda}:${hesap}` -> zamanlayıcı
+const pendingHomes = new Map();  // aynı anahtar -> çıkışı bekleyen kişinin kökeni (susturma temizliği için)
 
 function postSystem(room, text, extra) {
   postChat(room, { system: true, text, ts: Date.now(), ...extra });
@@ -723,8 +729,10 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
   // Bekleyen çıkış hesaba bağlıdır: sekme kapanıp yeni sekmeden (yeni clientId) dönülse de iptal olur.
   const leaveKey = `${roomCode}:${account.key}`;
   let rejoined = pendingLeaves.has(leaveKey);
+  const pendingHome = pendingHomes.get(leaveKey); // payı iptal edilen eski girişin kökeni (aşağıda süpürülür)
   clearTimeout(pendingLeaves.get(leaveKey));
   pendingLeaves.delete(leaveKey);
+  pendingHomes.delete(leaveKey);
 
   for (const [id, user] of room.users) {
     if (!(clientId && user.clientId === clientId) && user.name !== name) continue;
@@ -735,10 +743,11 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
     io.sockets.sockets.get(id)?.disconnect(true);
   }
 
-  // Birleşik odada doluluk kökene göre: her odadan en fazla MAX_USERS.
+  // Birleşik odada doluluk kökene göre: her odadan en fazla MAX_USERS. Site yöneticisi sayılmaz ve dolu odaya da
+  // girer (dolu odayı yönetebilsin, susturduğunu kaldırabilsin); oda kartı onu saymadan n/10 gösterir.
   const merged = Boolean(merge.partnerOf(roomCode));
-  const count = merged ? [...room.users.values()].filter((u) => u.home === home).length : room.users.size;
-  if (count >= MAX_USERS) {
+  const count = [...room.users.values()].filter((u) => !u.admin && (!merged || u.home === home)).length;
+  if (count >= MAX_USERS && !accounts.isAdmin(account.key)) {
     return { error: `Oda dolu (en fazla ${MAX_USERS} kişi).` };
   }
 
@@ -753,17 +762,25 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
     }
   }
 
-  const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
+  const peers = [...room.users].map(([id, u]) => peerView(id, u));
   socket.data.setCode(roomCode);
   // Her girişte (taşınma dahil) yeni dönem: önceki bağlantının geç kalan sinyalleri yeni odaya geçmesin.
   const epoch = socket.data.epoch = (socket.data.epoch || 0) + 1;
-  room.users.set(socket.id, { name, key: account.key, home, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
+  // Susturulmuş (köken odası + hesap) kişi girerken de sessizdedir; kendi mikrofonunu açamaz.
+  const modMuted = modMuteOf(home, account.key)?.by || null;
+  // Avatar rengi: odadakilerle çakışmayan renk (herkes aynısını görür; odada kaldıkça değişmez)
+  const color = colors.pick(name, [...room.users.values()].map((u) => u.color));
+  const user = { name, key: account.key, home, muted: Boolean(modMuted), color, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) };
+  room.users.set(socket.id, user);
   socket.leave(LOBBY);
   socket.join([roomCode, JOINED]);
-  socket.to(roomCode).emit('user-joined', { id: socket.id, name, muted: false });
+  socket.to(roomCode).emit('user-joined', peerView(socket.id, user));
+  // Payı iptal edilen eski giriş başka kökendense ve o odanın canlı durumu yoksa, birleşik de değilse süpürülür
+  // (o kökenden kimse kalmadıysa sahip kayıtları silinir; sahipsiz kayıt kalmasın).
+  if (pendingHome && pendingHome !== home && !rooms.get(pendingHome) && !merge.partnerOf(pendingHome)) sweepMutes(pendingHome);
   roomsChanged();
   const homeReg = (home !== roomCode && roomStore.get(home)) || reg;
-  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, color, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
 // Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
@@ -787,6 +804,13 @@ function leaveRoom(socket, { grace, quiet = false }) {
   const leaveKey = `${roomCode}:${user.key}`;
   const depart = () => {
     pendingLeaves.delete(leaveKey);
+    pendingHomes.delete(leaveKey);
+    // Gerçek çıkışta (taşınmada değil: quiet yalnız moveSocket'te) kökenin canlı durumu yoksa ve birleşik değilse
+    // ve kökenden kimse kalmadıysa o kökenin susturmaları silinir. Taşınmaları splitRooms/endMerge kendisi süpürür.
+    // Köken canlıyken süpürülmez: birleşik ev sahibinde yalnız misafir kökenliler kaldıysa ev sahibi kökenli
+    // kayıtlar ev sahibinin canlı durumu silinene kadar kalır (fazla susturma yönünde; kabul).
+    if (!quiet && !rooms.get(user.home) && !merge.partnerOf(user.home)) sweepMutes(user.home);
+    // (Yönetici susturması hesaba bağlıdır; hiçbir süpürme ona dokunmaz.)
     const current = rooms.get(roomCode);
     if (!current) return;
     if (!quiet) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
@@ -804,6 +828,7 @@ function leaveRoom(socket, { grace, quiet = false }) {
   if (grace) {
     clearTimeout(pendingLeaves.get(leaveKey));
     pendingLeaves.set(leaveKey, setTimeout(depart, REJOIN_GRACE));
+    pendingHomes.set(leaveKey, user.home);
   } else {
     clearTimeout(pendingLeaves.get(leaveKey)); // aynı hesabın bekleyen çıkışı bununla birlikte yapılır
     depart();
@@ -821,12 +846,16 @@ function closeRoom({ id, name }) {
     leaveRoom(socket, { grace: false });
     socket.emit('room:closed', { name });
   }
+  // Kapanan odanın kökenlilerinin yenileme payı iptal (dönecekleri oda yok). Öteki kökenlilerin (birleşik ev sahibi
+  // kapandıysa misafir odanın kişileri) payı sürer: kendi odasına dönebilir; dönmezse normal çıkışları susturmayı süpürür.
   for (const [key, timer] of pendingLeaves) {
-    if (!key.startsWith(`${id}:`)) continue; // yenileme bekleyenler geri dönemez
+    if (!key.startsWith(`${id}:`) || (pendingHomes.has(key) && pendingHomes.get(key) !== id)) continue;
     clearTimeout(timer);
     pendingLeaves.delete(key);
+    pendingHomes.delete(key);
   }
   if (rooms.has(id)) dropRoom(id);
+  mutes.clearRoom(id); // sahip susturmaları; yönetici susturmaları hesaba bağlı, kalır
 }
 
 // Boşalan odanın canlı durumunu ve zamanlayıcılarını siler (kalıcı kayıtları silmez).
@@ -838,6 +867,7 @@ function dropRoom(roomCode) {
   kural.clear(roomCode);
   mantik.clear(roomCode);
   daktilo.clear(roomCode);
+  sweepMutes(roomCode); // bu kökenli susturmalar odanın canlı durumuyla gider (yenileme payındakiler dönene kadar kalır)
   rooms.delete(roomCode);
   deleteRoomImages(roomCode);
 }
@@ -858,15 +888,17 @@ const canMerge = (reg, account) => ['owner', 'admin'].includes(roomStore.role(re
 function mergeLive(id) {
   const partner = merge.partnerOf(id);
   const live = rooms.get(merge.hostOf(id));
-  const users = [...(live?.users.values() || [])].filter((u) => !partner || u.home === id).map((u) => u.name);
-  return { users, max: MAX_USERS, mergedWith: partner };
+  const inside = [...(live?.users.values() || [])].filter((u) => !partner || u.home === id);
+  // users: içeridekilerin hepsi (yönetici dahil); count: doluluğa sayılanlar (yönetici hariç), max ile karşılaştırılır.
+  return { users: inside.map((u) => u.name), count: inside.filter((u) => !u.admin).length, max: MAX_USERS, mergedWith: partner };
 }
 
 // Kişi sınırı: her taraf en fazla MAX_USERS, toplam en fazla iki katı. Taraf, odanın canlı durumundaki
 // herkestir (başka odayla birleşmiş ev sahibinde iki kökenin toplamı).
 function mergeCapacityError(from, to) {
-  const a = rooms.get(from)?.users.size || 0;
-  const b = rooms.get(to)?.users.size || 0;
+  const members = (id) => [...(rooms.get(id)?.users.values() || [])].filter((u) => !u.admin).length; // yönetici sayılmaz
+  const a = members(from);
+  const b = members(to);
   if (a > MAX_USERS || b > MAX_USERS || a + b > 2 * MAX_USERS) {
     return { error: `Birleşik oda en fazla ${2 * MAX_USERS} kişi olabilir (her odadan en fazla ${MAX_USERS}).` };
   }
@@ -965,7 +997,17 @@ function startMerge({ host, guest }) {
 function endMerge(roomId) {
   const pair = merge.split(roomId);
   if (pair && rooms.get(pair.guest)?.users.size === 0) dropRoom(pair.guest);
+  if (pair) sweepMutes(pair.guest);
   return pair;
+}
+
+// Birleşme bitince misafir odanın kökenlilerinden kimse kalmadıysa susturmaları silinir (misafir odanın canlı
+// durumu hiç kurulmamış olsa da: boş odayla birleşmede B kökenliler doğrudan A'nın canlı durumuna girer).
+// Yenileme payı içindeki (bağlantısı kopmuş, dönmesi beklenen) kişiler de sayılır; payı dolunca yeniden bakılır.
+function sweepMutes(roomId) {
+  for (const room of rooms.values()) for (const u of room.users.values()) if (u.home === roomId) return;
+  for (const home of pendingHomes.values()) if (home === roomId) return;
+  mutes.clearRoom(roomId);
 }
 
 // Ayrılma: home'u misafir oda olanlar kendi odasına döner. Birleşik değilse null.
@@ -978,6 +1020,7 @@ function splitRooms(roomId) {
     if (socket) moveSocket(socket, pair.guest, pair.guest, 'split');
   }
   if (rooms.get(pair.guest)?.users.size === 0) dropRoom(pair.guest); // geri dönen kimse yok
+  sweepMutes(pair.guest);
   sendMergeState(pair.host, null);
   const hostRoom = rooms.get(pair.host);
   if (hostRoom) postSystem(hostRoom, `${roomStore.get(pair.guest)?.name || pair.guest} odası ayrıldı`);
@@ -1105,6 +1148,73 @@ function bindMergeEvents(socket) {
   });
 }
 
+// ---------- Susturma (oda sahibi ve site yöneticisi) ----------
+// Ses tarayıcılar arasında doğrudan gider; sunucu yalnız durumu tutar ve yayar. Susturulanın istemcisi mikrofonu
+// kapatır ve kilitler; ötekiler ne gelirse gelsin o kişinin sesini çalmaz. Durum mutes.js'te (köken oda + hesap).
+
+const MOD_RATE = { max: 8, window: 4000 }; // bir soket 4 sn'de en çok 8 susturma/kaldırma yapabilir
+
+// Kişi satırı (join cevabındaki peers ve user-joined): modMuted 'owner' | 'admin' | null, home köken oda.
+function peerView(id, u) {
+  return { id, name: u.name, muted: u.muted, recording: u.recording, home: u.home, admin: Boolean(u.admin), color: u.color, modMuted: modMuteOf(u.home, u.key)?.by || null };
+}
+
+// Etkin susturma (model: mutes.js başı): hesabın yönetici kaydı, yoksa kökeninin (girdiği kapı) sahip kaydı.
+// Bütün okuma ve denetim yerleri (join cevabı, peers, user-joined, room:moved, user-modmuted, kendi mikrofonu,
+// ses efekti) bunu kullanır.
+const modMuteOf = (home, key) => mutes.effective(home, key);
+
+// Sahip, kendi odasının kapısından girenleri (kökeni o oda) yönetir; yöneticinin susturduğuna dokunamaz.
+// Kişi tek bir canlı odadadır: o odanın yayını herkese yeter (yönetici susturması da).
+function bindModEvents(socket) {
+  let times = [];
+  // { id: hedefin soket kimliği (aynı odada), muted: true sustur | false kaldır }
+  socket.on('mod:mute', (payload, ack) => {
+    if (typeof ack !== 'function') return;
+    const account = socket.data.account;
+    const code = socket.data.code;
+    if (!account || !code) return ack({ error: 'Odada değilsin.' });
+    const { id, muted } = payload && typeof payload === 'object' ? payload : {};
+    if (typeof id !== 'string' || typeof muted !== 'boolean') return ack(BAD_REQUEST);
+    times = times.filter((t) => Date.now() - t < MOD_RATE.window);
+    if (times.length >= MOD_RATE.max) return ack({ error: 'Biraz bekle, çok hızlı.' });
+    const room = rooms.get(code);
+    const target = room?.users.get(id);
+    if (!target) return ack({ error: 'Bu kişi odada değil.' });
+    const existing = modMuteOf(target.home, target.key);
+    const error = mutes.check({
+      actor: { key: account.key, admin: accounts.isAdmin(account.key), ownsOrigin: roomStore.get(target.home)?.ownerId === account.key },
+      target: { key: target.key, admin: accounts.isAdmin(target.key) },
+      existing,
+    });
+    if (error) return ack({ error });
+    times.push(Date.now());
+    const by = accounts.isAdmin(account.key) ? 'admin' : 'owner';
+    // Yayın ve cevap, kayda yazıldıktan sonra okunan etkin durumu taşır.
+    const effective = () => modMuteOf(target.home, target.key)?.by || null;
+    if (muted) {
+      if (by === 'admin') mutes.setAdmin(target.key, account.name); // hesaba: her odada, kalkana kadar
+      else mutes.setOwner(target.home, target.key, account.name); // kökenin odasına
+      target.muted = true; // kendi mikrofonu da kapalı sayılır
+      io.to(code).emit('user-muted', { id, muted: true });
+      io.to(code).emit('user-modmuted', { id, muted: Boolean(effective()), by: effective() });
+      postSystem(room, `${target.name} susturuldu (susturan: ${account.name})`);
+    } else {
+      if (!existing) return ack({ modMuted: effective() });
+      // Yönetici tek seferde duyulur yapar: hesabın her odadaki sahip kayıtları da silinir. Sahibin kaldırması
+      // yalnız kendi odasının kaydını siler.
+      if (by === 'admin') {
+        mutes.removeAdmin(target.key);
+        mutes.removeOwnerEverywhere(target.key);
+      } else mutes.removeOwner(target.home, target.key);
+      // Mikrofon kendiliğinden açılmaz: kişi kendisi açana kadar sessizde kalır.
+      io.to(code).emit('user-modmuted', { id, muted: Boolean(effective()), by: effective() });
+      postSystem(room, `${target.name} artık konuşabilir (susturmayı kaldıran: ${account.name})`);
+    }
+    ack({ modMuted: effective() });
+  });
+}
+
 const BAD_REQUEST = { error: 'İstek işlenemedi.' };
 
 // Soketin bütün işleyicileri korumalı kaydedilir: bozuk istek (ör. null gövde, açılamayan argüman)
@@ -1224,6 +1334,8 @@ io.on('connection', (socket) => {
   socket.on('mute', (muted) => {
     if (!code) return;
     const user = getRoom(code).users.get(socket.id);
+    if (!user) return;
+    if (!muted && modMuteOf(user.home, user.key)) return; // susturulan kendi mikrofonunu açamaz
     user.muted = Boolean(muted);
     socket.to(code).emit('user-muted', { id: socket.id, muted: user.muted });
   });
@@ -1278,8 +1390,15 @@ io.on('connection', (socket) => {
   });
 
   let lastSfx = 0;
+  // Susturulan kişi ses efektiyle de konuşamaz (çalamaz, yükleyemez).
+  const silenced = () => {
+    const user = code && getRoom(code).users.get(socket.id);
+    return Boolean(user && modMuteOf(user.home, user.key));
+  };
+  const SILENCED_SFX = 'Susturuldun; susturman kalkana kadar ses efekti çalamazsın.';
   socket.on('sfx', (id) => {
     if (!code || typeof id !== 'string' || Date.now() - lastSfx < SFX_COOLDOWN) return;
+    if (silenced()) return socket.emit('notice', SILENCED_SFX);
     if (!SFX_IDS.has(id) && !getRoom(code).customSfx.has(id)) return;
     lastSfx = Date.now();
     socket.to(code).emit('sfx', { id, by: getRoom(code).users.get(socket.id).name });
@@ -1290,6 +1409,7 @@ io.on('connection', (socket) => {
   socket.on('sfx:upload', ({ data, label } = {}, ack) => {
     if (typeof ack !== 'function') return;
     if (!code) return ack({ error: 'Odada değilsin.' });
+    if (silenced()) return ack({ error: 'Susturuldun; susturman kalkana kadar ses efekti yükleyemezsin.' });
     if (Date.now() - lastUpload < CUSTOM_SFX_COOLDOWN) return ack({ error: 'Biraz bekle, çok hızlı yüklüyorsun.' });
     label = typeof label === 'string' ? label.trim().slice(0, 16) : '';
     const isWav = Buffer.isBuffer(data) && data.length > 44 && data.length <= CUSTOM_SFX_MAX_BYTES &&
@@ -1608,7 +1728,7 @@ io.on('connection', (socket) => {
     if (room.bot && players.length < LOBBY_GAMES[game].max) players.push(BOT);
     // Ayarlar (tur sayısı, tahta) son başlatılan lobiden kalır; kelimede anlatıcı her seferinde yeniden seçilir.
     const opts = { ...LOBBY_GAMES[game].opts, ...(game === 'kelime' ? {} : room.lobbyOpts[game]) };
-    room.lobbies[game] = { game, host: name, players, opts };
+    room.lobbies[game] = { game, host: name, players, opts, max: LOBBY_GAMES[game].max };
     sendLobbies(room);
     postSystem(room, `${name} ${LOBBY_GAMES[game].label} lobisi kurdu; katılmak isteyen girsin.`);
   }));
@@ -2034,6 +2154,7 @@ io.on('connection', (socket) => {
   });
 
   bindMergeEvents(socket);
+  bindModEvents(socket);
 
   socket.on('disconnect', () => {
     leaveRoom(socket, { grace: true });
@@ -2096,14 +2217,17 @@ function leaveLobby(room, game, name) {
 }
 
 const LOBBY_GAMES = {
+  // max: lobideki en çok kişi (bot dahil). MAX_USERS + 1: odadaki herkes ve bot. Dinozor 7'de kalır: oyuncular Jef'in
+  // 60 px arkasına dizilir (Jef tuvalin 420. pikselinde), 8. oyuncu ekranın dışında başlardı. Kelime 6 (bir anlatıcı
+  // + 5 bilen; renkler ve tur sayısı buna göre). Sayı bulmaca iki kişilik.
   race: { label: 'süre yarışı', min: 1, max: MAX_USERS + 1, opts: { rounds: 5 }, start: (room, by, players, opts) => startRace(room, by, players, opts.rounds) },
-  dino: { label: 'dinozor', min: 1, max: MAX_USERS + 1, opts: {}, start: (room, by, players) => startDino(room, by, players) },
+  dino: { label: 'dinozor', min: 1, max: DINO_PLAYERS, opts: {}, start: (room, by, players) => startDino(room, by, players) },
   memory: { label: 'Eşini Bul', min: 1, max: MAX_USERS + 1, opts: { numbers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], colors: ['yesil', 'turuncu', 'mavi', 'kirmizi'] }, start: (room, by, players, opts) => startMemory(room, by, players, opts) },
-  hedef: { label: 'Hedef sayı', min: 1, max: 6, opts: { rounds: 5 }, start: (room, by, players, opts) => hedef.start(room, by, players, opts) },
+  hedef: { label: 'Hedef sayı', min: 1, max: MAX_USERS + 1, opts: { rounds: 5 }, start: (room, by, players, opts) => hedef.start(room, by, players, opts) },
   sayi: { label: 'Sayı bulmaca', min: 1, max: 2, opts: { digits: 4 }, start: (room, by, players, opts) => startSayi(room, by, players, opts) },
-  kural: { label: 'Gizli kural', min: 1, max: 6, opts: {}, start: (room, by, players) => kural.start(room, by, players) },
-  mantik: { label: 'Mantık tablosu', min: 1, max: 6, opts: { level: 'kolay' }, start: (room, by, players, opts) => mantik.start(room, by, players, opts) },
-  daktilo: { label: 'daktilo düellosu', min: 1, max: 6, opts: { secs: 60 }, start: (room, by, players, opts) => daktilo.start(room, by, players, opts) },
+  kural: { label: 'Gizli kural', min: 1, max: MAX_USERS + 1, opts: {}, start: (room, by, players) => kural.start(room, by, players) },
+  mantik: { label: 'Mantık tablosu', min: 1, max: MAX_USERS + 1, opts: { level: 'kolay' }, start: (room, by, players, opts) => mantik.start(room, by, players, opts) },
+  daktilo: { label: 'daktilo düellosu', min: 1, max: MAX_USERS + 1, opts: { secs: 60 }, start: (room, by, players, opts) => daktilo.start(room, by, players, opts) },
   kelime: { label: 'kelime', min: 2, max: KELIME_PLAYERS, opts: { narrator: null }, start: (room, by, players, opts) => startKelime(room, by, players, opts.narrator) },
 };
 

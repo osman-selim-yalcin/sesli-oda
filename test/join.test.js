@@ -246,14 +246,14 @@ test('/status yalnız toplam kişi sayısını verir (bütün odalar)', async ()
   closeAll();
 });
 
-test('7. kişi oda dolu hatası alır', async () => {
-  for (let i = 1; i <= 6; i++) {
+test('10. kişi girer, 11. kişi oda dolu hatası alır', async () => {
+  for (let i = 1; i <= 10; i++) {
     const s = await user(`Kisi${i}`);
-    assert.equal((await join(s, 'dolu-oda')).error, undefined);
+    assert.equal((await join(s, 'dolu-oda')).error, undefined, `${i}. kişi`);
   }
-  const seventh = await user('Kisi7');
-  const r = await join(seventh, 'dolu-oda');
-  assert.match(r.error, /^Oda dolu/);
+  const eleventh = await user('Kisi11');
+  const r = await join(eleventh, 'dolu-oda');
+  assert.equal(r.error, 'Oda dolu (en fazla 10 kişi).');
   assert.equal(r.room, undefined);
   closeAll();
 });

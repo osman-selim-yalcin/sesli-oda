@@ -205,7 +205,7 @@ let live = () => ({ users: [], max: 0, mergedWith: null });
 let onChange = () => {};
 
 function view(room, account) {
-  const { users, max, mergedWith } = live(room.id);
+  const { users, count = users.length, max, mergedWith } = live(room.id);
   return {
     id: room.id,
     name: room.name,
@@ -213,6 +213,7 @@ function view(room, account) {
     locked: Boolean(room.passHash),
     theme: room.theme,
     users,
+    count, // doluluğa sayılanlar (site yöneticisi sayılmaz)
     max,
     mergedWith,
     role: role(room, account),
@@ -222,7 +223,7 @@ function view(room, account) {
 const bearer = (req) => req.get('authorization')?.replace(/^Bearer /, '') || '';
 
 // live(oda id) -> { users, max, mergedWith }: canlı durum sunucudan gelir.
-// onChange(tür, bilgi): kayıtlar değişince ('rooms' | 'request' | 'settings' | 'closed').
+// onChange(tür, bilgi): kayıtlar değişince ('rooms' | 'request' | 'settings' | 'roles' | 'closed').
 // 'request' bilgisi { pending, decided? }: decided = { key, status, name } (karar verildiyse isteyen hesap).
 function setup(app, opts) {
   live = opts.live;
@@ -322,6 +323,7 @@ function setup(app, opts) {
         throw err;
       }
       if ('theme' in next) onChange('settings', { id: room.id, theme: room.theme });
+      if ('ownerId' in next) onChange('roles', { id: room.id }); // susturma yetkileri değişti
       onChange('rooms', { id: room.id });
       res.json({ room: view(room, a) });
     } catch (err) {
@@ -406,6 +408,12 @@ function setup(app, opts) {
     const q = ready().find((r) => r.accountId === a.key);
     if (q) return res.json({ request: { id: q.id, name: q.name, status: 'pending', decidedAt: null } });
     res.json({ request: latest.get(a.key) || null });
+  });
+
+  // Oda sahibi seçimi (oda ayarları penceresi): hesap adları; sunucu PATCH'te ayrıca doğrular.
+  app.get('/admin/accounts', (req, res) => {
+    if (!admin(req, res)) return;
+    res.json({ names: accounts.names() });
   });
 
   app.get('/admin/room-requests', (req, res) => {
