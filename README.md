@@ -101,12 +101,18 @@ birleşir. Reddedilen ya da süresi dolan istekten sonra aynı yöne 60 saniye y
 dakikada en çok 3 istek gönderir. "Odaları ayır" ile herkes kendi odasına, kendi temasıyla döner.
 Birleşme yalnız hafızadadır: sunucu yeniden başlarsa odalar ayrı açılır.
 
-**Susturma:** oda sahibi kendi odasındakileri (yönetici hariç), site yöneticisi herkesi Odadakiler kutusundaki
-"Sustur" ile susturur. Susturulanın mikrofonu (ve ekran paylaşımının sesi) kapanır ve kilitlenir; öteki
-herkes, o kişiden ne gelirse gelsin sesini çalmaz. Susturulan ses efekti de çalamaz ve yükleyemez. Sohbete kimin susturduğu yazılır. Yöneticinin susturmasını
-yalnız yönetici kaldırır; kaldırılınca kişi mikrofonunu kendisi açar. Birleşik odada sahip yalnız kendi odası
-kökenlileri susturur; susturulan öteki odanın kapısından girerse susturması o odaya taşınır (kökeni girdiği kapıdır, ayrılınca orada kalır). Susturma hafızadadır: odadan çıkıp dönen yine susturulmuştur; oda boşalınca ya da
-kapanınca silinir.
+**Susturma:** Odadakiler kutusunda bir kişinin "Yönet" (üç nokta) düğmesi "Sustur"u açar. Susturulanın
+mikrofonu ve ekran paylaşımının sesi kapanır ve kilitlenir; ses efekti çalamaz ve yükleyemez; öteki herkes, o
+kişiden ne gelirse gelsin sesini çalmaz. Sohbete kimin susturduğu yazılır; kaldırılınca kişi mikrofonunu kendisi
+açar. Kurallar:
+- Köken, kişinin girdiği kapının odasıdır (birleşik odada da; ayrılınca o odada kalır).
+- Kayıt oda + hesaba bağlıdır; kişinin susturması yalnız kökeninin kaydıdır.
+- Birleşik odaya girerken çiftin öteki odasındaki kayıt kapının odasına bir kez taşınır (kapıda kayıt yoksa, ya da
+  öteki odadaki yöneticininse); kaldırılan susturma yenilemede geri gelmez. Birleşme anındaki taşınmada taşınmaz.
+- Yönetici herkesi susturur ve kaldırır; oda sahibi kökeni kendi odası olanları (yönetici hariç) susturur ve
+  kendi düzeyindeki susturmayı kaldırır, yöneticininkine dokunamaz; kimse kendini susturamaz.
+- Hafızadadır: odadan çıkıp dönen yine susturulmuştur. Oda kapanınca, ya da odanın canlı durumu silinince,
+  birleşme bitince veya gerçek çıkışta o kökenden kimse kalmadıysa (yenileme payındakiler sayılır) silinir.
 
 ## Temalar
 

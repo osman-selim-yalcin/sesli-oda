@@ -1,7 +1,13 @@
-// Moderatör susturması: saf durum ve yetki kuralı (soket bilmez; server.js bağlar).
-// Susturma kişinin köken odasına (birleşik odada misafir odanın id'si) ve hesabına bağlıdır: odadan çıkıp
-// dönen yine susturulmuştur, birleşme ve ayrılmada kişiyle birlikte gider. Odanın canlı durumu silinince
-// (oda boşaldı ya da kapandı) server.js clear(oda) çağırır. Yalnız hafızadadır.
+// Moderatör susturması: saf durum ve yetki kuralı (soket bilmez; server.js bağlar). Model:
+// - Köken: kişinin girdiği kapının odası (birleşik odada da; ayrılınca o odada kalır). Hiçbir şey kökeni değiştirmez.
+// - Kayıt: oda id + hesap anahtarı -> { by: 'owner' | 'admin', name }. Etkin susturma = kişinin kökeninin kaydı, başka bir şey değil.
+// - Taşıma: birleşik odaya join ile başarıyla girerken çiftin öteki odasındaki kayıt kapının odasına bir kez kopyalanır
+//   (kapıda kayıt yoksa; ya da kapıdaki sahip kaydını öteki odanın yönetici kaydı geçer). Birleşme, kapı ve hesap
+//   başına bir kez: kaldırılan susturma yenilemede geri gelmez. Birleşme anındaki taşınmada kopyalama yok.
+// - Kim: yönetici herkesi susturur ve kaldırır; oda sahibi kökeni kendi odası olanı (yönetici hariç) susturur ve
+//   sahip kaydını kaldırır, yönetici kaydına dokunamaz; kimse kendini (kendi sessizi mikrofon düğmesi).
+// - Silinme: oda kapanınca; odanın canlı durumu silinince, birleşme bitince ya da gerçek çıkışta o kökenden odada
+//   ya da yenileme payında kimse kalmadıysa. Öteki odadaki asıl kayıt kendi kurallarıyla durur. Yalnız hafızadadır.
 const state = new Map(); // köken oda id -> Map<hesap anahtarı, { by: 'owner' | 'admin', name }>
 
 const get = (room, key) => state.get(room)?.get(key) || null;
@@ -18,7 +24,19 @@ function remove(room, key) {
   if (!m.size) state.delete(room);
 }
 
-const clear = (room) => state.delete(room);
+// Bu birleşmede kapının odasına taşınmış kayıtlar: "oda id\nhesap" (birleşme bitince ya da kayıt silinince unutulur).
+const imports = new Set();
+const ik = (room, key) => `${room}\n${key}`;
+const imported = (room, key) => imports.has(ik(room, key));
+const markImported = (room, key) => imports.add(ik(room, key));
+function forgetImports(...rooms) {
+  for (const x of [...imports]) if (rooms.includes(x.slice(0, x.indexOf('\n')))) imports.delete(x);
+}
+
+function clear(room) {
+  state.delete(room);
+  forgetImports(room);
+}
 const size = () => state.size; // test için
 
 // Kim kimi susturabilir (ya da susturmasını kaldırabilir). Hata metni ya da null döner.
@@ -34,4 +52,4 @@ function check({ actor, target, existing, mute }) {
   return null;
 }
 
-module.exports = { get, set, remove, clear, size, check };
+module.exports = { get, set, remove, clear, size, check, imported, markImported, forgetImports };

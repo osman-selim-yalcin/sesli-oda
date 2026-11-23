@@ -58,6 +58,11 @@ function addTestTheme(rooms) {
         .replace(/<\/symbol>/g, '</g></symbol>');
       res.type('image/svg+xml').send(svg);
     });
+    // Yalnız test sunucusunda: susturma kaydını okur (temizliği zamanlamaya değil duruma bakarak beklemek için).
+    app.get('/__test/mute', (req, res) => {
+      const mutes = require(path.join(ROOT, 'mutes.js'));
+      res.json({ record: mutes.get(String(req.query.room), String(req.query.key)) });
+    });
     return setup(app, opts);
   };
 }
