@@ -445,3 +445,25 @@ test('birleş → ayrıl → yeniden birleş: her kişinin susturması doğru ka
   assert.equal(peers[`Ra${tag}`], 'owner');
   assert.equal(peers[ownerB], null);
 });
+
+test('susturulan ses efekti çalamaz ve yükleyemez; kaldırılınca çalabilir', async () => {
+  const { A, ownerA } = await rooms(1);
+  const o = await enter(ownerA, A);
+  const m = await enter(`Efekt${tag}`, A);
+  assert.deepEqual(await mute(o, m), {});
+  const notice = eventWhere(m, 'notice', (t) => /Susturuldun/.test(t));
+  const heard = [];
+  o.on('sfx', (d) => heard.push(d));
+  m.emit('sfx', 'clap');
+  assert.match(await notice, /efekt/);
+  const wav = Buffer.alloc(100);
+  wav.write('RIFF', 0, 'latin1');
+  wav.write('WAVE', 8, 'latin1');
+  const up = await ack(m, 'sfx:upload', { data: wav, label: 'deneme' });
+  assert.match(up.error || '', /Susturuldun/);
+  assert.deepEqual(await mute(o, m, false), {});
+  const ok = eventWhere(o, 'sfx', (d) => d.id === 'clap');
+  m.emit('sfx', 'clap');
+  await ok;
+  assert.equal(heard.length, 1, 'susturulmuşken gelen efekt yayılmadı');
+});

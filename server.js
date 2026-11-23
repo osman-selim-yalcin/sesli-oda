@@ -1367,8 +1367,15 @@ io.on('connection', (socket) => {
   });
 
   let lastSfx = 0;
+  // Susturulan kişi ses efektiyle de konuşamaz (çalamaz, yükleyemez).
+  const silenced = () => {
+    const user = code && getRoom(code).users.get(socket.id);
+    return Boolean(user && mutes.get(user.home, user.key));
+  };
+  const SILENCED_SFX = 'Susturuldun; susturman kalkana kadar ses efekti çalamazsın.';
   socket.on('sfx', (id) => {
     if (!code || typeof id !== 'string' || Date.now() - lastSfx < SFX_COOLDOWN) return;
+    if (silenced()) return socket.emit('notice', SILENCED_SFX);
     if (!SFX_IDS.has(id) && !getRoom(code).customSfx.has(id)) return;
     lastSfx = Date.now();
     socket.to(code).emit('sfx', { id, by: getRoom(code).users.get(socket.id).name });
@@ -1379,6 +1386,7 @@ io.on('connection', (socket) => {
   socket.on('sfx:upload', ({ data, label } = {}, ack) => {
     if (typeof ack !== 'function') return;
     if (!code) return ack({ error: 'Odada değilsin.' });
+    if (silenced()) return ack({ error: 'Susturuldun; susturman kalkana kadar ses efekti yükleyemezsin.' });
     if (Date.now() - lastUpload < CUSTOM_SFX_COOLDOWN) return ack({ error: 'Biraz bekle, çok hızlı yüklüyorsun.' });
     label = typeof label === 'string' ? label.trim().slice(0, 16) : '';
     const isWav = Buffer.isBuffer(data) && data.length > 44 && data.length <= CUSTOM_SFX_MAX_BYTES &&

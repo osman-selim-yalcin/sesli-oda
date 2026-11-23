@@ -699,8 +699,14 @@ button.person:active:not(:disabled) { transform: none; }
 .p-badge .ic { width: 13px; height: 13px; animation: spin 1s linear infinite; }
 .p-mute { width: 36px; height: 36px; }
 .p-mute .ic { width: 16px; height: 16px; }
-.p-mod { margin-top: var(--space-1); margin-left: calc(var(--space-3) * -1); }
-.p-mod[hidden] { display: none; }
+.p-more { width: 36px; height: 36px; }
+.p-more .ic { width: 16px; height: 16px; }
+.p-more[hidden], .p-modrow[hidden] { display: none; }
+.p-modrow { margin-top: var(--space-2); }
+.p-mod { width: 100%; justify-content: center; }
+/* Susturulan kişi: ses efektleri kapalı (sunucu da reddeder) */
+.sfx-locked { margin: 0 0 var(--space-2); font-size: 13px; }
+.sfx-upload.is-locked { opacity: .5; pointer-events: none; }
 .people-list > li.is-modmuted .p-status { color: var(--danger); font-weight: 600; }
 /* 20 kişide (birleşik oda) liste uzar: kutu ekranın içinde kalır, liste kayar */
 .people-pop { max-height: min(70vh, 640px); overscroll-behavior: contain; }

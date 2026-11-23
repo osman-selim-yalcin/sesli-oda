@@ -103,9 +103,9 @@ Birleşme yalnız hafızadadır: sunucu yeniden başlarsa odalar ayrı açılır
 
 **Susturma:** oda sahibi kendi odasındakileri (yönetici hariç), site yöneticisi herkesi Odadakiler kutusundaki
 "Sustur" ile susturur. Susturulanın mikrofonu (ve ekran paylaşımının sesi) kapanır ve kilitlenir; öteki
-herkes, o kişiden ne gelirse gelsin sesini çalmaz. Sohbete kimin susturduğu yazılır. Yöneticinin susturmasını
+herkes, o kişiden ne gelirse gelsin sesini çalmaz. Susturulan ses efekti de çalamaz ve yükleyemez. Sohbete kimin susturduğu yazılır. Yöneticinin susturmasını
 yalnız yönetici kaldırır; kaldırılınca kişi mikrofonunu kendisi açar. Birleşik odada sahip yalnız kendi odası
-kökenlileri susturur. Susturma hafızadadır: odadan çıkıp dönen yine susturulmuştur; oda boşalınca ya da
+kökenlileri susturur; susturulan öteki odanın kapısından girse de kökeni ve susturması değişmez. Susturma hafızadadır: odadan çıkıp dönen yine susturulmuştur; oda boşalınca ya da
 kapanınca silinir.
 
 ## Temalar

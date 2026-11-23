@@ -17,6 +17,7 @@ let micSource = null;          // mikrofonu ses eşiğine bağlayan düğüm (ci
 let screenStream = null;      // kendi ekran paylaşımımız
 let sharerId = null;          // odada ekranını paylaşan kişi
 let micOn = true;
+let screenAudioHeld = false;   // susturma ekran paylaşımının sesini kapattı; kişi mikrofonunu açınca geri açılır
 let modMuted = null;           // oda sahibi ya da yönetici beni susturdu: 'owner' | 'admin' (mikrofon kilitli)
 let myName = '';
 let selfId = null;
@@ -176,8 +177,8 @@ function setupAudio() {
 
 const SPEAK_THRESHOLD = 12;
 const SPEAK_HOLD = 350; // ms; kelime aralarında gösterge titremesin
-
 const SPEAK_HOLD_HIDDEN = 1600; // ms; gizli sekmede (seyrek ölçüm)
+
 // Bütün göstergeler tek zamanlayıcıyla ölçülür (20 kişilik birleşik odada 20 ayrı zamanlayıcı yerine biri).
 // Sekme görünmezken de ölçülür ("konuşurken müziği kıs" peer.speaking'i okur, YouTube arka planda çalar); yalnız
 // halkaların DOM'u yazılmaz, sekme dönünce ilk ölçümde düzelir. Tarayıcı gizli sekmede zamanlayıcıyı zaten seyreltir.
@@ -205,8 +206,8 @@ function tickLevels() {
     // Gizli sekmede zamanlayıcı ~1 sn'de bir çalışır: konuşma arada kaçmasın diye bekleme uzar.
     const speaking = !m.state.silenced?.() && Date.now() - m.lastLoud < (hidden ? SPEAK_HOLD_HIDDEN : SPEAK_HOLD);
     m.state.speaking = speaking;
-    m.row.classList.toggle('speaking', speaking);
     if (hidden || m.row.classList.contains('speaking') === speaking) continue; // DOM'a yalnız görünürken ve değişince
+    m.row.classList.toggle('speaking', speaking);
     m.row.mini?.classList.toggle('speaking', speaking);
   }
   if (!levelMeters.size) {
@@ -357,8 +358,8 @@ function setStatus(row, text) {
 function addPeer(id, name, info = {}) {
   if (peers.has(id)) return peers.get(id);
   const { muted = false } = info;
-  const row = personRow(name, false);
   setRoomColor(name, info.color);
+  const row = personRow(name, false);
   const vol = document.createElement('input');
   vol.type = 'range';
   vol.min = 0;
@@ -399,8 +400,13 @@ function addPeer(id, name, info = {}) {
     setIcon(muteBtn, peer.localMuted ? 'volume-x' : 'volume');
     muteBtn.title = peer.localMuted ? `${name} sesini aç` : `${name} sesini kapat`;
     muteBtn.classList.toggle('off', peer.localMuted);
-    vol.disabled = peer.localMuted;
+    // Susturulmuş kişinin sesi zaten çalınmaz: ses ayarı ve kendin için kapatma düğmesi o sürece kapalı
+    vol.disabled = peer.localMuted || Boolean(peer.modMuted);
+    muteBtn.disabled = Boolean(peer.modMuted);
+    if (peer.modMuted) muteBtn.title = vol.title = `${name} susturuldu; sesi kimseye gitmiyor`;
+    else vol.title = `${name} ses seviyesi`;
   };
+  peer.renderMute = () => renderMute();
   muteBtn.onclick = () => {
     peer.localMuted = !peer.localMuted;
     applyGain();
@@ -408,24 +414,52 @@ function addPeer(id, name, info = {}) {
   };
   renderMute();
 
-  // Sustur / Susturmayı kaldır: yalnız yetkisi olana görünür (sunucu yine denetler)
+  // Sustur / Susturmayı kaldır: yalnız yetkisi olana görünür (sunucu yine denetler). Sustur, satırdaki "Yönet"
+  // (üç nokta) düğmesinin açtığı satırdadır: kalabalık listede yanlışlıkla dokunup birini susturmak olmasın.
+  // Susturulmuş kişide "Susturmayı kaldır" doğrudan görünür (zararsız eylem).
+  const moreBtn = document.createElement('button');
+  moreBtn.type = 'button';
+  moreBtn.className = 'icon p-more';
+  moreBtn.innerHTML = icon('more');
+  moreBtn.title = `${name}: yönet`;
+  moreBtn.setAttribute('aria-label', `${name}: yönet`);
+  moreBtn.setAttribute('aria-expanded', 'false');
+  row.append(moreBtn);
+  const modRow = document.createElement('div');
+  modRow.className = 'p-modrow';
+  modRow.hidden = true;
   const modBtn = document.createElement('button');
   modBtn.type = 'button';
-  modBtn.className = 'btn btn-sm btn-ghost p-mod';
-  row.querySelector('.p-info').append(modBtn);
+  modBtn.className = 'btn btn-sm p-mod';
+  modRow.append(modBtn);
+  row.querySelector('.p-info').append(modRow);
+  let open = false;
   peer.renderMod = () => {
     const can = canModerate(peer);
-    modBtn.hidden = !can;
-    if (!can) return;
-    setIcon(modBtn, peer.modMuted ? 'mic' : 'mic-off', peer.modMuted ? 'Susturmayı kaldır' : 'Sustur');
+    moreBtn.hidden = !can || Boolean(peer.modMuted);
+    if (!can) open = false;
+    const show = can && (open || Boolean(peer.modMuted));
+    modRow.hidden = !show;
+    moreBtn.setAttribute('aria-expanded', String(show));
+    if (!show) return;
+    setIcon(modBtn, peer.modMuted ? 'mic' : 'mic-off', peer.modMuted ? 'Susturmayı kaldır' : `${name} kişisini sustur`);
     modBtn.classList.toggle('btn-danger', !peer.modMuted);
+    modBtn.classList.toggle('btn-ghost', Boolean(peer.modMuted));
     modBtn.setAttribute('aria-label', `${name}: ${peer.modMuted ? 'susturmayı kaldır' : 'sustur'}`);
+  };
+  moreBtn.setAttribute('aria-controls', (modRow.id = `p-modrow-${id}`));
+  moreBtn.onclick = () => {
+    open = !open;
+    peer.renderMod();
+    if (open) modBtn.focus();
   };
   modBtn.onclick = async () => {
     modBtn.disabled = true;
     const res = (await emitAck(8000, 'mod:mute', { id, muted: !peer.modMuted })) ?? { error: 'Sunucuya ulaşılamadı.' };
     modBtn.disabled = false;
     if (res.error) toast(res.error);
+    open = false; // susturunca satır kapanır; kaldırma düğmesi kendiliğinden görünür
+    peer.renderMod();
   };
 
   peers.set(id, peer);
@@ -448,6 +482,7 @@ function removePeer(id) {
   peer.row.remove();
   peer.row.mini.remove();
   peers.delete(id);
+  if (![...peers.values()].some((p) => p.name === peer.name)) setRoomColor(peer.name, null);
   renderPeopleCount();
 }
 
@@ -478,11 +513,29 @@ function applyLimits(pc) {
     const params = sender.getParameters();
     if (!params.encodings?.length) continue;
     params.encodings[0].maxBitrate = sender.track.kind === 'video' ? screenBitrate() : VOICE_BITRATE;
-    sender.setParameters(params).catch(() => {});
+    // Anlaşma sürerken reddedilebilir: bağlantı yeniden kararlı olunca bir kez daha denenir.
+    sender.setParameters(params).catch(() => retryLimits(pc));
   }
 }
+function retryLimits(pc) {
+  if (pc.limitsRetry || pc.signalingState === 'closed') return;
+  pc.limitsRetry = true;
+  const again = () => {
+    if (pc.signalingState !== 'stable') return;
+    pc.removeEventListener('signalingstatechange', again);
+    pc.limitsRetry = false;
+    for (const sender of pc.getSenders()) {
+      if (!sender.track) continue;
+      const params = sender.getParameters();
+      if (!params.encodings?.length) continue;
+      params.encodings[0].maxBitrate = sender.track.kind === 'video' ? screenBitrate() : VOICE_BITRATE;
+      sender.setParameters(params).catch(() => {}); // ikinci ret: bir sonraki anlaşmada applyLimits yine dener
+    }
+  };
+  if (pc.signalingState === 'stable') queueMicrotask(again);
+  else pc.addEventListener('signalingstatechange', again);
+}
 
-  if (![...peers.values()].some((p) => p.name === peer.name)) setRoomColor(peer.name, null);
 // Paylaşan görüntüyü her kişiye ayrı gönderir: kişi başı 1 Mbps, ama toplam yükleme SCREEN_UPLOAD'u geçmesin
 // (10 kişide kişi başı ~670 kbps, 20 kişide ~315 kbps). Kişi gelip gidince bütün bağlantılarda yeniden ayarlanır.
 const SCREEN_UPLOAD = 6000000; // bps
@@ -710,9 +763,14 @@ function setModMuted(by) {
     micOn = false;
     sendStream?.getAudioTracks().forEach((t) => (t.enabled = false));
   }
-  // Ekran paylaşımının sesi de gitmesin (görüntü sürer)
-  screenStream?.getAudioTracks().forEach((t) => (t.enabled = !modMuted));
+  // Ekran paylaşımının sesi de gitmesin (görüntü sürer). Susturma kalkınca kendiliğinden açılmaz: kişi
+  // mikrofonunu açınca (ayrı bir paylaşım sesi düğmesi yok) ya da paylaşımı yeniden başlatınca açılır.
+  if (modMuted && screenStream?.getAudioTracks().some((t) => t.enabled)) {
+    screenStream.getAudioTracks().forEach((t) => (t.enabled = false));
+    screenAudioHeld = true;
+  }
   renderMic();
+  renderSfxLock();
   renderPersonState(selfRow, { modMuted });
   if (selfRow) setStatus(selfRow, modMuted ? MOD_BY[modMuted] : localStream ? 'Sen' : 'Sadece dinleyici');
   return was;
@@ -722,13 +780,16 @@ socket.on('user-modmuted', ({ id, muted, by } = {}) => {
   if (id === selfId) {
     const was = setModMuted(muted ? by : null);
     if (muted && !was) toast(by === 'admin' ? 'Yönetici seni susturdu. Mikrofonun kapalı.' : 'Oda sahibi seni susturdu. Mikrofonun kapalı.', 'danger');
-    else if (!muted && was) toast('Susturman kaldırıldı; istersen mikrofonunu açabilirsin.', 'live');
+    else if (!muted && was) toast(screenAudioHeld && screenStream
+      ? 'Susturman kaldırıldı; mikrofonunu açınca ekran paylaşımının sesi de açılır.'
+      : 'Susturman kaldırıldı; istersen mikrofonunu açabilirsin.', 'live');
     return;
   }
   const peer = peers.get(id);
   if (!peer) return;
   peer.modMuted = muted ? by : null;
   peer.applyGain();
+  peer.renderMute();
   setStatus(peer.row, peerStatus(peer));
   renderPersonState(peer.row, { modMuted: peer.modMuted });
   peer.renderMod();
@@ -825,6 +886,13 @@ $('mic-toggle').onclick = () => {
   sendStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
   socket.emit('mute', !micOn);
   renderMic();
+  if (micOn && screenAudioHeld) {
+    screenAudioHeld = false;
+    if (screenStream?.getAudioTracks().length) {
+      screenStream.getAudioTracks().forEach((t) => (t.enabled = true));
+      toast('Ekran paylaşımının sesi de açıldı.');
+    }
+  }
 };
 
 // ---------- Ses eşiği (gürültü kapısı) ----------
@@ -984,9 +1052,10 @@ async function startScreen() {
   const track = screenStream.getVideoTracks()[0];
   track.contentHint = 'detail';
   track.onended = stopScreen; // tarayıcının "Paylaşımı durdur" düğmesi
+  screenAudioHeld = Boolean(modMuted) && screenStream.getAudioTracks().length > 0;
   screenStream.getAudioTracks().forEach((t) => {
     t.contentHint = 'music';
-    t.enabled = !modMuted; // susturulmuşken paylaşımın sesi gitmez
+    t.enabled = !modMuted; // susturulmuşken paylaşımın sesi gitmez (mikrofon açılınca açılır)
   });
   for (const peer of peers.values()) if (peer.pc) addScreenTrack(peer);
   renderScreen();
@@ -4134,7 +4203,7 @@ socket.on('bot', setBot);
 // İstenen oyun adım adım anlatılır. Yazılanlar bu cihazda taslak olarak durur; gönderilince herkese
 // görünen listeye düşer, site sahibi eklenip eklenmeyeceğine karar verir (durum sunucudaki kayıttan gelir).
 
-const PLAYERS = ['1', '2', '3', '4', '5', '6'];
+const PLAYERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']; // oda en fazla 10 kişi
 const ONER_STEPS = [
   {
     title: 'Oyun', head: 'Oyunun kendisi', intro: 'Önce kısaca ne olduğunu anlat.',
@@ -6234,9 +6303,25 @@ function sfxButton(id, text, title) {
     socket.emit('sfx', id);
     // Sunucudaki bekleme süresiyle aynı; spam'i önler.
     document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = true));
-    setTimeout(() => document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = false)), 600);
+    setTimeout(renderSfxLock, 600);
   };
+  btn.disabled = Boolean(modMuted);
   return btn;
+}
+
+// Susturulan kişi ses efekti de çalamaz ve yükleyemez (sunucu da reddeder): düğmeler kapalı, nedeni yazılı.
+const SFX_LOCKED = 'Susturuldun; susturman kalkana kadar ses efekti çalamaz ve yükleyemezsin.';
+function renderSfxLock() {
+  const locked = Boolean(modMuted);
+  for (const b of document.querySelectorAll('.sfx-btn')) {
+    b.disabled = locked;
+    if (locked) b.dataset.title ??= b.title;
+    b.title = locked ? SFX_LOCKED : b.dataset.title ?? b.title;
+  }
+  $('sfx-file').disabled = locked;
+  $('sfx-label').disabled = locked;
+  $('sfx-upload').classList.toggle('is-locked', locked);
+  $('sfx-locked').hidden = !locked;
 }
 
 for (const fx of SFX_LIST) $('sfx').append(sfxButton(fx.id, fx.emoji, fx.label));
@@ -6762,6 +6847,7 @@ function applyJoin(res) {
     createPc(p.id);
   }
   setModMuted(res.modMuted || null);
+  setRoomColor(myName, res.color);
   sharerId = res.sharer;
   renderScreen();
   renderRecBanner();
@@ -6847,7 +6933,6 @@ function renderRoomInfo() {
   const other = curRoom.mergedWith;
   $('topbar-merged').hidden = !other;
   $('topbar-merged').innerHTML = other ? '<span aria-hidden="true">⇄</span><span class="topbar-merged-name"></span>' : '';
-  setRoomColor(myName, res.color);
   if (other) $('topbar-merged').lastChild.textContent = roomNames.get(other) || other;
   $('topbar-merged').title = other ? `${roomNames.get(other) || other} ile birleşik` : '';
   $('room-settings-open').hidden = $('room-settings-top').hidden = !canManage(curHome);
@@ -6883,6 +6968,12 @@ socket.on('room:merge', ({ mergedWith = null, name = null } = {}) => {
 // ikonları birlikte değiştirir; JS'te çizilenler 'themechange' ile yeniden çizilir). Sunucu olayı yalnız o
 // odanın soketlerine gönderir. Birleşikken misafirler ev sahibi odadadır: kendi (misafir) odalarının teması
 // değişirse onlara olay gelmez; ayrılınca room:moved odanın güncel temasını getirir ve o uygulanır.
+// Bir odanın sahibi değişti (bu oda ya da birleşik odanın öteki yarısı): roller (Sustur düğmeleri, oda ayarları
+// düğmesi) yeniden alınır. Sunucu yalnız o odanın ve ev sahibi odanın soketlerine gönderir.
+socket.on('room:roles', () => {
+  if (curRoom) refreshRoomView();
+});
+
 socket.on('room:theme', ({ id, theme } = {}) => {
   if (!curRoom || typeof theme !== 'string') return;
   const roomOf = id || curRoom.id;
@@ -6968,16 +7059,12 @@ socket.on('room:moved', (res = {}) => {
 // Odanın içinden (yalnız kendi odasında sahip ya da yöneticiyse) ve oda listesindeki kartın ayar düğmesinden
 // (sahip kendi odasında, site yöneticisi her odada; lobby.js onManage) aynı pencere açılır. Yetkiyi yine sunucu
 // denetler. Tema listesi oda isteği formundaki seçeneklerden gelir.
-// Bir odanın sahibi değişti (bu oda ya da birleşik odanın öteki yarısı): roller (Sustur düğmeleri, oda ayarları
-// düğmesi) yeniden alınır. Sunucu yalnız o odanın ve ev sahibi odanın soketlerine gönderir.
-socket.on('room:roles', () => {
-  if (curRoom) refreshRoomView();
-});
-
 
 let settingsRoom = null; // pencerenin değiştirdiği oda (odada curHome; listede kartın odası)
 let rsList = null; // son oda listesi (birleşme hedefleri)
 let rsShown = null; // yönetim alanlarına son yazılan ad ve sahip: kullanıcı değiştirdiyse canlı güncelleme ezmez
+let rsClosing = null; // bu pencereden kapatılmakta olan oda (liste güncellemesi ikinci bildirim göstermesin)
+let rsOpener = null;  // listede pencereyi açan ayar düğmesinin oda id'si (kapanınca odak oraya döner)
 let rsThemePending = null; // ayarlar penceresinde seçilmiş ama henüz uygulanmamış tema
 let rsThemeSaving = false;
 
@@ -7098,6 +7185,7 @@ async function openRoomSettings(view) {
   if (!view) return;
   if ($('settings-pop').matches(':popover-open')) $('settings-pop').hidePopover();
   settingsRoom = view;
+  rsOpener = curRoom ? null : view.id;
   rsShown = null;
   rsThemePending = null;
   rsError('');
@@ -7124,7 +7212,8 @@ function syncRoomSettings(list) {
   const fresh = list.find((r) => r.id === settingsRoom.id);
   if (!fresh) {
     $('room-settings').close();
-    return toast(`${settingsRoom.name} odası artık yok.`);
+    if (rsClosing !== settingsRoom.id) toast(`${settingsRoom.name} odası artık yok.`); // kendi kapattığımız: tek bildirim
+    return;
   }
   settingsRoom = fresh;
   renderRoomSettings(list);
@@ -7133,7 +7222,19 @@ function syncRoomSettings(list) {
 $('room-settings-open').onclick = () => openRoomSettings(curHome);
 $('rs-done').onclick = () => $('room-settings').close();
 $('room-settings').querySelector('[data-close]').onclick = () => $('room-settings').close();
-$('room-settings').addEventListener('close', () => showCloseConfirm(false));
+// Kapanınca odak açan düğmeye döner: liste bu arada yeniden çizildiyse aynı odanın yeni ayar düğmesine, oda
+// kapandıysa listeye (ilk karta).
+$('room-settings').addEventListener('close', () => {
+  showCloseConfirm(false);
+  const id = rsOpener;
+  rsOpener = null;
+  rsClosing = null;
+  if (id == null || curRoom) return;
+  requestAnimationFrame(() => {
+    const target = document.querySelector(`.room-manage[data-id="${CSS.escape(id)}"]`) || document.querySelector('#room-list .room-card');
+    target?.focus();
+  });
+});
 $('room-settings-top').onclick = () => $('room-settings-open').click();
 // Odadaki pencerelerin kapat düğmeleri
 for (const b of document.querySelectorAll('#room-screen dialog [data-close]')) b.onclick = () => b.closest('dialog').close();
@@ -7231,9 +7332,13 @@ $('rs-close-yes').onclick = async (e) => {
   const btn = e.currentTarget;
   rsError('');
   btn.disabled = true;
+  rsClosing = room.id;
   const res = await api('DELETE', `/rooms/${encodeURIComponent(room.id)}`);
   btn.disabled = false;
-  if (res.error) return rsError(res.error);
+  if (res.error) {
+    rsClosing = null;
+    return rsError(res.error);
+  }
   if ($('room-settings').open) $('room-settings').close();
   toast(`${room.name} odası kapatıldı.`);
 };
