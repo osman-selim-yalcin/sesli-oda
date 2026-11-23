@@ -517,7 +517,7 @@ window.Lobby = (() => {
       <div class="member-meta">
         <span class="member-cell member-joined"><span class="member-key">Katıldı</span><span class="member-val"></span></span>
         <span class="member-cell member-seen"><span class="member-key">Son görülme</span><span class="member-val"></span></span>
-        <span class="member-cell member-devices"><span class="member-val"></span><span class="member-unit">cihaz</span></span>
+        <span class="member-cell member-devices"><span class="member-key">Cihaz</span><span class="member-val"></span><span class="member-unit">cihaz</span></span>
       </div>
       <div class="member-state"></div>`;
     const avatar = makeAvatar(m.name);

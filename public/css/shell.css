@@ -605,9 +605,9 @@ button.people-btn:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .people-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-1); min-width: 0; }
 /* Masaüstünde başlık solda, avatarlar sağda (12 kişide iki satıra iner) */
 @media (min-width: 1000px) {
-  .people { grid-template-columns: 148px minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "head row" "note row"; gap: var(--space-1) var(--space-3); align-items: start; }
+  .people { grid-template-columns: 148px minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "head row" "note note"; gap: var(--space-1) var(--space-3); align-items: start; }
   .people-head { grid-area: head; flex-direction: column; align-items: flex-start; padding-top: var(--space-2); }
-  .mic-note { grid-area: note; margin: 0; }
+  .mic-note { grid-area: note; justify-self: start; margin: var(--space-2) 0 0; }
   .people-row { grid-area: row; }
 }
 button.person {
@@ -776,7 +776,7 @@ button.send .ic { width: 18px; height: 18px; margin-left: -2px; }
 .queue > .search-note.notice { display: flex; background: var(--danger-soft); }
 .queue > .search-note:hover { border-color: transparent; }
 .thumb-missing .ic { width: 16px; height: 16px; }
-.chat-img-missing { display: inline-flex; margin-top: var(--space-1); padding: 6px var(--space-3); font-size: 12px; }
+.chat-img-missing { display: inline-flex; align-items: center; width: max-content; max-width: 100%; margin-top: var(--space-1); padding: 6px var(--space-3); font-size: 12px; overflow-wrap: normal; white-space: nowrap; }
 .queue .q-text { flex: 1; min-width: 0; }
 .queue .q-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; font-size: 13px; }
 .queue .small { font-size: 12px; }
@@ -1189,7 +1189,7 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
 .esek-stage { position: relative; width: min(560px, 92vw); height: min(620px, 78vh); }
 .esek-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .esek-canvas:active { cursor: grabbing; }
-.esek-bubble { position: absolute; left: 62%; top: 52%; padding: 8px 14px; border-radius: var(--radius-l) var(--radius-l) var(--radius-l) var(--space-1); background: var(--text); color: var(--bg);
+.esek-bubble { position: absolute; left: 62%; top: 52%; padding: 8px 14px; border-radius: var(--radius-l) var(--radius-l) var(--radius-l) var(--radius-s); background: var(--text); color: var(--bg);
   font-family: var(--font-display); font-weight: 800; font-size: clamp(18px, 4vw, 26px); box-shadow: var(--shadow-2); pointer-events: none;
   transform: scale(.4) rotate(-8deg); opacity: 0; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1), opacity .15s; }
 .esek-bubble.on { transform: scale(1) rotate(-4deg); opacity: 1; }
@@ -1545,7 +1545,9 @@ button.room-card.is-busy .room-go {
 .member-meta { display: contents; }
 .member-cell { min-width: 0; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .member-devices { text-align: center; }
-.member-key, .member-unit { display: none; }
+/* Sütun adları ekran okuyucuya her genişlikte söylenir; masaüstünde görünmez (başlık satırı aria-hidden) */
+.member-key { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.member-unit { display: none; }
 .member-state { display: flex; justify-content: flex-start; min-width: 0; }
 .member-badge { flex-shrink: 0; }
 .member-off { color: var(--muted); font-size: 13px; }
@@ -1570,7 +1572,9 @@ button.room-card.is-busy .room-go {
   .member-devices { order: 2; text-align: left; }
   .member-devices::before { content: '·'; margin-right: var(--space-1); }
   .member-seen { order: 3; flex-basis: 100%; }
-  .member-key, .member-unit { display: inline; }
+  .member-key { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip-path: none; }
+  .member-unit { display: inline; }
+  .member-devices .member-key { display: none; }
 }
 
 /* ---------- Liste ekranının pencereleri ---------- */

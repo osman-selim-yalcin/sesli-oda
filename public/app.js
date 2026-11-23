@@ -3484,9 +3484,7 @@ document.addEventListener('themechange', radioPaint);
 
 // Halkanın içine düşen yerlerden merkeze en yakını seçilir; halka boşsa son seçilen kalır.
 function radioPickCenter() {
-  const box = radioMap.getContainer();
-  const x = box.clientWidth / 2;
-  const y = box.clientHeight / 2;
+  const { x, y } = radioMap.project(radioMap.getCenter()); // dolgu (radioLayout) hesaba katılır
   let best = null;
   let bestDist = Infinity;
   for (const f of radioMap.queryRenderedFeatures([[x - RADIO_RING, y - RADIO_RING], [x + RADIO_RING, y + RADIO_RING]], { layers: ['places'] })) {
@@ -3551,8 +3549,14 @@ function renderRadioList() {
     list.append(li);
   }
   if (!stations.length) {
-    const empty = { explore: 'Küreyi çevir; halkanın altına gelen yerin radyoları burada listelenir.', favs: 'Henüz favorin yok. Bir istasyonun yanındaki ♥ ile ekle.', search: 'En az iki harf yaz.' }[radioTab];
-    list.append(Object.assign(document.createElement('li'), { className: 'radio-empty muted small', textContent: radioTab === 'search' && $('radio-search').value.trim().length >= 2 ? 'Sonuç yok.' : empty }));
+    // Boş durum: şarkı aramasıyla aynı .empty (ikon + yazı)
+    const searched = radioTab === 'search' && $('radio-search').value.trim().length >= 2;
+    const [name, text] = searched
+      ? ['search', 'Sonuç yok. Başka bir istasyon, şehir ya da ülke dene.']
+      : { explore: ['globe', 'Küreyi çevir; halkanın altına gelen yerin radyoları burada listelenir.'], favs: ['heart', 'Henüz favorin yok. Bir istasyonun yanındaki kalple ekle.'], search: ['search', 'En az iki harf yaz.'] }[radioTab];
+    const li = Object.assign(document.createElement('li'), { className: 'radio-empty empty', innerHTML: icon(name) });
+    li.append(Object.assign(document.createElement('p'), { textContent: text }));
+    list.append(li);
   }
 }
 
@@ -3596,6 +3600,7 @@ function radioFlyTo(place, force) {
 }
 
 async function openRadioPage() {
+  radioLayout(); // küre yüklenirken de halka ve not panelin sağındaki alanın ortasında
   renderRadioPlayer();
   renderRadioList();
   syncRadioAudio();
@@ -3605,7 +3610,18 @@ async function openRadioPage() {
     return;
   }
   radioMap.resize();
+  radioLayout();
 }
+
+// Masaüstünde paneller kürenin solunu örter: harita merkezi (ve halka) panelin sağında kalan alanın ortasına kayar.
+// Telefonda paneller kürenin altında, kayma yok.
+function radioLayout() {
+  const side = $('radio').querySelector('.radio-side');
+  const off = matchMedia('(max-width: 700px)').matches ? 0 : side.offsetLeft + side.offsetWidth;
+  $('radio').style.setProperty('--radio-off', `${off}px`);
+  radioMap?.setPadding({ left: off, top: 0, right: 0, bottom: 0 });
+}
+addEventListener('resize', () => radioPage() && radioLayout());
 
 // Yayın sadece Radyo sayfasındayken (ve kişi duraklatmadıysa) indirilir ve çalar.
 function syncRadioAudio() {
@@ -4960,7 +4976,7 @@ function renderChatMessage({ from, name, text, image, ts, system }) {
     img.onload = () => nearBottom && (list.scrollTop = list.scrollHeight);
     img.onerror = () => {
       const note = Object.assign(document.createElement('span'), { className: 'notice chat-img-missing', innerHTML: icon('image') });
-      note.append('Resim yüklenemedi');
+      note.append(Object.assign(document.createElement('span'), { textContent: 'Resim yüklenemedi' }));
       img.replaceWith(note);
     };
     link.append(img);
@@ -6215,11 +6231,11 @@ async function searchYouTube(q) {
     data = { error: 'Arama yapılamadı.' };
   }
   if (data.error) {
-    $('search-label').textContent = `"${q}"`;
+    $('search-label').textContent = `"${q}" araması`;
     searchNote('error', data.error);
     return;
   }
-  $('search-label').textContent = data.results.length ? `"${q}" için sonuçlar` : `"${q}"`;
+  $('search-label').textContent = data.results.length ? `"${q}" için sonuçlar` : `"${q}" araması`;
   if (!data.results.length) searchNote('empty', 'Sonuç yok. Başka bir şey dene ya da linki yapıştır.');
   for (const r of data.results) {
     const li = document.createElement('li');
@@ -6505,7 +6521,7 @@ async function enterRoom(id, password) {
     watchMicTrack();
   } catch {
     localStream = null;
-    $('mic-note-text').textContent = 'Mikrofona erişilemedi; sadece dinleyebilirsin.';
+    $('mic-note-text').textContent = 'Mikrofona erişilemedi; yalnız dinleyebilirsin.';
     $('mic-note').hidden = false;
     $('mic-toggle').disabled = true;
     $('gate-btn').hidden = true;
