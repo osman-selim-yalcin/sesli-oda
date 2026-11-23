@@ -19,11 +19,12 @@ function freePort() {
 }
 
 // Sunucuyu preload ile (Supabase kapalı) başlatır; "çalışıyor" satırını bekler.
-async function startServer() {
+// env: sunucuya eklenecek ortam değişkenleri (ör. { REJOIN_GRACE_MS: '400' }).
+async function startServer({ env = {} } = {}) {
   const port = await freePort();
   const child = spawn(process.execPath, ['-r', './test/preload.js', 'server.js'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(port) },
+    env: { ...process.env, ...env, PORT: String(port) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';

@@ -541,9 +541,9 @@ const customSfxList = (room) => [...room.customSfx].map(([id, fx]) => ({ id, lab
 const saveCustomSfx = (room) => store.save(room.code, 'sfx', () => customSfxList(room));
 
 // Giriş/çıkış sohbete yazılır. Sayfayı yenileyen kişi için iki mesaj da yazılmasın diye
-// çıkış mesajı biraz bekletilir; o sürede aynı sekme geri dönerse ikisi de atlanır.
-const REJOIN_GRACE = 5000; // ms
-const pendingLeaves = new Map(); // `${oda}:${sekme}` -> zamanlayıcı
+// çıkış mesajı biraz bekletilir; o sürede aynı hesap (aynı ya da başka sekmeden) geri dönerse ikisi de atlanır.
+const REJOIN_GRACE = Number(process.env.REJOIN_GRACE_MS) || 5000; // ms; testler kısaltır
+const pendingLeaves = new Map(); // `${oda}:${hesap}` -> zamanlayıcı
 
 function postSystem(room, text, extra) {
   postChat(room, { system: true, text, ts: Date.now(), ...extra });
@@ -727,7 +727,8 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
 
   // Sayfa yenilenince eski bağlantı hemen kapanmayabilir; aynı sekmenin eski kaydını sileriz.
   // Aynı hesapla başka bir sekmeden/cihazdan girilirse eskisi odadan çıkarılır.
-  const leaveKey = `${roomCode}:${clientId}`;
+  // Bekleyen çıkış hesaba bağlıdır: sekme kapanıp yeni sekmeden (yeni clientId) dönülse de iptal olur.
+  const leaveKey = `${roomCode}:${account.key}`;
   let rejoined = pendingLeaves.has(leaveKey);
   clearTimeout(pendingLeaves.get(leaveKey));
   pendingLeaves.delete(leaveKey);
@@ -790,7 +791,7 @@ function leaveRoom(socket, { grace, quiet = false }) {
   io.to(roomCode).emit('user-left', socket.id);
   roomsChanged();
 
-  const leaveKey = `${roomCode}:${user.clientId}`;
+  const leaveKey = `${roomCode}:${user.key}`;
   const depart = () => {
     pendingLeaves.delete(leaveKey);
     const current = rooms.get(roomCode);
@@ -811,6 +812,7 @@ function leaveRoom(socket, { grace, quiet = false }) {
     clearTimeout(pendingLeaves.get(leaveKey));
     pendingLeaves.set(leaveKey, setTimeout(depart, REJOIN_GRACE));
   } else {
+    clearTimeout(pendingLeaves.get(leaveKey)); // aynı hesabın bekleyen çıkışı bununla birlikte yapılır
     depart();
   }
   if (room.users.size === 0) roomEmptied(roomCode);
