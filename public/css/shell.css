@@ -286,6 +286,10 @@ button.mic-btn.off { background: var(--danger); color: var(--danger-contrast); }
 button.mic-btn.off:hover:where(:not(:disabled)) { background: color-mix(in srgb, var(--danger) 88%, var(--text)); }
 .mic-group:has(.mic-btn.off) { border-color: var(--danger); }
 .mic-btn.off .ic { animation: shake .35s ease-in-out; }
+/* Oda sahibi ya da yönetici susturdu: mikrofon kilitli (basınca açıklama; açılmaz) */
+button.mic-btn.is-locked, button.mic-btn.is-locked:hover:where(:not(:disabled)) { background: var(--danger-soft); color: var(--danger); cursor: not-allowed; }
+.mic-group:has(.mic-btn.is-locked) { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.mic-btn.is-locked .ic { animation: none; }
 .room-settings-top { flex-shrink: 0; }
 button.topbar-settings {
   flex-shrink: 0;
@@ -612,7 +616,7 @@ button.people-btn:hover:where(:not(:disabled)) { background: var(--surface-2); b
 @keyframes blink { 50% { opacity: .25; } }
 .mic-note { padding: 6px var(--space-2); font-size: 12px; }
 .people-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-1); min-width: 0; }
-/* Masaüstünde başlık solda, avatarlar sağda (12 kişide iki satıra iner) */
+/* Masaüstünde başlık solda, avatarlar sağda (10 kişide iki, birleşik odada 20 kişide üç satıra iner) */
 @media (min-width: 1000px) {
   .people { grid-template-columns: 148px minmax(0, 1fr); grid-template-rows: auto 1fr; grid-template-areas: "head row" "note note"; gap: var(--space-1) var(--space-3); align-items: start; }
   .people-head { grid-area: head; flex-direction: column; align-items: flex-start; padding-top: var(--space-2); }
@@ -666,6 +670,19 @@ button.person:active:not(:disabled) { transform: none; }
   animation: blink 1.2s infinite;
 }
 .person.is-rec .person-rec { display: block; }
+/* Moderatör susturması: kendi sessizinden ayrı. Avatarın üstü soluk, sağ altta çerçeveli hoparlör işareti (kendi
+   sessizi kırmızı dolu mikrofon), adın altında "susturuldu" etiketi. Konuşma halkası yanmaz (app.js silenced). */
+.person-mod {
+  position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; display: none; place-items: center;
+  border-radius: var(--radius-round); background: var(--surface); color: var(--danger);
+  box-shadow: 0 0 0 2px var(--avatar-gap), inset 0 0 0 1.5px var(--danger);
+}
+.person-mod .ic { width: 12px; height: 12px; stroke-width: 2.25; }
+.person.is-modmuted .person-mic { display: none; }
+.person.is-modmuted .person-mod { display: grid; }
+.person.is-modmuted .avatar { opacity: .55; }
+.person-tag { display: none; max-width: 100%; margin-top: -3px; padding: 0 6px; border-radius: var(--radius-pill); background: var(--danger-soft); color: var(--danger); font-size: 11px; font-weight: 700; line-height: 16px; white-space: nowrap; }
+.person.is-modmuted .person-tag { display: block; }
 .person-label { display: flex; align-items: center; justify-content: center; gap: 3px; max-width: 100%; min-width: 0; font-size: 12px; font-weight: 600; line-height: 16px; }
 .person-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person.speaking .person-name { color: var(--live); }
@@ -682,6 +699,17 @@ button.person:active:not(:disabled) { transform: none; }
 .p-badge .ic { width: 13px; height: 13px; animation: spin 1s linear infinite; }
 .p-mute { width: 36px; height: 36px; }
 .p-mute .ic { width: 16px; height: 16px; }
+.p-more { width: 36px; height: 36px; }
+.p-more .ic { width: 16px; height: 16px; }
+.p-more[hidden], .p-modrow[hidden] { display: none; }
+.p-modrow { margin-top: var(--space-2); }
+.p-mod { width: 100%; justify-content: center; }
+/* Susturulan kişi: ses efektleri kapalı (sunucu da reddeder) */
+.sfx-locked { margin: 0 0 var(--space-2); font-size: 13px; }
+.sfx-upload.is-locked { opacity: .5; pointer-events: none; }
+.people-list > li.is-modmuted .p-status { color: var(--danger); font-weight: 600; }
+/* 20 kişide (birleşik oda) liste uzar: kutu ekranın içinde kalır, liste kayar */
+.people-pop { max-height: min(70vh, 640px); overscroll-behavior: contain; }
 .people-list > li.is-focus { animation: person-focus 1.4s var(--ease); }
 @keyframes person-focus { 0%, 40% { background: var(--accent-soft); } }
 
@@ -995,6 +1023,19 @@ dialog.room-settings[open] { display: flex; flex-direction: column; }
 .rs-danger-text strong { font-size: 14px; }
 .rs-danger-text span { color: var(--muted); font-size: 12px; }
 .rs-danger .btn { flex-shrink: 0; }
+/* İçeridekiler: avatar + ad çipleri (birleşik odada yalnız bu odanın kökenlileri), başlıkta doluluk */
+.rs-count { margin-left: auto; color: var(--muted); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rs-people { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--space-2); min-width: 0; }
+.rs-person { display: inline-flex; align-items: center; gap: var(--space-2); max-width: 100%; min-width: 0; padding: 3px var(--space-3) 3px 3px; border-radius: var(--radius-pill); background: var(--surface-2); font-size: 13px; }
+.rs-person .avatar { width: 24px; height: 24px; font-size: 11px; }
+.rs-person-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-name, inherit); }
+.rs-people-none { color: var(--muted); font-size: 13px; }
+/* Kapatma onayı: adı ve kişi sayısını söyleyen satır, altında Vazgeç / Evet, kapat */
+.rs-confirm { display: grid; gap: var(--space-3); padding: var(--space-3); border-radius: var(--radius-m); background: var(--danger-soft); }
+.rs-confirm[hidden] { display: none; }
+.rs-confirm-text { margin: 0; font-size: 13px; line-height: 1.45; color: var(--text); overflow-wrap: anywhere; }
+.rs-confirm-actions { display: flex; justify-content: flex-end; gap: var(--space-2); flex-wrap: wrap; }
+.rs-danger[hidden] { display: none; }
 .rs-error { margin: 0 0 var(--space-4); padding: var(--space-2) var(--space-3); border-radius: var(--radius-s); background: var(--danger-soft); color: var(--danger); font-size: 13px; }
 .room-settings > .dialog-actions { flex-shrink: 0; margin: 0; padding: var(--space-3) var(--space-5); border-top: var(--border-w) solid var(--border); }
 
@@ -1317,6 +1358,8 @@ button.account-chip:active:not(:disabled) { transform: none; background: var(--s
 .roomlist-title { font-size: 26px; }
 .roomlist-summary { margin: var(--space-1) 0 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
 .roomlist-summary:empty { display: none; }
+/* Liste yüklenirken özet yazısı yok ama satırı yerinde: liste gelince başlık kaymaz */
+.roomlist-page:has(#room-list[aria-busy=true]) #lobby-summary:empty { display: block; min-height: 1.5em; }
 /* Liste boşken eylem boş durumun ortasında durur; başlıktaki ikinci kopya gizlenir */
 .roomlist-page:has(#room-list-empty:not([hidden])) .roomlist-head .btn { display: none; }
 
@@ -1382,10 +1425,55 @@ button.room-card.target { border-color: var(--accent); box-shadow: 0 0 0 3px var
 button.room-card.is-full { cursor: not-allowed; }
 .room-card.is-full .room-pv, .room-card.is-full .room-body { opacity: .5; }
 
+/* Ayar düğmesi (sahip kendi odasında, yönetici her odada): kartın yanında ayrı düğme, kartın başlık satırının
+   sağına biner; kart ona yer açar. Kart üzerine gelince kalkar, düğme de onunla kalkar. */
+.room-grid > li { position: relative; }
+.room-card.has-manage .room-head { padding-right: 40px; }
+.room-manage {
+  position: absolute;
+  z-index: 2;
+  top: calc(var(--pv-h) + var(--space-4) + 6px);
+  right: var(--space-3);
+  transition: transform var(--dur) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.room-grid > li:has(> button.room-card:hover:where(:not(:disabled, [aria-disabled=true]))) .room-manage,
+.room-grid > li:has(> .room-manage:hover) > button.room-card:where(:not(:disabled)) { transform: translateY(-2px); }
+.room-grid > li:has(> .room-manage:hover) > button.room-card:where(:not(:disabled)) { border-color: var(--border-strong); box-shadow: var(--shadow-2); }
+.room-grid > li:has(> .room-manage:hover) .room-manage { transform: translateY(-2px); }
+.room-grid { --pv-h: 28px; }
+@media (max-width: 759px) { .room-grid { --pv-h: 20px; } }
+
 /* Tema önizleme şeridi: temanın zemin/panel/vurgu renginden ince bir oda taslağı (oynatıcı paneli + vurgu ilerleme
    çizgisi, sohbet sütunu). Renkler kartın yerel değişkenleri (--pv-*; theme.js Theme.preview). Tek tema varken
    ince bir ipucu; tema sayısı artınca --pv-h büyütülebilir. Rozetler şeridin alt kenarına biner. */
 .room-card { --pv-h: 28px; }
+
+/* Liste yüklenirken (lobby.js skeletonCard): gerçek kartla aynı iskelet ve dış ölçü, üstünden sakin bir parıltı geçer.
+   Hareket azaltılmışsa parıltı yok, bloklar durur. */
+.room-skel {
+  position: relative; width: 100%; min-width: 0; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); border: var(--border-w) solid var(--border); border-radius: var(--radius-l);
+}
+.room-skel .room-top { background: var(--surface-2); }
+.skel { display: block; background: var(--surface-2); border-radius: var(--radius-s); }
+.skel-emblem { width: 44px; height: 44px; flex-shrink: 0; border-radius: var(--radius-m); }
+.skel-name { width: 140px; max-width: 100%; height: 14px; margin: 3px 0; }
+.skel-owner { width: 84px; max-width: 100%; height: 12px; margin: 4px 0 3px; }
+.room-skel .room-faces { gap: 6px; }
+.skel-face { width: 28px; height: 28px; border-radius: var(--radius-round); }
+.skel-go { width: 64px; height: 32px; flex-shrink: 0; border-radius: var(--radius-pill); }
+.room-skel::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--text) 6%, transparent) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: skel-shine 1.6s var(--ease) infinite;
+}
+@keyframes skel-shine { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .room-skel::after { display: none; } }
+/* İlk liste alınamadı: hata notu ve "Tekrar dene" */
+.room-list-error { display: flex; align-items: center; gap: var(--space-2); }
+.room-list-error[hidden] { display: none; }
+.room-list-error > span { flex: 1; min-width: 0; }
 .room-top { position: relative; display: block; height: var(--pv-h); flex-shrink: 0; border-bottom: var(--border-w) solid var(--border); }
 .room-pv {
   position: absolute;

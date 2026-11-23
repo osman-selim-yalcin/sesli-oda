@@ -21,6 +21,12 @@
                çizilen halka ve noktalar, her temada açık renk;
                --ink-mix: içerik renkleri (oyuncu rengi, kelime oyununun sıcak rengi) yazı olarak kullanılınca
                --text'e bu oranda karışır ki temanın yüzeyinde okunsun; koyu temada 0%)
+     Oyun simgesi: --game-tint --game-soft --game-tile --game-cap --game-join --game-corner
+              (icons/games.svg, css/games.css .gi: --game-tint / --game-soft / --game-tile birer "açıklık doygunluk" çifti,
+               oklch'nin L ve C değeri; ton açısını oyun verir (--hue). --game-tint simgenin renkli çizgisi ve dolgusu
+               (kutu ve yüzeyde en az 3:1), --game-soft simgenin içindeki yumuşak dolgu, --game-tile simgenin arkasındaki
+               kutu ve oyun kartının çizim alanı. --game-cap / --game-join çizgi ucu ve köşesi (round | square / miter),
+               --game-corner simgedeki dikdörtgen köşe yuvarlaklığının çarpanı (1 yuvarlak, 0 köşeli))
      Yazı:    --font-display (başlık) --font-body (gövde) --font-mono --font-control --font-label
               (--font-control: etiketli düğme (.btn ve takma adları) ve sekmenin yazı tipi; "initial" ise (Gece,
                Aydınlık) denetim bulunduğu yerin yazı tipini alır, yani bugünkü gibi. Çıplak <button> (oyun hücreleri)
@@ -74,6 +80,12 @@
   --on-media-accent: #8B9CFF;
   --ink-mix: 0%;
   --selection: initial;
+  --game-tint: 80% .13;
+  --game-soft: 37% .075;
+  --game-tile: 25% .04;
+  --game-cap: round;
+  --game-join: round;
+  --game-corner: 1;
 
   --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

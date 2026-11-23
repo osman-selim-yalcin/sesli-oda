@@ -20,7 +20,6 @@
 .game-home-back { display: inline-grid; place-items: center; color: var(--muted); }
 .game-home-back .ic { width: 18px; height: 18px; }
 .game-home-btn:hover .game-home-back { color: var(--text); }
-.game-home-icon { font-size: 18px; line-height: 1; }
 .game-home-btn.lobby-open::after { content: ''; position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; border-radius: var(--radius-round); background: var(--live); box-shadow: 0 0 0 2px var(--surface); }
 .games.at-home .game-home-btn { background: transparent; border-color: transparent; padding-left: var(--space-1); font-size: 17px; cursor: default; opacity: 1; }
 .game-recent { display: flex; gap: var(--space-1); min-width: 0; overflow-x: auto; scrollbar-width: none; scroll-padding-inline: var(--space-4); padding-right: var(--space-4); }
@@ -50,20 +49,29 @@
 .game-card:hover:where(:not(:disabled)) { background: var(--surface-3); border-color: var(--border-strong); }
 .game-card:active:not(:disabled) { transform: scale(.98); }
 .game-card:focus-visible { outline-offset: 2px; }
+/* Oyun simgeleri (app.js gameIcon, icons/games.svg; elle çizildi, üretici test/tools/game-icons.js).
+   Üç boya: mürekkep (--text), oyunun tonu ve tonun yumuşak dolgusu. Ton açısı oyunun --hue değeri (oklch, içerik),
+   açıklık ve doygunluk temadan (--game-tint, --game-soft, --game-tile): ton her temanın yüzeyinde aynı kontrastta.
+   Çizgi kalınlığı simgenin boyuna göre (küçükte biraz kalın ki 18-20 px'te de okunsun). */
+.gi {
+  --gi-ink: var(--text);
+  --gi-tint: oklch(var(--game-tint) var(--hue));
+  --gi-soft: oklch(var(--game-soft) var(--hue));
+  --gi-sw: 3;
+  display: block; width: 100%; height: 100%; overflow: visible;
+}
+.game-chip-icon, .game-home-icon, .lobby-head-icon, .game-card-icon, .lobby-hero-icon { --hue: 260; flex-shrink: 0; display: block; }
+/* Simge kutuyu doldurur (yüzde boy ızgara öğesinde çözülmez: kutu blok) */
+:is(.game-chip-icon, .game-home-icon, .lobby-head-icon, .game-card-icon, .lobby-hero-icon) > .ic { display: block; width: 100%; height: 100%; }
+.game-chip-icon, .game-home-icon { width: 20px; height: 20px; }
+.game-chip-icon .gi, .game-home-icon .gi { --gi-sw: 3.75; }
 .game-card-art {
   position: relative; display: grid; place-items: center; height: 112px;
-  background: radial-gradient(120% 90% at 50% 100%, hsl(var(--hue) 70% 50% / .22), transparent 70%), var(--surface);
+  background: oklch(var(--game-tile) var(--hue));
   border-bottom: var(--border-w) solid var(--border);
 }
-.game-card-icon { display: grid; place-items: center; width: 72px; height: 72px; border-radius: var(--radius-l); font-size: 34px; line-height: 1; background: var(--surface-3); }
-.game-card-icon.img, .game-home-icon.img, .game-chip-icon.img { background: none; padding: 0; overflow: hidden; }
-.game-card-icon.img { box-shadow: var(--shadow-1); }
-.game-card-icon img, .game-home-icon img, .game-chip-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
-.game-card-icon img { transition: transform var(--dur) var(--ease); }
-.game-card:hover .game-card-icon.img img { transform: scale(1.06); }
-.game-home-icon.img { width: 24px; height: 24px; border-radius: var(--radius-s); }
-.game-chip-icon.img { width: 22px; height: 22px; border-radius: var(--radius-s); }
-.game-chip-icon:not(.img) { font-size: 14px; }
+.game-card-icon { width: 64px; height: 64px; transition: transform var(--dur) var(--ease); }
+.game-card:hover:where(:not(:disabled)) .game-card-icon { transform: translateY(-2px); }
 /* Alt satır: kişi sayısı ve rozet (rozet çizimin üstüne binmez) */
 .game-card-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); min-width: 0; }
 .game-card-badge { margin-left: auto; flex-shrink: 0; }
@@ -75,11 +83,13 @@
 .game-card-meta .ic { width: 14px; height: 14px; }
 .game-card.lobby-open, .game-card.running { border-color: color-mix(in srgb, var(--live) 45%, var(--border)); }
 .game-card.soon { opacity: .6; }
-.game-card.soon .game-card-icon.img img { filter: grayscale(.6); }
+/* Yakında: ton yok, yalnız mürekkep (kart zaten soluk) */
+.game-card.soon .game-card-art { background: var(--surface); }
+.game-card.soon .gi { --gi-tint: var(--muted); --gi-soft: var(--surface-3); }
 @media (max-width: 520px) {
   .game-home-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
   .game-card-art { height: 92px; }
-  .game-card-icon { width: 60px; height: 60px; border-radius: var(--radius-m); font-size: 28px; }
+  .game-card-icon { width: 56px; height: 56px; }
   .game-card-body { padding: 10px var(--space-3) var(--space-3); }
   .game-card-name { font-size: 14px; }
   .game-card-desc { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 12px; }
@@ -433,8 +443,8 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .lobby p { margin: 0; }
 .timing > .lobby { justify-self: stretch; text-align: left; }
 .lobby-head { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.lobby-head-icon { flex-shrink: 0; display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--radius-m); overflow: hidden; font-size: 22px; background: var(--surface-3); }
-.lobby-head-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lobby-head-icon { width: 40px; height: 40px; padding: 6px; border-radius: var(--radius-m); background: oklch(var(--game-tile) var(--hue)); }
+.lobby-head-icon .gi { --gi-sw: 3.25; }
 .lobby-head-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
 .lobby-name { font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: -.005em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lobby-head-text > .small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -459,9 +469,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .lobby.hero { justify-items: center; text-align: center; gap: var(--space-3); padding: var(--space-6) var(--space-4) var(--space-5); background: none; border-color: transparent; }
 .lobby.hero .lobby-title { margin: var(--space-1) 0 0; font-size: 24px; font-weight: 600; letter-spacing: -.02em; text-transform: none; color: var(--text); }
 .lobby.hero .lobby-actions { justify-content: center; }
-.lobby-hero-icon { display: grid; place-items: center; width: 88px; height: 88px; border-radius: var(--radius-l); overflow: hidden; font-size: 40px; box-shadow: var(--shadow-1); }
-.lobby-hero-icon:not(.img) { background: var(--surface-3); }
-.lobby-hero-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lobby-hero-icon { width: 88px; height: 88px; padding: 14px; border-radius: var(--radius-l); background: oklch(var(--game-tile) var(--hue)); }
 .lobby-desc { max-width: 440px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .lobby.hero button.lobby-start { min-height: 44px; padding: 0 var(--space-5); font-size: 15px; }
 .lobby.hero .lobby-again { color: var(--muted); }
@@ -469,7 +477,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
   .lobby { padding: var(--space-3); }
   .lobby.hero { padding: var(--space-5) var(--space-2) var(--space-4); }
   .lobby.hero .lobby-title { font-size: 21px; }
-  .lobby-hero-icon { width: 76px; height: 76px; }
+  .lobby-hero-icon { width: 76px; height: 76px; padding: 12px; }
   .lobby-player { width: 60px; }
   .lobby-actions > button.primary { flex: 1 1 auto; }
 }

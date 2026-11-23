@@ -20,7 +20,7 @@ const hedefWho = (name) => (name === myName ? 'Sen' : name);
 
 LOBBY.hedef = {
   title: 'Hedef sayı', tab: 'hedef', running: () => Boolean(hedefActive()), last: () => hedef,
-  hint: 'Herkese aynı 6 sayı ve bir hedef gelir; dört işlemle hedefe en yakın sayıyı bul. 1-6 kişi.',
+  hint: 'Herkese aynı 6 sayı ve bir hedef gelir; dört işlemle hedefe en yakın sayıyı bul. 1-10 kişi.',
   opts: (lobby, host) => {
     const row = document.createElement('div');
     row.className = 'lobby-opts';

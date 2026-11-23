@@ -33,6 +33,12 @@
   --on-media-accent: #FDBA74;
   --ink-mix: 60%;
   --selection: initial;
+  --game-tint: 50% .15;   /* oyun simgesi: tonun açıklığı ve doygunluğu (oklch L C; ton açısı oyunun --hue değeri) */
+  --game-soft: 90% .05;  /* simgenin içindeki yumuşak dolgu */
+  --game-tile: 95% .02; /* simgenin arkasındaki kutu ve oyun kartının çizim alanı */
+  --game-cap: square;
+  --game-join: miter;
+  --game-corner: 0;
 
   --font-display: ui-serif, Georgia, 'Times New Roman', serif;
   --font-body: ui-serif, Georgia, 'Times New Roman', serif;

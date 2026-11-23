@@ -339,5 +339,7 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
 const isAdmin = (key) => ADMINS.has(key);
 // Anahtarla hesap: { key, name } ya da yoksa null (şifre özeti dışarı verilmez).
 const byKey = (key) => (accounts.has(key) ? { key, name: accounts.get(key).name } : null);
+// Bütün hesap adları (yöneticinin oda sahibi seçimi için), Türkçe alfabe sırasıyla.
+const names = () => [...accounts.values()].map((a) => a.name).sort((x, y) => x.localeCompare(y, 'tr'));
 
-module.exports = { setup, load, accountByToken, sha256, byKey, profiles, seen, isAdmin, hashPassword, checkPassword, keyOf, NAME_RE, attemptLimiter };
+module.exports = { setup, load, accountByToken, sha256, byKey, names, profiles, seen, isAdmin, hashPassword, checkPassword, keyOf, NAME_RE, attemptLimiter };

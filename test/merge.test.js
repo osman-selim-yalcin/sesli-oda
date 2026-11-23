@@ -398,7 +398,7 @@ test('çevrimiçi yönetici de merge:incoming alır ve onaylayabilir', async () 
   assert.ok((await answer(b, inc.id, true)).error, 'ilk cevap kazanır');
 });
 
-test('doluluk: 4 + 4 ve 6 + 6 birleşir; 7. B kökenli giremez; birleşik oda üçüncü odayla birleşemez', async () => {
+test('doluluk: 4 + 4 ve 10 + 10 birleşir; 11. B kökenli giremez; birleşik oda üçüncü odayla birleşemez', async () => {
   const p = await pair({ extra: 1 });
   await fill(p.A, `Dort${p.t}a`, 4);
   const b4 = await fill(p.B, `Dort${p.t}b`, 4);
@@ -407,9 +407,10 @@ test('doluluk: 4 + 4 ve 6 + 6 birleşir; 7. B kökenli giremez; birleşik oda ü
   assert.equal(moved[3].peers.length, 7, 'son taşınan 4 + 3 kişiyi görür');
 
   const q = await pair({ extra: 1 });
-  await fill(q.A, `Alti${q.t}a`, 6);
-  const b6 = await fill(q.B, `Alti${q.t}b`, 6);
-  const { a } = await mergeRooms(q, b6);
+  await fill(q.A, `On${q.t}a`, 10);
+  const b6 = await fill(q.B, `On${q.t}b`, 10);
+  const { a, moved: m10 } = await mergeRooms(q, b6);
+  assert.equal(m10[9].peers.length, 19, 'son taşınan 10 + 9 kişiyi görür');
   const seventh = await user(`Yedi${q.t}b`);
   const r = await join(seventh, q.B);
   assert.match(r.error || '', /dolu/, JSON.stringify(r));
@@ -417,8 +418,9 @@ test('doluluk: 4 + 4 ve 6 + 6 birleşir; 7. B kökenli giremez; birleşik oda ü
   assert.match((await join(seventhA, q.A)).error || '', /dolu/);
   await sleep(400);
   const lb = await listed(q.B);
-  assert.equal(lb.users.length, 6);
-  assert.equal(lb.max, 6);
+  assert.equal(lb.users.length, 10);
+  assert.equal(lb.max, 10);
+  assert.equal((await listed(q.A)).users.length, 10, 'A kökenliler ayrı sayılır');
 
   const c = await online(q.ownerC);
   assert.ok((await request(a, q.A, q.C)).error, 'ev sahibi üçüncü odayla');

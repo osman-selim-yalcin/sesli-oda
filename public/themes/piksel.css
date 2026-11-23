@@ -65,6 +65,12 @@
   --on-media-accent: #5AD8F0;
   --ink-mix: 50%;             /* oyuncu renkleri yazıyken %50 --text'e karışır: kendi renkli kelime satırında da 4,5:1 */
   --selection: rgba(90, 216, 240, .4);
+  --game-tint: 83% .14;   /* oyun simgesi: tonun açıklığı ve doygunluğu (oklch L C; ton açısı oyunun --hue değeri) */
+  --game-soft: 40% .1;  /* simgenin içindeki yumuşak dolgu */
+  --game-tile: 28% .055; /* simgenin arkasındaki kutu ve oyun kartının çizim alanı */
+  --game-cap: square;         /* simgeler köşeli: kare uç, sivri köşe, köşesiz dikdörtgen (piksel set değil, aynı çizim) */
+  --game-join: miter;
+  --game-corner: 0;
 
   --font-display: 'Pixelify Sans', 'VT323', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-body: 'VT323', ui-monospace, 'SF Mono', Menlo, monospace;

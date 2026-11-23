@@ -7,9 +7,16 @@
 // app.js listeyi Lobby.show/hide/update ile yönetir, karta basılınca Lobby.onEnter ile verdiği giriş akışı çağrılır.
 
 window.Lobby = (() => {
-  let rooms = [];
+  // Liste durumu: rooms null iken liste henüz gelmedi (iskelet kartlar; yükleme hatasında hata notu). Boş durum
+  // yalnız sunucu sıfır odayla cevap verince görünür. fromServer: bu sayfada sunucudan liste geldi mi (önbellekten
+  // çizilen liste /oda/<id> denetimine yetmez, taze liste beklenir).
+  let rooms = null;
+  let loadError = null;
+  let fromServer = false;
+  let retry = null;       // app.js: listeyi yeniden iste (soket hello)
   let pending = null;     // yönetici: bekleyen oda isteği sayısı
   let enter = null;       // app.js'in giriş akışı: ({ id, password }) => join cevabı
+  let manage = null;      // app.js: oda ayarları penceresini kartın odasıyla açar
   let target = null;      // /oda/<id> ile açıldıysa o oda: kartı vurgulu, tek tıkla girilir
   let targetChecked = false;
   let busyId = null;      // girilmeye çalışılan oda
@@ -133,7 +140,11 @@ window.Lobby = (() => {
   const MAX_FACES = 5; // kartta en çok bu kadar yüz, fazlası "+N"
   // Dolu oda: hesabın kendisi zaten içerideyse (ör. telefondan dizüstüne geçiş) dolu sayılmaz; sunucu girişte o
   // hesabın eski oturumunu düşürüp öyle sayar.
-  const isFull = (r) => r.users.length >= r.max && !r.users.includes(account?.name);
+  // Doluluk count'la (site yöneticisi sayılmaz; yönetici dolu odaya da girer).
+  const countOf = (r) => r.count ?? r.users.length;
+  const isFull = (r) => countOf(r) >= r.max && !r.users.includes(account?.name) && !isAdmin();
+  // Ayar düğmesi: sahip kendi odasında, site yöneticisi her odada (şifreli, dolu ya da hiç girmediği odada da).
+  const canManage = (r) => r.role === 'owner' || r.role === 'admin';
 
   // Tema önizleme şeridi: temanın üç renginden (Theme.preview) küçük bir oda taslağı: oynatıcı, sohbet, vurgu.
   function preview(room) {
@@ -164,6 +175,7 @@ window.Lobby = (() => {
     const card = el('button', 'room-card');
     card.type = 'button';
     card.dataset.id = r.id;
+    card.classList.toggle('has-manage', canManage(r));
     card.classList.toggle('target', isTarget);
     card.classList.toggle('is-full', full);
     card.classList.toggle('is-busy', busyId === r.id);
@@ -203,8 +215,8 @@ window.Lobby = (() => {
 
     // Alt satır: yüzler, doluluk, eylem
     const foot = el('span', 'room-foot');
-    const occ = el('span', `room-occ${r.users.length ? ' is-live' : ''}`, `${r.users.length}/${r.max}`);
-    occ.title = `${r.users.length} kişi içeride, en fazla ${r.max}`;
+    const occ = el('span', `room-occ${r.users.length ? ' is-live' : ''}`, `${countOf(r)}/${r.max}`);
+    occ.title = `${countOf(r)} kişi içeride${r.users.length > countOf(r) ? ' (yönetici sayılmaz)' : ''}, en fazla ${r.max}`;
     const go = el('span', 'room-go');
     if (busyId === r.id) {
       go.innerHTML = icon('loader');
@@ -225,7 +237,7 @@ window.Lobby = (() => {
       r.role === 'owner' && 'Senin odan',
       `sahibi ${r.owner}`,
       r.locked && 'şifreli',
-      `${r.users.length}/${r.max} kişi`,
+      `${countOf(r)}/${r.max} kişi`,
       partner && `${partner.name} ile birleşik`,
     ].filter(Boolean).join(', ');
     card.setAttribute('aria-label', label);
@@ -234,6 +246,10 @@ window.Lobby = (() => {
   }
 
   function renderSummary() {
+    if (!rooms) {
+      $('lobby-summary').textContent = '';
+      return;
+    }
     const people = rooms.reduce((n, r) => n + r.users.length, 0);
     $('lobby-summary').textContent = rooms.length
       ? `${rooms.length} oda · ${people ? `${people} kişi içeride` : 'şu an kimse yok'}`
@@ -243,13 +259,60 @@ window.Lobby = (() => {
   // Liste canlı yenilenir: klavyeyle bir kartın üstündeyken yenilense de odak aynı odada kalır.
   function renderRooms() {
     const list = $('room-list');
-    const focused = list.contains(document.activeElement) ? document.activeElement.dataset.id : null;
+    const active = list.contains(document.activeElement) ? document.activeElement : null;
+    const focused = active?.dataset.id ? { id: active.dataset.id, cls: active.classList.contains('room-manage') ? 'room-manage' : 'room-card' } : null;
     list.replaceChildren();
+    $('room-list-error').hidden = !(rooms === null && loadError);
+    if (rooms === null) {
+      // Henüz liste yok: boş durum, özet ve "Oda aç/iste" görünmez; yükleme sürerken iskelet kartlar
+      $('room-list-empty').hidden = true;
+      $('room-list-error-text').textContent = loadError || '';
+      list.hidden = Boolean(loadError);
+      list.setAttribute('aria-busy', String(!loadError));
+      if (!loadError) for (let i = 0; i < 3; i++) list.append(wrap(skeletonCard()));
+      renderSummary();
+      return;
+    }
+    list.removeAttribute('aria-busy');
     $('room-list-empty').hidden = rooms.length > 0;
     list.hidden = rooms.length === 0;
-    for (const r of rooms) list.append(wrap(roomCard(r)));
-    if (focused) list.querySelector(`.room-card[data-id="${CSS.escape(focused)}"]`)?.focus();
+    for (const r of rooms) list.append(roomItem(r));
+    if (focused) list.querySelector(`.${focused.cls}[data-id="${CSS.escape(focused.id)}"]`)?.focus();
     renderSummary();
+  }
+  // İskelet kart: gerçek kartın iskeleti (önizleme şeridi, amblem, ad ve sahibi, yüzler ve eylem), aynı dış ölçü
+  function skeletonCard() {
+    const card = el('div', 'room-card room-skel');
+    card.setAttribute('aria-hidden', 'true');
+    const top = el('span', 'room-top');
+    const head = el('span', 'room-head');
+    const text = el('span', 'room-head-text');
+    text.append(el('span', 'skel skel-name'), el('span', 'skel skel-owner'));
+    head.append(el('span', 'skel skel-emblem'), text);
+    const foot = el('span', 'room-foot');
+    const facesBox = el('span', 'room-faces');
+    facesBox.append(el('span', 'skel skel-face'), el('span', 'skel skel-face'));
+    foot.append(facesBox, el('span', 'skel skel-go'));
+    const body = el('span', 'room-body');
+    body.append(head, foot);
+    card.append(top, body);
+    return card;
+  }
+  // Kartın yanında (içinde değil: düğme içinde düğme olmaz) ayar düğmesi; kartın tıklaması (odaya gir) ayrı kalır.
+  function roomItem(r) {
+    const li = wrap(roomCard(r));
+    if (!canManage(r)) return li;
+    const b = el('button', 'btn btn-icon btn-ghost btn-sm room-manage');
+    b.type = 'button';
+    b.dataset.id = r.id;
+    b.innerHTML = icon('cog');
+    b.title = 'Oda ayarları';
+    b.setAttribute('aria-label', `${r.name}: oda ayarları`);
+    b.setAttribute('aria-haspopup', 'dialog');
+    b.disabled = Boolean(busyId);
+    b.onclick = () => manage?.(r);
+    li.append(b);
+    return li;
   }
   const wrap = (child) => {
     const li = el('li');
@@ -259,7 +322,7 @@ window.Lobby = (() => {
 
   // /oda/<id> ile açılan sayfa: oda yoksa liste + bildirim; varsa kartı görünür yerde.
   function checkTarget() {
-    if (targetChecked || !target) return;
+    if (targetChecked || !target || !fromServer) return;
     targetChecked = true;
     if (!rooms.some((r) => r.id === target)) {
       target = null;
@@ -271,9 +334,46 @@ window.Lobby = (() => {
     document.querySelector('.room-card.target')?.scrollIntoView({ block: 'center' });
   }
 
-  async function refreshRooms() {
+  // HTTP ile liste. first: açılıştaki erken istek (soketten önce gelirse çizilir; soket listesi geldiyse eskidir).
+  async function refreshRooms({ first = false } = {}) {
     const res = await api('GET', '/rooms');
-    if (!res.error) update({ rooms: res.rooms });
+    if (res.error) {
+      if (res.status !== 401) failed(res.error); // oturum düştüyse app.js giriş ekranını açar
+      return;
+    }
+    if (first && fromServer) return;
+    update({ rooms: res.rooms });
+  }
+
+  // İlk liste alınamadı: liste yoksa hata notu (Tekrar dene); liste varsa olduğu gibi kalır.
+  function failed(text) {
+    if (rooms !== null) return;
+    loadError = text;
+    renderRooms();
+  }
+  $('room-list-retry').onclick = () => {
+    loadError = null;
+    renderRooms();
+    refreshRooms();
+    retry?.();
+  };
+
+  // Son liste sekmenin oturumunda saklanır: odadan listeye dönünce (sayfa yeniden açılır) iskelet yerine hemen
+  // çizilir, taze liste arkada gelir. Hesabın adıyla saklanır; başka hesapla açılırsa kullanılmaz.
+  const CACHE_KEY = 'roomsCache';
+  function saveCache() {
+    if (!account?.name || !rooms) return;
+    try {
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify({ name: account.name, rooms }));
+    } catch {}
+  }
+  function readCache() {
+    try {
+      const c = JSON.parse(sessionStorage.getItem(CACHE_KEY));
+      return c?.name === account?.name && Array.isArray(c.rooms) ? c.rooms : null;
+    } catch {
+      return null;
+    }
   }
 
   // Karta basınca (kullanıcı hareketi: ses izni için şart). Şifre gerekiyorsa önce pencere açılır.
@@ -678,7 +778,9 @@ window.Lobby = (() => {
     const page = showPage(view.page === 'members' ? 'members' : 'list');
     if (view.page === 'members' && page !== 'members') history.replaceState({ page }, '', '/');
     renderMine();
+    if (rooms === null) rooms = readCache(); // bellekteki liste yoksa önbellekten (taze liste arkadan gelir)
     renderRooms();
+    checkTarget(); // liste sunucudan zaten geldiyse /oda/<id> hemen denetlenir
     if (isAdmin()) loadRequests();
     else loadMine();
     try {
@@ -703,6 +805,9 @@ window.Lobby = (() => {
     }
     if (next) {
       rooms = next;
+      loadError = null;
+      fromServer = true;
+      saveCache();
       if (passRoom) passRoom = rooms.find((r) => r.id === passRoom.id) || passRoom;
       renderRooms();
       checkTarget();
@@ -717,12 +822,31 @@ window.Lobby = (() => {
     }
   }
 
+  // Oturum kapandı: liste bir sonraki hesap için baştan yüklenir.
+  function reset() {
+    rooms = null;
+    loadError = null;
+    fromServer = false;
+    try {
+      sessionStorage.removeItem(CACHE_KEY);
+    } catch {}
+  }
+
   return {
     show,
     hide,
     update,
+    reset,
+    failed,
+    prefetch: () => refreshRooms({ first: true }),
+    onRetry(fn) {
+      retry = fn;
+    },
     onEnter(fn) {
       enter = fn;
+    },
+    onManage(fn) {
+      manage = fn;
     },
     emblem: roomEmblem, // odanın üst çubuğu da aynı amblemi kullanır
     themePicker, // oda ayarları penceresi de aynı seçiciyi kullanır

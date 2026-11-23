@@ -32,6 +32,12 @@
   --on-media-accent: #8B9CFF; /* uydu küresinin üstünde: radyo noktaları */
   --ink-mix: 0%;              /* içerik renkleri koyu zeminde olduğu gibi okunur */
   --selection: initial;
+  --game-tint: 80% .13;   /* oyun simgesi: tonun açıklığı ve doygunluğu (oklch L C; ton açısı oyunun --hue değeri) */
+  --game-soft: 37% .075;  /* simgenin içindeki yumuşak dolgu */
+  --game-tile: 25% .04; /* simgenin arkasındaki kutu ve oyun kartının çizim alanı */
+  --game-cap: round;
+  --game-join: round;
+  --game-corner: 1;
 
   --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

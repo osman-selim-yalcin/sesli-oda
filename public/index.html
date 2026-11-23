@@ -95,6 +95,25 @@
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
     <symbol id="i-cog" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
   </svg><!-- /ui-icons -->
+  <!-- Oyun simgeleri (app.js gameIcon): gömülü, ilk boyamada oyun kartları simgesiz görünmesin; temadan bağımsız tek set,
+       renkleri CSS değişkenlerinden. Kaynak public/icons/games.svg (test/tools/game-icons.js üretir, test/icons.test.js
+       iki kopyanın aynı olduğunu denetler). Kullanım: <svg class="gi"><use href="#g-sayi"></use></svg> -->
+  <svg id="game-icons" xmlns="http://www.w3.org/2000/svg" hidden>
+    <symbol id="g-sayi" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><rect x="6" y="8" width="21" height="32" rx="6" style="fill:var(--gi-soft,none);rx:calc(6px*var(--game-corner,1))"/><path d="M12 17h9.5l-6 14"/><path d="M37 10.5v10M32 15.5h10M32 32.5h10" style="stroke:var(--gi-tint,currentColor)"/></g></symbol>
+    <symbol id="g-kural" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><circle cx="8.5" cy="39" r="3.5" style="fill:var(--gi-ink,currentColor);stroke:none"/><circle cx="17.5" cy="32" r="4.5" style="fill:var(--gi-ink,currentColor);stroke:none"/><circle cx="31" cy="17.5" r="12" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><path d="M27.3 13.3A4 4 0 1 1 33.2 16.8C32 17.4 31.2 18.4 31.2 19.9V20.6" style="stroke:var(--gi-tint,currentColor)"/><path d="M31.2 25.4v.01" style="stroke:var(--gi-tint,currentColor)"/></g></symbol>
+    <symbol id="g-hedef" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><circle cx="21" cy="21" r="14.5" style="fill:var(--gi-soft,none)"/><circle cx="21" cy="21" r="7" style="stroke:var(--gi-tint,currentColor)"/><circle cx="21" cy="21" r="2.5" style="fill:var(--gi-tint,currentColor);stroke:none"/><rect x="27.5" y="27.5" width="15" height="15" rx="4.5" style="fill:var(--gi-soft,none);rx:calc(4.5px*var(--game-corner,1))"/><path d="M35 31v8M31 35h8"/></g></symbol>
+    <symbol id="g-mantik" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><rect x="6.5" y="6.5" width="10" height="10" rx="2.5" style="fill:var(--gi-soft,none);stroke:none;rx:calc(2.5px*var(--game-corner,1))"/><rect x="19" y="6.5" width="10" height="10" rx="2.5" style="fill:var(--gi-soft,none);stroke:none;rx:calc(2.5px*var(--game-corner,1))"/><rect x="31.5" y="6.5" width="10" height="10" rx="2.5" style="fill:var(--gi-soft,none);stroke:none;rx:calc(2.5px*var(--game-corner,1))"/><rect x="6.5" y="19" width="10" height="10" rx="2.5" style="fill:var(--gi-soft,none);stroke:none;rx:calc(2.5px*var(--game-corner,1))"/><rect x="19" y="19" width="10" height="10" rx="2.5" style="fill:var(--gi-soft,none);stroke:none;rx:calc(2.5px*var(--game-corner,1))"/><rect x="31.5" y="19" width="10" height="10" rx="2.5" style="fill:var(--gi-soft,none);stroke:none;rx:calc(2.5px*var(--game-corner,1))"/><rect x="6.5" y="31.5" width="10" height="10" rx="2.5" style="fill:var(--gi-soft,none);stroke:none;rx:calc(2.5px*var(--game-corner,1))"/><rect x="19" y="31.5" width="10" height="10" rx="2.5" style="fill:var(--gi-soft,none);stroke:none;rx:calc(2.5px*var(--game-corner,1))"/><rect x="31.5" y="31.5" width="10" height="10" rx="2.5" style="fill:var(--gi-soft,none);stroke:none;rx:calc(2.5px*var(--game-corner,1))"/><path d="M8.8 11.8l2.2 2.2 3.4-4M33.8 24.3l2.2 2.2 3.4-4M21.3 36.8l2.2 2.2 3.4-4" style="stroke:var(--gi-tint,currentColor)"/><path d="M34.5 9.5l4 4m0-4l-4 4M9.5 22l4 4m0-4l-4 4M34.5 34.5l4 4m0-4l-4 4"/></g></symbol>
+    <symbol id="g-klotski" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><rect x="7" y="7" width="20" height="20" rx="5" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none);rx:calc(5px*var(--game-corner,1))"/><rect x="33" y="7" width="8" height="20" rx="3" style="rx:calc(3px*var(--game-corner,1))"/><rect x="7" y="33" width="20" height="8" rx="3" style="rx:calc(3px*var(--game-corner,1))"/><rect x="33" y="33" width="8" height="8" rx="3" style="rx:calc(3px*var(--game-corner,1))"/></g></symbol>
+    <symbol id="g-memory" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><rect x="6" y="11" width="16" height="24" rx="4" transform="rotate(-9 14 23)" style="fill:var(--gi-soft,none);rx:calc(4px*var(--game-corner,1))"/><rect x="26" y="13" width="16" height="24" rx="4" transform="rotate(7 34 25)" style="rx:calc(4px*var(--game-corner,1))"/><path d="M34 19.5l4.5 5.5-4.5 5.5-4.5-5.5z" transform="rotate(7 34 25)" style="fill:var(--gi-tint,currentColor);stroke:none"/></g></symbol>
+    <symbol id="g-timing" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><circle cx="24" cy="27" r="14.5" style="fill:var(--gi-soft,none)"/><path d="M20 6h8M24 6v6.5M35.5 15.5l2.5-2.5"/><path d="M24 27v-8.5" style="stroke:var(--gi-tint,currentColor)"/><circle cx="24" cy="27" r="2.75" style="fill:var(--gi-tint,currentColor);stroke:none"/></g></symbol>
+    <symbol id="g-daktilo" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><rect x="5" y="12" width="38" height="25" rx="5" style="fill:var(--gi-soft,none);rx:calc(5px*var(--game-corner,1))"/><path d="M11.5 19h.01M18 19h.01M24 19h.01M30 19h.01M36.5 19h.01M14.5 25h.01M21 25h.01M27 25h.01M33.5 25h.01"/><path d="M17 31h14" style="stroke:var(--gi-tint,currentColor)"/></g></symbol>
+    <symbol id="g-okuma" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><path d="M24 14.5c-5-3.5-11-4.5-18-4v25c7-.5 13 .5 18 4c5-3.5 11-4.5 18-4v-25c-7-.5-13 .5-18 4z" style="fill:var(--gi-soft,none)"/><path d="M24 14.5v25"/><path d="M11 18.5h7.5M11 24.5h7.5M29.5 18.5h7.5M29.5 24.5h7.5M29.5 30.5h4.5" style="stroke:var(--gi-tint,currentColor)"/></g></symbol>
+    <symbol id="g-dino" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><path d="M37 6H40C42.2 6 44 7.8 44 10C44 12.2 42.2 14 40 14H37.5C36.5 17 36 20 36 24C36 27.5 34.8 30.5 32.5 32.5V39H27.5V34.5H19.5V39H14.5V32.5C10 30.5 6.5 27 4 22C8.5 24.5 12.5 24.5 16 22.5C20 20.3 24 19.5 27.5 20.5C29 15 30 10 31.5 8.5C32.5 7 34.5 6 37 6Z" style="fill:var(--gi-soft,none)"/><circle cx="39.5" cy="10" r="1.6" style="fill:var(--gi-ink,currentColor);stroke:none"/><path d="M5 43.5h6M16 43.5h27" style="stroke:var(--gi-tint,currentColor)"/></g></symbol>
+    <symbol id="g-peacock" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><path d="M24 37L8.4 28.4A18 18 0 0 1 39.6 28.4z" style="fill:var(--gi-soft,none);stroke:none"/><path d="M24 37V21.5M24 37L15.2 22.8M24 37l8.8-14.2M24 37L10.6 29.3M24 37l13.4-7.7"/><circle cx="24" cy="17" r="4" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><circle cx="12.9" cy="20.1" r="4" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><circle cx="35.1" cy="20.1" r="4" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><circle cx="7.6" cy="29.4" r="3.5" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><circle cx="40.4" cy="29.4" r="3.5" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><path d="M24 33.5c2.8 0 4.5 2.4 4.5 5.2c0 2.6-2 4.3-4.5 4.3s-4.5-1.7-4.5-4.3c0-2.8 1.7-5.2 4.5-5.2z" style="fill:var(--gi-ink,currentColor);stroke:none"/></g></symbol>
+    <symbol id="g-kelime" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><path d="M12 7h24a6 6 0 0 1 6 6v14a6 6 0 0 1-6 6H20l-8 7v-7.2A6 6 0 0 1 6 27V13a6 6 0 0 1 6-6z" style="fill:var(--gi-soft,none)"/><rect x="12" y="15.5" width="7" height="9" rx="2" style="fill:var(--gi-tint,currentColor);stroke:none;rx:calc(2px*var(--game-corner,1))"/><rect x="20.5" y="15.5" width="7" height="9" rx="2" style="fill:var(--gi-tint,currentColor);stroke:none;rx:calc(2px*var(--game-corner,1))"/><rect x="29" y="15.5" width="7" height="9" rx="2" style="fill:var(--gi-tint,currentColor);stroke:none;rx:calc(2px*var(--game-corner,1))"/></g></symbol>
+    <symbol id="g-tier" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><rect x="6" y="6.5" width="36" height="10" rx="3" style="fill:var(--gi-soft,none);stroke:none;rx:calc(3px*var(--game-corner,1))"/><rect x="6" y="19" width="36" height="10" rx="3" style="fill:var(--gi-soft,none);stroke:none;rx:calc(3px*var(--game-corner,1))"/><rect x="6" y="31.5" width="36" height="10" rx="3" style="fill:var(--gi-soft,none);stroke:none;rx:calc(3px*var(--game-corner,1))"/><rect x="6" y="6.5" width="10" height="10" rx="3" style="fill:var(--gi-tint,currentColor);stroke:none;rx:calc(3px*var(--game-corner,1))"/><rect x="6" y="19" width="10" height="10" rx="3" style="fill:var(--gi-tint,currentColor);stroke:none;rx:calc(3px*var(--game-corner,1))"/><rect x="6" y="31.5" width="10" height="10" rx="3" style="fill:var(--gi-tint,currentColor);stroke:none;rx:calc(3px*var(--game-corner,1))"/><path d="M21.5 11.5h.01M28 11.5h.01M34.5 11.5h.01M21.5 24h.01M28 24h.01M21.5 36.5h.01"/></g></symbol>
+    <symbol id="g-oner" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><path d="M18.5 34c0-3.2-1.4-4.8-3.4-6.8A12.5 12.5 0 1 1 32.9 27.2c-2 2-3.4 3.6-3.4 6.8z" style="fill:var(--gi-soft,none)"/><path d="M19 38.5h10M21 42.5h6"/><path d="M24 13.5v10M19 18.5h10" style="stroke:var(--gi-tint,currentColor)"/></g></symbol>
+  </svg><!-- /game-icons -->
 
   <!-- Giriş ekranı -->
   <main id="join-screen" class="join" hidden>
@@ -171,6 +190,13 @@
         </div>
 
         <ul id="room-list" class="room-grid" aria-label="Odalar"></ul>
+
+        <!-- İlk liste alınamadı (liste varken hata olursa liste kalır) -->
+        <div id="room-list-error" class="notice notice-danger room-list-error" role="alert" hidden>
+          <svg class="ic"><use href="#i-alert"></use></svg>
+          <span id="room-list-error-text"></span>
+          <button type="button" id="room-list-retry" class="btn btn-sm">Tekrar dene</button>
+        </div>
 
         <!-- Boş liste: üç adım şeridi -->
         <div id="room-list-empty" class="room-empty" hidden>
@@ -445,6 +471,7 @@
       <button id="rec-voice" class="wide"><svg class="ic"><use href="#i-mic"></use></svg>Sadece konuşmaları kaydet</button>
     </div>
     <div id="sfx-pop" class="pop sfx-pop" popover>
+      <p id="sfx-locked" class="notice notice-danger sfx-locked" role="status" hidden>Susturuldun; susturman kalkana kadar ses efekti çalamaz ve yükleyemezsin.</p>
       <div id="sfx" class="sfx" aria-label="Ses efektleri"></div>
       <div id="sfx-custom" class="sfx sfx-custom"></div>
       <form id="sfx-upload" class="sfx-upload">
@@ -462,81 +489,6 @@
     <div id="emoji-pop" class="pop emoji-pop" popover>
       <div id="emoji-grid" class="emoji-grid"></div>
     </div>
-
-    <!-- Oda ayarları (sahip/yönetici): tema, şifre, birleştirme; yöneticide ad, sahip, kapatma -->
-    <dialog id="room-settings" class="dialog room-settings" aria-labelledby="rs-title">
-      <div class="dialog-head">
-        <span id="rs-emblem" class="rs-emblem"></span>
-        <div class="dialog-head-text">
-          <h2 id="rs-title" class="dialog-title"></h2>
-          <p class="dialog-sub">Oda ayarları</p>
-        </div>
-        <button type="button" class="btn btn-icon btn-ghost dialog-close" data-close aria-label="Kapat"><svg class="ic"><use href="#i-x"></use></svg></button>
-      </div>
-      <div class="rs-body">
-        <section class="rs-section" aria-labelledby="rs-theme-h">
-          <h3 id="rs-theme-h" class="rs-head"><svg class="ic"><use href="#i-palette"></use></svg>Tema</h3>
-          <form id="rs-theme-form" class="rs-form">
-            <fieldset id="rs-theme" class="theme-picker" aria-labelledby="rs-theme-h"></fieldset>
-            <div class="rs-theme-actions">
-              <p id="rs-theme-hint" class="rs-theme-hint">Seçtiğin tema odadaki herkeste değişir.</p>
-              <button type="submit" id="rs-theme-apply" class="btn" disabled>Uygula</button>
-            </div>
-          </form>
-        </section>
-        <section class="rs-section" aria-labelledby="rs-pass-h">
-          <h3 id="rs-pass-h" class="rs-head"><svg class="ic"><use href="#i-key"></use></svg>Şifre</h3>
-          <form id="rs-pass-form" class="rs-form">
-            <p id="rs-pass-state" class="rs-state"></p>
-            <div class="rs-inline">
-              <input id="rs-pass" class="input" type="password" maxlength="200" autocomplete="new-password" placeholder="Yeni şifre (en az 4 karakter)" aria-label="Yeni şifre">
-              <button type="submit" id="rs-pass-save" class="btn">Şifre koy</button>
-            </div>
-            <button type="button" id="rs-pass-remove" class="btn btn-ghost btn-danger btn-sm rs-remove" hidden><svg class="ic"><use href="#i-unlock"></use></svg>Şifreyi kaldır</button>
-          </form>
-        </section>
-        <section class="rs-section" aria-labelledby="rs-merge-h">
-          <h3 id="rs-merge-h" class="rs-head"><svg class="ic"><use href="#i-merge"></use></svg>Birleştirme</h3>
-          <form id="rs-merge-form" class="rs-form">
-            <p id="rs-merged" class="rs-state" hidden></p>
-            <div id="rs-merge-field" class="rs-inline">
-              <select id="rs-merge-target" class="select" aria-label="Birleşilecek oda"></select>
-              <button type="submit" id="rs-merge" class="btn">Birleştir</button>
-            </div>
-            <p class="rs-hint">Karşı odanın sahibi kabul edince iki oda tek oda olur (en fazla 12 kişi).</p>
-            <button type="button" id="rs-split" class="btn btn-ghost btn-danger btn-sm rs-remove" hidden><svg class="ic"><use href="#i-split"></use></svg>Odaları ayır</button>
-          </form>
-        </section>
-        <section id="rs-admin" class="rs-section" aria-labelledby="rs-admin-h" hidden>
-          <h3 id="rs-admin-h" class="rs-head"><svg class="ic"><use href="#i-shield"></use></svg>Yönetim</h3>
-          <form id="rs-name-form" class="rs-form">
-            <label class="field" for="rs-name">Oda adı</label>
-            <div class="rs-inline">
-              <input id="rs-name" class="input" maxlength="24" autocomplete="off">
-              <button type="submit" class="btn">Kaydet</button>
-            </div>
-          </form>
-          <form id="rs-owner-form" class="rs-form">
-            <label class="field" for="rs-owner">Sahibi</label>
-            <div class="rs-inline">
-              <input id="rs-owner" class="input" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false">
-              <button type="submit" class="btn">Kaydet</button>
-            </div>
-          </form>
-          <div class="rs-danger">
-            <div class="rs-danger-text">
-              <strong>Odayı kapat</strong>
-              <span>İçeridekiler oda listesine döner. Geri alınamaz.</span>
-            </div>
-            <button type="button" id="rs-close-room" class="btn btn-danger btn-sm">Odayı kapat</button>
-          </div>
-        </section>
-        <p id="rs-error" class="field-error rs-error" role="alert" hidden></p>
-      </div>
-      <div class="dialog-actions">
-        <button type="button" id="rs-done" class="btn">Kapat</button>
-      </div>
-    </dialog>
 
     <div class="layout room-layout">
       <!-- Sahne: oynatıcı, çalan şarkının denetimleri ve araç satırı, kişi sırası. Sahne görünmezken (oyunlar,
@@ -1318,6 +1270,96 @@
       <button id="tabbar-radio" class="tabbar-btn"><svg class="ic"><use href="#i-radio"></use></svg><span>Radyo</span></button>
     </nav>
   </div>
+
+  <!-- Oda ayarları (sahip/yönetici): içeridekiler, tema, şifre, birleştirme; yöneticide ad, sahip, kapatma.
+       Odanın içinden ve oda listesindeki kartın ayar düğmesinden aynı pencere açılır (app.js openRoomSettings). -->
+  <dialog id="room-settings" class="dialog room-settings" aria-labelledby="rs-title">
+    <div class="dialog-head">
+      <span id="rs-emblem" class="rs-emblem"></span>
+      <div class="dialog-head-text">
+        <h2 id="rs-title" class="dialog-title"></h2>
+        <p class="dialog-sub">Oda ayarları</p>
+      </div>
+      <button type="button" class="btn btn-icon btn-ghost dialog-close" data-close aria-label="Kapat"><svg class="ic"><use href="#i-x"></use></svg></button>
+    </div>
+    <div class="rs-body">
+      <section class="rs-section" aria-labelledby="rs-people-h">
+        <h3 id="rs-people-h" class="rs-head"><svg class="ic"><use href="#i-users"></use></svg>İçeridekiler<span id="rs-people-count" class="rs-count"></span></h3>
+        <ul id="rs-people" class="rs-people" aria-labelledby="rs-people-h"></ul>
+      </section>
+      <section class="rs-section" aria-labelledby="rs-theme-h">
+        <h3 id="rs-theme-h" class="rs-head"><svg class="ic"><use href="#i-palette"></use></svg>Tema</h3>
+        <form id="rs-theme-form" class="rs-form">
+          <fieldset id="rs-theme" class="theme-picker" aria-labelledby="rs-theme-h"></fieldset>
+          <div class="rs-theme-actions">
+            <p id="rs-theme-hint" class="rs-theme-hint">Seçtiğin tema odadaki herkeste değişir.</p>
+            <button type="submit" id="rs-theme-apply" class="btn" disabled>Uygula</button>
+          </div>
+        </form>
+      </section>
+      <section class="rs-section" aria-labelledby="rs-pass-h">
+        <h3 id="rs-pass-h" class="rs-head"><svg class="ic"><use href="#i-key"></use></svg>Şifre</h3>
+        <form id="rs-pass-form" class="rs-form">
+          <p id="rs-pass-state" class="rs-state"></p>
+          <div class="rs-inline">
+            <input id="rs-pass" class="input" type="password" maxlength="200" autocomplete="new-password" placeholder="Yeni şifre (en az 4 karakter)" aria-label="Yeni şifre">
+            <button type="submit" id="rs-pass-save" class="btn">Şifre koy</button>
+          </div>
+          <button type="button" id="rs-pass-remove" class="btn btn-ghost btn-danger btn-sm rs-remove" hidden><svg class="ic"><use href="#i-unlock"></use></svg>Şifreyi kaldır</button>
+        </form>
+      </section>
+      <section class="rs-section" aria-labelledby="rs-merge-h">
+        <h3 id="rs-merge-h" class="rs-head"><svg class="ic"><use href="#i-merge"></use></svg>Birleştirme</h3>
+        <form id="rs-merge-form" class="rs-form">
+          <p id="rs-merged" class="rs-state" hidden></p>
+          <div id="rs-merge-field" class="rs-inline">
+            <select id="rs-merge-target" class="select" aria-label="Birleşilecek oda"></select>
+            <button type="submit" id="rs-merge" class="btn">Birleştir</button>
+          </div>
+          <p id="rs-merge-hint" class="rs-hint">Karşı odanın sahibi kabul edince iki oda tek oda olur.</p>
+          <button type="button" id="rs-split" class="btn btn-ghost btn-danger btn-sm rs-remove" hidden><svg class="ic"><use href="#i-split"></use></svg>Odaları ayır</button>
+        </form>
+      </section>
+      <section id="rs-admin" class="rs-section" aria-labelledby="rs-admin-h" hidden>
+        <h3 id="rs-admin-h" class="rs-head"><svg class="ic"><use href="#i-shield"></use></svg>Yönetim</h3>
+        <form id="rs-name-form" class="rs-form">
+          <label class="field" for="rs-name">Oda adı</label>
+          <div class="rs-inline">
+            <input id="rs-name" class="input" maxlength="24" autocomplete="off">
+            <button type="submit" class="btn">Kaydet</button>
+          </div>
+        </form>
+        <form id="rs-owner-form" class="rs-form">
+          <label class="field" for="rs-owner">Sahibi</label>
+          <div class="rs-inline">
+            <input id="rs-owner" class="input" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false" list="rs-owner-list" aria-describedby="rs-owner-hint">
+            <datalist id="rs-owner-list"></datalist>
+            <button type="submit" class="btn">Kaydet</button>
+          </div>
+        </form>
+        <p id="rs-owner-hint" class="rs-hint">Var olan bir hesabın adını yaz ya da listeden seç.</p>
+        <div class="rs-danger">
+          <div class="rs-danger-text">
+            <strong>Odayı kapat</strong>
+            <span>İçeridekiler oda listesine döner. Geri alınamaz.</span>
+          </div>
+          <button type="button" id="rs-close-room" class="btn btn-danger btn-sm" aria-controls="rs-close-confirm" aria-expanded="false">Odayı kapat</button>
+        </div>
+        <!-- Kapatma onayı: odanın adı ve içerideki kişi sayısı (app.js renderCloseConfirm) -->
+        <div id="rs-close-confirm" class="rs-confirm" role="group" aria-labelledby="rs-close-ask" hidden>
+          <p id="rs-close-ask" class="rs-confirm-text"></p>
+          <div class="rs-confirm-actions">
+            <button type="button" id="rs-close-cancel" class="btn btn-ghost btn-sm">Vazgeç</button>
+            <button type="button" id="rs-close-yes" class="btn btn-danger btn-sm">Evet, kapat</button>
+          </div>
+        </div>
+      </section>
+      <p id="rs-error" class="field-error rs-error" role="alert" hidden></p>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" id="rs-done" class="btn">Kapat</button>
+    </div>
+  </dialog>
 
   <!-- Birleşme isteği: hedef odanın sahibine ve yöneticilere; odada da oda listesinde de aynı pencere -->
   <dialog id="merge-prompt" class="dialog merge-dialog" aria-labelledby="merge-prompt-title">

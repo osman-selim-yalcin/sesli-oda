@@ -17,6 +17,8 @@ let micSource = null;          // mikrofonu ses eşiğine bağlayan düğüm (ci
 let screenStream = null;      // kendi ekran paylaşımımız
 let sharerId = null;          // odada ekranını paylaşan kişi
 let micOn = true;
+let screenAudioHeld = false;   // susturma ekran paylaşımının sesini kapattı; kişi mikrofonunu açınca geri açılır
+let modMuted = null;           // oda sahibi ya da yönetici beni susturdu: 'owner' | 'admin' (mikrofon kilitli)
 let myName = '';
 let selfId = null;
 let roomEpoch = null;          // sunucunun bu girişe verdiği dönem (taşınınca artar); bağlantılar sinyale ekler
@@ -175,31 +177,53 @@ function setupAudio() {
 
 const SPEAK_THRESHOLD = 12;
 const SPEAK_HOLD = 350; // ms; kelime aralarında gösterge titremesin
+const SPEAK_HOLD_HIDDEN = 1600; // ms; gizli sekmede (seyrek ölçüm)
 
+// Bütün göstergeler tek zamanlayıcıyla ölçülür (20 kişilik birleşik odada 20 ayrı zamanlayıcı yerine biri).
+// Sekme görünmezken de ölçülür ("konuşurken müziği kıs" peer.speaking'i okur, YouTube arka planda çalar); yalnız
+// halkaların DOM'u yazılmaz, sekme dönünce ilk ölçümde düzelir. Tarayıcı gizli sekmede zamanlayıcıyı zaten seyreltir.
+const levelMeters = new Set();
+let levelTimer = 0;
 function watchLevel(source, row, state) {
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 512;
   source.connect(analyser);
-  const data = new Uint8Array(analyser.fftSize);
-  let lastLoud = 0;
-  const timer = setInterval(() => {
-    if (!row.isConnected) return clearInterval(timer);
-    analyser.getByteTimeDomainData(data);
+  for (const m of levelMeters) if (m.state === state) levelMeters.delete(m); // bağlantı yenilenince eski ölçer düşer
+  levelMeters.add({ analyser, data: new Uint8Array(analyser.fftSize), row, state, lastLoud: 0 });
+  levelTimer ||= setInterval(tickLevels, 100);
+}
+function tickLevels() {
+  const hidden = document.hidden;
+  for (const m of levelMeters) {
+    if (!m.row.isConnected) {
+      levelMeters.delete(m);
+      continue;
+    }
+    m.analyser.getByteTimeDomainData(m.data);
     let peak = 0;
-    for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
-    if (peak > SPEAK_THRESHOLD) lastLoud = Date.now();
-    state.speaking = !state.silenced?.() && Date.now() - lastLoud < SPEAK_HOLD;
-    row.classList.toggle('speaking', state.speaking);
-    row.mini?.classList.toggle('speaking', state.speaking);
-  }, 100);
+    for (const v of m.data) peak = Math.max(peak, Math.abs(v - 128));
+    if (peak > SPEAK_THRESHOLD) m.lastLoud = Date.now();
+    // Gizli sekmede zamanlayıcı ~1 sn'de bir çalışır: konuşma arada kaçmasın diye bekleme uzar.
+    const speaking = !m.state.silenced?.() && Date.now() - m.lastLoud < (hidden ? SPEAK_HOLD_HIDDEN : SPEAK_HOLD);
+    m.state.speaking = speaking;
+    if (hidden || m.row.classList.contains('speaking') === speaking) continue; // DOM'a yalnız görünürken ve değişince
+    m.row.classList.toggle('speaking', speaking);
+    m.row.mini?.classList.toggle('speaking', speaking);
+  }
+  if (!levelMeters.size) {
+    clearInterval(levelTimer);
+    levelTimer = 0;
+  }
 }
 
 // ---------- Katılımcı listesi ----------
 
-// Birleşik odada sınır iki katı (her odadan en fazla 6).
+// Birleşik odada sınır iki katı (her odadan en fazla 10).
+// Site yöneticisi doluluğa sayılmaz (dolu odaya da girer): sayaç onu saymaz.
 function renderPeopleCount() {
-  const max = curRoom?.max || 6;
-  $('people-count').textContent = `${peers.size + 1}/${curRoom?.mergedWith ? 2 * max : max}`;
+  const max = curRoom?.max || 10;
+  const n = [...peers.values()].filter((p) => !p.admin).length + (account?.admin ? 0 : 1);
+  $('people-count').textContent = `${n}/${curRoom?.mergedWith ? 2 * max : max}`;
 }
 
 // İsimden sabit bir renk: herkes her yerde (liste, sohbet) aynı renkte görünür.
@@ -239,10 +263,25 @@ function avatarInitial(el, name) {
   el.style.background = avatarColor(name);
 }
 
-function avatarColor(name) {
+function avatarHash(name) {
   let hash = 2166136261; // FNV-1a: benzer isimler de farklı renge düşsün
   for (const ch of name) hash = Math.imul(hash ^ ch.codePointAt(0), 16777619);
-  return AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
+  return (hash >>> 0) % AVATAR_COLORS.length;
+}
+// Oda içindeki renk sunucudan gelir (colors.js: odadakilerle çakışmaz, herkes aynısını görür, odada kaldıkça
+// değişmez; 10 kişide hepsi ayrı, birleşik odada 20 kişide her renk en çok iki). Bu sekmenin odadaki kişileri
+// (kişi sırası, Odadakiler, lobiler, oyun listeleri, sohbetteki avatarları) bu rengi kullanır; odada olmayan isim
+// (oda listesi, ayrılmış kişinin eski sohbet satırları sonradan çizilirse) isimden gelen karma rengindedir.
+const roomColors = new Map(); // isim -> renk sırası
+function avatarColor(name) {
+  return AVATAR_COLORS[roomColors.get(name) ?? avatarHash(name)];
+}
+function setRoomColor(name, index) {
+  const before = roomColors.get(name);
+  if (Number.isInteger(index) && index >= 0 && index < AVATAR_COLORS.length) roomColors.set(name, index);
+  else roomColors.delete(name);
+  if (roomColors.get(name) === before) return;
+  for (const el of document.querySelectorAll('.avatar')) if (el.dataset.name === name) fillAvatar(el);
 }
 
 function setProfile(name, version) {
@@ -271,11 +310,13 @@ function personRow(name, isSelf) {
   li.mini.className = 'person' + (isSelf ? ' is-self' : '');
   li.mini.setAttribute('popovertarget', 'people-pop');
   li.mini.innerHTML = `
-    <span class="person-face"><span class="person-rec" title="Kayıt yapıyor"></span><span class="person-mic" title="Sessizde">${icon('mic-off')}</span></span>
-    <span class="person-label"><span class="person-name"></span>${isSelf ? '<span class="person-you">sen</span>' : ''}</span>`;
+    <span class="person-face"><span class="person-rec" title="Kayıt yapıyor"></span><span class="person-mic" title="Sessizde">${icon('mic-off')}</span><span class="person-mod" title="Susturuldu">${icon('volume-x')}</span></span>
+    <span class="person-label"><span class="person-name"></span>${isSelf ? '<span class="person-you">sen</span>' : ''}</span>
+    <span class="person-tag">susturuldu</span>`;
   li.mini.querySelector('.person-face').prepend(makeAvatar(name));
   li.mini.querySelector('.person-name').textContent = name;
   li.mini.title = isSelf ? `${name} (sen)` : `${name}: ses ayarı`;
+  li.mini.setAttribute('aria-label', li.mini.title);
   li.mini.onclick = () => focusPerson(li);
   $('avatar-strip').append(li.mini);
   if (isSelf) selfRow = li;
@@ -285,10 +326,20 @@ function personRow(name, isSelf) {
 let selfRow = null;
 
 // Kişi sırasındaki rozetler: sessizde (üstü çizili mikrofon) ve kayıt (kırmızı nokta).
-function renderPersonState(row, { muted, recording }) {
+// Moderatör susturması (modMuted 'owner' | 'admin') kendi sessizinden ayrı görünür: hoparlör işareti ve "susturuldu".
+const MOD_BY = { owner: 'Oda sahibi susturdu', admin: 'Yönetici susturdu' };
+function renderPersonState(row, { muted, recording, modMuted: mod }) {
   if (!row?.mini) return;
   if (muted !== undefined) row.mini.classList.toggle('is-muted', Boolean(muted));
   if (recording !== undefined) row.mini.classList.toggle('is-rec', Boolean(recording));
+  if (mod !== undefined) {
+    row.mini.classList.toggle('is-modmuted', Boolean(mod));
+    row.classList.toggle('is-modmuted', Boolean(mod));
+    const name = row.dataset.name;
+    const base = row.mini.classList.contains('is-self') ? `${name} (sen)` : `${name}: ses ayarı`;
+    row.mini.title = mod ? `${name}: ${MOD_BY[mod] || 'susturuldu'}` : base;
+    row.mini.setAttribute('aria-label', mod ? `${row.mini.title}` : base);
+  }
 }
 
 // Avatara basınca açılan Odadakiler penceresinde o kişinin satırı görünür ve kısa süre vurgulanır.
@@ -305,8 +356,11 @@ function setStatus(row, text) {
   row.querySelector('.p-status').textContent = text;
 }
 
-function addPeer(id, name, muted) {
+// info: { muted, modMuted, home, admin } (join cevabındaki peers satırı ya da user-joined)
+function addPeer(id, name, info = {}) {
   if (peers.has(id)) return peers.get(id);
+  const { muted = false } = info;
+  setRoomColor(name, info.color);
   const row = personRow(name, false);
   const vol = document.createElement('input');
   vol.type = 'range';
@@ -325,11 +379,18 @@ function addPeer(id, name, muted) {
   const gain = audioCtx.createGain();
   gain.connect(voiceBus);
 
-  const peer = { name, muted, pc: null, audio, gain, source: null, pendingIce: [], row, speaking: false, localMuted: false, badSince: null, retries: 0 };
-  const applyGain = () => {
-    gain.gain.value = peer.localMuted ? 0 : vol.value / 100;
-    audio.volume = peer.localMuted ? 0 : vol.value / 100; // medya öğesinden çalarken
+  const peer = {
+    name, muted, pc: null, audio, gain, source: null, pendingIce: [], row, speaking: false, localMuted: false, badSince: null, retries: 0,
+    modMuted: info.modMuted || null, home: info.home || null, admin: Boolean(info.admin),
   };
+  // Susturulan kişinin sesi (karşıdan ne gelirse gelsin) çalınmaz; ekran paylaşımının sesi de.
+  const applyGain = () => {
+    const off = peer.localMuted || Boolean(peer.modMuted);
+    gain.gain.value = off ? 0 : vol.value / 100;
+    audio.volume = off ? 0 : vol.value / 100; // medya öğesinden çalarken
+    if (peer.screenAudio) peer.screenAudio.muted = Boolean(peer.modMuted);
+  };
+  peer.silenced = () => Boolean(peer.modMuted); // konuşma halkası yanmaz
   peer.applyGain = applyGain;
   vol.oninput = applyGain;
 
@@ -341,8 +402,13 @@ function addPeer(id, name, muted) {
     setIcon(muteBtn, peer.localMuted ? 'volume-x' : 'volume');
     muteBtn.title = peer.localMuted ? `${name} sesini aç` : `${name} sesini kapat`;
     muteBtn.classList.toggle('off', peer.localMuted);
-    vol.disabled = peer.localMuted;
+    // Susturulmuş kişinin sesi zaten çalınmaz: ses ayarı ve kendin için kapatma düğmesi o sürece kapalı
+    vol.disabled = peer.localMuted || Boolean(peer.modMuted);
+    muteBtn.disabled = Boolean(peer.modMuted);
+    if (peer.modMuted) muteBtn.title = vol.title = `${name} susturuldu; sesi kimseye gitmiyor`;
+    else vol.title = `${name} ses seviyesi`;
   };
+  peer.renderMute = () => renderMute();
   muteBtn.onclick = () => {
     peer.localMuted = !peer.localMuted;
     applyGain();
@@ -350,9 +416,63 @@ function addPeer(id, name, muted) {
   };
   renderMute();
 
+  // Sustur / Susturmayı kaldır: yalnız yetkisi olana görünür (sunucu yine denetler). Sustur, satırdaki "Yönet"
+  // (üç nokta) düğmesinin açtığı satırdadır: kalabalık listede yanlışlıkla dokunup birini susturmak olmasın.
+  // Susturulmuş kişide "Susturmayı kaldır" doğrudan görünür (zararsız eylem).
+  const moreBtn = document.createElement('button');
+  moreBtn.type = 'button';
+  moreBtn.className = 'icon p-more';
+  moreBtn.innerHTML = icon('more');
+  moreBtn.title = `${name}: yönet`;
+  moreBtn.setAttribute('aria-label', `${name}: yönet`);
+  moreBtn.setAttribute('aria-expanded', 'false');
+  row.append(moreBtn);
+  const modRow = document.createElement('div');
+  modRow.className = 'p-modrow';
+  modRow.hidden = true;
+  const modBtn = document.createElement('button');
+  modBtn.type = 'button';
+  modBtn.className = 'btn btn-sm p-mod';
+  modRow.append(modBtn);
+  row.querySelector('.p-info').append(modRow);
+  let open = false;
+  peer.renderMod = () => {
+    const can = canModerate(peer);
+    moreBtn.hidden = !can || Boolean(peer.modMuted);
+    if (!can) open = false;
+    const show = can && (open || Boolean(peer.modMuted));
+    modRow.hidden = !show;
+    moreBtn.setAttribute('aria-expanded', String(show));
+    if (!show) return;
+    setIcon(modBtn, peer.modMuted ? 'mic' : 'mic-off', peer.modMuted ? 'Susturmayı kaldır' : `${name} kişisini sustur`);
+    modBtn.classList.toggle('btn-danger', !peer.modMuted);
+    modBtn.classList.toggle('btn-ghost', Boolean(peer.modMuted));
+    modBtn.setAttribute('aria-label', `${name}: ${peer.modMuted ? 'susturmayı kaldır' : 'sustur'}`);
+  };
+  moreBtn.setAttribute('aria-controls', (modRow.id = `p-modrow-${id}`));
+  moreBtn.onclick = () => {
+    open = !open;
+    peer.renderMod();
+    if (open) modBtn.focus();
+  };
+  modBtn.onclick = async () => {
+    const wasMuted = Boolean(peer.modMuted);
+    modBtn.disabled = true;
+    const res = (await emitAck(8000, 'mod:mute', { id, muted: !peer.modMuted })) ?? { error: 'Sunucuya ulaşılamadı.' };
+    modBtn.disabled = false;
+    if (res.error) toast(res.error);
+    const lifted = !res.error && wasMuted;
+    open = false; // susturunca satır kapanır; kaldırma düğmesi kendiliğinden görünür
+    peer.renderMod();
+    // Kaldırınca satır kapanır: odak aynı satırın Yönet düğmesine (görünmüyorsa satırın düğmesine) geçer.
+    if (lifted || document.activeElement === document.body) (moreBtn.hidden ? muteBtn : moreBtn).focus();
+  };
+
   peers.set(id, peer);
-  setStatus(row, muted ? 'Sessizde' : 'Bağlanıyor…');
-  renderPersonState(row, { muted });
+  setStatus(row, peer.modMuted ? MOD_BY[peer.modMuted] : muted ? 'Sessizde' : 'Bağlanıyor…');
+  renderPersonState(row, { muted, modMuted: peer.modMuted });
+  peer.renderMod();
+  applyGain();
   renderPeopleCount();
   return peer;
 }
@@ -368,11 +488,12 @@ function removePeer(id) {
   peer.row.remove();
   peer.row.mini.remove();
   peers.delete(id);
+  if (![...peers.values()].some((p) => p.name === peer.name)) setRoomColor(peer.name, null);
   renderPeopleCount();
 }
 
 // ---------- WebRTC (sesli sohbet) ----------
-// Her kişi diğer herkese doğrudan bağlanır (en fazla 6 kişi için ideal).
+// Her kişi diğer herkese doğrudan bağlanır: 10 kişilik odada 9, birleşik odada (10 + 10) 19 bağlantı.
 // Yeni katılan kişi teklif (offer) gönderir, odadakiler cevap verir.
 
 // Karşı tarafa Opus için DTX (sessizken veri göndermeme) ve bitrate sınırı bildirir.
@@ -397,9 +518,37 @@ function applyLimits(pc) {
     if (!sender.track) continue;
     const params = sender.getParameters();
     if (!params.encodings?.length) continue;
-    params.encodings[0].maxBitrate = sender.track.kind === 'video' ? SCREEN_BITRATE : VOICE_BITRATE;
-    sender.setParameters(params).catch(() => {});
+    params.encodings[0].maxBitrate = sender.track.kind === 'video' ? screenBitrate() : VOICE_BITRATE;
+    // Anlaşma sürerken reddedilebilir: bağlantı yeniden kararlı olunca bir kez daha denenir.
+    sender.setParameters(params).catch(() => retryLimits(pc));
   }
+}
+function retryLimits(pc) {
+  if (pc.limitsRetry || pc.signalingState === 'closed') return;
+  pc.limitsRetry = true;
+  const again = () => {
+    if (pc.signalingState !== 'stable') return;
+    pc.removeEventListener('signalingstatechange', again);
+    pc.limitsRetry = false;
+    for (const sender of pc.getSenders()) {
+      if (!sender.track) continue;
+      const params = sender.getParameters();
+      if (!params.encodings?.length) continue;
+      params.encodings[0].maxBitrate = sender.track.kind === 'video' ? screenBitrate() : VOICE_BITRATE;
+      sender.setParameters(params).catch(() => {}); // ikinci ret: bir sonraki anlaşmada applyLimits yine dener
+    }
+  };
+  if (pc.signalingState === 'stable') queueMicrotask(again);
+  else pc.addEventListener('signalingstatechange', again);
+}
+
+// Paylaşan görüntüyü her kişiye ayrı gönderir: kişi başı 1 Mbps, ama toplam yükleme SCREEN_UPLOAD'u geçmesin
+// (10 kişide kişi başı ~670 kbps, 20 kişide ~315 kbps). Kişi gelip gidince bütün bağlantılarda yeniden ayarlanır.
+const SCREEN_UPLOAD = 6000000; // bps
+const screenBitrate = () => Math.max(250000, Math.min(SCREEN_BITRATE, Math.floor(SCREEN_UPLOAD / Math.max(1, peers.size))));
+function retuneScreen() {
+  if (!screenStream) return;
+  for (const peer of peers.values()) if (peer.pc) applyLimits(peer.pc);
 }
 
 // Ekran görüntüsü ve (varsa) sekme sesi birlikte gider.
@@ -456,6 +605,7 @@ function createPc(id) {
     peer.voiceStreamId ??= stream.id;
     if (stream.id !== peer.voiceStreamId) {
       peer.screenAudio ||= new Audio();
+      peer.screenAudio.muted = Boolean(peer.modMuted);
       peer.screenAudio.srcObject = new MediaStream([e.track]);
       peer.screenAudio.play().catch(() => {});
       return;
@@ -481,7 +631,7 @@ function createPc(id) {
   pc.onconnectionstatechange = () => {
     const s = pc.connectionState;
     if (s === 'connected') {
-      setStatus(peer.row, peer.muted ? 'Sessizde' : 'Bağlı');
+      setStatus(peer.row, peerStatus(peer));
       peer.badSince = null;
       peer.retries = 0;
       return;
@@ -574,23 +724,85 @@ socket.on('signal', async ({ from, data }) => {
   }
 });
 
-socket.on('user-joined', ({ id, name, muted }) => {
-  addPeer(id, name, muted);
+socket.on('user-joined', ({ id, name, ...info }) => {
+  addPeer(id, name, info);
   createPc(id);
+  retuneScreen();
   renderRecBanner();
 });
 
 socket.on('user-left', (id) => {
   removePeer(id);
+  retuneScreen();
   renderRecBanner();
 });
+
+const peerStatus = (peer) => (peer.modMuted ? MOD_BY[peer.modMuted] : peer.muted ? 'Sessizde' : 'Bağlı');
 
 socket.on('user-muted', ({ id, muted }) => {
   const peer = peers.get(id);
   if (!peer) return;
   peer.muted = muted;
-  setStatus(peer.row, muted ? 'Sessizde' : 'Bağlı');
+  setStatus(peer.row, peerStatus(peer));
   renderPersonState(peer.row, { muted });
+});
+
+// ---------- Susturma (oda sahibi ve yönetici) ----------
+// Kim kimi susturabilir (sunucudaki mutes.check'in aynısı; düğme yalnız yetkisi olana görünür):
+// yönetici herkesi; oda sahibi kendi odası kökenli herkesi (yönetici hariç; yöneticinin susturmasına dokunamaz).
+const roomRoles = new Map(); // oda id -> bu hesabın rolü (join cevabı ve GET /rooms'tan)
+function canModerate(peer) {
+  if (!account) return false;
+  if (account.admin) return true;
+  if (peer.admin || peer.modMuted === 'admin') return false;
+  return roomRoles.get(peer.home) === 'owner';
+}
+function renderModButtons() {
+  for (const peer of peers.values()) peer.renderMod?.();
+}
+
+// Beni susturdular / susturmam kalktı: mikrofon kapanır ve kilitlenir; kalkınca kendim açana kadar kapalı kalır.
+function setModMuted(by) {
+  const was = modMuted;
+  modMuted = by || null;
+  if (modMuted) {
+    micOn = false;
+    sendStream?.getAudioTracks().forEach((t) => (t.enabled = false));
+  }
+  // Ekran paylaşımının sesi de gitmesin (görüntü sürer). Susturma kalkınca kendiliğinden açılmaz: kişi
+  // mikrofonunu açınca (ayrı bir paylaşım sesi düğmesi yok) ya da paylaşımı yeniden başlatınca açılır.
+  if (modMuted && screenStream?.getAudioTracks().some((t) => t.enabled)) {
+    screenStream.getAudioTracks().forEach((t) => (t.enabled = false));
+    screenAudioHeld = true;
+  }
+  renderMic();
+  renderSfxLock();
+  renderPersonState(selfRow, { modMuted });
+  if (selfRow) setStatus(selfRow, modMuted ? MOD_BY[modMuted] : localStream ? 'Sen' : 'Sadece dinleyici');
+  return was;
+}
+
+socket.on('user-modmuted', ({ id, muted, by } = {}) => {
+  if (id === selfId) {
+    const was = setModMuted(muted ? by : null);
+    if (muted && !was) toast(by === 'admin' ? 'Yönetici seni susturdu. Mikrofonun kapalı.' : 'Oda sahibi seni susturdu. Mikrofonun kapalı.', 'danger');
+    else if (!muted && was) {
+      // Mikrofonu olmayan dinleyicide mikrofon düğmesi yok: paylaşımın sesi ancak yeni paylaşımla gelir.
+      const held = screenAudioHeld && screenStream;
+      toast(!held ? 'Susturman kaldırıldı; istersen mikrofonunu açabilirsin.'
+        : sendStream ? 'Susturman kaldırıldı; mikrofonunu açınca ekran paylaşımının sesi de açılır.'
+          : 'Susturman kaldırıldı; ekran paylaşımının sesi için paylaşımı durdurup yeniden başlat.', 'live');
+    }
+    return;
+  }
+  const peer = peers.get(id);
+  if (!peer) return;
+  peer.modMuted = muted ? by : null;
+  peer.applyGain();
+  peer.renderMute();
+  setStatus(peer.row, peerStatus(peer));
+  renderPersonState(peer.row, { modMuted: peer.modMuted });
+  peer.renderMod();
 });
 
 socket.on('notice', toast);
@@ -668,19 +880,29 @@ socket.on('room:closed', ({ name } = {}) => roomId && backToList(`${name || 'Bu'
 function renderMic() {
   const btn = $('mic-toggle');
   setIcon(btn, micOn ? 'mic' : 'mic-off');
-  btn.title = micOn ? 'Mikrofonu kapat' : 'Mikrofonu aç';
+  btn.title = modMuted ? `${modMuted === 'admin' ? 'Yönetici' : 'Oda sahibi'} seni susturdu; mikrofonu açamazsın` : micOn ? 'Mikrofonu kapat' : 'Mikrofonu aç';
   btn.setAttribute('aria-label', btn.title);
   btn.setAttribute('aria-pressed', String(!micOn));
+  btn.setAttribute('aria-disabled', String(Boolean(modMuted)));
   btn.classList.toggle('off', !micOn);
+  btn.classList.toggle('is-locked', Boolean(modMuted));
   renderPersonState(selfRow, { muted: !micOn || !localStream });
 }
 
 $('mic-toggle').onclick = () => {
+  if (modMuted) return toast(`${modMuted === 'admin' ? 'Yönetici' : 'Oda sahibi'} seni susturdu; mikrofonunu açamazsın.`);
   if (!sendStream) return;
   micOn = !micOn;
   sendStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
   socket.emit('mute', !micOn);
   renderMic();
+  if (micOn && screenAudioHeld) {
+    screenAudioHeld = false;
+    if (screenStream?.getAudioTracks().length) {
+      screenStream.getAudioTracks().forEach((t) => (t.enabled = true));
+      toast('Ekran paylaşımının sesi de açıldı.');
+    }
+  }
 };
 
 // ---------- Ses eşiği (gürültü kapısı) ----------
@@ -840,7 +1062,11 @@ async function startScreen() {
   const track = screenStream.getVideoTracks()[0];
   track.contentHint = 'detail';
   track.onended = stopScreen; // tarayıcının "Paylaşımı durdur" düğmesi
-  screenStream.getAudioTracks().forEach((t) => (t.contentHint = 'music'));
+  screenAudioHeld = Boolean(modMuted) && screenStream.getAudioTracks().length > 0;
+  screenStream.getAudioTracks().forEach((t) => {
+    t.contentHint = 'music';
+    t.enabled = !modMuted; // susturulmuşken paylaşımın sesi gitmez (mikrofon açılınca açılır)
+  });
   for (const peer of peers.values()) if (peer.pc) addScreenTrack(peer);
   renderScreen();
 
@@ -1097,7 +1323,7 @@ $('tabbar-radio').onclick = () => $('nav-radio').click();
 $('screen-strip').onclick = () => showRoomPane('stage');
 
 // Masaüstünde oynatıcı, denetim paneli ve kişi sırası ilk ekrana sığsın: oynatıcının bırakacağı yükseklik
-// (--stage-rest) panelin ve kişi sırasının gerçek boyundan hesaplanır (12 kişide kişi sırası iki satır olur).
+// (--stage-rest) panelin ve kişi sırasının gerçek boyundan hesaplanır (10 kişide kişi sırası iki satır, birleşik odada 20 kişide üç satır olur).
 const stageRest = new ResizeObserver(() => {
   const now = document.querySelector('.stage > .now').offsetHeight;
   const people = document.querySelector('.stage > .people').offsetHeight;
@@ -3781,7 +4007,7 @@ const LOBBY = {
   },
   kelime: {
     title: 'Kelime', tab: 'kelime', running: () => Boolean(kelimeActive()), last: () => kelime,
-    hint: 'Biri anlatır, diğerleri bilir; herkes bir kez anlatır. 2-6 kişi.',
+    hint: 'Biri anlatır, diğerleri bilir; herkes bir kez anlatır. 2-6 kişi (odada daha çok kişi varsa öbürleri izler).',
   },
 };
 
@@ -3904,6 +4130,11 @@ function renderLobby(game) {
   } else if (mine) {
     actions.append(withIcon(lobbyButton('Lobiden çık', 'ghost', () => lobbyEmit('lobby:leave', game)), 'logout'));
     actions.append(kelimeSmall(`${lobby.host} başlatınca oyun bu ekiple başlar.`));
+  } else if (lobby.max && n >= lobby.max && !lobby.players.includes(BOT_NAME)) {
+    // Dolu lobi (ör. kelime 6 kişilik): düğme kapalı, nedeni yazılı; oyunu izleyebilir
+    const b = withIcon(lobbyButton('Lobi dolu', 'primary', null), 'users');
+    b.disabled = true;
+    actions.append(b, kelimeSmall(`${def.title} en fazla ${lobby.max} kişiyle oynanır; bu oyunu izleyebilirsin.`));
   } else {
     actions.append(withIcon(lobbyButton('Lobiye katıl', 'primary', () => lobbyEmit('lobby:join', game)), 'plus'));
     actions.append(kelimeSmall('Katılmazsan oyunu izlersin.'));
@@ -3982,7 +4213,7 @@ socket.on('bot', setBot);
 // İstenen oyun adım adım anlatılır. Yazılanlar bu cihazda taslak olarak durur; gönderilince herkese
 // görünen listeye düşer, site sahibi eklenip eklenmeyeceğine karar verir (durum sunucudaki kayıttan gelir).
 
-const PLAYERS = ['1', '2', '3', '4', '5', '6'];
+const PLAYERS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']; // oda en fazla 10 kişi
 const ONER_STEPS = [
   {
     title: 'Oyun', head: 'Oyunun kendisi', intro: 'Önce kısaca ne olduğunu anlat.',
@@ -3994,7 +4225,7 @@ const ONER_STEPS = [
     ],
   },
   {
-    title: 'Oyuncular', head: 'Kimler, nasıl oynuyor?', intro: 'Odada en fazla 6 kişi olabiliyor.',
+    title: 'Oyuncular', head: 'Kimler, nasıl oynuyor?', intro: 'Odada en fazla 10 kişi olabiliyor (iki oda birleşince 20).',
     fields: [
       { row: [
         { key: 'minOyuncu', label: 'En az kaç kişi?', type: 'choice', options: PLAYERS },
@@ -6082,9 +6313,25 @@ function sfxButton(id, text, title) {
     socket.emit('sfx', id);
     // Sunucudaki bekleme süresiyle aynı; spam'i önler.
     document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = true));
-    setTimeout(() => document.querySelectorAll('.sfx-btn').forEach((b) => (b.disabled = false)), 600);
+    setTimeout(renderSfxLock, 600);
   };
+  btn.disabled = Boolean(modMuted);
   return btn;
+}
+
+// Susturulan kişi ses efekti de çalamaz ve yükleyemez (sunucu da reddeder): düğmeler kapalı, nedeni yazılı.
+const SFX_LOCKED = 'Susturuldun; susturman kalkana kadar ses efekti çalamaz ve yükleyemezsin.';
+function renderSfxLock() {
+  const locked = Boolean(modMuted);
+  for (const b of document.querySelectorAll('.sfx-btn')) {
+    b.disabled = locked;
+    if (locked) b.dataset.title ??= b.title;
+    b.title = locked ? SFX_LOCKED : b.dataset.title ?? b.title;
+  }
+  $('sfx-file').disabled = locked;
+  $('sfx-label').disabled = locked;
+  $('sfx-upload').classList.toggle('is-locked', locked);
+  $('sfx-locked').hidden = !locked;
 }
 
 for (const fx of SFX_LIST) $('sfx').append(sfxButton(fx.id, fx.emoji, fx.label));
@@ -6387,6 +6634,7 @@ function signedOut(error) {
   account = null;
   socket.disconnect();
   Lobby.hide();
+  Lobby.reset();
   $('room-screen').hidden = true;
   applyTheme(Theme.DEFAULT); // giriş ekranı her zaman varsayılan tema
   $('join-screen').hidden = false;
@@ -6460,6 +6708,8 @@ $('join-form').onsubmit = async (e) => {
 
 // ---------- Oda listesi ----------
 // Liste açılınca soket bağlanır ve hello ile hesaba bağlanır; aynı soket sonra odaya girerken (join) kullanılır.
+// Kayıtlı oturumla açılışta liste beklenmez: oturum belirteci belliyse /rooms isteği ve soket bağlantısı,
+// /auth/me ile aynı anda başlar (açılış, aşağıda). Liste gelene kadar Lobby iskelet kartlar gösterir.
 
 function openLobby() {
   applyTheme(Theme.DEFAULT); // oda listesi her zaman varsayılan tema; odanın teması yalnız odada
@@ -6477,10 +6727,17 @@ async function helloLobby() {
     error: 'Sunucuya bağlanılamadı. İnternetini kontrol edip tekrar dene.',
   };
   if (res.auth) return signedOut(res.error);
-  if (res.error) return toast(res.error);
+  if (res.error) {
+    Lobby.failed(res.error); // liste hiç gelmediyse listenin yerinde hata notu
+    return toast(res.error);
+  }
   Lobby.update({ rooms: res.rooms, pending: res.pending });
 }
-socket.on('rooms', ({ rooms } = {}) => Array.isArray(rooms) && Lobby.update({ rooms }));
+socket.on('rooms', ({ rooms } = {}) => {
+  if (!Array.isArray(rooms)) return;
+  Lobby.update({ rooms });
+  if (!curRoom) syncRoomSettings(rooms); // listeden açılan ayarlar penceresi canlı
+});
 socket.on('room-request', ({ pending } = {}) => Lobby.update({ pending }));
 socket.on('room-request:decided', ({ status, name } = {}) => status && Lobby.update({ decided: { status, name } }));
 
@@ -6596,9 +6853,11 @@ function applyJoin(res) {
   for (const id of [...peers.keys()]) removePeer(id);
   // Bağlantıları hemen kur: odadakiler de bize teklif gönderiyor, gecikirsek kaybolur.
   for (const p of res.peers) {
-    addPeer(p.id, p.name, p.muted).recording = p.recording;
+    addPeer(p.id, p.name, p).recording = p.recording;
     createPc(p.id);
   }
+  setModMuted(res.modMuted || null);
+  setRoomColor(myName, res.color);
   sharerId = res.sharer;
   renderScreen();
   renderRecBanner();
@@ -6660,6 +6919,8 @@ function homeAfterReload(id) {
 function setRoomInfo(res) {
   curRoom = res.room;
   curHome = res.home || res.room;
+  roomRoles.set(curRoom.id, curRoom.role);
+  roomRoles.set(curHome.id, curHome.role);
   roomId = roomCode = curRoom.id;
   homeId = curHome.id;
   try {
@@ -6692,7 +6953,11 @@ function renderRoomInfo() {
 async function refreshRoomView() {
   const res = await api('GET', '/rooms');
   if (res.error || !curRoom) return null;
-  for (const r of res.rooms) roomNames.set(r.id, r.name);
+  for (const r of res.rooms) {
+    roomNames.set(r.id, r.name);
+    roomRoles.set(r.id, r.role);
+  }
+  renderModButtons();
   curRoom = res.rooms.find((r) => r.id === curRoom.id) || curRoom;
   curHome = res.rooms.find((r) => r.id === curHome.id) || curHome;
   renderRoomInfo();
@@ -6706,12 +6971,19 @@ socket.on('room:merge', ({ mergedWith = null, name = null } = {}) => {
   curRoom.mergedWith = mergedWith;
   if (curHome?.id === curRoom.id) curHome.mergedWith = mergedWith;
   renderRoomInfo();
+  if (mergedWith) refreshRoomView(); // birleşen odanın sahibi de olabilirim (susturma yetkisi)
 });
 
 // Odanın teması değişti: odadaki herkes sayfa yenilenmeden yeni temaya geçer (Theme.apply yazı tipi, renk ve
 // ikonları birlikte değiştirir; JS'te çizilenler 'themechange' ile yeniden çizilir). Sunucu olayı yalnız o
 // odanın soketlerine gönderir. Birleşikken misafirler ev sahibi odadadır: kendi (misafir) odalarının teması
 // değişirse onlara olay gelmez; ayrılınca room:moved odanın güncel temasını getirir ve o uygulanır.
+// Bir odanın sahibi değişti (bu oda ya da birleşik odanın öteki yarısı): roller (Sustur düğmeleri, oda ayarları
+// düğmesi) yeniden alınır. Sunucu yalnız o odanın ve ev sahibi odanın soketlerine gönderir.
+socket.on('room:roles', () => {
+  if (curRoom) refreshRoomView();
+});
+
 socket.on('room:theme', ({ id, theme } = {}) => {
   if (!curRoom || typeof theme !== 'string') return;
   const roomOf = id || curRoom.id;
@@ -6794,10 +7066,15 @@ socket.on('room:moved', (res = {}) => {
 });
 
 // ---------- Oda ayarları ----------
-// Düğme yalnız kendi odasında sahip ya da yönetici olana görünür (yetkiyi yine sunucu denetler).
-// Tema listesi oda isteği formundaki seçeneklerden gelir.
+// Odanın içinden (yalnız kendi odasında sahip ya da yöneticiyse) ve oda listesindeki kartın ayar düğmesinden
+// (sahip kendi odasında, site yöneticisi her odada; lobby.js onManage) aynı pencere açılır. Yetkiyi yine sunucu
+// denetler. Tema listesi oda isteği formundaki seçeneklerden gelir.
 
-let settingsRoom = null; // pencerenin değiştirdiği oda (curHome)
+let settingsRoom = null; // pencerenin değiştirdiği oda (odada curHome; listede kartın odası)
+let rsList = null; // son oda listesi (birleşme hedefleri)
+let rsShown = null; // yönetim alanlarına son yazılan ad ve sahip: kullanıcı değiştirdiyse canlı güncelleme ezmez
+let rsClosing = null; // bu pencereden kapatılmakta olan oda (liste güncellemesi ikinci bildirim göstermesin)
+let rsOpener = null;  // listede pencereyi açan ayar düğmesinin oda id'si (kapanınca odak oraya döner)
 let rsThemePending = null; // ayarlar penceresinde seçilmiş ama henüz uygulanmamış tema
 let rsThemeSaving = false;
 
@@ -6818,12 +7095,31 @@ function rsError(text) {
   $('rs-error').hidden = !text;
 }
 
+// İçeridekiler: odanın kendi kökenli kişileri (birleşik odada öteki odanın kişileri kendi odasında sayılır).
+function renderRsPeople(r) {
+  const users = r.users || [];
+  const count = r.count ?? users.length; // yönetici sayılmaz
+  $('rs-people-count').textContent = r.max ? `${count}/${r.max}` : String(users.length);
+  if (!users.length) {
+    $('rs-people').replaceChildren(Object.assign(document.createElement('li'), { className: 'rs-people-none', textContent: 'Şu an içeride kimse yok.' }));
+    return;
+  }
+  $('rs-people').replaceChildren(...users.map((name) => {
+    const li = document.createElement('li');
+    li.className = 'rs-person';
+    li.append(makeAvatar(name), Object.assign(document.createElement('span'), { className: 'rs-person-name', textContent: name }));
+    return li;
+  }));
+}
+
 function renderRoomSettings(list) {
   const r = settingsRoom;
   if (!r) return;
+  if (list) rsList = list;
   const admin = r.role === 'admin';
   $('rs-title').textContent = r.name;
   if (window.Lobby?.emblem) $('rs-emblem').replaceChildren(Lobby.emblem(r));
+  renderRsPeople(r);
   // Tema: kutucuk yalnız seçer; Uygula kaydeder. Bekleyen seçim odanın temasına eşitse (ör. room:theme geldi) düşer.
   if (rsThemePending === r.theme) rsThemePending = null;
   if (window.Lobby?.themePicker) Lobby.themePicker($('rs-theme'), rsThemePending ?? r.theme, r.theme);
@@ -6846,35 +7142,110 @@ function renderRoomSettings(list) {
   $('rs-merge-form').classList.toggle('is-merged', Boolean(partner));
   $('rs-split').hidden = !partner;
   $('rs-merge-field').hidden = $('rs-merge').hidden = Boolean(partner);
-  if (!partner && list) {
-    const others = list.filter((x) => x.id !== r.id && !x.mergedWith);
+  $('rs-merge-hint').textContent = r.max
+    ? `Karşı odanın sahibi kabul edince iki oda tek oda olur (her odadan en fazla ${r.max}, toplam ${2 * r.max} kişi).`
+    : 'Karşı odanın sahibi kabul edince iki oda tek oda olur.';
+  if (!partner && rsList) {
+    const others = rsList.filter((x) => x.id !== r.id && !x.mergedWith);
+    const picked = $('rs-merge-target').value;
     $('rs-merge-target').replaceChildren(...others.map((x) => new Option(`${x.name} (${x.users.length} kişi)`, x.id)));
+    if (others.some((x) => x.id === picked)) $('rs-merge-target').value = picked;
     $('rs-merge').disabled = others.length === 0;
     if (!others.length) $('rs-merge-target').append(new Option('Birleşilecek oda yok', ''));
   }
   $('rs-admin').hidden = !admin;
   if (admin) {
-    $('rs-name').value = r.name;
-    $('rs-owner').value = r.owner;
-    $('rs-close-room').hidden = r.id === 'genel';
+    // Kullanıcı alanı değiştirdiyse (yazarken liste güncellendi) değeri ezilmez
+    if (!rsShown || $('rs-name').value === rsShown.name) $('rs-name').value = r.name;
+    if (!rsShown || $('rs-owner').value === rsShown.owner) $('rs-owner').value = r.owner;
+    rsShown = { name: r.name, owner: r.owner };
+    $('rs-close-room').closest('.rs-danger').hidden = r.id === 'genel';
+    if (r.id === 'genel') showCloseConfirm(false);
+    else renderCloseConfirm();
   }
 }
 
-$('room-settings-open').onclick = async () => {
+// Yönetici: sahip seçimi için hesap adları (pencere her açılışta bir kez ister; sunucu yine doğrular).
+async function loadOwnerNames() {
+  const res = await api('GET', '/admin/accounts');
+  if (res.error || !Array.isArray(res.names)) return;
+  $('rs-owner-list').replaceChildren(...res.names.map((n) => new Option(n)));
+}
+
+// Kapatma onayı: odanın adı ve oda listesine dönecek kişi sayısı.
+function renderCloseConfirm() {
+  const r = settingsRoom;
+  if (!r || $('rs-close-confirm').hidden) return;
+  const n = r.users?.length || 0;
+  const ask = $('rs-close-ask');
+  ask.replaceChildren(Object.assign(document.createElement('strong'), { textContent: r.name }), ' kapatılsın mı? ',
+    n ? `İçerideki ${n} kişi oda listesine döner.` : 'İçeride kimse yok.', ' Geri alınamaz.');
+}
+function showCloseConfirm(on) {
+  $('rs-close-confirm').hidden = !on;
+  $('rs-close-room').setAttribute('aria-expanded', String(on));
+  $('rs-close-room').disabled = on;
+  if (on) {
+    renderCloseConfirm();
+    $('rs-close-cancel').focus();
+  }
+}
+
+// view: odanın görünümü (GET /rooms satırı ya da join cevabındaki oda). Pencere hemen açılır, liste arkadan tazelenir.
+async function openRoomSettings(view) {
+  if (!view) return;
   if ($('settings-pop').matches(':popover-open')) $('settings-pop').hidePopover();
-  settingsRoom = curHome;
+  settingsRoom = view;
+  rsOpener = curRoom ? null : view.id;
+  rsShown = null;
   rsThemePending = null;
   rsError('');
   $('rs-pass').value = '';
+  showCloseConfirm(false);
   renderRoomSettings();
   if (!$('room-settings').open) $('room-settings').showModal();
-  const list = await refreshRoomView(); // birleşme durumu ve listesi güncel olsun
-  if (!$('room-settings').open) return;
-  settingsRoom = curHome;
-  if (list) renderRoomSettings(list);
-  else rsError('Oda listesi alınamadı.');
-};
+  if (view.role === 'admin') loadOwnerNames();
+  const list = curRoom ? await refreshRoomView() : await fetchRoomList(); // birleşme durumu ve listesi güncel olsun
+  if (!$('room-settings').open || settingsRoom?.id !== view.id) return;
+  if (!list) return rsError('Oda listesi alınamadı.');
+  syncRoomSettings(list);
+}
+async function fetchRoomList() {
+  const res = await api('GET', '/rooms');
+  if (res.error) return null;
+  for (const r of res.rooms) roomNames.set(r.id, r.name);
+  return res.rooms;
+}
+// Açık pencere taze listeyle güncellenir (oda listesinde rooms olayıyla canlı); oda kapandıysa pencere kapanır.
+function syncRoomSettings(list) {
+  if (!$('room-settings').open || !settingsRoom) return;
+  for (const r of list) roomNames.set(r.id, r.name);
+  const fresh = list.find((r) => r.id === settingsRoom.id);
+  if (!fresh) {
+    $('room-settings').close();
+    if (rsClosing !== settingsRoom.id) toast(`${settingsRoom.name} odası artık yok.`); // kendi kapattığımız: tek bildirim
+    return;
+  }
+  settingsRoom = fresh;
+  renderRoomSettings(list);
+}
+
+$('room-settings-open').onclick = () => openRoomSettings(curHome);
 $('rs-done').onclick = () => $('room-settings').close();
+$('room-settings').querySelector('[data-close]').onclick = () => $('room-settings').close();
+// Kapanınca odak açan düğmeye döner: liste bu arada yeniden çizildiyse aynı odanın yeni ayar düğmesine, oda
+// kapandıysa listeye (ilk karta).
+$('room-settings').addEventListener('close', () => {
+  showCloseConfirm(false);
+  const id = rsOpener;
+  rsOpener = null;
+  rsClosing = null;
+  if (id == null || curRoom) return;
+  requestAnimationFrame(() => {
+    const target = document.querySelector(`.room-manage[data-id="${CSS.escape(id)}"]`) || document.querySelector('#room-list .room-card');
+    target?.focus();
+  });
+});
 $('room-settings-top').onclick = () => $('room-settings-open').click();
 // Odadaki pencerelerin kapat düğmeleri
 for (const b of document.querySelectorAll('#room-screen dialog [data-close]')) b.onclick = () => b.closest('dialog').close();
@@ -6887,12 +7258,15 @@ async function saveRoomSetting(body, done, btn) {
   const res = await api('PATCH', `/rooms/${encodeURIComponent(settingsRoom.id)}`, body);
   if (btn) btn.disabled = false;
   if (res.error) return rsError(res.error);
+  if (settingsRoom?.id !== res.room.id) return; // bu arada pencere başka oda için açıldı
   settingsRoom = res.room;
+  rsShown = null; // kaydedilen ad ve sahip alanlara yazılsın
   if (curHome?.id === res.room.id) curHome = res.room;
   if (curRoom?.id === res.room.id) curRoom = res.room;
   roomNames.set(res.room.id, res.room.name);
   renderRoomInfo();
   renderRoomSettings();
+  if (curRoom) refreshRoomView(); // sahip değiştiyse susturma yetkileri de değişir
   if (done) toast(done);
 }
 const submitter = (e) => e.submitter || e.target.querySelector('button[type=submit]');
@@ -6956,15 +7330,29 @@ $('rs-owner-form').onsubmit = (e) => {
   e.preventDefault();
   saveRoomSetting({ owner: $('rs-owner').value.trim() }, 'Odanın sahibi kaydedildi.', submitter(e));
 };
-// Kapanınca içerideki herkes (bu sekme dahil) room:closed alıp listeye döner.
-confirmButton($('rs-close-room'), 'Emin misin? Tekrar bas', async () => {
-  if (!settingsRoom) return;
+// Kapatma iki adımlı: önce onay satırı (odanın adı, içerideki kişi sayısı). Kapanınca içerideki herkes (bu sekme
+// dahil) room:closed alıp listeye döner; listedekilerin kartı canlı kalkar.
+$('rs-close-room').onclick = () => showCloseConfirm(true);
+$('rs-close-cancel').onclick = () => {
+  showCloseConfirm(false);
+  $('rs-close-room').focus();
+};
+$('rs-close-yes').onclick = async (e) => {
+  const room = settingsRoom;
+  if (!room) return;
+  const btn = e.currentTarget;
   rsError('');
-  const res = await api('DELETE', `/rooms/${encodeURIComponent(settingsRoom.id)}`);
-  if (res.error) return rsError(res.error);
+  btn.disabled = true;
+  rsClosing = room.id;
+  const res = await api('DELETE', `/rooms/${encodeURIComponent(room.id)}`);
+  btn.disabled = false;
+  if (res.error) {
+    rsClosing = null;
+    return rsError(res.error);
+  }
   if ($('room-settings').open) $('room-settings').close();
-  toast(`${settingsRoom.name} odası kapatıldı.`);
-});
+  toast(`${room.name} odası kapatıldı.`);
+};
 
 // ---------- Birleşme ----------
 // İsteyen: oda ayarlarından istek gönderir; karşı odanın sahibine (ya da yöneticilere) pencere çıkar.
@@ -7127,6 +7515,8 @@ addEventListener('pagehide', () => socket.disconnect());
 // dosyadan sonra yüklenir; bu yüzden açılış sayfanın bütün betikleri çalıştıktan sonra yapılır.
 addEventListener('DOMContentLoaded', async () => {
   Lobby.onEnter(({ id, password }) => enterRoomFlow(id, password));
+  Lobby.onManage((room) => openRoomSettings(room));
+  Lobby.onRetry(helloLobby);
   if (!authToken) {
     $('join-screen').hidden = false;
     // Oturumu kapatılıp buraya dönüldüyse nedeni giriş ekranında yazar.
@@ -7137,9 +7527,13 @@ addEventListener('DOMContentLoaded', async () => {
     } catch {}
     return;
   }
+  // Oturum belirteci belli: liste ve soket bağlantısı /auth/me cevabını beklemez (hello yine openLobby'de)
+  Lobby.prefetch();
+  socket.connect();
   const res = await api('GET', '/auth/me');
   if (res.error) {
     if (res.status === 401) return signedOut();
+    socket.disconnect(); // erken açılan bağlantı: giriş ekranında soket gerekmez
     $('join-screen').hidden = false;
     return showJoinError(res.error);
   }
@@ -7153,39 +7547,40 @@ addEventListener('DOMContentLoaded', async () => {
 // Sekme düğmeleri (game-tab-*) gizli durur ve hâlâ asıl geçişi yapar; kartlar ve son oynananlar onları tıklar.
 // Yeni bir oyunun sekmesi eklenince kartlarda kendiliğinden görünür (bilgisi yoksa "Diğer" altında).
 
-// players: kartta görünen kişi sayısı aralığı (sunucudaki LOBBY_GAMES sınırları; bot ayrıca katılabilir)
+// players: kartta görünen kişi sayısı aralığı (sunucudaki LOBBY_GAMES sınırları: odada 10 kişi, bot ayrıca katılabilir;
+// dinozor 7 (bot dahil), kelime 6, sayı bulmaca 2)
+// hue: oyunun tonu, oklch ton açısı (simgenin rengi, kartın ve lobinin simge zemini; açıklığı temadan gelir)
 const GAME_INFO = {
-  sayi: { icon: '🔢', hue: 210, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
-  kural: { icon: '🕵️', hue: 265, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–6 kişi' },
-  hedef: { icon: '🎯', hue: 0, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–6 kişi' },
-  mantik: { icon: '🧠', hue: 320, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–6 kişi' },
-  klotski: { icon: '🧩', hue: 130, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
-  memory: { icon: '🃏', hue: 40, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–6 kişi' },
-  timing: { icon: '⏱️', hue: 190, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur', players: '1–6 kişi' },
-  daktilo: { icon: '⌨️', hue: 280, group: 'Hız ve refleks', desc: 'Aynı kelimeleri yaz, en hızlı olan kazanır', players: '1–6 kişi' },
-  okuma: { icon: '📖', hue: 35, group: 'Hız ve refleks', desc: 'Göz açısı, blok görme, takistoskop', players: 'Tek kişi' },
-  dino: { icon: '🦖', hue: 100, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş', players: '1–6 kişi' },
-  peacock: { icon: '🦚', hue: 170, group: 'Hız ve refleks', desc: 'Yakında', soon: true },
-  kelime: { icon: '💬', hue: 230, group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir', players: '2–6 kişi' },
-  tier: { icon: '📊', hue: 25, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },
-  oner: { icon: '💡', hue: 50, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
+  sayi: { hue: 245, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
+  kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
+  hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–10 kişi' },
+  mantik: { hue: 345, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–10 kişi' },
+  klotski: { hue: 150, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
+  memory: { hue: 65, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–10 kişi' },
+  timing: { hue: 215, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur', players: '1–10 kişi' },
+  daktilo: { hue: 315, group: 'Hız ve refleks', desc: 'Aynı kelimeleri yaz, en hızlı olan kazanır', players: '1–10 kişi' },
+  okuma: { hue: 50, group: 'Hız ve refleks', desc: 'Göz açısı, blok görme, takistoskop', players: 'Tek kişi' },
+  dino: { hue: 130, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş', players: '1–7 kişi' },
+  peacock: { hue: 185, group: 'Hız ve refleks', desc: 'Yakında', soon: true },
+  kelime: { hue: 265, group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir', players: '2–6 kişi' },
+  tier: { hue: 35, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },
+  oner: { hue: 90, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
 };
 const GAME_GROUPS = ['Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
-// Çizilmiş simgeler public/icons/<oyun>.webp (192 px); dosyası olmayan oyunda emoji görünür.
-const GAME_ICONS = new Set(['sayi', 'kural', 'hedef', 'mantik', 'klotski', 'memory', 'timing', 'dino', 'peacock', 'kelime', 'tier', 'oner']);
+// Oyun simgeleri: index.html'deki gömülü <svg id="game-icons"> (kaynağı icons/games.svg, test/tools/game-icons.js).
+// Sembolü olmayan (yeni eklenmiş) oyunda arayüz setinin oyun kolu ikonu görünür.
 function gameIcon(key, cls) {
   const el = Object.assign(document.createElement('span'), { className: cls });
-  if (GAME_ICONS.has(key)) {
-    el.classList.add('img');
-    el.append(Object.assign(document.createElement('img'), { src: `/icons/${key}.webp`, alt: '', decoding: 'async', draggable: false }));
-  } else el.textContent = gameInfo(key).icon;
+  el.style.setProperty('--hue', gameInfo(key).hue);
+  const id = document.getElementById(`g-${key}`) ? `g-${key}` : 'i-gamepad';
+  el.innerHTML = `<svg class="${id === 'i-gamepad' ? 'ic' : 'gi'}" aria-hidden="true"><use href="#${id}"></use></svg>`;
   return el;
 }
 const gameRecentKey = 'gameRecent';
 
 const gameTabs = () => [...document.querySelectorAll('.games-panel > .tabs > .tab[id^="game-tab-"]')]
   .map((btn) => ({ btn, key: btn.id.slice('game-tab-'.length), name: btn.textContent.trim() }));
-const gameInfo = (key) => GAME_INFO[key] || { icon: '🎮', hue: 230, group: 'Diğer', desc: '' };
+const gameInfo = (key) => GAME_INFO[key] || { hue: 260, group: 'Diğer', desc: '' };
 const lobbyOpen = (tab) => tab.btn.classList.contains('lobby-open');
 
 function gameEntry(tab, cls) {

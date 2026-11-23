@@ -630,7 +630,7 @@ socket.on('mantik', setMantik);
 // Lobi: kurucu zorluğu seçer.
 LOBBY.mantik = {
   title: 'Mantık tablosu', tab: 'mantik', running: () => Boolean(mantikActive()), last: () => mantik,
-  hint: 'Herkes aynı bulmacayı aynı anda çözer; en hızlı ve en az yanlışla çözen kazanır. 1-6 kişi.',
+  hint: 'Herkes aynı bulmacayı aynı anda çözer; en hızlı ve en az yanlışla çözen kazanır. 1-10 kişi.',
   opts: (lobby, host) => {
     const row = document.createElement('div');
     row.className = 'lobby-opts';

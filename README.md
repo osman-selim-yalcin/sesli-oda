@@ -1,7 +1,7 @@
 # Sesli Oda
 
-Birden çok odalı sesli sohbet + senkronize YouTube izleme/dinleme ve oyunlar. Her oda en fazla 6 kişi;
-iki oda birleşince 12 kişi.
+Birden çok odalı sesli sohbet + senkronize YouTube izleme/dinleme ve oyunlar. Her oda en fazla 10 kişi;
+iki oda birleşince 20 kişi (her odadan 10). Site yöneticisi bu sayıya girmez, dolu odaya da girer.
 
 **Canlı:** https://agalar.app
 
@@ -20,7 +20,8 @@ iki oda birleşince 12 kişi.
 - Oyunlar (üst çubuktaki sekme; oyundayken müzik ve sesli sohbet sürer): tier list (ortak tahtada
   yazılı/resimli kartlar), süre tahmini ve süre yarışı, dinozor koşusu, kelime, eşini bul, sayı bulmaca,
   hedef sayı, gizli kural, mantık tablosu, daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
-  "Oda kur" lobisinden başlar. Skor tabloları bütün odalarda ortaktır.
+  "Oda kur" lobisinden başlar (lobide odadaki herkes ve bot; kelime 6, dinozor 7, sayı bulmaca 2 kişiyle
+  sınırlı). Skor tabloları bütün odalarda ortaktır.
 - Ses kaydı: müzik dahil ya da sadece konuşmalar, MP3 veya WebM olarak iner. Kayıt sadece kaydedenin
   bilgisayarına iner, sunucuya gitmez.
 
@@ -95,10 +96,25 @@ isteyene anında gelir.
 
 **Birleştirme:** oda sahibi (ya da yönetici) oda ayarlarından başka bir odayla birleşme ister; karşı odanın
 sahibi 60 saniye içinde kabul ederse misafir odadakiler ev sahibi odaya taşınır, sohbet, müzik, oyun lobileri
-ve tema (ev sahibinin teması) ortak olur. Her odadan en fazla 6, toplam 12 kişi. Yönetici isterse hemen
+ve tema (ev sahibinin teması) ortak olur. Her odadan en fazla 10, toplam 20 kişi. Yönetici isterse hemen
 birleşir. Reddedilen ya da süresi dolan istekten sonra aynı yöne 60 saniye yeni istek yok; bir hesap
 dakikada en çok 3 istek gönderir. "Odaları ayır" ile herkes kendi odasına, kendi temasıyla döner.
 Birleşme yalnız hafızadadır: sunucu yeniden başlarsa odalar ayrı açılır.
+
+**Susturma:** Odadakiler kutusunda bir kişinin "Yönet" (üç nokta) düğmesi "Sustur"u açar. Susturulanın
+mikrofonu ve ekran paylaşımının sesi kapanır ve kilitlenir; ses efekti çalamaz ve yükleyemez; öteki herkes, o
+kişiden ne gelirse gelsin sesini çalmaz. Sohbete kimin susturduğu yazılır; kaldırılınca kişi mikrofonunu kendisi
+açar. Kurallar:
+- Köken, kişinin girdiği kapının odasıdır (birleşik odada da). Odalar arasında susturma kopyalanmaz.
+- Oda sahibinin susturması odaya bağlıdır ve yalnız o odanın kapısından girene uygulanır. Birleşikken öteki
+  odanın kapısından giren kişiye uygulanmaz; o kapının sahibi (aynı birleşik odadadır) ya da yönetici susturur.
+- Yöneticinin susturması hesaba bağlıdır: her odada, her kapıdan, birleşmede ve sonrasında geçerlidir; yalnız
+  yönetici kaldırır (hafızadadır: sunucu yeniden başlarsa kalkar). Kişinin susturması: yöneticininki, yoksa
+  kökeninin sahip susturması.
+- Yönetici herkesi susturur ve kaldırır; kaldırınca kişinin her odadaki sahip susturması da kalkar. Sahip kökeni kendi
+  odası olanları (yönetici ve yöneticinin susturduğu hariç) susturur ve kaldırır. Kimse kendini susturamaz.
+- Sahip susturması oda kapanınca ya da o odanın kökenlilerinden canlı odalarda ve yenileme payında kimse
+  kalmayınca silinir; odadan çıkıp dönen yine susturulmuştur.
 
 ## Temalar
 
@@ -413,7 +429,10 @@ bilgisayarda `.env`'de durur; anahtarlar koda yazılmaz. Sunucudaki konteynerde 
 
 ## İnternet kullanımı
 
-- Ses: Opus 32 kbps, sessizken neredeyse 0 (DTX). 5 kişiyle konuşurken ~10-20 MB/saat.
+- Ses: Opus 32 kbps, sessizken neredeyse 0 (DTX). 5 kişiyle konuşurken ~10-20 MB/saat. Herkes herkese doğrudan
+  bağlıdır: konuşan kişi sesini her dinleyene ayrı gönderir (10 kişide 9 × 32 kbps, birleşik odada 19 × 32 kbps).
+- Ekran paylaşımı: görüntü her kişiye ayrı gider; kişi başı en çok 1 Mbps, toplam yükleme 6 Mbps'i geçmesin diye
+  kalabalık odada kişi başı düşer (10 kişide ~670 kbps, 20 kişide ~315 kbps).
 - Müzik/video: Herkes YouTube'dan kendi cihazında oynatır; uygulama sadece "oynat / durdur / şu saniye"
   komutlarını iletir. Asıl veri tüketimi YouTube videosunun kendisidir.
 
