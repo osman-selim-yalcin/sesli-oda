@@ -10,7 +10,7 @@ try {
   process.loadEnvFile();
 } catch {}
 const store = require('./store');
-const { clientIp } = require('./clientip'); // ziyaretçinin gerçek adresi (CLIENT_IP_HEADER)
+const { clientKey } = require('./clientip'); // deneme sınırı anahtarı: gerçek adres (CLIENT_IP_HEADER), IPv6'da /64
 const accounts = require('./accounts');
 const roomStore = require('./rooms'); // oda kayıtları (canlı durum aşağıdaki rooms haritasında)
 const merge = require('./merge'); // oda birleştirme durumu (aşağıda "Oda birleştirme" bölümü bağlar)
@@ -670,7 +670,7 @@ async function admit(socket, { token, clientId, roomId, password }) {
   if (roomStore.role(reg, account) === 'none') {
     if (password == null || password === '') return { error: 'Bu oda şifreli.', needPassword: true };
     // Deneme await'ten önce sayılır (paralel denemeler sınırı aşamasın); doğru şifrede geri alınır.
-    const releaseIp = roomPassTries.reserve(`ip:${clientIp(socket)}`);
+    const releaseIp = roomPassTries.reserve(`ip:${clientKey(socket)}`);
     const releaseKey = releaseIp && roomPassTries.reserve(`hesap:${account.key}:${reg.id}`);
     if (!releaseKey) {
       releaseIp?.();

@@ -54,3 +54,15 @@ describe('kayıt sınırı (CLIENT_IP_HEADER ayarlı)', () => {
     assert.equal((await register(srv, { 'cf-connecting-ip': '203.0.113.51' })).status, 200);
   });
 });
+
+describe('kayıt sınırı: hesap yazıldıktan sonra oturum açılamazsa hak geri verilmez', () => {
+  let srv;
+  before(async () => { srv = await startServer({ env: { TEST_FAIL_SESSION_INSERT: '1' } }); });
+  after(async () => { await srv?.stop(); });
+
+  test('oturum yazılamadı (500) yine de deneme sayılır', async () => {
+    const ip = { 'x-forwarded-for': '10.7.0.1' };
+    for (let i = 0; i < 5; i++) assert.equal((await register(srv, ip)).status, 500);
+    assert.equal((await register(srv, ip)).status, 429);
+  });
+});

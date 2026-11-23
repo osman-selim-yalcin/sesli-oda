@@ -23,6 +23,12 @@ Module._load = function (req, ...rest) {
     };
     m.__t = true;
   }
+  // Hata denemesi: oturum satırı yazılamıyormuş gibi (kayıt olma sınırının hak iadesi testi).
+  if (req === './store' && !m.__t && process.env.TEST_FAIL_SESSION_INSERT) {
+    const insert = m.insert;
+    m.insert = (table, row) => (table === 'sessions' ? Promise.reject(new Error('deneme: oturum yazılamadı')) : insert(table, row));
+    m.__t = true;
+  }
   if (req === './rooms' && !m.__t) {
     addTestTheme(m);
     m.__t = true;

@@ -79,10 +79,12 @@ let registerSeq = 0;
 async function http(url, method, p, { token, body, headers: extra = {} } = {}) {
   const headers = { ...extra };
   // Kayıt olma adres başına sınırlı (10 dakikada 5); testler çok hesap açtığı için adres verilmemişse her kayıt
-  // ayrı bir adresten geliyormuş gibi yapılır (CLIENT_IP_HEADER ayarsız sunucuda X-Forwarded-For'un son değeri).
+  // ayrı bir adresten geliyormuş gibi yapılır (iki başlık da yazılır; sunucu hangisini kullanıyorsa).
   if (method === 'POST' && p === '/auth/register' && !headers['x-forwarded-for'] && !headers['cf-connecting-ip']) {
     registerSeq++;
-    headers['x-forwarded-for'] = `10.250.${registerSeq >> 8 & 255}.${registerSeq & 255}`;
+    const addr = `10.250.${registerSeq >> 8 & 255}.${registerSeq & 255}`;
+    headers['x-forwarded-for'] = addr; // CLIENT_IP_HEADER ayarsız sunucu
+    headers['cf-connecting-ip'] = addr; // CLIENT_IP_HEADER=cf-connecting-ip ayarlı sunucu
   }
   if (token) headers.authorization = `Bearer ${token}`;
   if (body !== undefined) headers['content-type'] = 'application/json';

@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const express = require('express');
 const store = require('./store');
-const { clientIp, HEADER: CLIENT_IP_HEADER } = require('./clientip');
+const { clientKey, HEADER: CLIENT_IP_HEADER } = require('./clientip');
 
 const scrypt = promisify(crypto.scrypt);
 const NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{1,23}$/u; // 2-24 karakter: harf, rakam, boşluk, . _ -
@@ -25,8 +25,15 @@ const sessions = new Map(); // oturum özeti -> anahtar
 const avatarCache = new Map(); // anahtar -> { buf, type }
 
 // Deneme sınırı: bir anahtar (ip, hesap...) pencere içinde max kez başarısız olursa engellenir.
+// Anahtarlar gerçek ziyaretçi adresleri olduğu için harita büyümesin: sayısı sıfıra dönen kayıt hemen, süresi
+// dolan kayıt düzenli taramada silinir (tarama süreci açık tutmaz).
 function attemptLimiter(max, windowMs) {
   const fails = new Map(); // anahtar -> { count, since }
+  const sweep = setInterval(() => {
+    const now = Date.now();
+    for (const [key, f] of fails) if (now - f.since > windowMs) fails.delete(key);
+  }, Math.min(windowMs, 60 * 1000));
+  sweep.unref();
   return {
     blocked(key) {
       const f = fails.get(key);
@@ -44,8 +51,14 @@ function attemptLimiter(max, windowMs) {
       if (this.blocked(key)) return null;
       this.fail(key);
       const f = fails.get(key);
-      return () => { if (fails.get(key) === f && f.count > 0) f.count--; };
+      return () => {
+        if (fails.get(key) !== f || f.count <= 0) return;
+        f.count--;
+        if (f.count === 0) fails.delete(key);
+      };
     },
+    size: () => fails.size,
+    stop: () => clearInterval(sweep),
   };
 }
 
@@ -124,7 +137,7 @@ const me = (a, key) => ({ name: a.name, avatar: a.avatar, admin: ADMINS.has(key)
 // keepHash (değiştiren oturum) dışındakiler, çıkışta yalnız onlyHash kapanır.
 function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
   // Render'ın vekil sunucusu: req.ip gerçek adres olsun. CLIENT_IP_HEADER ayarlıysa vekile güvenilmez
-  // (X-Forwarded-For'u istemci yazabilir); adres clientIp ile o başlıktan alınır.
+  // (X-Forwarded-For'u istemci yazabilir); adres clientKey ile o başlıktan alınır.
   app.set('trust proxy', CLIENT_IP_HEADER ? false : 1);
   const json = express.json({ limit: '4kb' });
   const fail = (res, status, error) => res.status(status).json({ error });
@@ -147,25 +160,30 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
     const { name, password, key } = readCredentials(req);
     if (!NAME_RE.test(name)) return fail(res, 400, 'Kullanıcı adı 2-24 karakter olmalı; harf, rakam, boşluk, nokta, tire kullanılabilir.');
     if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) return fail(res, 400, PASSWORD_RULE);
-    const release = registrations.reserve(clientIp(req)); // await'ten önce: paralel istekler sınırı aşamaz
+    const release = registrations.reserve(clientKey(req)); // await'ten önce: paralel istekler sınırı aşamaz
     if (!release) return fail(res, 429, 'Çok fazla kayıt denemesi oldu; 10 dakika sonra tekrar dene.');
     if (accounts.has(key)) return fail(res, 409, 'Bu kullanıcı adı alınmış. Senin hesabınsa "Giriş yap"ı seç.');
     const account = { name, passHash: await hashPassword(password), avatar: null, createdAt: Date.now(), lastSeen: 0 };
     if (accounts.has(key)) return fail(res, 409, 'Bu kullanıcı adı alınmış.');
     try {
       await store.insert('accounts', { id: key, name, pass_hash: account.passHash });
-      accounts.set(key, account);
-      res.json({ token: await newSession(key), ...me(account, key) });
     } catch (err) {
       console.warn('kayıt olma', err.message);
       release(); // hesap açılamadı: deneme sayılmaz
-      fail(res, 500, 'Hesap açılamadı, biraz sonra tekrar dene.');
+      return fail(res, 500, 'Hesap açılamadı, biraz sonra tekrar dene.');
+    }
+    accounts.set(key, account); // hesap yazıldı: bundan sonra hak geri verilmez
+    try {
+      res.json({ token: await newSession(key), ...me(account, key) });
+    } catch (err) {
+      console.warn('kayıt olma (oturum)', err.message);
+      fail(res, 500, 'Hesap açıldı ama oturum açılamadı; "Giriş yap" ile gir.');
     }
   });
 
   app.post('/auth/login', json, async (req, res) => {
     const { password, key } = readCredentials(req);
-    const release = logins.reserve(clientIp(req));
+    const release = logins.reserve(clientKey(req));
     if (!release) return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
     const account = accounts.get(key);
     const hash = account?.passHash; // denetlenirken şifre değişirse eski şifre oturum kazandırmasın
@@ -194,7 +212,7 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
     const token = bearer(req);
     const a = accountByToken(token);
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
-    const ipKey = `ip:${clientIp(req)}`;
+    const ipKey = `ip:${clientKey(req)}`;
     const sessionKey = `oturum:${sha256(token)}`;
     const releaseIp = passwordChanges.reserve(ipKey);
     const releaseKey = releaseIp && passwordChanges.reserve(sessionKey);
