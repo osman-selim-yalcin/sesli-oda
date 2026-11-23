@@ -12,7 +12,8 @@
    Pixelify Sans yalnız başlık, etiketli düğme ve sekme yazısında; 1 em = 11 piksellik ızgara (22 px'te tam ızgarada).
    Kalın ağırlıkları ve rakamları küçük boyda belirsiz (9→8, 7→ㄱ); büyük B ile G birbirine, Z de 2'ye benzer (her boyda).
    Bu yüzden yalnız 400 ağırlığı tanımlanır (kalın istense de 400 çizilir) ve unicode-range rakamları (U+0030–0039) ile
-   B, G, Z'yi (U+0042, U+0047, U+005A) dışarıda bırakır: bunlar yığındaki sonraki yüzle, VT323 ile çizilir (iki piksel yüzü
+   büyük B, G, Z'yi ve bunların işaretli büyük hâllerini (Ğ Ĝ Ġ Ģ, Ź Ż Ž) dışarıda bırakır; küçük harfler (g/ğ, z, b) hep
+   Pixelify'da kalır, yani her harf çifti tek yüzden gelir: bunlar yığındaki sonraki yüzle, VT323 ile çizilir (iki piksel yüzü
    kelimenin içinde uyumlu durur; avatarda O harfi Pixelify, 0 rakamı VT323: ayrışır). Sayaçlar, oyun hücreleri ve küçük
    büyük harfli etiketler tamamen VT323'te.
    VT323: size-adjust 120% (kurallar 12–16 px ister; 14 px ≈ 16,8 px çizilir, yazı tipinin doğal boyu).
@@ -23,7 +24,7 @@
   font-weight: 400;
   font-style: normal;
   font-display: swap;
-  unicode-range: U+0000-002F, U+003A-0041, U+0043-0046, U+0048-0059, U+005B-10FFFF;
+  unicode-range: U+0000-002F, U+003A-0041, U+0043-0046, U+0048-0059, U+005B-011B, U+011D, U+011F, U+0121, U+0123-0178, U+017A, U+017C, U+017E-10FFFF;
 }
 @font-face {
   font-family: 'VT323';

@@ -112,6 +112,20 @@ test('Piksel Oda: kayıt, kendi yazı tipleri ve piksel ikon seti sunulur; sahip
   assert.equal((await listed('tema-oda')).theme, 'piksel');
   assert.equal((await patch('tema-oda', OWNER, { theme: 'gece' })).status, 200);
 });
+test('Piksel Oda: Pixelify rakamları ve büyük B/G/Z ailesini çizmez, küçük harf çiftleri tek yüzden', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'public/themes/piksel.css'), 'utf8');
+  const face = css.match(/@font-face \{[^}]*'Pixelify Sans'[^}]*\}/)[0];
+  const ranges = face.match(/unicode-range: ([^;]+);/)[1].split(',').map((r) => r.trim().replace('U+', '').split('-').map((h) => parseInt(h, 16)));
+  const has = (ch) => ranges.some(([a, b = a]) => ch.codePointAt(0) >= a && ch.codePointAt(0) <= b);
+  for (const ch of '0123456789BGZĞĜĠĢŹŻŽ') assert.ok(!has(ch), `${ch} Pixelify'da olmamalı`);
+  for (const ch of 'AÇDEHIİOÖŞUÜabgğzçışöüŞ') assert.ok(has(ch), `${ch} Pixelify'da olmalı`);
+  assert.match(face, /font-weight: 400;/);
+  assert.ok(!/size-adjust/.test(face), 'Pixelify ızgarası bozulmasın');
+  // Vitrin aynı tanımı kullanır
+  const sc = fs.readFileSync(path.join(ROOT, 'test/tools/components.html'), 'utf8');
+  assert.ok(sc.includes(face.match(/unicode-range: [^;]+;/)[0]), 'components.html unicode-range farklı');
+});
+
 test('tema yetkisi: üye ve başka odanın sahibi 403; sahip ve site yöneticisi 200', async () => {
   const uye = await user('Temauye');
   assert.equal((await join(uye, 'tema-oda')).error, undefined);

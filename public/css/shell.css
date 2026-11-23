@@ -112,6 +112,7 @@
   border-radius: 0;
   padding: 0 12px;
   color: var(--muted);
+  font-family: var(--font-control, inherit); /* gezinme: sekmelerle aynı yüz */
   font-weight: 600;
 }
 .top-tab:hover { background: none; color: var(--text); }
@@ -1206,6 +1207,7 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
     border-radius: 0;
     background: none;
     color: var(--muted);
+    font-family: var(--font-control, inherit);
     font-size: 11px;
     font-weight: 700;
   }

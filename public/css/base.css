@@ -26,7 +26,7 @@
                Aydınlık) denetim bulunduğu yerin yazı tipini alır, yani bugünkü gibi. Çıplak <button> (oyun hücreleri)
                ve sayaçlar bunu kullanmaz: rakamlar gövde yüzünde kalır;
                --font-label: küçük (12 px) büyük harfli bölüm etiketleri (h2); "initial" ise --font-display;
-               --font-name: kişi adı (sohbet, kişiler, listeler); tek ağırlıklı gövde yüzünde kalın ayırt edilmediği için
+               --font-name: kişi adı (sohbet, kişiler satırı, listeler); tek ağırlıklı gövde yüzünde kalın ayırt edilmediği için
                adın kendi yüzü olabilir; "initial" ise bulunduğu yerin yazı tipi)
      Biçim:   --radius-s --radius-m --radius-l --radius-pill --radius-round --border-w --shadow-1 --shadow-2 --focus-ring
               --btn-shadow --press --press-flat
@@ -551,7 +551,7 @@ button.round { border-radius: var(--radius-pill); }
 .list-row:where(a, button, .is-interactive):hover, .people-list > li:hover { background: var(--surface-2); }
 .list-row.is-current { background: var(--accent-soft); }
 .list-row-main { flex: 1; min-width: 0; display: grid; gap: 1px; }
-.list-row-title, .chat-msg .who, .p-name, .member-name { font-family: var(--font-name, inherit); }
+.list-row-title, .chat-msg .who, .p-name, .person-name, .member-name { font-family: var(--font-name, inherit); }
 .list-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .list-row-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
 
