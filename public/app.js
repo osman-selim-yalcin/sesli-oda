@@ -860,6 +860,16 @@ function renderScreen() {
   $('screen-stop').hidden = !screenStream;
   $('screen-toggle').classList.toggle('on', Boolean(screenStream));
   $('screen-toggle').title = screenStream ? 'Paylaşımı durdur' : 'Ekran paylaş';
+  renderShareStrip();
+}
+
+// Telefonda sahne görünmezken (Sohbet, Sıra, Oyunlar, Radyo) biri ekran paylaşıyorsa üstte ince şerit: Oda'ya dön.
+function renderShareStrip() {
+  const sharer = peers.get(sharerId);
+  const on = PHONE.matches && Boolean(screenStream || sharer) && !stageVisible();
+  $('screen-strip').hidden = !on;
+  $('room-screen').classList.toggle('has-share-strip', on);
+  if (on) $('screen-strip-text').textContent = screenStream ? 'Ekranını paylaşıyorsun' : `${sharer.name} ekranını paylaşıyor`;
 }
 
 socket.on('screen', (id) => {
@@ -946,7 +956,7 @@ function renderHistory() {
         <div class="q-title"></div>
         <div class="muted small"></div>
       </div>
-      <button class="sm">${icon('plus')}Tekrar ekle</button>`;
+      <button class="icon sm ghost" title="Tekrar ekle" aria-label="Tekrar ekle">${icon('plus')}</button>`;
     li.prepend(thumb(h.videoId, h.thumb));
     li.querySelector('.q-title').textContent = h.title;
     const when = new Date(h.playedAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -1024,6 +1034,7 @@ function renderFrame() {
   }
   if (chatVisible()) setUnread(false);
   placeTools();
+  renderShareStrip();
   renderTopbarNow();
 }
 PHONE.addEventListener('change', renderFrame);
@@ -1056,7 +1067,11 @@ function leaveList(p) {
   pane = p;
   if (p !== 'list') for (const tab of ['queue', 'history']) $(`${tab}-view`).hidden = tab !== 'queue';
 }
-$('panel-chat').onclick = () => go(() => { leaveList('chat'); renderFrame(); });
+// Masaüstünde 'stage' ile 'chat' aynı görünür (panelde Sohbet): görünen bir şey değişmiyorsa geçmişe adım eklenmez.
+$('panel-chat').onclick = () => {
+  if (pane === 'chat' || (!PHONE.matches && pane === 'stage')) return;
+  go(() => { leaveList('chat'); renderFrame(); });
+};
 $('tab-queue').onclick = () => go(() => { pane = 'list'; showTab('queue'); });
 $('tab-history').onclick = () => go(() => showTab('history'));
 
@@ -1067,6 +1082,16 @@ $('tabbar-chat').onclick = () => showRoomPane('chat');
 $('tabbar-queue').onclick = () => showRoomPane('list');
 $('tabbar-games').onclick = () => $('nav-games').click();
 $('tabbar-radio').onclick = () => $('nav-radio').click();
+$('screen-strip').onclick = () => showRoomPane('stage');
+
+// Masaüstünde oynatıcı, denetim paneli ve kişi sırası ilk ekrana sığsın: oynatıcının bırakacağı yükseklik
+// (--stage-rest) panelin ve kişi sırasının gerçek boyundan hesaplanır (12 kişide kişi sırası iki satır olur).
+const stageRest = new ResizeObserver(() => {
+  const now = document.querySelector('.stage > .now').offsetHeight;
+  const people = document.querySelector('.stage > .people').offsetHeight;
+  if (now && people) document.querySelector('.stage').style.setProperty('--stage-rest', `${now + people + 2 * 12 + 8}px`);
+});
+for (const el of document.querySelectorAll('.stage > .now, .stage > .people')) stageRest.observe(el);
 
 // Araç satırı: telefonda az kullanılanlar (ekran paylaşımı, kayıt, Enver) "daha fazla" kutusuna taşınır.
 const MORE_TOOLS = ['screen-toggle', 'rec-btn', 'esek-btn'];
@@ -1094,7 +1119,9 @@ function renderViewport() {
     style.setProperty('--vv-top', `${Math.round(vv.offsetTop)}px`);
   }
   const typing = document.activeElement === $('chat-input') && matchMedia('(pointer: coarse)').matches;
-  $('room-screen').classList.toggle('kb-open', PHONE.matches && (typing || (vv ? innerHeight - vv.height > 120 : false)));
+  // Parmakla yakınlaştırmada da görünür alan küçülür: klavye sayılması için ölçek 1 olmalı.
+  const shrunk = vv ? Math.abs(vv.scale - 1) < 0.01 && innerHeight - vv.height > 120 : false;
+  $('room-screen').classList.toggle('kb-open', PHONE.matches && (typing || shrunk));
 }
 window.visualViewport?.addEventListener('resize', renderViewport);
 window.visualViewport?.addEventListener('scroll', renderViewport);
@@ -1130,9 +1157,11 @@ $('now-pop-vol').oninput = () => {
   $('music-vol').dispatchEvent(new Event('input'));
   $('music-vol').dispatchEvent(new Event('change'));
 };
+// Telefonda Oda bölümüne (oynatıcı) gider; masaüstünde sağ panel olduğu gibi kalır.
 $('now-pop-room').onclick = () => {
   $('now-pop').hidePopover();
-  go(() => showPage('room'));
+  if (PHONE.matches) showRoomPane('stage');
+  else go(() => showPage('room'));
 };
 
 // ---------- Gezinme geçmişi ----------
@@ -5160,7 +5189,8 @@ function renderRecBanner() {
   const names = [...peers.values()].filter((p) => p.recording).map((p) => p.name);
   if (recorder) names.unshift('sen');
   $('rec-banner').hidden = !names.length;
-  $('rec-banner').textContent = `Kayıt yapılıyor: ${names.join(', ')}`;
+  $('rec-banner').textContent = `Kayıt: ${names.join(', ')}`;
+  $('rec-banner').title = `Kayıt yapılıyor: ${names.join(', ')}`;
   for (const peer of peers.values()) renderPersonState(peer.row, { recording: peer.recording });
   renderPersonState(selfRow, { recording: Boolean(recorder) });
 }
@@ -6557,6 +6587,7 @@ socket.on('room:theme', ({ theme } = {}) => {
 // sıra, geçmiş, tier listler, oyunlar, lobiler, radyo. Mikrofon akışı ve AudioContext kalır.
 // Ardından applyJoin yeni odayı doldurur.
 function resetRoomState() {
+  setUnread(false);
   stopScreen({ quiet: true });
   stopRecording({ quiet: true });
   for (const id of [...peers.keys()]) {

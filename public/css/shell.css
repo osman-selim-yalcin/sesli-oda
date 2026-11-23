@@ -129,7 +129,9 @@
    Telefon (< 1000 px): ince üst çubuk, tek sütun, altta sabit sekme çubuğu (Oda, Sohbet, Sıra, Oyunlar, Radyo).
    Hangi bölümün görüneceğini #room-screen'in data-page / data-pane öznitelikleri belirler (app.js renderFrame).
    --topbar-h üst çubuğun kapladığı yükseklik: bildirimler bunun altında açılır (base.css --toast-top). */
-:root:has(#room-screen:not([hidden])) { --topbar-h: 68px; }
+/* --bar-h: hap çubuğun kendi yüksekliği, --bar-top: üstündeki boşluk; --topbar-h bunlardan türer (elle tutulan ikinci
+   sabit yok). Telefonda üstte boşluk yoktur. */
+:root:has(#room-screen:not([hidden])) { --bar-h: 56px; --bar-top: var(--space-3); --topbar-h: calc(var(--bar-h) + var(--bar-top)); }
 .room {
   --frame-w: 1480px;
   --panel-w: 360px;
@@ -140,7 +142,7 @@
 
 /* Üst çubuk: --bg şeridi üstünde yüzen hap; solda odalara dönüş + oda, ortada sayfalar, sağda eylemler */
 .room-topbar {
-  padding: var(--space-3) var(--space-5) 0;
+  padding: var(--bar-top) var(--space-5) 0;
   background: var(--bg);
   border-bottom: none;
   backdrop-filter: none;
@@ -148,7 +150,7 @@
 .room-topbar .topbar-inner {
   position: relative;
   max-width: calc(var(--frame-w) - 2 * var(--space-5));
-  height: 56px;
+  height: var(--bar-h);
   padding: 0 var(--space-2);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
@@ -508,7 +510,6 @@ button.tool.rec { width: auto; padding: 0 var(--space-3); gap: 6px; background: 
 button.tool.rec:hover:where(:not(:disabled)) { background: color-mix(in srgb, var(--danger) 88%, var(--text)); color: var(--danger-contrast); }
 button.tool.rec .ic { width: 14px; height: 14px; }
 .esek-face { font-size: 19px; line-height: 1; }
-.tools-more[hidden] { display: none; }
 /* Geniş masaüstünde iki satır: başlık | tepkiler, denetimler | araçlar (araç satırının çocukları ızgaraya dağılır) */
 @media (min-width: 1280px) {
   .panel.now { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head react" "ctl tools"; align-items: center; gap: var(--space-2) var(--space-4); }
@@ -585,19 +586,20 @@ button.people-btn:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .people-count::before { content: '·'; margin-right: var(--space-2); }
 .people-count:empty { display: none; }
 .rec-banner {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 26px;
+  display: inline-block;
   max-width: 100%;
-  padding: 3px var(--space-3);
-  border-radius: var(--radius-m);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 26px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
   background: var(--danger-soft);
   color: var(--danger);
   font-size: 12px;
   font-weight: 700;
 }
-.rec-banner::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: blink 1.2s infinite; flex-shrink: 0; }
+.rec-banner::before { content: ''; display: inline-block; width: 8px; height: 8px; margin: 0 var(--space-2) 1px 0; border-radius: 50%; background: currentColor; animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .25; } }
 .mic-note { margin: calc(var(--space-1) * -1) 0 0; color: var(--muted); font-size: 13px; }
 .people-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-1); min-width: 0; }
@@ -945,6 +947,9 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
 .merge-dialog .dialog-actions { margin-top: var(--space-2); }
 .merge-dialog .dialog-actions .btn { flex: 1; }
 
+/* Ekran paylaşımı şeridi (yalnız telefonda, sahne görünmezken) */
+.screen-strip { display: none; }
+
 /* ---------- Telefonun alt sekme çubuğu (masaüstünde gizli) ---------- */
 .room-tabbar { display: none; }
 
@@ -965,10 +970,38 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
 
 /* ---------- Telefon ve tablet (< 1000 px) ---------- */
 @media (max-width: 999px) {
-  :root:has(#room-screen:not([hidden])) { --topbar-h: 56px; }
+  :root:has(#room-screen:not([hidden])) { --bar-top: 0px; }
   .room { --dock-h: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
   .room:has(#topbar-now:not([hidden])) { --dock-h: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--strip-h) + var(--space-2)); }
   .room.kb-open { --dock-h: 0px; }
+  .room { --share-h: 0px; }
+  .room.has-share-strip { --share-h: 40px; }
+  button.screen-strip {
+    position: fixed;
+    top: calc(var(--vv-top, 0px) + var(--topbar-h));
+    left: 0;
+    right: 0;
+    z-index: 5;
+    height: var(--share-h);
+    display: flex;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    padding: 0 var(--space-3) 0 var(--space-4);
+    border: none;
+    border-bottom: var(--border-w) solid var(--border);
+    border-radius: 0;
+    background: var(--live-soft);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+  }
+  button.screen-strip[hidden] { display: none; }
+  button.screen-strip:hover:where(:not(:disabled)) { background: var(--live-soft); border-color: var(--border); }
+  button.screen-strip:active:not(:disabled) { transform: none; }
+  .screen-strip-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--live); animation: blink 1.2s infinite; }
+  .screen-strip-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+  .screen-strip-go { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--live); }
+  .screen-strip-go .ic { width: 15px; height: 15px; }
 
   /* Üst çubuk: sabit, ince; geri, oda (her zaman görünür, taşarsa üç nokta), mikrofon, ayarlar */
   .room-topbar {
@@ -980,7 +1013,7 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
     border-bottom: var(--border-w) solid var(--border);
   }
   .room-topbar .topbar-inner {
-    height: var(--topbar-h);
+    height: var(--bar-h);
     padding: 0 var(--space-2) 0 var(--space-1);
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--space-2);
@@ -1019,10 +1052,10 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
 
   .room-layout {
     grid-template-columns: minmax(0, 1fr);
-    padding: calc(var(--topbar-h) + var(--space-3)) var(--space-4) calc(var(--dock-h) + var(--space-4));
+    padding: calc(var(--topbar-h) + var(--share-h) + var(--space-3)) var(--space-4) calc(var(--dock-h) + var(--space-4));
   }
   .room-layout > .side { grid-column: 1; }
-  .room .radio { height: calc(100dvh - var(--topbar-h) - var(--dock-h) - var(--space-3) - var(--space-4)); min-height: 420px; }
+  .room .radio { height: calc(100dvh - var(--topbar-h) - var(--share-h) - var(--dock-h) - var(--space-3) - var(--space-4)); min-height: 420px; }
 
   /* Sahne: oynatıcı, denetimler, kişiler alt alta; kişi sırası yatay kayar */
   .panel.now { padding: var(--space-3); }
@@ -1043,8 +1076,8 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
     position: fixed;
     left: 0;
     right: 0;
-    top: calc(var(--vv-top, 0px) + var(--topbar-h));
-    height: calc(var(--vv-h, 100dvh) - var(--topbar-h) - var(--dock-h));
+    top: calc(var(--vv-top, 0px) + var(--topbar-h) + var(--share-h));
+    height: calc(var(--vv-h, 100dvh) - var(--topbar-h) - var(--share-h) - var(--dock-h));
     min-height: 0;
     border: none;
     border-radius: 0;
@@ -1116,6 +1149,15 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
   .mic-group, button.topbar-settings, button.nav-rooms, button.topbar-now { min-height: 40px; }
   .quick-emojis button { width: 40px; height: 40px; }
 }
+
+/* Giriş: kart yükselir, içindekiler sırayla gelir */
+.join .card { animation: rise .6s cubic-bezier(.2, .8, .2, 1) backwards; }
+.join .card > * { animation: rise-sm .5s ease-out backwards; }
+.join .card > :nth-child(1) { animation-delay: .1s; }
+.join .card > :nth-child(2) { animation-delay: .18s; }
+.join .card > :nth-child(n+3) { animation-delay: .26s; }
+.brand-mark-lg { animation: pop .7s .2s cubic-bezier(.3, 1.4, .5, 1) backwards; }
+.join-error, .join .card > .join-error { animation: shake .4s ease-in-out; } /* kartın çocuklarının giriş animasyonunu ezer */
 
 /* Odaya girince üst çubuk iner, bölümler sırayla yükselir */
 .room .topbar { animation: drop .45s cubic-bezier(.2, .8, .2, 1) backwards; }
