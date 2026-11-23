@@ -1060,7 +1060,7 @@ function bindMergeEvents(socket) {
       settleMergeNotices('cancelled'); // iki odadan birini içeren öteki istekler düştü
       return ack({ merged: true });
     }
-    const incoming = { id: req.id, from: { id: fromReg.id, name: fromReg.name }, by: account.name, warn: mergeWarn(toReg.id) };
+    const incoming = { id: req.id, from: { id: fromReg.id, name: fromReg.name }, to: { id: toReg.id, name: toReg.name }, by: account.name, warn: mergeWarn(toReg.id) };
     const deciders = mergeDeciders(toReg);
     mergeNotices.set(req.id, { key: account.key, deciders });
     for (const s of deciders) s.emit('merge:incoming', incoming);

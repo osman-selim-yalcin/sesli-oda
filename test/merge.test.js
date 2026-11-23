@@ -200,6 +200,10 @@ test('yetki: kimliksiz soket, üye ve C sahibi istek gönderemez; üye cevaplaya
   const req = await request(a, p.A, p.B);
   assert.equal(req.error, undefined, JSON.stringify(req));
   const inc = await incoming;
+  // Pencere iki odayı da adıyla gösterir (istemci: merge-prompt)
+  assert.equal(inc.from.id, p.A);
+  assert.equal(inc.to.id, p.B);
+  assert.equal(typeof inc.to.name, 'string');
   assert.ok((await answer(uye, inc.id, true)).error, 'üye cevaplayamaz');
   assert.ok((await answer(a, inc.id, true)).error, 'isteyen taraf kendi isteğini cevaplayamaz');
   assert.ok((await answer(c, inc.id, true)).error, 'C sahibi cevaplayamaz');

@@ -148,9 +148,9 @@ a { color: var(--accent); text-underline-offset: 3px; }
   vertical-align: -.2em;
 }
 /* Yazının içindeki ikonlar yazı boyunda (kilit işareti, süre, birleşik oda etiketi, küçük notlar) */
-.lock-mark .ic, #topbar-merged .ic, .sayi-timer .ic, .hedef-clock .ic, .kelime-trash .ic,
+.lock-mark .ic, .sayi-timer .ic, .hedef-clock .ic, .kelime-trash .ic,
 .lobby-player .small .ic, .lobby-opts > .small .ic { width: 1.1em; height: 1.1em; vertical-align: -.18em; }
-#topbar-merged .ic, .sayi-timer .ic, .hedef-clock .ic, .lobby-player .small .ic, .lobby-opts > .small .ic { margin-right: .3em; }
+.sayi-timer .ic, .hedef-clock .ic, .lobby-player .small .ic, .lobby-opts > .small .ic { margin-right: .3em; }
 
 /* ---------- Giriş kutuları: .input, .select, .field ----------
    Öğe seçicileri (input, select, textarea) eski işaretleme için; oyunlardaki özel kurallar daha özgüldür. */
@@ -341,6 +341,12 @@ button:focus-visible, .btn:focus-visible, .attach:focus-within, summary:focus-vi
 .btn-icon.btn-ghost:hover:where(:not(:disabled)), button.icon.ghost:hover:where(:not(:disabled)) {
   color: var(--text);
   background: var(--surface-2);
+  border-color: transparent;
+}
+/* Basılı: üzerine gelmekten bir kat koyu yüzey (ikisi karışmasın) */
+.btn-icon.btn-ghost:active:where(:not(:disabled)), button.icon.ghost:active:where(:not(:disabled)) {
+  color: var(--text);
+  background: var(--surface-3);
   border-color: transparent;
 }
 button.round { border-radius: var(--radius-pill); }
@@ -570,7 +576,9 @@ dialog[open]::backdrop { animation: fade-in var(--dur) var(--ease); }
    içerikte durur, üstteki bu şeride hiçbiri düşmez. Kutu (#toasts) popover="manual"dır; app.js toast() açık bir
    pencere varken onu yeniden açar ki pencerenin arka planının da üstünde (üst katmanın en sonunda) dursun.
    Tıklamayı yalnız bildirimler tutar, aralarındaki boşluk tıklanabilir. */
-:where(:root) { --toast-top: 64px; } /* üst çubuk 52 px + 12 px */
+/* --topbar-h: ekranın üst çubuğunun kapladığı yükseklik (oda listesi 52 px; oda ekranı shell.css'te kendi değerini
+   verir: masaüstünde hap çubuk 68 px, telefonda 56 px). Bildirimler onun 12 px altında açılır. */
+:where(:root) { --topbar-h: 52px; --toast-top: calc(var(--topbar-h) + var(--space-3)); }
 .toasts {
   position: fixed;
   inset: auto;

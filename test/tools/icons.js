@@ -33,12 +33,15 @@ const MAP = {
   list: 'list', history: 'rotate-ccw-clock', trash: 'trash', edit: 'pencil', copy: 'copy',
   info: 'info', alert: 'triangle-exclamation-point', bot: 'bot', timer: 'timer',
   undo: 'undo-2', sparkles: 'sparkles',
+  // Oda çerçevesi (Task 5)
+  more: 'ellipsis', cog: 'settings',
 };
 
-// 5 sn geri/ileri: ok çizgisinin ortasına "5" (yazı tipi düğmeden miras kalır).
+// 5 sn geri/ileri: ok çizgisinin ortasına "5" (yazı tipi düğmeden miras kalır). Düğmede 22 px çizilir:
+// 12 birim = 11 px kalın rakam (okunur en küçük boy).
 const EXTRA = {
-  back5: '<text x="12" y="15.5" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor" stroke="none">5</text>',
-  fwd5: '<text x="12" y="15.5" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor" stroke="none">5</text>',
+  back5: '<text x="12" y="16.4" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor" stroke="none">5</text>',
+  fwd5: '<text x="12" y="16.4" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor" stroke="none">5</text>',
 };
 
 const ROOT = path.join(__dirname, '..', '..');

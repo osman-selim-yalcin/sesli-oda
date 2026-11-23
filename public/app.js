@@ -250,11 +250,43 @@ function personRow(name, isSelf) {
     </div>`;
   li.prepend(makeAvatar(name));
   li.querySelector('.p-label').textContent = isSelf ? `${name} (sen)` : name;
+  li.dataset.name = name;
   $('people').append(li);
-  // Araç çubuğundaki küçük ikon; kimin konuştuğu liste kapalıyken de görünsün.
-  li.mini = makeAvatar(name);
+  // Oynatıcının altındaki kişi sırası: avatar, ad, konuşma halkası, sessiz ve kayıt rozetleri.
+  // Basınca Odadakiler açılır ve bu kişinin satırı (ses ayarı) öne gelir.
+  li.mini = document.createElement('button');
+  li.mini.type = 'button';
+  li.mini.className = 'person' + (isSelf ? ' is-self' : '');
+  li.mini.setAttribute('popovertarget', 'people-pop');
+  li.mini.innerHTML = `
+    <span class="person-face"><span class="person-rec" title="Kayıt yapıyor"></span><span class="person-mic" title="Sessizde">${icon('mic-off')}</span></span>
+    <span class="person-label"><span class="person-name"></span>${isSelf ? '<span class="person-you">sen</span>' : ''}</span>`;
+  li.mini.querySelector('.person-face').prepend(makeAvatar(name));
+  li.mini.querySelector('.person-name').textContent = name;
+  li.mini.title = isSelf ? `${name} (sen)` : `${name}: ses ayarı`;
+  li.mini.onclick = () => focusPerson(li);
   $('avatar-strip').append(li.mini);
+  if (isSelf) selfRow = li;
   return li;
+}
+
+let selfRow = null;
+
+// Kişi sırasındaki rozetler: sessizde (üstü çizili mikrofon) ve kayıt (kırmızı nokta).
+function renderPersonState(row, { muted, recording }) {
+  if (!row?.mini) return;
+  if (muted !== undefined) row.mini.classList.toggle('is-muted', Boolean(muted));
+  if (recording !== undefined) row.mini.classList.toggle('is-rec', Boolean(recording));
+}
+
+// Avatara basınca açılan Odadakiler penceresinde o kişinin satırı görünür ve kısa süre vurgulanır.
+function focusPerson(row) {
+  requestAnimationFrame(() => {
+    row.scrollIntoView({ block: 'nearest' });
+    row.classList.remove('is-focus');
+    void row.offsetWidth;
+    row.classList.add('is-focus');
+  });
 }
 
 function setStatus(row, text) {
@@ -269,9 +301,10 @@ function addPeer(id, name, muted) {
   vol.min = 0;
   vol.max = 100;
   vol.value = 100;
-  vol.className = 'p-vol';
+  vol.className = 'p-vol range';
   vol.title = `${name} ses seviyesi`;
   row.querySelector('.p-info').append(vol);
+  paintRange(vol);
 
   // Chrome, uzaktan gelen sesi Web Audio'ya ancak bir medya öğesine bağlıyken verir;
   // öğe sessiz çalar, asıl ses kompresörden çıkar.
@@ -307,6 +340,7 @@ function addPeer(id, name, muted) {
 
   peers.set(id, peer);
   setStatus(row, muted ? 'Sessizde' : 'Bağlanıyor…');
+  renderPersonState(row, { muted });
   renderPeopleCount();
   return peer;
 }
@@ -544,6 +578,7 @@ socket.on('user-muted', ({ id, muted }) => {
   if (!peer) return;
   peer.muted = muted;
   setStatus(peer.row, muted ? 'Sessizde' : 'Bağlı');
+  renderPersonState(peer.row, { muted });
 });
 
 socket.on('notice', toast);
@@ -622,7 +657,10 @@ function renderMic() {
   const btn = $('mic-toggle');
   setIcon(btn, micOn ? 'mic' : 'mic-off');
   btn.title = micOn ? 'Mikrofonu kapat' : 'Mikrofonu aç';
+  btn.setAttribute('aria-label', btn.title);
+  btn.setAttribute('aria-pressed', String(!micOn));
   btn.classList.toggle('off', !micOn);
+  renderPersonState(selfRow, { muted: !micOn || !localStream });
 }
 
 $('mic-toggle').onclick = () => {
@@ -646,6 +684,7 @@ try {
 
 function renderGate() {
   const db = Number($('gate').value);
+  paintRange($('gate'));
   $('gate-value').textContent = `${db} dB`;
   $('meter-mark').style.left = `${meterPct(db)}%`;
   gateNode?.parameters.get('threshold').setValueAtTime(db, audioCtx.currentTime);
@@ -844,10 +883,20 @@ $('screen-full').onclick = () => $('screen-video').requestFullscreen?.();
 // ---------- Açılır pencereler ----------
 // Tarayıcının popover özelliği pencereyi ortalar; biz açan düğmenin altına hizalarız.
 
+// Aynı kutuyu birden çok düğme açabilir (kişi sırasındaki avatarlar, telefondaki "daha fazla"): kutu son basılan
+// düğmeye hizalanır; yoksa görünen ilk düğmeye.
+let popInvoker = null;
+document.addEventListener('click', (e) => (popInvoker = e.target.closest?.('[popovertarget]') || popInvoker), true);
+function popAnchor(pop) {
+  if (popInvoker?.isConnected && popInvoker.getAttribute('popovertarget') === pop.id && popInvoker.getClientRects().length) return popInvoker;
+  const all = [...document.querySelectorAll(`[popovertarget="${pop.id}"]`)];
+  return all.find((b) => b.getClientRects().length) || all[0];
+}
+
 for (const pop of document.querySelectorAll('.pop')) {
   pop.addEventListener('toggle', (e) => {
     if (e.newState !== 'open') return;
-    const btn = document.querySelector(`[popovertarget="${pop.id}"]`).getBoundingClientRect();
+    const btn = popAnchor(pop).getBoundingClientRect();
     const width = pop.offsetWidth;
     // Aşağıda yer yoksa düğmenin üstünde açılır.
     const below = btn.bottom + 6 + pop.offsetHeight <= innerHeight - 16;
@@ -926,39 +975,150 @@ $('history-playlist').onclick = () => {
   window.open(`https://www.youtube.com/watch_videos?video_ids=${ids.join(',')}`, '_blank', 'noopener');
 };
 
+// Sıra / Geçmiş adresteki sekmedir (/oda/<id> ya da /oda/<id>/gecmis). Geçmiş her zaman görünür açılır: panel
+// Sıra/Geçmiş bölümüne geçer.
 function showTab(name) {
-  for (const tab of ['queue', 'history']) {
-    $(`tab-${tab}`).classList.toggle('active', name === tab);
-    $(`${tab}-view`).hidden = name !== tab;
-  }
+  for (const tab of ['queue', 'history']) $(`${tab}-view`).hidden = name !== tab;
+  if (name === 'history') pane = 'list';
+  renderFrame();
 }
-$('tab-queue').onclick = () => go(() => showTab('queue'));
-$('tab-history').onclick = () => go(() => showTab('history'));
 
-// ---------- Üst çubuk: oda / oyunlar ----------
-// Oyunlardayken oynatıcı ekrandan çıkarılır ama silinmez; müzik çalmaya devam eder.
+// ---------- Çerçeve: sayfa (oda / oyunlar / radyo) ve panel ----------
+// pane: 'stage' (telefonda Oda sekmesi: oynatıcı + kişiler), 'chat' (Sohbet), 'list' (Sıra / Geçmiş).
+// Masaüstünde sahne hep sol sütundadır; sağ panel 'list'te Sıra/Geçmiş'i, öteki iki durumda Sohbet'i gösterir.
+// pane adrese yazılmaz (istemci durumu), ama geçmiş kaydına (history.state) yazılır: geri tuşu önceki bölüme döner.
+// Sahne görünmezken oynatıcı ekrandan çıkarılır ama silinmez; müzik ve ekran paylaşımı sürer.
+const PHONE = matchMedia('(max-width: 999px)');
+let pane = 'stage';
+
+const pageNow = () => (!$('radio').hidden ? 'radio' : $('games').hidden ? 'room' : 'games');
+const stageVisible = () => pageNow() === 'room' && (!PHONE.matches || pane === 'stage');
+const chatVisible = () => (PHONE.matches ? pageNow() === 'room' && pane === 'chat' : pane !== 'list');
+
+function setActive(el, on) {
+  el.classList.toggle('active', on);
+  el.setAttribute('aria-selected', String(on));
+}
+
+function renderFrame() {
+  const page = pageNow();
+  const screen = $('room-screen');
+  screen.dataset.page = page;
+  screen.dataset.pane = pane;
+  document.querySelector('.media').classList.toggle('away', !stageVisible());
+  const list = pane === 'list';
+  const tab = $('history-view').hidden ? 'queue' : 'history';
+  setActive($('panel-chat'), !list);
+  setActive($('tab-queue'), list && tab === 'queue');
+  setActive($('tab-history'), list && tab === 'history');
+  for (const [id, on] of [
+    ['tabbar-room', page === 'room' && pane === 'stage'],
+    ['tabbar-chat', page === 'room' && pane === 'chat'],
+    ['tabbar-queue', page === 'room' && list],
+    ['tabbar-games', page === 'games'],
+    ['tabbar-radio', page === 'radio'],
+  ]) {
+    $(id).classList.toggle('active', on);
+    if (on) $(id).setAttribute('aria-current', 'page');
+    else $(id).removeAttribute('aria-current');
+  }
+  if (chatVisible()) setUnread(false);
+  placeTools();
+  renderTopbarNow();
+}
+PHONE.addEventListener('change', renderFrame);
+
+// Görünmeyen sohbete gelen mesaj: Sohbet sekmelerinde nokta.
+function setUnread(on) {
+  $('panel-chat').classList.toggle('has-unread', on);
+  $('tabbar-chat').classList.toggle('has-unread', on);
+}
 
 function showPage(page) {
   $('nav-room').classList.toggle('active', page === 'room');
   $('nav-games').classList.toggle('active', page === 'games');
   $('nav-radio').classList.toggle('active', page === 'radio');
-  document.querySelector('.media').classList.toggle('away', page !== 'room');
+  for (const [id, p] of [['nav-room', 'room'], ['nav-games', 'games'], ['nav-radio', 'radio']]) $(id).setAttribute('aria-selected', String(page === p));
   $('games').hidden = page !== 'games';
   $('radio').hidden = page !== 'radio';
+  renderFrame();
   if (page === 'radio') openRadioPage();
   else syncRadioAudio();
   document.querySelectorAll('.tier-name').forEach(fitTierName);
-  renderTopbarNow();
 }
 $('nav-room').onclick = () => go(() => showPage('room'));
 $('nav-games').onclick = () => go(() => { showPage('games'); openGame('home'); }); // her seferinde oyun kartlarıyla açılır
 $('nav-radio').onclick = () => go(() => showPage('radio'));
+
+// Sağ panelin sekmeleri (telefonda Sıra açıkken Sıra / Geçmiş seçicisi)
+// Adres görüneni anlatsın: Sıra/Geçmiş bölümünden çıkılınca sekme Sıra'ya döner (/gecmis yalnız Geçmiş açıkken).
+function leaveList(p) {
+  pane = p;
+  if (p !== 'list') for (const tab of ['queue', 'history']) $(`${tab}-view`).hidden = tab !== 'queue';
+}
+$('panel-chat').onclick = () => go(() => { leaveList('chat'); renderFrame(); });
+$('tab-queue').onclick = () => go(() => { pane = 'list'; showTab('queue'); });
+$('tab-history').onclick = () => go(() => showTab('history'));
+
+// Telefonun alt sekme çubuğu
+const showRoomPane = (p) => go(() => { leaveList(p); showPage('room'); });
+$('tabbar-room').onclick = () => showRoomPane('stage');
+$('tabbar-chat').onclick = () => showRoomPane('chat');
+$('tabbar-queue').onclick = () => showRoomPane('list');
+$('tabbar-games').onclick = () => $('nav-games').click();
+$('tabbar-radio').onclick = () => $('nav-radio').click();
+
+// Araç satırı: telefonda az kullanılanlar (ekran paylaşımı, kayıt, Enver) "daha fazla" kutusuna taşınır.
+const MORE_TOOLS = ['screen-toggle', 'rec-btn', 'esek-btn'];
+function placeTools() {
+  const into = PHONE.matches ? $('tools-more-list') : $('tools');
+  for (const id of MORE_TOOLS) if ($(id).parentElement !== into) into.insertBefore($(id), PHONE.matches ? null : $('tools-more'));
+  $('tools-more').hidden = !PHONE.matches || MORE_TOOLS.every((id) => $(id).hidden);
+  if (!PHONE.matches && $('tools-more-pop').matches(':popover-open')) $('tools-more-pop').hidePopover();
+}
+// Düğmelerin görünürlüğü sonradan değişir (Enver yalnız yöneticide, kayıt/ekran tarayıcıya göre)
+new MutationObserver(() => placeTools()).observe($('tools-more-list'), { subtree: true, attributes: true, attributeFilter: ['hidden'] });
+// Kutudaki bir araç kendi kutusunu açacaksa (kayıt) ya da iş görürse "daha fazla" kapanır
+$('tools-more-list').addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if (btn && !btn.hasAttribute('popovertarget')) $('tools-more-pop').hidePopover();
+});
+
+// Telefonda sohbet yazarken ekran klavyesi açılır: görünür alanın boyu (visualViewport) çerçeveye yazılır ki giriş
+// kutusu klavyenin üstünde kalsın; klavye açıkken alt sekme çubuğu ve çalan şarkı şeridi gizlenir.
+function renderViewport() {
+  const vv = window.visualViewport;
+  const style = $('room-screen').style;
+  if (vv) {
+    style.setProperty('--vv-h', `${Math.round(vv.height)}px`);
+    style.setProperty('--vv-top', `${Math.round(vv.offsetTop)}px`);
+  }
+  const typing = document.activeElement === $('chat-input') && matchMedia('(pointer: coarse)').matches;
+  $('room-screen').classList.toggle('kb-open', PHONE.matches && (typing || (vv ? innerHeight - vv.height > 120 : false)));
+}
+window.visualViewport?.addEventListener('resize', renderViewport);
+window.visualViewport?.addEventListener('scroll', renderViewport);
+$('chat-input').addEventListener('focus', renderViewport);
+$('chat-input').addEventListener('blur', () => setTimeout(renderViewport, 50));
+PHONE.addEventListener('change', renderViewport);
+renderViewport();
+
+// Kaydırıcıların dolu kısmı (Chromium/WebKit'te ::-webkit-slider-runnable-track gradyanı): --pct.
+function paintRange(el) {
+  const min = Number(el.min) || 0;
+  const max = Number(el.max) || 0;
+  const pct = max > min ? ((Number(el.value) - min) / (max - min)) * 100 : 0;
+  el.style.setProperty('--pct', `${Math.max(0, Math.min(100, pct))}%`);
+}
+document.addEventListener('input', (e) => e.target.matches?.('input.range') && paintRange(e.target));
+const paintRanges = () => document.querySelectorAll('input.range').forEach(paintRange);
 // Üst çubuktaki şarkıya basınca kumanda açılır (odaya dönmez); kumanda odadaki düğmeleri kullanır.
 function renderNowPop() {
   $('now-pop-title').textContent = media?.current?.title || 'Şu an bir şey çalmıyor';
   $('now-pop-play').innerHTML = $('play-toggle').innerHTML;
   $('now-pop-play').disabled = $('now-pop-next').disabled = !media?.current;
   $('now-pop-vol').value = $('music-vol').value;
+  paintRange($('now-pop-vol'));
 }
 $('now-pop').addEventListener('toggle', (e) => { if (e.newState === 'open') renderNowPop(); });
 new MutationObserver(() => { if ($('now-pop').matches(':popover-open')) renderNowPop(); }).observe($('play-toggle'), { childList: true, subtree: true });
@@ -966,6 +1126,7 @@ $('now-pop-play').onclick = () => $('play-toggle').click();
 $('now-pop-next').onclick = () => $('next').click();
 $('now-pop-vol').oninput = () => {
   $('music-vol').value = $('now-pop-vol').value;
+  paintRange($('music-vol'));
   $('music-vol').dispatchEvent(new Event('input'));
   $('music-vol').dispatchEvent(new Event('change'));
 };
@@ -1010,9 +1171,10 @@ const currentView = () => ({
   tab: $('history-view').hidden ? 'queue' : 'history',
   game: GAMES.find((g) => !$(`game-${g}`).hidden) || 'home',
   list: openListId,
+  pane,
 });
 
-const sameView = (a, b) => a && b && ['room', 'page', 'tab', 'game', 'list'].every((k) => a[k] === b[k]);
+const sameView = (a, b) => a && b && ['room', 'page', 'tab', 'game', 'list', 'pane'].every((k) => a[k] === b[k]);
 
 // Ekranı değiştirir, değiştiyse geçmişe yeni adım ekler.
 function go(fn) {
@@ -1025,6 +1187,10 @@ function applyView(view) {
   if (!view?.page) return;
   showPage(view.page);
   showTab(view.tab);
+  if (view.pane && view.pane !== pane) {
+    pane = view.pane;
+    renderFrame();
+  }
   openGame(view.game);
   const list = view.list != null && tierLists.some((l) => l.id === view.list) ? view.list : null;
   if (list !== openListId) {
@@ -1042,12 +1208,18 @@ addEventListener('popstate', (e) => {
   applyView(view);
 });
 
-// Oyunlardayken çalan şarkı üst çubukta görünür.
+// Sahne görünmezken (oyunlar, radyo, telefonda sohbet/sıra) çalan şarkı üst çubukta (telefonda alt şeritte) görünür.
 function renderTopbarNow() {
   const btn = $('topbar-now');
   const title = media?.current?.title;
   btn.hidden = !title || !document.querySelector('.media').classList.contains('away');
-  if (title) setIcon(btn, 'music', title);
+  btn.classList.toggle('is-playing', Boolean(media?.playing));
+  if (title && btn.dataset.title !== title) {
+    btn.dataset.title = title;
+    btn.innerHTML = `<span class="now-eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="topbar-now-title"></span>${icon('up')}`;
+    btn.querySelector('.topbar-now-title').textContent = title;
+    btn.setAttribute('aria-label', `Çalan şarkı: ${title}`);
+  }
   if (btn.hidden && $('now-pop').matches(':popover-open')) $('now-pop').hidePopover();
   else if ($('now-pop').matches(':popover-open')) renderNowPop();
 }
@@ -4748,6 +4920,17 @@ $('chat-input').addEventListener('paste', (e) => {
   sendImage(file);
 });
 
+// Sohbet en alttayken alanı değişirse (klavye açıldı, panel yeniden göründü, pencere küçüldü) en altta kalır.
+let chatAtBottom = true;
+$('chat-list').addEventListener('scroll', () => {
+  const list = $('chat-list');
+  if (list.clientHeight) chatAtBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 40;
+});
+new ResizeObserver(() => {
+  const list = $('chat-list');
+  if (chatAtBottom && list.clientHeight) list.scrollTop = list.scrollHeight;
+}).observe($('chat-list'));
+
 const chatBox = document.querySelector('.side .chat');
 chatBox.addEventListener('dragover', (e) => {
   if (![...e.dataTransfer.types].includes('Files')) return;
@@ -4763,6 +4946,7 @@ chatBox.addEventListener('drop', (e) => {
 
 socket.on('chat', (msg) => {
   renderChatMessage(msg);
+  if (!msg.system && msg.from !== selfId && !chatVisible()) setUnread(true);
   if (!audioCtx || msg.from === selfId) return;
   if (!msg.system) Sfx.ping(audioCtx, sfxBus);
   else if (msg.event === 'join') Sfx.join(audioCtx, sfxBus);
@@ -4977,6 +5161,8 @@ function renderRecBanner() {
   if (recorder) names.unshift('sen');
   $('rec-banner').hidden = !names.length;
   $('rec-banner').textContent = `Kayıt yapılıyor: ${names.join(', ')}`;
+  for (const peer of peers.values()) renderPersonState(peer.row, { recording: peer.recording });
+  renderPersonState(selfRow, { recording: Boolean(recorder) });
 }
 
 socket.on('rec', ({ id, on }) => {
@@ -5576,6 +5762,7 @@ setInterval(() => {
     $('seek').value = P().getCurrentTime();
     $('time-cur').textContent = fmtTime(P().getCurrentTime());
   }
+  paintRange($('seek'));
 
   if (media.playing && state === YT.PlayerState.PLAYING) {
     if (Math.abs(P().getCurrentTime() - expectedPosition()) > DRIFT_LIMIT) {
@@ -5651,6 +5838,7 @@ function nudge(dir) {
 
   seeking = true;
   $('seek').value = nudgeTarget;
+  paintRange($('seek'));
   $('time-cur').textContent = fmtTime(nudgeTarget);
   // YouTube'daki gibi istenen toplam gösterilir (videonun başı/sonu sınırı ayrıca uygulanır).
   const total = Math.abs(nudgeSteps) * NUDGE_STEP;
@@ -6208,6 +6396,8 @@ async function enterRoom(id, password) {
   setRoomInfo(res);
   Lobby.hide();
   $('room-screen').hidden = false;
+  paintRanges();
+  renderViewport();
 
   const selfRow = personRow(name, true);
   setStatus(selfRow, localStream ? 'Sen' : 'Sadece dinleyici');
@@ -6325,11 +6515,15 @@ function renderRoomInfo() {
   if (!curRoom) return;
   document.title = `${curRoom.name} · Sesli Oda`;
   $('topbar-room').textContent = curRoom.name;
+  $('topbar-room').title = curRoom.name;
+  if (window.Lobby?.emblem) $('topbar-emblem').replaceChildren(Lobby.emblem(curRoom));
+  $('topbar-lock').hidden = !curRoom.locked;
   const other = curRoom.mergedWith;
   $('topbar-merged').hidden = !other;
-  if (other) setIcon($('topbar-merged'), 'merge', roomNames.get(other) || other);
-  else $('topbar-merged').textContent = '';
-  $('room-settings-open').hidden = !canManage(curHome);
+  $('topbar-merged').innerHTML = other ? '<span aria-hidden="true">⇄</span><span class="topbar-merged-name"></span>' : '';
+  if (other) $('topbar-merged').lastChild.textContent = roomNames.get(other) || other;
+  $('topbar-merged').title = other ? `${roomNames.get(other) || other} ile birleşik` : '';
+  $('room-settings-open').hidden = $('room-settings-top').hidden = !canManage(curHome);
   renderPeopleCount();
 }
 
@@ -6383,6 +6577,7 @@ function resetRoomState() {
   seeking = false;
   stalled = buffering = 0;
   $('seek').value = $('seek').max = 0; // yeni odada bir şey çalmıyorsa eski şarkının süresi kalmasın
+  paintRange($('seek'));
   $('time-cur').textContent = $('time-dur').textContent = fmtTime(0);
   openListId = null;
   selectedCard = null;
@@ -6440,17 +6635,28 @@ function renderRoomSettings(list) {
   const r = settingsRoom;
   if (!r) return;
   const admin = r.role === 'admin';
-  $('rs-title').textContent = `${r.name} ayarları`;
+  $('rs-title').textContent = r.name;
+  if (window.Lobby?.emblem) $('rs-emblem').replaceChildren(Lobby.emblem(r));
   if ($('rs-theme').options.length === 0) {
     for (const o of $('request-theme').options) $('rs-theme').append(new Option(o.textContent, o.value));
   }
   $('rs-theme').value = r.theme;
-  $('rs-pass-state').textContent = r.locked ? 'Oda şifreli. Şifre değişince üyeler yeni şifreyi yazar.' : 'Oda şifresiz.';
-  $('rs-pass-save').textContent = r.locked ? 'Şifreyi değiştir' : 'Şifre koy';
+  // Durum satırı: rozet + açıklama
+  const state = (el, cls, iconName, label, text) => {
+    el.innerHTML = `<span class="badge ${cls}">${icon(iconName)}</span><span class="rs-state-text"></span>`;
+    el.firstChild.append(label);
+    el.lastChild.textContent = text;
+  };
+  if (r.locked) state($('rs-pass-state'), 'badge-accent', 'lock', 'Şifreli', 'Şifre değişince üyeler yeni şifreyi yazar.');
+  else state($('rs-pass-state'), 'badge-lock', 'unlock', 'Şifresiz', 'Odaya herkes girebilir.');
+  $('rs-pass-save').textContent = r.locked ? 'Değiştir' : 'Şifre koy';
+  $('rs-pass').placeholder = r.locked ? 'Yeni şifre' : 'Şifre (en az 4 karakter)';
   $('rs-pass-remove').hidden = !r.locked;
   const partner = r.mergedWith;
   $('rs-merged').hidden = !partner;
-  $('rs-merged').textContent = partner ? `${roomNames.get(partner) || partner} ile birleşik.` : '';
+  if (partner) state($('rs-merged'), 'badge-accent', 'merge', `⇄ ${roomNames.get(partner) || partner}`, 'ile birleşik.');
+  else $('rs-merged').replaceChildren();
+  $('rs-merge-form').classList.toggle('is-merged', Boolean(partner));
   $('rs-split').hidden = !partner;
   $('rs-merge-field').hidden = $('rs-merge').hidden = Boolean(partner);
   if (!partner && list) {
@@ -6468,7 +6674,7 @@ function renderRoomSettings(list) {
 }
 
 $('room-settings-open').onclick = async () => {
-  $('settings-pop').hidePopover();
+  if ($('settings-pop').matches(':popover-open')) $('settings-pop').hidePopover();
   settingsRoom = curHome;
   rsError('');
   $('rs-pass').value = '';
@@ -6481,6 +6687,9 @@ $('room-settings-open').onclick = async () => {
   else rsError('Oda listesi alınamadı.');
 };
 $('rs-done').onclick = () => $('room-settings').close();
+$('room-settings-top').onclick = () => $('room-settings-open').click();
+// Odadaki pencerelerin kapat düğmeleri
+for (const b of document.querySelectorAll('#room-screen dialog [data-close]')) b.onclick = () => b.closest('dialog').close();
 
 // Ayarı kaydeder; cevap odanın yeni görünümüdür.
 async function saveRoomSetting(body, done, btn) {
@@ -6582,12 +6791,45 @@ function showNextMerge() {
     return;
   }
   const q = mergeShown;
-  $('merge-prompt-title').textContent = `${q.from?.name || 'Bir'} odası birleşmek istiyor`;
-  $('merge-prompt-by').textContent = q.by ? `İsteyen: ${q.by}` : '';
-  $('merge-prompt-warn').hidden = !(q.warn?.game || q.warn?.music);
+  // İki oda yan yana: isteyen oda ⇄ hedef oda (hedef sunucudan gelir; eski sunucuda yoksa yalnız isteyen)
+  const side = (room) => {
+    const box = document.createElement('div');
+    box.className = 'merge-room';
+    if (window.Lobby?.emblem) box.append(Lobby.emblem(room));
+    box.append(Object.assign(document.createElement('span'), { className: 'merge-room-name', textContent: room.name }));
+    return box;
+  };
+  const rooms = [side(q.from || { id: '', name: '?' })];
+  if (q.to?.name) rooms.push(Object.assign(document.createElement('span'), { className: 'merge-arrow', textContent: '⇄' }), side(q.to));
+  $('merge-prompt-rooms').replaceChildren(...rooms);
+  $('merge-prompt-title').textContent = q.to?.name
+    ? `${q.from?.name || 'Bir oda'}, ${q.to.name} ile birleşmek istiyor`
+    : `${q.from?.name || 'Bir'} odası birleşmek istiyor`;
+  $('merge-prompt-by').textContent = q.by ? `İsteyen: ${q.by}. Kabul edersen iki oda tek oda olur.` : 'Kabul edersen iki oda tek oda olur.';
+  const warn = [q.warn?.game && 'süren oyun bitecek', q.warn?.music && 'çalan müzik duracak'].filter(Boolean);
+  $('merge-prompt-warn').hidden = !warn.length;
+  if (warn.length) {
+    $('merge-prompt-warn').innerHTML = icon('alert');
+    $('merge-prompt-warn').append(`Birleşince ${warn.join(', ')}.`);
+  }
   $('merge-accept').disabled = $('merge-reject').disabled = false;
   mergeTimer = setTimeout(() => dropMerge(q.id), MERGE_PROMPT_MS);
+  startMergeCountdown(Date.now() + MERGE_PROMPT_MS);
   if (!dialog.open) dialog.showModal();
+}
+
+// Pencerede kalan süre: çubuk ve "0:58"
+let mergeTick = null;
+function startMergeCountdown(until) {
+  clearInterval(mergeTick);
+  const draw = () => {
+    const left = Math.max(0, until - Date.now());
+    $('merge-prompt-bar').style.width = `${(left / MERGE_PROMPT_MS) * 100}%`;
+    $('merge-prompt-time').textContent = `${fmtTime(Math.ceil(left / 1000))} içinde cevap ver`;
+    if (!left || !$('merge-prompt').open) clearInterval(mergeTick);
+  };
+  draw();
+  mergeTick = setInterval(draw, 250);
 }
 
 function dropMerge(id) {
