@@ -12,7 +12,7 @@
   --border: #2A2E38;
   --border-strong: #3A3F4C;
   --text: #E8E9ED;
-  --muted: #8C91A1;
+  --muted: #8C91A1; /* --surface-3 üstünde tam 4,50:1; daha koyu olmamalı */
   --accent: #8B9CFF;
   --accent-contrast: #0E0F13;
   --accent-soft: rgba(139, 156, 255, .16);

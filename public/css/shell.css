@@ -459,7 +459,8 @@ input.range {
   background: transparent;
 }
 input.range:focus { box-shadow: none; }
-input.range:focus-visible { outline: none; }
+/* Klavye odağı: çubuğun çevresinde çizgi (diğer denetimlerle aynı) + düğmede halka */
+input.range:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-pill); }
 input.range::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: var(--radius-pill);
@@ -480,6 +481,7 @@ input.range::-webkit-slider-thumb {
 input.range:hover::-webkit-slider-thumb { box-shadow: 0 0 0 5px var(--accent-soft); }
 input.range:active::-webkit-slider-thumb { transform: scale(1.15); }
 input.range:focus-visible::-webkit-slider-thumb { box-shadow: var(--focus-ring); }
+input.range:focus-visible::-moz-range-thumb { box-shadow: var(--focus-ring); }
 input.range::-moz-range-track { height: 4px; border-radius: var(--radius-pill); background: var(--border-strong); }
 input.range::-moz-range-progress { height: 4px; border-radius: var(--radius-pill); background: var(--accent); }
 input.range::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: var(--text); }
@@ -1053,6 +1055,7 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
   .room { --dock-h: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
   .room:has(#topbar-now:not([hidden])) { --dock-h: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--strip-h) + var(--space-2)); }
   .room.kb-open { --dock-h: 0px; }
+  :root:has(#room-screen.kb-open:not([hidden])), :root:has(#room-screen.kb-open:not([hidden]) #topbar-now) { scroll-padding-bottom: 0px; } /* klavye açıkken sekme çubuğu gizli */
   .room { --share-h: 0px; }
   .room.has-share-strip { --share-h: 40px; }
   button.screen-strip {
