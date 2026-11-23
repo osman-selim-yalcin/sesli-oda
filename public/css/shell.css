@@ -286,6 +286,10 @@ button.mic-btn.off { background: var(--danger); color: var(--danger-contrast); }
 button.mic-btn.off:hover:where(:not(:disabled)) { background: color-mix(in srgb, var(--danger) 88%, var(--text)); }
 .mic-group:has(.mic-btn.off) { border-color: var(--danger); }
 .mic-btn.off .ic { animation: shake .35s ease-in-out; }
+/* Oda sahibi ya da yönetici susturdu: mikrofon kilitli (basınca açıklama; açılmaz) */
+button.mic-btn.is-locked, button.mic-btn.is-locked:hover:where(:not(:disabled)) { background: var(--danger-soft); color: var(--danger); cursor: not-allowed; }
+.mic-group:has(.mic-btn.is-locked) { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); }
+.mic-btn.is-locked .ic { animation: none; }
 .room-settings-top { flex-shrink: 0; }
 button.topbar-settings {
   flex-shrink: 0;
@@ -666,6 +670,19 @@ button.person:active:not(:disabled) { transform: none; }
   animation: blink 1.2s infinite;
 }
 .person.is-rec .person-rec { display: block; }
+/* Moderatör susturması: kendi sessizinden ayrı. Avatarın üstü soluk, sağ altta çerçeveli hoparlör işareti (kendi
+   sessizi kırmızı dolu mikrofon), adın altında "susturuldu" etiketi. Konuşma halkası yanmaz (app.js silenced). */
+.person-mod {
+  position: absolute; right: -3px; bottom: -3px; width: 20px; height: 20px; display: none; place-items: center;
+  border-radius: var(--radius-round); background: var(--surface); color: var(--danger);
+  box-shadow: 0 0 0 2px var(--avatar-gap), inset 0 0 0 1.5px var(--danger);
+}
+.person-mod .ic { width: 12px; height: 12px; stroke-width: 2.25; }
+.person.is-modmuted .person-mic { display: none; }
+.person.is-modmuted .person-mod { display: grid; }
+.person.is-modmuted .avatar { opacity: .55; }
+.person-tag { display: none; max-width: 100%; margin-top: -3px; padding: 0 6px; border-radius: var(--radius-pill); background: var(--danger-soft); color: var(--danger); font-size: 11px; font-weight: 700; line-height: 16px; white-space: nowrap; }
+.person.is-modmuted .person-tag { display: block; }
 .person-label { display: flex; align-items: center; justify-content: center; gap: 3px; max-width: 100%; min-width: 0; font-size: 12px; font-weight: 600; line-height: 16px; }
 .person-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person.speaking .person-name { color: var(--live); }
@@ -682,6 +699,11 @@ button.person:active:not(:disabled) { transform: none; }
 .p-badge .ic { width: 13px; height: 13px; animation: spin 1s linear infinite; }
 .p-mute { width: 36px; height: 36px; }
 .p-mute .ic { width: 16px; height: 16px; }
+.p-mod { margin-top: var(--space-1); margin-left: calc(var(--space-3) * -1); }
+.p-mod[hidden] { display: none; }
+.people-list > li.is-modmuted .p-status { color: var(--danger); font-weight: 600; }
+/* 20 kişide (birleşik oda) liste uzar: kutu ekranın içinde kalır, liste kayar */
+.people-pop { max-height: min(70vh, 640px); overscroll-behavior: contain; }
 .people-list > li.is-focus { animation: person-focus 1.4s var(--ease); }
 @keyframes person-focus { 0%, 40% { background: var(--accent-soft); } }
 

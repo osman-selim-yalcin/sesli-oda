@@ -98,6 +98,13 @@ birleşir. Reddedilen ya da süresi dolan istekten sonra aynı yöne 60 saniye y
 dakikada en çok 3 istek gönderir. "Odaları ayır" ile herkes kendi odasına, kendi temasıyla döner.
 Birleşme yalnız hafızadadır: sunucu yeniden başlarsa odalar ayrı açılır.
 
+**Susturma:** oda sahibi kendi odasındakileri (yönetici hariç), site yöneticisi herkesi Odadakiler kutusundaki
+"Sustur" ile susturur. Susturulanın mikrofonu (ve ekran paylaşımının sesi) kapanır ve kilitlenir; öteki
+herkes, o kişiden ne gelirse gelsin sesini çalmaz. Sohbete kimin susturduğu yazılır. Yöneticinin susturmasını
+yalnız yönetici kaldırır; kaldırılınca kişi mikrofonunu kendisi açar. Birleşik odada sahip yalnız kendi odası
+kökenlileri susturur. Susturma hafızadadır: odadan çıkıp dönen yine susturulmuştur; oda boşalınca ya da
+kapanınca silinir.
+
 ## Temalar
 
 Görünümün bütün renkleri, yazı tipleri, köşeleri ve gölgeleri değişkendir; değişken sözleşmesi

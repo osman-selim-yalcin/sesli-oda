@@ -17,6 +17,7 @@ let micSource = null;          // mikrofonu ses eşiğine bağlayan düğüm (ci
 let screenStream = null;      // kendi ekran paylaşımımız
 let sharerId = null;          // odada ekranını paylaşan kişi
 let micOn = true;
+let modMuted = null;           // oda sahibi ya da yönetici beni susturdu: 'owner' | 'admin' (mikrofon kilitli)
 let myName = '';
 let selfId = null;
 let roomEpoch = null;          // sunucunun bu girişe verdiği dönem (taşınınca artar); bağlantılar sinyale ekler
@@ -271,11 +272,13 @@ function personRow(name, isSelf) {
   li.mini.className = 'person' + (isSelf ? ' is-self' : '');
   li.mini.setAttribute('popovertarget', 'people-pop');
   li.mini.innerHTML = `
-    <span class="person-face"><span class="person-rec" title="Kayıt yapıyor"></span><span class="person-mic" title="Sessizde">${icon('mic-off')}</span></span>
-    <span class="person-label"><span class="person-name"></span>${isSelf ? '<span class="person-you">sen</span>' : ''}</span>`;
+    <span class="person-face"><span class="person-rec" title="Kayıt yapıyor"></span><span class="person-mic" title="Sessizde">${icon('mic-off')}</span><span class="person-mod" title="Susturuldu">${icon('volume-x')}</span></span>
+    <span class="person-label"><span class="person-name"></span>${isSelf ? '<span class="person-you">sen</span>' : ''}</span>
+    <span class="person-tag">susturuldu</span>`;
   li.mini.querySelector('.person-face').prepend(makeAvatar(name));
   li.mini.querySelector('.person-name').textContent = name;
   li.mini.title = isSelf ? `${name} (sen)` : `${name}: ses ayarı`;
+  li.mini.setAttribute('aria-label', li.mini.title);
   li.mini.onclick = () => focusPerson(li);
   $('avatar-strip').append(li.mini);
   if (isSelf) selfRow = li;
@@ -285,10 +288,20 @@ function personRow(name, isSelf) {
 let selfRow = null;
 
 // Kişi sırasındaki rozetler: sessizde (üstü çizili mikrofon) ve kayıt (kırmızı nokta).
-function renderPersonState(row, { muted, recording }) {
+// Moderatör susturması (modMuted 'owner' | 'admin') kendi sessizinden ayrı görünür: hoparlör işareti ve "susturuldu".
+const MOD_BY = { owner: 'Oda sahibi susturdu', admin: 'Yönetici susturdu' };
+function renderPersonState(row, { muted, recording, modMuted: mod }) {
   if (!row?.mini) return;
   if (muted !== undefined) row.mini.classList.toggle('is-muted', Boolean(muted));
   if (recording !== undefined) row.mini.classList.toggle('is-rec', Boolean(recording));
+  if (mod !== undefined) {
+    row.mini.classList.toggle('is-modmuted', Boolean(mod));
+    row.classList.toggle('is-modmuted', Boolean(mod));
+    const name = row.dataset.name;
+    const base = row.mini.classList.contains('is-self') ? `${name} (sen)` : `${name}: ses ayarı`;
+    row.mini.title = mod ? `${name}: ${MOD_BY[mod] || 'susturuldu'}` : base;
+    row.mini.setAttribute('aria-label', mod ? `${row.mini.title}` : base);
+  }
 }
 
 // Avatara basınca açılan Odadakiler penceresinde o kişinin satırı görünür ve kısa süre vurgulanır.
@@ -305,8 +318,10 @@ function setStatus(row, text) {
   row.querySelector('.p-status').textContent = text;
 }
 
-function addPeer(id, name, muted) {
+// info: { muted, modMuted, home, admin } (join cevabındaki peers satırı ya da user-joined)
+function addPeer(id, name, info = {}) {
   if (peers.has(id)) return peers.get(id);
+  const { muted = false } = info;
   const row = personRow(name, false);
   const vol = document.createElement('input');
   vol.type = 'range';
@@ -325,11 +340,18 @@ function addPeer(id, name, muted) {
   const gain = audioCtx.createGain();
   gain.connect(voiceBus);
 
-  const peer = { name, muted, pc: null, audio, gain, source: null, pendingIce: [], row, speaking: false, localMuted: false, badSince: null, retries: 0 };
-  const applyGain = () => {
-    gain.gain.value = peer.localMuted ? 0 : vol.value / 100;
-    audio.volume = peer.localMuted ? 0 : vol.value / 100; // medya öğesinden çalarken
+  const peer = {
+    name, muted, pc: null, audio, gain, source: null, pendingIce: [], row, speaking: false, localMuted: false, badSince: null, retries: 0,
+    modMuted: info.modMuted || null, home: info.home || null, admin: Boolean(info.admin),
   };
+  // Susturulan kişinin sesi (karşıdan ne gelirse gelsin) çalınmaz; ekran paylaşımının sesi de.
+  const applyGain = () => {
+    const off = peer.localMuted || Boolean(peer.modMuted);
+    gain.gain.value = off ? 0 : vol.value / 100;
+    audio.volume = off ? 0 : vol.value / 100; // medya öğesinden çalarken
+    if (peer.screenAudio) peer.screenAudio.muted = Boolean(peer.modMuted);
+  };
+  peer.silenced = () => Boolean(peer.modMuted); // konuşma halkası yanmaz
   peer.applyGain = applyGain;
   vol.oninput = applyGain;
 
@@ -350,9 +372,31 @@ function addPeer(id, name, muted) {
   };
   renderMute();
 
+  // Sustur / Susturmayı kaldır: yalnız yetkisi olana görünür (sunucu yine denetler)
+  const modBtn = document.createElement('button');
+  modBtn.type = 'button';
+  modBtn.className = 'btn btn-sm btn-ghost p-mod';
+  row.querySelector('.p-info').append(modBtn);
+  peer.renderMod = () => {
+    const can = canModerate(peer);
+    modBtn.hidden = !can;
+    if (!can) return;
+    setIcon(modBtn, peer.modMuted ? 'mic' : 'mic-off', peer.modMuted ? 'Susturmayı kaldır' : 'Sustur');
+    modBtn.classList.toggle('btn-danger', !peer.modMuted);
+    modBtn.setAttribute('aria-label', `${name}: ${peer.modMuted ? 'susturmayı kaldır' : 'sustur'}`);
+  };
+  modBtn.onclick = async () => {
+    modBtn.disabled = true;
+    const res = (await emitAck(8000, 'mod:mute', { id, muted: !peer.modMuted })) ?? { error: 'Sunucuya ulaşılamadı.' };
+    modBtn.disabled = false;
+    if (res.error) toast(res.error);
+  };
+
   peers.set(id, peer);
-  setStatus(row, muted ? 'Sessizde' : 'Bağlanıyor…');
-  renderPersonState(row, { muted });
+  setStatus(row, peer.modMuted ? MOD_BY[peer.modMuted] : muted ? 'Sessizde' : 'Bağlanıyor…');
+  renderPersonState(row, { muted, modMuted: peer.modMuted });
+  peer.renderMod();
+  applyGain();
   renderPeopleCount();
   return peer;
 }
@@ -456,6 +500,7 @@ function createPc(id) {
     peer.voiceStreamId ??= stream.id;
     if (stream.id !== peer.voiceStreamId) {
       peer.screenAudio ||= new Audio();
+      peer.screenAudio.muted = Boolean(peer.modMuted);
       peer.screenAudio.srcObject = new MediaStream([e.track]);
       peer.screenAudio.play().catch(() => {});
       return;
@@ -481,7 +526,7 @@ function createPc(id) {
   pc.onconnectionstatechange = () => {
     const s = pc.connectionState;
     if (s === 'connected') {
-      setStatus(peer.row, peer.muted ? 'Sessizde' : 'Bağlı');
+      setStatus(peer.row, peerStatus(peer));
       peer.badSince = null;
       peer.retries = 0;
       return;
@@ -574,8 +619,8 @@ socket.on('signal', async ({ from, data }) => {
   }
 });
 
-socket.on('user-joined', ({ id, name, muted }) => {
-  addPeer(id, name, muted);
+socket.on('user-joined', ({ id, name, ...info }) => {
+  addPeer(id, name, info);
   createPc(id);
   renderRecBanner();
 });
@@ -585,12 +630,60 @@ socket.on('user-left', (id) => {
   renderRecBanner();
 });
 
+const peerStatus = (peer) => (peer.modMuted ? MOD_BY[peer.modMuted] : peer.muted ? 'Sessizde' : 'Bağlı');
+
 socket.on('user-muted', ({ id, muted }) => {
   const peer = peers.get(id);
   if (!peer) return;
   peer.muted = muted;
-  setStatus(peer.row, muted ? 'Sessizde' : 'Bağlı');
+  setStatus(peer.row, peerStatus(peer));
   renderPersonState(peer.row, { muted });
+});
+
+// ---------- Susturma (oda sahibi ve yönetici) ----------
+// Kim kimi susturabilir (sunucudaki mutes.check'in aynısı; düğme yalnız yetkisi olana görünür):
+// yönetici herkesi; oda sahibi kendi odası kökenli herkesi (yönetici hariç; yöneticinin susturmasına dokunamaz).
+const roomRoles = new Map(); // oda id -> bu hesabın rolü (join cevabı ve GET /rooms'tan)
+function canModerate(peer) {
+  if (!account) return false;
+  if (account.admin) return true;
+  if (peer.admin || peer.modMuted === 'admin') return false;
+  return roomRoles.get(peer.home) === 'owner';
+}
+function renderModButtons() {
+  for (const peer of peers.values()) peer.renderMod?.();
+}
+
+// Beni susturdular / susturmam kalktı: mikrofon kapanır ve kilitlenir; kalkınca kendim açana kadar kapalı kalır.
+function setModMuted(by) {
+  const was = modMuted;
+  modMuted = by || null;
+  if (modMuted) {
+    micOn = false;
+    sendStream?.getAudioTracks().forEach((t) => (t.enabled = false));
+  }
+  // Ekran paylaşımının sesi de gitmesin (görüntü sürer)
+  screenStream?.getAudioTracks().forEach((t) => (t.enabled = !modMuted));
+  renderMic();
+  renderPersonState(selfRow, { modMuted });
+  if (selfRow) setStatus(selfRow, modMuted ? MOD_BY[modMuted] : localStream ? 'Sen' : 'Sadece dinleyici');
+  return was;
+}
+
+socket.on('user-modmuted', ({ id, muted, by } = {}) => {
+  if (id === selfId) {
+    const was = setModMuted(muted ? by : null);
+    if (muted && !was) toast(by === 'admin' ? 'Yönetici seni susturdu. Mikrofonun kapalı.' : 'Oda sahibi seni susturdu. Mikrofonun kapalı.', 'danger');
+    else if (!muted && was) toast('Susturman kaldırıldı; istersen mikrofonunu açabilirsin.', 'live');
+    return;
+  }
+  const peer = peers.get(id);
+  if (!peer) return;
+  peer.modMuted = muted ? by : null;
+  peer.applyGain();
+  setStatus(peer.row, peerStatus(peer));
+  renderPersonState(peer.row, { modMuted: peer.modMuted });
+  peer.renderMod();
 });
 
 socket.on('notice', toast);
@@ -668,14 +761,17 @@ socket.on('room:closed', ({ name } = {}) => roomId && backToList(`${name || 'Bu'
 function renderMic() {
   const btn = $('mic-toggle');
   setIcon(btn, micOn ? 'mic' : 'mic-off');
-  btn.title = micOn ? 'Mikrofonu kapat' : 'Mikrofonu aç';
+  btn.title = modMuted ? `${modMuted === 'admin' ? 'Yönetici' : 'Oda sahibi'} seni susturdu; mikrofonu açamazsın` : micOn ? 'Mikrofonu kapat' : 'Mikrofonu aç';
   btn.setAttribute('aria-label', btn.title);
   btn.setAttribute('aria-pressed', String(!micOn));
+  btn.setAttribute('aria-disabled', String(Boolean(modMuted)));
   btn.classList.toggle('off', !micOn);
+  btn.classList.toggle('is-locked', Boolean(modMuted));
   renderPersonState(selfRow, { muted: !micOn || !localStream });
 }
 
 $('mic-toggle').onclick = () => {
+  if (modMuted) return toast(`${modMuted === 'admin' ? 'Yönetici' : 'Oda sahibi'} seni susturdu; mikrofonunu açamazsın.`);
   if (!sendStream) return;
   micOn = !micOn;
   sendStream.getAudioTracks().forEach((t) => (t.enabled = micOn));
@@ -840,7 +936,10 @@ async function startScreen() {
   const track = screenStream.getVideoTracks()[0];
   track.contentHint = 'detail';
   track.onended = stopScreen; // tarayıcının "Paylaşımı durdur" düğmesi
-  screenStream.getAudioTracks().forEach((t) => (t.contentHint = 'music'));
+  screenStream.getAudioTracks().forEach((t) => {
+    t.contentHint = 'music';
+    t.enabled = !modMuted; // susturulmuşken paylaşımın sesi gitmez
+  });
   for (const peer of peers.values()) if (peer.pc) addScreenTrack(peer);
   renderScreen();
 
@@ -6606,9 +6705,10 @@ function applyJoin(res) {
   for (const id of [...peers.keys()]) removePeer(id);
   // Bağlantıları hemen kur: odadakiler de bize teklif gönderiyor, gecikirsek kaybolur.
   for (const p of res.peers) {
-    addPeer(p.id, p.name, p.muted).recording = p.recording;
+    addPeer(p.id, p.name, p).recording = p.recording;
     createPc(p.id);
   }
+  setModMuted(res.modMuted || null);
   sharerId = res.sharer;
   renderScreen();
   renderRecBanner();
@@ -6670,6 +6770,8 @@ function homeAfterReload(id) {
 function setRoomInfo(res) {
   curRoom = res.room;
   curHome = res.home || res.room;
+  roomRoles.set(curRoom.id, curRoom.role);
+  roomRoles.set(curHome.id, curHome.role);
   roomId = roomCode = curRoom.id;
   homeId = curHome.id;
   try {
@@ -6702,7 +6804,11 @@ function renderRoomInfo() {
 async function refreshRoomView() {
   const res = await api('GET', '/rooms');
   if (res.error || !curRoom) return null;
-  for (const r of res.rooms) roomNames.set(r.id, r.name);
+  for (const r of res.rooms) {
+    roomNames.set(r.id, r.name);
+    roomRoles.set(r.id, r.role);
+  }
+  renderModButtons();
   curRoom = res.rooms.find((r) => r.id === curRoom.id) || curRoom;
   curHome = res.rooms.find((r) => r.id === curHome.id) || curHome;
   renderRoomInfo();
@@ -6716,6 +6822,7 @@ socket.on('room:merge', ({ mergedWith = null, name = null } = {}) => {
   curRoom.mergedWith = mergedWith;
   if (curHome?.id === curRoom.id) curHome.mergedWith = mergedWith;
   renderRoomInfo();
+  if (mergedWith) refreshRoomView(); // birleşen odanın sahibi de olabilirim (susturma yetkisi)
 });
 
 // Odanın teması değişti: odadaki herkes sayfa yenilenmeden yeni temaya geçer (Theme.apply yazı tipi, renk ve
@@ -6987,6 +7094,7 @@ async function saveRoomSetting(body, done, btn) {
   roomNames.set(res.room.id, res.room.name);
   renderRoomInfo();
   renderRoomSettings();
+  if (curRoom) refreshRoomView(); // sahip değiştiyse susturma yetkileri de değişir
   if (done) toast(done);
 }
 const submitter = (e) => e.submitter || e.target.querySelector('button[type=submit]');

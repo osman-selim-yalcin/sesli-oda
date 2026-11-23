@@ -14,6 +14,7 @@ const { clientKey } = require('./clientip'); // deneme sınırı anahtarı: ger�
 const accounts = require('./accounts');
 const roomStore = require('./rooms'); // oda kayıtları (canlı durum aşağıdaki rooms haritasında)
 const merge = require('./merge'); // oda birleştirme durumu (aşağıda "Oda birleştirme" bölümü bağlar)
+const mutes = require('./mutes'); // moderatör susturması (aşağıda "Susturma" bölümü bağlar)
 const hedef = require('./games/hedef');
 
 const PORT = process.env.PORT || 3030;
@@ -753,17 +754,20 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
     }
   }
 
-  const peers = [...room.users].map(([id, u]) => ({ id, name: u.name, muted: u.muted, recording: u.recording }));
+  const peers = [...room.users].map(([id, u]) => peerView(id, u));
   socket.data.setCode(roomCode);
   // Her girişte (taşınma dahil) yeni dönem: önceki bağlantının geç kalan sinyalleri yeni odaya geçmesin.
   const epoch = socket.data.epoch = (socket.data.epoch || 0) + 1;
-  room.users.set(socket.id, { name, key: account.key, home, muted: false, clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) });
+  // Susturulmuş (köken odası + hesap) kişi girerken de sessizdedir; kendi mikrofonunu açamaz.
+  const modMuted = mutes.get(home, account.key)?.by || null;
+  const user = { name, key: account.key, home, muted: Boolean(modMuted), clientId, recording: false, admin: Boolean(accounts.isAdmin?.(account.key)) };
+  room.users.set(socket.id, user);
   socket.leave(LOBBY);
   socket.join([roomCode, JOINED]);
-  socket.to(roomCode).emit('user-joined', { id: socket.id, name, muted: false });
+  socket.to(roomCode).emit('user-joined', peerView(socket.id, user));
   roomsChanged();
   const homeReg = (home !== roomCode && roomStore.get(home)) || reg;
-  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
 // Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
@@ -827,6 +831,7 @@ function closeRoom({ id, name }) {
     pendingLeaves.delete(key);
   }
   if (rooms.has(id)) dropRoom(id);
+  mutes.clear(id);
 }
 
 // Boşalan odanın canlı durumunu ve zamanlayıcılarını siler (kalıcı kayıtları silmez).
@@ -838,6 +843,7 @@ function dropRoom(roomCode) {
   kural.clear(roomCode);
   mantik.clear(roomCode);
   daktilo.clear(roomCode);
+  mutes.clear(roomCode); // bu kökenli susturmalar odanın canlı durumuyla gider
   rooms.delete(roomCode);
   deleteRoomImages(roomCode);
 }
@@ -1105,6 +1111,59 @@ function bindMergeEvents(socket) {
   });
 }
 
+// ---------- Susturma (oda sahibi ve site yöneticisi) ----------
+// Ses tarayıcılar arasında doğrudan gider; sunucu yalnız durumu tutar ve yayar. Susturulanın istemcisi mikrofonu
+// kapatır ve kilitler; ötekiler ne gelirse gelsin o kişinin sesini çalmaz. Durum mutes.js'te (köken oda + hesap).
+
+const MOD_RATE = { max: 8, window: 4000 }; // bir soket 4 sn'de en çok 8 susturma/kaldırma yapabilir
+
+// Kişi satırı (join cevabındaki peers ve user-joined): modMuted 'owner' | 'admin' | null, home köken oda.
+function peerView(id, u) {
+  return { id, name: u.name, muted: u.muted, recording: u.recording, home: u.home, admin: Boolean(u.admin), modMuted: mutes.get(u.home, u.key)?.by || null };
+}
+
+function bindModEvents(socket) {
+  let times = [];
+  // { id: hedefin soket kimliği (aynı odada), muted: true sustur | false kaldır }
+  socket.on('mod:mute', (payload, ack) => {
+    if (typeof ack !== 'function') return;
+    const account = socket.data.account;
+    const code = socket.data.code;
+    if (!account || !code) return ack({ error: 'Odada değilsin.' });
+    const { id, muted } = payload && typeof payload === 'object' ? payload : {};
+    if (typeof id !== 'string' || typeof muted !== 'boolean') return ack(BAD_REQUEST);
+    times = times.filter((t) => Date.now() - t < MOD_RATE.window);
+    if (times.length >= MOD_RATE.max) return ack({ error: 'Biraz bekle, çok hızlı.' });
+    const room = rooms.get(code);
+    const target = room?.users.get(id);
+    if (!target) return ack({ error: 'Bu kişi odada değil.' });
+    const existing = mutes.get(target.home, target.key);
+    const error = mutes.check({
+      actor: { key: account.key, admin: accounts.isAdmin(account.key), ownsOrigin: roomStore.get(target.home)?.ownerId === account.key },
+      target: { key: target.key, admin: accounts.isAdmin(target.key) },
+      existing,
+      mute: muted,
+    });
+    if (error) return ack({ error });
+    times.push(Date.now());
+    const by = accounts.isAdmin(account.key) ? 'admin' : 'owner';
+    if (muted) {
+      mutes.set(target.home, target.key, { by, name: account.name });
+      target.muted = true; // kendi mikrofonu da kapalı sayılır
+      io.to(code).emit('user-muted', { id, muted: true });
+      io.to(code).emit('user-modmuted', { id, muted: true, by });
+      postSystem(room, `${target.name} susturuldu (susturan: ${account.name})`);
+    } else {
+      if (!existing) return ack({});
+      mutes.remove(target.home, target.key);
+      // Mikrofon kendiliğinden açılmaz: kişi kendisi açana kadar sessizde kalır.
+      io.to(code).emit('user-modmuted', { id, muted: false, by: null });
+      postSystem(room, `${target.name} artık konuşabilir (susturmayı kaldıran: ${account.name})`);
+    }
+    ack({});
+  });
+}
+
 const BAD_REQUEST = { error: 'İstek işlenemedi.' };
 
 // Soketin bütün işleyicileri korumalı kaydedilir: bozuk istek (ör. null gövde, açılamayan argüman)
@@ -1224,6 +1283,8 @@ io.on('connection', (socket) => {
   socket.on('mute', (muted) => {
     if (!code) return;
     const user = getRoom(code).users.get(socket.id);
+    if (!user) return;
+    if (!muted && mutes.get(user.home, user.key)) return; // susturulan kendi mikrofonunu açamaz
     user.muted = Boolean(muted);
     socket.to(code).emit('user-muted', { id: socket.id, muted: user.muted });
   });
@@ -2034,6 +2095,7 @@ io.on('connection', (socket) => {
   });
 
   bindMergeEvents(socket);
+  bindModEvents(socket);
 
   socket.on('disconnect', () => {
     leaveRoom(socket, { grace: true });
