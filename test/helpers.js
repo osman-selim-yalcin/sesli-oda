@@ -74,9 +74,16 @@ function next(socket, event, ms = 3000) {
   });
 }
 
+let registerSeq = 0;
 // HTTP çağrısı; gövde JSON, cevap JSON'a çevrilir (çevrilemezse null). extra: eklenecek başlıklar.
 async function http(url, method, p, { token, body, headers: extra = {} } = {}) {
   const headers = { ...extra };
+  // Kayıt olma adres başına sınırlı (10 dakikada 5); testler çok hesap açtığı için adres verilmemişse her kayıt
+  // ayrı bir adresten geliyormuş gibi yapılır (CLIENT_IP_HEADER ayarsız sunucuda X-Forwarded-For'un son değeri).
+  if (method === 'POST' && p === '/auth/register' && !headers['x-forwarded-for'] && !headers['cf-connecting-ip']) {
+    registerSeq++;
+    headers['x-forwarded-for'] = `10.250.${registerSeq >> 8 & 255}.${registerSeq & 255}`;
+  }
   if (token) headers.authorization = `Bearer ${token}`;
   if (body !== undefined) headers['content-type'] = 'application/json';
   const res = await fetch(url + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });

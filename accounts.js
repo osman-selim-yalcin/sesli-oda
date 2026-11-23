@@ -15,6 +15,8 @@ const PASSWORD_MAX = 200;
 const AVATAR_MAX_BYTES = 200 * 1024; // istemci 256 px'e küçültüp gönderir (~15 KB)
 const LOGIN_FAIL_MAX = 10;           // bu kadar yanlış şifreden sonra...
 const LOGIN_FAIL_WINDOW = 10 * 60 * 1000; // ...bu süre beklenir
+const REGISTER_MAX = 5;                      // adres başına bu kadar kayıt denemesi...
+const REGISTER_WINDOW = 10 * 60 * 1000;      // ...bu süre içinde
 const SEEN_SAVE_EVERY = 60 * 1000;        // son görülme en fazla dakikada bir kaydedilir
 const ADMINS = new Set(['osyalcin']); // üyeler listesini görebilen hesaplar
 
@@ -131,6 +133,9 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
   // Şifre deneme sınırı: aynı yerden çok yanlış giriş olursa bir süre beklenir.
   const logins = attemptLimiter(LOGIN_FAIL_MAX, LOGIN_FAIL_WINDOW);
   const passwordChanges = attemptLimiter(LOGIN_FAIL_MAX, LOGIN_FAIL_WINDOW);
+  // Kayıt sınırı: adres başına. Bozuk ad/şifre (hiç iş yapılmadan dönen 400) hak harcamaz; alınmış ad ve
+  // başarılı kayıt harcar (alınmış ad denemesi sınırsız olsaydı adlar taranabilirdi); sunucu hatası geri verilir.
+  const registrations = attemptLimiter(REGISTER_MAX, REGISTER_WINDOW);
 
   const readCredentials = (req) => {
     const name = String(req.body?.name || '').trim().replace(/\s+/g, ' ');
@@ -142,6 +147,8 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
     const { name, password, key } = readCredentials(req);
     if (!NAME_RE.test(name)) return fail(res, 400, 'Kullanıcı adı 2-24 karakter olmalı; harf, rakam, boşluk, nokta, tire kullanılabilir.');
     if (password.length < PASSWORD_MIN || password.length > PASSWORD_MAX) return fail(res, 400, PASSWORD_RULE);
+    const release = registrations.reserve(clientIp(req)); // await'ten önce: paralel istekler sınırı aşamaz
+    if (!release) return fail(res, 429, 'Çok fazla kayıt denemesi oldu; 10 dakika sonra tekrar dene.');
     if (accounts.has(key)) return fail(res, 409, 'Bu kullanıcı adı alınmış. Senin hesabınsa "Giriş yap"ı seç.');
     const account = { name, passHash: await hashPassword(password), avatar: null, createdAt: Date.now(), lastSeen: 0 };
     if (accounts.has(key)) return fail(res, 409, 'Bu kullanıcı adı alınmış.');
@@ -151,6 +158,7 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
       res.json({ token: await newSession(key), ...me(account, key) });
     } catch (err) {
       console.warn('kayıt olma', err.message);
+      release(); // hesap açılamadı: deneme sayılmaz
       fail(res, 500, 'Hesap açılamadı, biraz sonra tekrar dene.');
     }
   });
