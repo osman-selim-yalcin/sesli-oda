@@ -737,6 +737,10 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
     io.sockets.sockets.get(id)?.disconnect(true);
   }
 
+  // Birleşikken susturma kişinin kökenine bağlıdır ve kapı değiştirerek aşılamaz: çiftin öteki odasında
+  // susturulmuşsa kökeni o oda kalır (doluluk da o tarafta sayılır). Susturulmamış kişinin kökeni girdiği kapıdır.
+  home = muteOrigin(roomCode, home, account.key);
+
   // Birleşik odada doluluk kökene göre: her odadan en fazla MAX_USERS.
   const merged = Boolean(merge.partnerOf(roomCode));
   const count = merged ? [...room.users.values()].filter((u) => u.home === home).length : room.users.size;
@@ -972,7 +976,15 @@ function startMerge({ host, guest }) {
 function endMerge(roomId) {
   const pair = merge.split(roomId);
   if (pair && rooms.get(pair.guest)?.users.size === 0) dropRoom(pair.guest);
+  if (pair) sweepMutes(pair.guest);
   return pair;
+}
+
+// Birleşme bitince misafir odanın kökenlilerinden kimse kalmadıysa susturmaları silinir (misafir odanın canlı
+// durumu hiç kurulmamış olsa da: boş odayla birleşmede B kökenliler doğrudan A'nın canlı durumuna girer).
+function sweepMutes(roomId) {
+  for (const room of rooms.values()) for (const u of room.users.values()) if (u.home === roomId) return;
+  mutes.clear(roomId);
 }
 
 // Ayrılma: home'u misafir oda olanlar kendi odasına döner. Birleşik değilse null.
@@ -985,6 +997,7 @@ function splitRooms(roomId) {
     if (socket) moveSocket(socket, pair.guest, pair.guest, 'split');
   }
   if (rooms.get(pair.guest)?.users.size === 0) dropRoom(pair.guest); // geri dönen kimse yok
+  sweepMutes(pair.guest);
   sendMergeState(pair.host, null);
   const hostRoom = rooms.get(pair.host);
   if (hostRoom) postSystem(hostRoom, `${roomStore.get(pair.guest)?.name || pair.guest} odası ayrıldı`);
@@ -1121,6 +1134,15 @@ const MOD_RATE = { max: 8, window: 4000 }; // bir soket 4 sn'de en çok 8 sustur
 // Kişi satırı (join cevabındaki peers ve user-joined): modMuted 'owner' | 'admin' | null, home köken oda.
 function peerView(id, u) {
   return { id, name: u.name, muted: u.muted, recording: u.recording, home: u.home, admin: Boolean(u.admin), modMuted: mutes.get(u.home, u.key)?.by || null };
+}
+
+// Birleşik odaya giren kişinin susturmaya göre kökeni: girdiği kapıda (home) susturma yoksa ve çiftin öteki
+// odasında varsa o oda. roomCode: ev sahibi odanın canlı durumu.
+function muteOrigin(roomCode, home, key) {
+  const partner = merge.partnerOf(roomCode);
+  if (!partner || mutes.get(home, key)) return home;
+  const other = home === roomCode ? partner : roomCode;
+  return mutes.get(other, key) ? other : home;
 }
 
 function bindModEvents(socket) {
