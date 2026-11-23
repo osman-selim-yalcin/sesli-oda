@@ -126,6 +126,7 @@ test('sızıntı: başarısız girişte oda verisi yok, soket odanın olayların
     assert.deepEqual(Object.keys(r).sort(), ['error', 'needPassword']);
     assert.ok(!JSON.stringify(r).includes('gizli'));
   }
+  await sleep(600); // sohbet bekleme süresi (CHAT_COOLDOWN): ilk mesajın hemen ardından gelen mesaj düşürülür
   const chat2 = chatText(sahip, 'ikinci gizli mesaj');
   sahip.emit('chat', 'ikinci gizli mesaj');
   await chat2;

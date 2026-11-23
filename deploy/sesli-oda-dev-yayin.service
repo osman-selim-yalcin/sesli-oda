@@ -1,0 +1,45 @@
+# dev.agalar.app: dev dalındaki yeni commit'in public/ dizinini yayınlar (deploy/dev-yayin.sh).
+# sesli-oda-dev-yayin.timer dakikada bir çalıştırır. Kurulum: /etc/systemd/system/ altına kopyalanır; betik
+# /usr/local/sbin/sesli-oda-dev-yayin (root:root 755).
+# Canlı yayın birimiyle (sesli-oda-yayin.service) aynı ilke: root çalışır, ağdan veri işleyen git adımları
+# setpriv ile yetkisiz sesli-oda kullanıcısına düşer. Bu betik docker çağırmaz; dosya sistemi /srv/sesli-oda
+# altındaki yazdığı yerler dışında salt-okunurdur.
+[Unit]
+Description=Sesli Oda dev yayini (origin/dev public/ -> /srv/sesli-oda/dev/www)
+Wants=network-online.target
+After=network-online.target docker.service sesli-oda-ag.service
+Requires=docker.service sesli-oda-ag.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sesli-oda-dev-yayin
+TimeoutStartSec=5min
+Nice=10
+IOSchedulingClass=idle
+SyslogIdentifier=sesli-oda-dev-yayin
+RuntimeDirectory=sesli-oda-dev-yayin
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+UMask=0022
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+# git fetch (sesli-oda olarak) .git'e yazar; sürümler ve durum dosyaları root olarak yazılır.
+ReadWritePaths=/srv/sesli-oda/app /srv/sesli-oda/dev /srv/sesli-oda/state
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=yes
+SystemCallArchitectures=native
+# Yalnız setpriv için. root /srv/sesli-oda'nın sahibi; sesli-oda'nın dizinlerini okuması gerekmez (git onun adına).
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID
