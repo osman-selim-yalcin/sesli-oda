@@ -6486,7 +6486,11 @@ async function helloLobby() {
   }
   Lobby.update({ rooms: res.rooms, pending: res.pending });
 }
-socket.on('rooms', ({ rooms } = {}) => Array.isArray(rooms) && Lobby.update({ rooms }));
+socket.on('rooms', ({ rooms } = {}) => {
+  if (!Array.isArray(rooms)) return;
+  Lobby.update({ rooms });
+  if (!curRoom) syncRoomSettings(rooms); // listeden açılan ayarlar penceresi canlı
+});
 socket.on('room-request', ({ pending } = {}) => Lobby.update({ pending }));
 socket.on('room-request:decided', ({ status, name } = {}) => status && Lobby.update({ decided: { status, name } }));
 
@@ -6800,10 +6804,13 @@ socket.on('room:moved', (res = {}) => {
 });
 
 // ---------- Oda ayarları ----------
-// Düğme yalnız kendi odasında sahip ya da yönetici olana görünür (yetkiyi yine sunucu denetler).
-// Tema listesi oda isteği formundaki seçeneklerden gelir.
+// Odanın içinden (yalnız kendi odasında sahip ya da yöneticiyse) ve oda listesindeki kartın ayar düğmesinden
+// (sahip kendi odasında, site yöneticisi her odada; lobby.js onManage) aynı pencere açılır. Yetkiyi yine sunucu
+// denetler. Tema listesi oda isteği formundaki seçeneklerden gelir.
 
-let settingsRoom = null; // pencerenin değiştirdiği oda (curHome)
+let settingsRoom = null; // pencerenin değiştirdiği oda (odada curHome; listede kartın odası)
+let rsList = null; // son oda listesi (birleşme hedefleri)
+let rsShown = null; // yönetim alanlarına son yazılan ad ve sahip: kullanıcı değiştirdiyse canlı güncelleme ezmez
 let rsThemePending = null; // ayarlar penceresinde seçilmiş ama henüz uygulanmamış tema
 let rsThemeSaving = false;
 
@@ -6824,12 +6831,30 @@ function rsError(text) {
   $('rs-error').hidden = !text;
 }
 
+// İçeridekiler: odanın kendi kökenli kişileri (birleşik odada öteki odanın kişileri kendi odasında sayılır).
+function renderRsPeople(r) {
+  const users = r.users || [];
+  $('rs-people-count').textContent = r.max ? `${users.length}/${r.max}` : String(users.length);
+  if (!users.length) {
+    $('rs-people').replaceChildren(Object.assign(document.createElement('li'), { className: 'rs-people-none', textContent: 'Şu an içeride kimse yok.' }));
+    return;
+  }
+  $('rs-people').replaceChildren(...users.map((name) => {
+    const li = document.createElement('li');
+    li.className = 'rs-person';
+    li.append(makeAvatar(name), Object.assign(document.createElement('span'), { className: 'rs-person-name', textContent: name }));
+    return li;
+  }));
+}
+
 function renderRoomSettings(list) {
   const r = settingsRoom;
   if (!r) return;
+  if (list) rsList = list;
   const admin = r.role === 'admin';
   $('rs-title').textContent = r.name;
   if (window.Lobby?.emblem) $('rs-emblem').replaceChildren(Lobby.emblem(r));
+  renderRsPeople(r);
   // Tema: kutucuk yalnız seçer; Uygula kaydeder. Bekleyen seçim odanın temasına eşitse (ör. room:theme geldi) düşer.
   if (rsThemePending === r.theme) rsThemePending = null;
   if (window.Lobby?.themePicker) Lobby.themePicker($('rs-theme'), rsThemePending ?? r.theme, r.theme);
@@ -6852,35 +6877,96 @@ function renderRoomSettings(list) {
   $('rs-merge-form').classList.toggle('is-merged', Boolean(partner));
   $('rs-split').hidden = !partner;
   $('rs-merge-field').hidden = $('rs-merge').hidden = Boolean(partner);
-  if (!partner && list) {
-    const others = list.filter((x) => x.id !== r.id && !x.mergedWith);
+  $('rs-merge-hint').textContent = r.max
+    ? `Karşı odanın sahibi kabul edince iki oda tek oda olur (her odadan en fazla ${r.max}, toplam ${2 * r.max} kişi).`
+    : 'Karşı odanın sahibi kabul edince iki oda tek oda olur.';
+  if (!partner && rsList) {
+    const others = rsList.filter((x) => x.id !== r.id && !x.mergedWith);
+    const picked = $('rs-merge-target').value;
     $('rs-merge-target').replaceChildren(...others.map((x) => new Option(`${x.name} (${x.users.length} kişi)`, x.id)));
+    if (others.some((x) => x.id === picked)) $('rs-merge-target').value = picked;
     $('rs-merge').disabled = others.length === 0;
     if (!others.length) $('rs-merge-target').append(new Option('Birleşilecek oda yok', ''));
   }
   $('rs-admin').hidden = !admin;
   if (admin) {
-    $('rs-name').value = r.name;
-    $('rs-owner').value = r.owner;
-    $('rs-close-room').hidden = r.id === 'genel';
+    // Kullanıcı alanı değiştirdiyse (yazarken liste güncellendi) değeri ezilmez
+    if (!rsShown || $('rs-name').value === rsShown.name) $('rs-name').value = r.name;
+    if (!rsShown || $('rs-owner').value === rsShown.owner) $('rs-owner').value = r.owner;
+    rsShown = { name: r.name, owner: r.owner };
+    $('rs-close-room').closest('.rs-danger').hidden = r.id === 'genel';
+    if (r.id === 'genel') showCloseConfirm(false);
+    else renderCloseConfirm();
   }
 }
 
-$('room-settings-open').onclick = async () => {
+// Yönetici: sahip seçimi için hesap adları (pencere her açılışta bir kez ister; sunucu yine doğrular).
+async function loadOwnerNames() {
+  const res = await api('GET', '/admin/accounts');
+  if (res.error || !Array.isArray(res.names)) return;
+  $('rs-owner-list').replaceChildren(...res.names.map((n) => new Option(n)));
+}
+
+// Kapatma onayı: odanın adı ve oda listesine dönecek kişi sayısı.
+function renderCloseConfirm() {
+  const r = settingsRoom;
+  if (!r || $('rs-close-confirm').hidden) return;
+  const n = r.users?.length || 0;
+  const ask = $('rs-close-ask');
+  ask.replaceChildren(Object.assign(document.createElement('strong'), { textContent: r.name }), ' kapatılsın mı? ',
+    n ? `İçerideki ${n} kişi oda listesine döner.` : 'İçeride kimse yok.', ' Geri alınamaz.');
+}
+function showCloseConfirm(on) {
+  $('rs-close-confirm').hidden = !on;
+  $('rs-close-room').setAttribute('aria-expanded', String(on));
+  $('rs-close-room').disabled = on;
+  if (on) {
+    renderCloseConfirm();
+    $('rs-close-cancel').focus();
+  }
+}
+
+// view: odanın görünümü (GET /rooms satırı ya da join cevabındaki oda). Pencere hemen açılır, liste arkadan tazelenir.
+async function openRoomSettings(view) {
+  if (!view) return;
   if ($('settings-pop').matches(':popover-open')) $('settings-pop').hidePopover();
-  settingsRoom = curHome;
+  settingsRoom = view;
+  rsShown = null;
   rsThemePending = null;
   rsError('');
   $('rs-pass').value = '';
+  showCloseConfirm(false);
   renderRoomSettings();
   if (!$('room-settings').open) $('room-settings').showModal();
-  const list = await refreshRoomView(); // birleşme durumu ve listesi güncel olsun
-  if (!$('room-settings').open) return;
-  settingsRoom = curHome;
-  if (list) renderRoomSettings(list);
-  else rsError('Oda listesi alınamadı.');
-};
+  if (view.role === 'admin') loadOwnerNames();
+  const list = curRoom ? await refreshRoomView() : await fetchRoomList(); // birleşme durumu ve listesi güncel olsun
+  if (!$('room-settings').open || settingsRoom?.id !== view.id) return;
+  if (!list) return rsError('Oda listesi alınamadı.');
+  syncRoomSettings(list);
+}
+async function fetchRoomList() {
+  const res = await api('GET', '/rooms');
+  if (res.error) return null;
+  for (const r of res.rooms) roomNames.set(r.id, r.name);
+  return res.rooms;
+}
+// Açık pencere taze listeyle güncellenir (oda listesinde rooms olayıyla canlı); oda kapandıysa pencere kapanır.
+function syncRoomSettings(list) {
+  if (!$('room-settings').open || !settingsRoom) return;
+  for (const r of list) roomNames.set(r.id, r.name);
+  const fresh = list.find((r) => r.id === settingsRoom.id);
+  if (!fresh) {
+    $('room-settings').close();
+    return toast(`${settingsRoom.name} odası artık yok.`);
+  }
+  settingsRoom = fresh;
+  renderRoomSettings(list);
+}
+
+$('room-settings-open').onclick = () => openRoomSettings(curHome);
 $('rs-done').onclick = () => $('room-settings').close();
+$('room-settings').querySelector('[data-close]').onclick = () => $('room-settings').close();
+$('room-settings').addEventListener('close', () => showCloseConfirm(false));
 $('room-settings-top').onclick = () => $('room-settings-open').click();
 // Odadaki pencerelerin kapat düğmeleri
 for (const b of document.querySelectorAll('#room-screen dialog [data-close]')) b.onclick = () => b.closest('dialog').close();
@@ -6893,7 +6979,9 @@ async function saveRoomSetting(body, done, btn) {
   const res = await api('PATCH', `/rooms/${encodeURIComponent(settingsRoom.id)}`, body);
   if (btn) btn.disabled = false;
   if (res.error) return rsError(res.error);
+  if (settingsRoom?.id !== res.room.id) return; // bu arada pencere başka oda için açıldı
   settingsRoom = res.room;
+  rsShown = null; // kaydedilen ad ve sahip alanlara yazılsın
   if (curHome?.id === res.room.id) curHome = res.room;
   if (curRoom?.id === res.room.id) curRoom = res.room;
   roomNames.set(res.room.id, res.room.name);
@@ -6962,15 +7050,25 @@ $('rs-owner-form').onsubmit = (e) => {
   e.preventDefault();
   saveRoomSetting({ owner: $('rs-owner').value.trim() }, 'Odanın sahibi kaydedildi.', submitter(e));
 };
-// Kapanınca içerideki herkes (bu sekme dahil) room:closed alıp listeye döner.
-confirmButton($('rs-close-room'), 'Emin misin? Tekrar bas', async () => {
-  if (!settingsRoom) return;
+// Kapatma iki adımlı: önce onay satırı (odanın adı, içerideki kişi sayısı). Kapanınca içerideki herkes (bu sekme
+// dahil) room:closed alıp listeye döner; listedekilerin kartı canlı kalkar.
+$('rs-close-room').onclick = () => showCloseConfirm(true);
+$('rs-close-cancel').onclick = () => {
+  showCloseConfirm(false);
+  $('rs-close-room').focus();
+};
+$('rs-close-yes').onclick = async (e) => {
+  const room = settingsRoom;
+  if (!room) return;
+  const btn = e.currentTarget;
   rsError('');
-  const res = await api('DELETE', `/rooms/${encodeURIComponent(settingsRoom.id)}`);
+  btn.disabled = true;
+  const res = await api('DELETE', `/rooms/${encodeURIComponent(room.id)}`);
+  btn.disabled = false;
   if (res.error) return rsError(res.error);
   if ($('room-settings').open) $('room-settings').close();
-  toast(`${settingsRoom.name} odası kapatıldı.`);
-});
+  toast(`${room.name} odası kapatıldı.`);
+};
 
 // ---------- Birleşme ----------
 // İsteyen: oda ayarlarından istek gönderir; karşı odanın sahibine (ya da yöneticilere) pencere çıkar.
@@ -7133,6 +7231,7 @@ addEventListener('pagehide', () => socket.disconnect());
 // dosyadan sonra yüklenir; bu yüzden açılış sayfanın bütün betikleri çalıştıktan sonra yapılır.
 addEventListener('DOMContentLoaded', async () => {
   Lobby.onEnter(({ id, password }) => enterRoomFlow(id, password));
+  Lobby.onManage((room) => openRoomSettings(room));
   Lobby.onRetry(helloLobby);
   if (!authToken) {
     $('join-screen').hidden = false;

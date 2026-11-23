@@ -408,6 +408,12 @@ function setup(app, opts) {
     res.json({ request: latest.get(a.key) || null });
   });
 
+  // Oda sahibi seçimi (oda ayarları penceresi): hesap adları; sunucu PATCH'te ayrıca doğrular.
+  app.get('/admin/accounts', (req, res) => {
+    if (!admin(req, res)) return;
+    res.json({ names: accounts.names() });
+  });
+
   app.get('/admin/room-requests', (req, res) => {
     if (!admin(req, res)) return;
     res.json({
