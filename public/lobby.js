@@ -560,6 +560,8 @@ window.Lobby = (() => {
   const TIME_FMT = new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' });
   const FULL_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const fmtDay = (ms) => (ms ? DAY_FMT.format(ms) : '—');
+  // Oda isteği satırı: tam tarih ve saat
+  const fmtDate = (ms) => (ms ? FULL_FMT.format(ms) : '—');
   // Son görülme: bugünse saat, değilse gün
   const fmtSeen = (ms) => {
     if (!ms) return '—';
