@@ -122,7 +122,7 @@ Yeni tema eklemek (örnek kimlik `yeni`):
 ## Testler ve test sunucusu
 
 ```bash
-npm test           # node --test --test-concurrency=1 test/  (test/*.test.js, sırayla)
+npm test           # node --test --test-concurrency=1 test/*.test.js  (test/*.test.js, sırayla)
 ```
 
 Testler kendi sunucularını hafızada, Supabase'siz açar.
