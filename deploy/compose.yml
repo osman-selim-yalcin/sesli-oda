@@ -87,7 +87,8 @@ services:
     environment:
       XDG_CONFIG_HOME: /config
       XDG_DATA_HOME: /data
-    tmpfs: [/config, /data, /tmp]
+    # mode=1777: tmpfs kök sahibiyle açılır; nobody kullanıcısı yazabilsin (Caddy /data ve /config altına yazar).
+    tmpfs: ["/config:mode=1777", "/data:mode=1777", "/tmp"]
     mem_limit: 128m
     volumes:
       # www/current -> www/releases/<kısa sha> göreli sembolik bağ: üst dizin bağlanır ki bağ değişince Caddy yeni

@@ -33,7 +33,9 @@
 	}
 
 	# 2. Sayfa adresleri (server.js'teki düzenli ifadenin aynısı): dev'in index.html'i.
-	@page path_regexp ^/(uyeler|oda/[\w-]+(/[\w-]*)*)/?$
+	#    Kök (/) de buradadır: `file` eşleştiricisi kökü dizin olarak dosya saymadığı için 3. adıma düşmez ve
+	#    canlının index.html'i gelirdi (sunucuda denendi).
+	@page path_regexp ^/((uyeler|oda/[\w-]+(/[\w-]*)*)/?)?$
 	handle @page {
 		header Cache-Control "no-cache"
 		rewrite * /index.html
