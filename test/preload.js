@@ -23,5 +23,35 @@ Module._load = function (req, ...rest) {
     };
     m.__t = true;
   }
+  if (req === './rooms' && !m.__t) {
+    addTestTheme(m);
+    m.__t = true;
+  }
   return m;
 };
+
+// Denemelik ikinci tema (canlı tema değişimini denemek için): yalnız bu önyüklemeyle çalışan sunucuda vardır.
+// Dosyası test/tools/themes/deneme.css; public/ altında değildir, public/theme.js ve rooms.js listelerine yazılmaz.
+// İkon seti: Lucide'in kalın, köşeli çizgili bir kopyası (dosya tutulmaz, istekte üretilir), değişim gözle görülsün.
+function addTestTheme(rooms) {
+  const fs = require('fs');
+  const path = require('path');
+  const ROOT = path.join(__dirname, '..');
+  rooms.THEMES.push('deneme');
+  rooms.THEME_INFO.deneme = {
+    name: 'Deneme (test)',
+    icons: 'deneme',
+    preview: { bg: '#F4F1EA', surface: '#FFFFFF', text: '#1F2328', accent: '#C2410C' },
+  };
+  const setup = rooms.setup;
+  rooms.setup = (app, opts) => {
+    app.get('/themes/deneme.css', (req, res) => res.type('css').sendFile(path.join(ROOT, 'test/tools/themes/deneme.css')));
+    app.get('/icons/ui/deneme.svg', (req, res) => {
+      const svg = fs.readFileSync(path.join(ROOT, 'public/icons/ui/lucide.svg'), 'utf8')
+        .replace(/(<symbol [^>]*>)/g, '$1<g stroke-width="3" stroke-linecap="square" stroke-linejoin="miter">')
+        .replace(/<\/symbol>/g, '</g></symbol>');
+      res.type('image/svg+xml').send(svg);
+    });
+    return setup(app, opts);
+  };
+}

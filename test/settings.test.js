@@ -65,7 +65,7 @@ test('tema: üye 403, başka odanın sahibi 403, sahip 200 ve odadaki istemci ro
   assert.equal(r.status, 200, JSON.stringify(r.json));
   assert.equal(r.json.room.id, 'ayar-oda');
   assert.equal(r.json.room.theme, 'gece');
-  assert.deepEqual(await got, { theme: 'gece' });
+  assert.deepEqual(await got, { id: 'ayar-oda', theme: 'gece' });
   // yönetici de tema değiştirebilir
   assert.equal((await patch('ayar-oda', ADMIN, { theme: 'gece' })).status, 200);
 });

@@ -249,7 +249,7 @@
         </div>
         <label class="field">Oda adı <input id="request-name" class="input" maxlength="24" autocomplete="off" required></label>
         <label class="field">Şifre <span class="field-hint">İsteğe bağlı; boş bırakırsan herkes girer.</span><input id="request-password" class="input" type="password" maxlength="200" autocomplete="new-password"></label>
-        <label class="field">Tema <select id="request-theme" class="select"><option value="gece">Gece Odası</option></select></label>
+        <fieldset id="request-theme" class="field theme-picker"><legend>Tema</legend></fieldset>
         <label class="field">Not <span class="field-hint">İsteğe bağlı, yöneticiye.</span><input id="request-note" class="input" maxlength="200" autocomplete="off"></label>
         <p id="request-error" class="field-error" role="alert" hidden></p>
         <div class="dialog-actions">
@@ -268,7 +268,7 @@
         </div>
         <label class="field">Oda adı <input id="create-name" class="input" maxlength="24" autocomplete="off" required></label>
         <label class="field">Şifre <span class="field-hint">İsteğe bağlı.</span><input id="create-password" class="input" type="password" maxlength="200" autocomplete="new-password"></label>
-        <label class="field">Tema <select id="create-theme" class="select"><option value="gece">Gece Odası</option></select></label>
+        <fieldset id="create-theme" class="field theme-picker"><legend>Tema</legend></fieldset>
         <label class="field">Sahibi <span class="field-hint">Boş bırakırsan sen.</span><input id="create-owner" class="input" maxlength="24" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
         <p id="create-error" class="field-error" role="alert" hidden></p>
         <div class="dialog-actions">
@@ -476,9 +476,8 @@
       <div class="rs-body">
         <section class="rs-section" aria-labelledby="rs-theme-h">
           <h3 id="rs-theme-h" class="rs-head"><svg class="ic"><use href="#i-palette"></use></svg>Tema</h3>
-          <form id="rs-theme-form" class="rs-inline">
-            <select id="rs-theme" class="select" aria-label="Tema"></select>
-            <button type="submit" class="btn">Kaydet</button>
+          <form id="rs-theme-form">
+            <fieldset id="rs-theme" class="theme-picker" aria-labelledby="rs-theme-h"></fieldset>
           </form>
         </section>
         <section class="rs-section" aria-labelledby="rs-pass-h">

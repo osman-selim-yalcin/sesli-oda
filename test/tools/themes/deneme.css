@@ -1,0 +1,54 @@
+/* Denemelik tema: canlı tema değişimini (Theme.apply, room:theme) denemek için. Kullanıcıya sunulan bir tema
+   DEĞİLDİR: public/ altında durmaz, public/theme.js ve rooms.js listelerinde yoktur; yalnız test önyüklemesiyle
+   (node -r ./test/preload.js server.js) çalışan sunucu /themes/deneme.css adresinden verir ve listeye ekler.
+   Gece Odası'ndan her yönüyle ayrılır ki değişim tek bakışta görülsün: açık kâğıt zemin, turuncu vurgu,
+   tırnaklı yazı, köşeli bileşenler, kalın köşeli ikon seti (icons: 'deneme'). */
+:root {
+  color-scheme: light;
+
+  --bg: #F4F1EA;
+  --surface: #FFFFFF;
+  --surface-2: #ECE7DC;
+  --surface-3: #E0D9CB;
+  --border: #D6CEBE;
+  --border-strong: #B9AE99;
+  --text: #1F2328;
+  --muted: #5E5A52;
+  --accent: #C2410C;
+  --accent-contrast: #FFFFFF;
+  --accent-soft: rgba(194, 65, 12, .12);
+  --accent-2: #A16207;
+  --live: #15803D;
+  --live-soft: rgba(21, 128, 61, .12);
+  --danger: #B91C1C;
+  --danger-soft: rgba(185, 28, 28, .1);
+  --danger-contrast: #FFFFFF;
+  --overlay: rgba(31, 35, 40, .45);
+  --avatar-text: #FFFFFF;
+
+  --font-display: ui-serif, Georgia, 'Times New Roman', serif;
+  --font-body: ui-serif, Georgia, 'Times New Roman', serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-s: 2px;
+  --radius-m: 3px;
+  --radius-l: 4px;
+  --radius-pill: 4px;
+  --border-w: 1px;
+
+  --shadow-1: 0 1px 0 rgba(31, 35, 40, .08);
+  --shadow-2: 0 10px 30px rgba(31, 35, 40, .18), 0 0 0 1px rgba(31, 35, 40, .06);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+
+  --focus-ring: 0 0 0 3px rgba(194, 65, 12, .35);
+}

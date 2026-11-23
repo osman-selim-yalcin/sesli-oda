@@ -67,6 +67,52 @@ window.Lobby = (() => {
     return e;
   }
 
+  // ---------- Tema seçici ----------
+  // Oda aç, oda iste ve oda ayarları pencerelerinde ortak. box: <fieldset class="theme-picker"> (ilk çocuğu
+  // <legend>); içine her tema için bir radyo kutucuğu yazılır (name = box.id): o temanın kendi renkleriyle küçük
+  // bir oda taslağı (Theme.preview, tema CSS'i yüklenmeden) ve adı. Seçili olan vurgulu çerçeve ve onay işaretiyle
+  // görünür. Tek tema varken yanına kısa bir not gelir (boş görünmesin). Klavye: ok tuşları (yerel radyo grubu).
+  function themePicker(box, value) {
+    const list = Theme.list;
+    const picked = list.includes(value) ? value : list.includes(pickedTheme(box)) ? pickedTheme(box) : Theme.DEFAULT;
+    const grid = el('div', 'theme-picker-grid');
+    for (const id of list) {
+      const c = Theme.preview(id);
+      const opt = el('label', 'theme-swatch');
+      const input = el('input', 'theme-swatch-input');
+      input.type = 'radio';
+      input.name = box.id;
+      input.value = id;
+      input.checked = input.defaultChecked = id === picked; // form.reset() varsayılana döner
+      const art = el('span', 'theme-swatch-art');
+      art.setAttribute('aria-hidden', 'true');
+      art.style.setProperty('--sw-bg', c.bg);
+      art.style.setProperty('--sw-surface', c.surface);
+      art.style.setProperty('--sw-text', c.text);
+      art.style.setProperty('--sw-accent', c.accent);
+      const panel = el('span', 'theme-swatch-panel');
+      panel.append(el('span', 'theme-swatch-line'), el('span', 'theme-swatch-line is-short'), el('span', 'theme-swatch-btn'));
+      art.append(panel, el('span', 'theme-swatch-side'));
+      const foot = el('span', 'theme-swatch-foot');
+      const mark = el('span', 'theme-swatch-mark');
+      mark.innerHTML = icon('check');
+      foot.append(el('span', 'theme-swatch-name', Theme.name(id)), mark);
+      opt.append(input, art, foot);
+      grid.append(opt);
+    }
+    if (list.length === 1) grid.append(el('p', 'theme-picker-note', 'Şimdilik tek tema var; yeni temalar geldikçe burada seçilir.'));
+    const legend = box.querySelector('legend');
+    box.replaceChildren(...(legend ? [legend] : []), grid);
+  }
+  const pickedTheme = (box) => box.querySelector('input:checked')?.value || null;
+
+  // Sunucudan tema listesi gelince (Theme 'themelist') seçiciler ve kart önizlemeleri yeniden çizilir.
+  for (const id of ['create-theme', 'request-theme']) themePicker($(id), Theme.DEFAULT);
+  document.addEventListener('themelist', () => {
+    for (const id of ['create-theme', 'request-theme']) themePicker($(id));
+    if (!$('lobby-screen').hidden) renderRooms();
+  });
+
   // ---------- Odalar ----------
 
   const MAX_FACES = 5; // kartta en çok bu kadar yüz, fazlası "+N"
@@ -355,7 +401,7 @@ window.Lobby = (() => {
     const res = await api('POST', '/rooms/requests', {
       name: $('request-name').value,
       password: $('request-password').value || undefined,
-      theme: $('request-theme').value,
+      theme: pickedTheme($('request-theme')) || Theme.DEFAULT,
       note: $('request-note').value,
     });
     btn.disabled = false;
@@ -441,7 +487,7 @@ window.Lobby = (() => {
     const res = await api('POST', '/rooms', {
       name: $('create-name').value,
       password: $('create-password').value || undefined,
-      theme: $('create-theme').value,
+      theme: pickedTheme($('create-theme')) || Theme.DEFAULT,
       owner: $('create-owner').value.trim() || undefined,
     });
     btn.disabled = false;
@@ -660,5 +706,7 @@ window.Lobby = (() => {
       enter = fn;
     },
     emblem: roomEmblem, // odanın üst çubuğu da aynı amblemi kullanır
+    themePicker, // oda ayarları penceresi de aynı seçiciyi kullanır
+    pickedTheme,
   };
 })();

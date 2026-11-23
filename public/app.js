@@ -6382,7 +6382,7 @@ function signedOut(error) {
   socket.disconnect();
   Lobby.hide();
   $('room-screen').hidden = true;
-  Theme.apply('gece'); // giriş ekranı her zaman Gece Odası
+  applyTheme(Theme.DEFAULT); // giriş ekranı her zaman varsayılan tema
   $('join-screen').hidden = false;
   if (error) showJoinError(error);
 }
@@ -6456,7 +6456,7 @@ $('join-form').onsubmit = async (e) => {
 // Liste açılınca soket bağlanır ve hello ile hesaba bağlanır; aynı soket sonra odaya girerken (join) kullanılır.
 
 function openLobby() {
-  Theme.apply('gece'); // oda listesi her zaman Gece Odası; odanın teması yalnız odada
+  applyTheme(Theme.DEFAULT); // oda listesi her zaman varsayılan tema; odanın teması yalnız odada
   $('join-screen').hidden = true;
   renderAccount();
   Lobby.show();
@@ -6661,7 +6661,7 @@ function setRoomInfo(res) {
   } catch {}
   roomNames.set(curRoom.id, curRoom.name);
   roomNames.set(curHome.id, curHome.name);
-  Theme.apply(curRoom.theme);
+  applyTheme(curRoom.theme); // birleşik odada ev sahibi odanın teması; ayrılınca kendi odasınınki
   renderRoomInfo();
   if (curRoom.mergedWith && !roomNames.has(curRoom.mergedWith)) refreshRoomView();
 }
@@ -6702,10 +6702,21 @@ socket.on('room:merge', ({ mergedWith = null, name = null } = {}) => {
   renderRoomInfo();
 });
 
-socket.on('room:theme', ({ theme } = {}) => {
+// Odanın teması değişti: odadaki herkes sayfa yenilenmeden yeni temaya geçer (Theme.apply yazı tipi, renk ve
+// ikonları birlikte değiştirir; JS'te çizilenler 'themechange' ile yeniden çizilir). Sunucu olayı yalnız o
+// odanın soketlerine gönderir; birleşikken misafir oda ev sahibininkinde olduğundan kendi odasının teması
+// değişirse yalnız kaydedilir, ayrılınca (room:moved) uygulanır.
+socket.on('room:theme', ({ id, theme } = {}) => {
   if (!curRoom || typeof theme !== 'string') return;
+  const roomOf = id || curRoom.id;
+  if (curHome?.id === roomOf) curHome.theme = theme;
+  if (curRoom.id !== roomOf) return;
   curRoom.theme = theme;
-  Theme.apply(theme);
+  applyTheme(theme);
+  if ($('room-settings').open && settingsRoom?.id === roomOf) {
+    settingsRoom.theme = theme;
+    renderRoomSettings();
+  }
 });
 
 // Odadan kalan her şeyi temizler (oda değişirken): eş bağlantıları, ekran paylaşımı, kayıt, sohbet,
@@ -6782,6 +6793,14 @@ socket.on('room:moved', (res = {}) => {
 
 let settingsRoom = null; // pencerenin değiştirdiği oda (curHome)
 
+// Tema dosyası yüklenemezse önceki tema kalır (Theme.apply); kullanıcıya söylenir.
+function applyTheme(id) {
+  return Theme.apply(id).then((ok) => {
+    if (!ok) toast('Tema yüklenemedi; önceki görünüm kullanılıyor.');
+    return ok;
+  });
+}
+
 function rsError(text) {
   $('rs-error').textContent = text || '';
   $('rs-error').hidden = !text;
@@ -6793,10 +6812,7 @@ function renderRoomSettings(list) {
   const admin = r.role === 'admin';
   $('rs-title').textContent = r.name;
   if (window.Lobby?.emblem) $('rs-emblem').replaceChildren(Lobby.emblem(r));
-  if ($('rs-theme').options.length === 0) {
-    for (const o of $('request-theme').options) $('rs-theme').append(new Option(o.textContent, o.value));
-  }
-  $('rs-theme').value = r.theme;
+  if (window.Lobby?.themePicker) Lobby.themePicker($('rs-theme'), r.theme);
   // Durum satırı: rozet + açıklama
   const state = (el, cls, iconName, label, text) => {
     el.innerHTML = `<span class="badge ${cls}">${icon(iconName)}</span><span class="rs-state-text"></span>`;
@@ -6864,10 +6880,20 @@ async function saveRoomSetting(body, done, btn) {
   toast(done);
 }
 const submitter = (e) => e.submitter || e.target.querySelector('button[type=submit]');
-$('rs-theme-form').onsubmit = (e) => {
-  e.preventDefault();
-  saveRoomSetting({ theme: $('rs-theme').value }, 'Tema kaydedildi.', submitter(e));
+// Tema kutucuğuna basınca hemen kaydedilir; kayıt sürerken seçici kilitli, hata olursa eski seçim geri gelir.
+// Yeni tema odadakilere room:theme ile gelir (bu sekme dahil).
+$('rs-theme-form').onsubmit = (e) => e.preventDefault();
+$('rs-theme').onchange = async () => {
+  const theme = Lobby.pickedTheme($('rs-theme'));
+  if (!settingsRoom || !theme || theme === settingsRoom.theme) return;
+  $('rs-theme').disabled = true;
+  await saveRoomSetting({ theme }, 'Tema kaydedildi.');
+  $('rs-theme').disabled = false;
+  if (curRoom && curRoom.id === settingsRoom?.id) applyTheme(curRoom.theme); // room:theme gecikse de bu sekme geçsin
+  renderRoomSettings(); // hata olduysa kayıtlı tema seçili görünsün
 };
+// Sunucudan tema listesi geldi: açık ayarlar penceresinin seçicisi yeniden çizilir.
+document.addEventListener('themelist', () => $('room-settings').open && renderRoomSettings());
 $('rs-pass-form').onsubmit = (e) => {
   e.preventDefault();
   const password = $('rs-pass').value;

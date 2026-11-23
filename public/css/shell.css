@@ -903,6 +903,64 @@ dialog.room-settings[open] { display: flex; flex-direction: column; }
 .rs-state .badge { flex-shrink: 0; max-width: 60%; overflow: hidden; text-overflow: ellipsis; }
 .rs-state .badge-lock { color: var(--text); }
 .rs-state-text { min-width: 0; }
+
+/* ---------- Tema seçici (oda aç, oda iste, oda ayarları; public/lobby.js themePicker) ----------
+   Her tema bir radyo kutucuğu: üstte o temanın kendi renkleriyle küçük bir oda taslağı (panel, iki metin satırı,
+   vurgu düğmesi, yan sütun), altta adı ve onay işareti. Renkler kutucuğun yerel değişkenleri (--sw-*;
+   theme.js Theme.preview); seçili olan vurgu çerçeveli. Tek tema varken yanında kısa bir not durur. */
+.theme-picker { display: block; margin: 0; padding: 0; border: 0; min-width: 0; }
+.theme-picker > legend { padding: 0; margin-bottom: 6px; }
+.theme-picker-grid { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.theme-swatch {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 156px;
+  min-width: 0;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+}
+.theme-swatch:hover { border-color: var(--border-strong); }
+.theme-swatch:has(.theme-swatch-input:checked) { border-color: var(--accent); box-shadow: 0 0 0 var(--border-w) var(--accent); }
+.theme-swatch:has(.theme-swatch-input:focus-visible) { box-shadow: var(--focus-ring); }
+.theme-swatch:has(.theme-swatch-input:checked:focus-visible) { box-shadow: 0 0 0 var(--border-w) var(--accent), var(--focus-ring); }
+.theme-picker:disabled .theme-swatch { cursor: progress; opacity: .7; }
+/* Radyo düğmesi görünmez ama odaklanabilir ve klavyeyle seçilebilir kalır (kutucuğun kendisi görünür seçimdir) */
+.theme-swatch-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: inherit; }
+.theme-swatch-art { position: relative; display: block; height: 76px; background: var(--sw-bg); border-bottom: var(--border-w) solid var(--border); }
+.theme-swatch-panel, .theme-swatch-side {
+  position: absolute;
+  top: var(--space-4);
+  bottom: 0;
+  border-radius: var(--radius-s) var(--radius-s) 0 0;
+  background: var(--sw-surface);
+  box-shadow: inset 0 0 0 var(--border-w) color-mix(in srgb, var(--sw-surface) 82%, var(--sw-text));
+}
+.theme-swatch-panel { left: var(--space-3); right: 36%; display: flex; flex-direction: column; gap: 6px; padding: var(--space-3) var(--space-2) 0 var(--space-3); }
+.theme-swatch-side { right: var(--space-3); width: calc(36% - var(--space-3) - 6px); opacity: .75; }
+.theme-swatch-line { display: block; height: 5px; width: 78%; border-radius: var(--radius-pill); background: var(--sw-text); opacity: .8; }
+.theme-swatch-line.is-short { width: 48%; opacity: .4; }
+.theme-swatch-btn { display: block; width: 34px; height: 10px; margin-top: 4px; border-radius: var(--radius-pill); background: var(--sw-accent); }
+.theme-swatch-foot { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; padding: 0 var(--space-2) 0 var(--space-3); }
+.theme-swatch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--text); }
+.theme-swatch-mark {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  border: var(--border-w) solid var(--border-strong);
+  color: transparent;
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.theme-swatch-mark .ic { width: 12px; height: 12px; stroke-width: 3; }
+.theme-swatch:has(.theme-swatch-input:checked) .theme-swatch-mark { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.theme-picker-note { flex: 1 1 150px; align-self: center; margin: 0; font-size: 13px; font-weight: 400; line-height: 1.45; color: var(--muted); }
 .rs-hint { margin: 0; color: var(--muted); font-size: 12px; }
 .rs-form.is-merged .rs-hint { display: none; }
 .rs-remove { justify-self: start; margin-left: calc(var(--space-3) * -1); }
@@ -1390,7 +1448,8 @@ button.room-card.is-full { cursor: not-allowed; }
   border-radius: var(--radius-m);
   background: linear-gradient(145deg, hsl(var(--hue) 55% 46% / .55), hsl(var(--hue) 50% 30% / .35));
   box-shadow: inset 0 0 0 1px hsl(var(--hue) 70% 70% / .3);
-  color: hsl(var(--hue) 90% 86%);
+  /* harf temanın metin rengine karışır: koyu temada açık, açık temada koyu kalır (zemin yarı saydam) */
+  color: color-mix(in srgb, hsl(var(--hue) 80% 66%) 40%, var(--text));
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 600;

@@ -2,18 +2,22 @@
 // Varsayılan tema index.html'de <link id="theme-css"> ile baştan bağlıdır; ilk boyama temalı olur.
 // Theme.apply(id): tema farklıysa yeni CSS'i yükler, yüklenince (ve ikon seti hazır olunca) eski bağlantıyı
 // kaldırır ve <html data-theme> değerini değiştirir. Yarım yüklenmiş tema (yeni renk + eski ikon) görünmez.
-// Oda listesi ve giriş ekranı her zaman 'gece'; odada odanın teması.
+// Oda listesi ve giriş ekranı her zaman varsayılan tema; odada odanın teması.
+// Temaların listesi sunucudan da gelir (GET /theme-list, açılışta bir kez): sunucunun tanımadığı tema seçicide
+// çıkmaz; test sunucusu (test/preload.js) yalnız denemelik bir temayı adı ve önizleme renkleriyle buradan ekler.
+// Liste değişince document'a 'themelist' olayı gelir (seçiciler ve oda kartları yeniden çizilir).
 window.Theme = (() => {
   const LIST = ['gece'];
   const DEFAULT = 'gece';
+  const NAMES = { gece: 'Gece Odası' };
   // Temanın ikon seti: public/icons/ui/<set>.svg, hepsi aynı adları (i-play, i-mic…) taşır.
   // Varsayılan set index.html'de <svg id="ui-icons" data-set="lucide"> olarak gömülüdür (ilk boyamada ikon olsun diye).
   const ICON_SETS = { gece: 'lucide' };
-  // Oda kartındaki tema önizleme şeridinin üç rengi (zemin, panel, vurgu). Kart başka bir temanın odasını da
-  // gösterebildiği için bu renkler o anki temanın değişkenlerinden değil, bu tablodan gelir; sabit renkler
-  // yalnız burada durur (kart onları --pv-bg/--pv-surface/--pv-accent yerel değişkenleriyle kullanır).
+  // Oda kartındaki önizleme şeridinin ve tema seçici kutucuğunun renkleri (zemin, panel, metin, vurgu). Kart ve
+  // seçici başka temaları da gösterdiği için bu renkler o anki temanın değişkenlerinden değil, bu tablodan gelir
+  // (tema CSS'i yüklenmeden); sabit renkler yalnız burada durur, kurallar onları yerel değişkenlerle kullanır.
   const PREVIEW = {
-    gece: { bg: '#0E0F13', surface: '#1E2129', accent: '#8B9CFF' },
+    gece: { bg: '#0E0F13', surface: '#1E2129', text: '#E8E9ED', accent: '#8B9CFF' },
   };
   const root = document.documentElement;
   let current = root.dataset.theme || DEFAULT;
@@ -97,30 +101,83 @@ window.Theme = (() => {
     if (meta && bg) meta.content = bg;
   }
 
-  function apply(id) {
+  // Sunucudaki tema listesi: bilinmeyen tema yalnız adı ve geçerli önizleme renkleriyle eklenir; ikon seti
+  // verilmezse varsayılan set. Liste yoksa (eski sunucu, ağ hatası) yerleşik liste kalır.
+  const HEX = /^#[0-9a-f]{3,8}$/i;
+  function register(info) {
+    const id = info?.id;
+    if (typeof id !== 'string' || !/^[a-z0-9-]{1,24}$/.test(id) || LIST.includes(id)) return false;
+    const pv = info.preview || {};
+    if (typeof info.name !== 'string' || !['bg', 'surface', 'text', 'accent'].every((k) => HEX.test(pv[k] || ''))) return false;
+    LIST.push(id);
+    NAMES[id] = info.name.slice(0, 40);
+    PREVIEW[id] = { bg: pv.bg, surface: pv.surface, text: pv.text, accent: pv.accent };
+    if (typeof info.icons === 'string' && /^[a-z0-9-]+$/.test(info.icons)) ICON_SETS[id] = info.icons;
+    return true;
+  }
+  const ready = fetch('/theme-list')
+    .then((res) => (res.ok ? res.json() : null))
+    .then((data) => {
+      const themes = Array.isArray(data?.themes) ? data.themes : null;
+      if (!themes) return;
+      const known = new Set(themes.map((t) => t?.id));
+      let changedList = false;
+      for (const t of themes) changedList = register(t) || changedList;
+      // Sunucunun artık tanımadığı tema seçicide çıkmasın (varsayılan her zaman kalır).
+      for (let i = LIST.length - 1; i >= 0; i--) {
+        if (LIST[i] !== DEFAULT && !known.has(LIST[i])) {
+          LIST.splice(i, 1);
+          changedList = true;
+        }
+      }
+      if (changedList) document.dispatchEvent(new CustomEvent('themelist'));
+    })
+    .catch(() => {});
+
+  // Promise<boolean>: false yalnız tema dosyası ya da ikon seti yüklenemediyse (önceki tema kalır; çağıran
+  // kullanıcıya söyler). Başka tema istendiği için yarıda bırakılan yükleme true döner. Hiç reddetmez.
+  let seq = 0; // en son istenen kazanır (liste beklenirken sonradan istenen tema öne geçmesin)
+  async function apply(id) {
+    const mine = ++seq;
+    if (!LIST.includes(id)) {
+      await ready; // liste sunucudan gelmeden istenen tema (örn. test teması) beklesin
+      if (mine !== seq) return true;
+    }
+    return load(id);
+  }
+
+  function load(id) {
     if (!LIST.includes(id)) id = DEFAULT;
     wanted = id;
     const linked = document.getElementById('theme-css')?.dataset.theme;
     if (id === linked) {
       root.dataset.theme = current = id;
-      return job?.promise ?? Promise.resolve();
+      return job?.promise.then(() => true) ?? Promise.resolve(true);
     }
     if (job?.id === id) return job.promise;
     const css = loadCss(id);
     // apply hiçbir zaman reddetmez: ikon ya da yükleme hatasında uyarı yazılır, önceki tema kalır.
     const promise = Promise.all([css, prepareIcons(id)])
       .then(([link, commitIcons]) => {
-        if (!link) return; // yüklenemedi: eski tema kalır
-        if (wanted !== id) return link.remove(); // bu arada başka tema istendi
+        if (!link) {
+          console.warn(`Tema dosyası yüklenemedi (${id}), önceki tema kalıyor.`);
+          return false; // eski tema kalır
+        }
+        if (wanted !== id) {
+          link.remove(); // bu arada başka tema istendi
+          return true;
+        }
         commitIcons(); // hata verirse aşağıdaki catch yeni bağlantıyı kaldırır, eski tema kalır
         document.getElementById('theme-css')?.remove();
         link.id = 'theme-css';
         root.dataset.theme = current = id;
         changed();
+        return true;
       })
       .catch((err) => {
         console.warn(`Tema uygulanamadı (${id}), önceki tema kalıyor:`, err);
         css.then((link) => link?.id !== 'theme-css' && link?.remove());
+        return false;
       })
       .finally(() => {
         if (job?.promise === promise) job = null;
@@ -129,12 +186,18 @@ window.Theme = (() => {
     return promise;
   }
 
+  const known = (id) => (Object.hasOwn(PREVIEW, id) ? id : DEFAULT);
   return {
-    list: LIST.slice(),
+    get list() {
+      return LIST.slice();
+    },
+    DEFAULT,
+    ready,
     apply,
     current: () => current,
     color,
     changed,
-    preview: (id) => ({ ...(Object.hasOwn(PREVIEW, id) ? PREVIEW[id] : PREVIEW[DEFAULT]) }),
+    name: (id) => NAMES[known(id)],
+    preview: (id) => ({ ...PREVIEW[known(id)] }),
   };
 })();

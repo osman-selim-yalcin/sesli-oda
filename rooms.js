@@ -7,6 +7,10 @@ const store = require('./store');
 const accounts = require('./accounts');
 
 const THEMES = ['gece']; // ilk tema: Gece Odası; yeni temalar buraya ve public/theme.js listesine
+// İstemcinin kendi tablosunda olmayan temaların adı, önizleme renkleri ve ikon seti (GET /theme-list ile gider).
+// Gerçek temalar public/theme.js'te tanımlıdır, burası boş kalır; yalnız test önyüklemesi (test/preload.js)
+// denemelik temasını buraya ve THEMES'e ekler.
+const THEME_INFO = {};
 const RESERVED = 'ortak';      // ortak kayıt anahtarı: oda adı ya da id'si olamaz
 const PASSWORD_MIN = 4;
 const PASSWORD_MAX = 200;
@@ -226,6 +230,11 @@ function setup(app, opts) {
   const json = express.json({ limit: '4kb' });
   const fail = (res, status, error) => res.status(status).json({ error });
 
+  // Seçilebilir temalar (oturum gerekmez; giriş ekranı da yükler).
+  app.get('/theme-list', (req, res) => {
+    res.json({ themes: THEMES.map((id) => ({ id, ...THEME_INFO[id] })) });
+  });
+
   app.get('/rooms', (req, res) => {
     const a = accounts.accountByToken(bearer(req));
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
@@ -443,4 +452,4 @@ function setup(app, opts) {
   });
 }
 
-module.exports = { load, startupProblem, get, all, slugOf, create, role, view, setup, addMember, isMember, pendingCount, THEMES };
+module.exports = { load, startupProblem, get, all, slugOf, create, role, view, setup, addMember, isMember, pendingCount, THEMES, THEME_INFO };

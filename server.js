@@ -143,7 +143,7 @@ accounts.setup(app, {
 roomStore.setup(app, {
   live: mergeLive,
   onChange: (kind, info) => {
-    if (kind === 'settings') io.to(info.id).emit('room:theme', { theme: info.theme });
+    if (kind === 'settings') io.to(info.id).emit('room:theme', { id: info.id, theme: info.theme });
     else if (kind === 'closed') closeRoom(info);
     else if (kind === 'rooms') roomsChanged();
     else if (kind === 'request') {
