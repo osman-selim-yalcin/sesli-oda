@@ -1,0 +1,64 @@
+# dev.agalar.app: dev dalının YALNIZ ön yüzü (public/) + canlı sunucuya vekil.
+# Sunucuda root'a ait kopyası /srv/sesli-oda/dev/Caddyfile olarak `dev` konteynerine salt-okunur bağlanır.
+# Dev dalından hiçbir kod sunucuda çalışmaz: dosyalar yalnız tarayıcıya gönderilir. API ve socket.io istekleri
+# canlı uygulamaya (app:3030) gider: veritabanı, hesaplar, odalar canlıyla aynıdır.
+#
+# Dosyalar: /srv/dev/www/current/public. `current` deploy/dev-yayin.sh'nin değiştirdiği göreli bir sembolik bağdır
+# (releases/<kısa sha>); Caddy yolu her istekte çözdüğü için bağ değişince yeni sürüm hemen sunulur.
+#
+# Başlıklar: cloudflared'ın getirdiği Cf-Connecting-Ip olduğu gibi app'e geçer (reverse_proxy istek başlıklarını
+# değiştirmez). Caddy X-Forwarded-For/-Proto/-Host ekler; app CLIENT_IP_HEADER ayarlıyken bunlara bakmaz
+# (trust proxy kapalı), yalnız Cf-Connecting-Ip'yi okur.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	root * /srv/dev/www/current/public
+
+	# Her yanıtta (vekil yanıtları dahil): arama motorları dev'i dizinlemesin.
+	header X-Robots-Tag "noindex, nofollow"
+
+	# 1. Canlı sunucunun dinamik uçları: dev'de aynı adlı bir dosya olsa bile her zaman vekile gider
+	#    (Node sunucusunda express.static bu uçlardan önce çalıştığı için böyle bir dosya canlıda ucu gölgelerdi;
+	#    dev'de bunun olmaması için açıkça listelenir). Yeni bir uç eklenince buraya da eklenmeli; eklenmezse de
+	#    dev'de aynı adlı dosya olmadığı sürece 4. adımda vekile düşer.
+	@dynamic path /socket.io/* /config /status /search /theme-list /rooms /rooms/* /auth/* /admin/* /avatar/* /img/* /card-img/* /sfx-custom/* /radio/*
+	handle @dynamic {
+		reverse_proxy app:3030 {
+			flush_interval -1
+		}
+	}
+
+	# 2. Sayfa adresleri (server.js'teki düzenli ifadenin aynısı): dev'in index.html'i.
+	@page path_regexp ^/(uyeler|oda/[\w-]+(/[\w-]*)*)/?$
+	handle @page {
+		header Cache-Control "no-cache"
+		rewrite * /index.html
+		file_server
+	}
+
+	# 3. Dev'de var olan dosya (dizin yalnız sonu / ile eşleşir; / -> index.html).
+	@static file
+	handle @static {
+		@sfx path /sfx/*
+		header @sfx Cache-Control "public, max-age=2592000"
+		@asset path /vendor/fonts/* /icons/*
+		header @asset Cache-Control "public, max-age=3600"
+		# html/js/css her açılışta yeniden doğrulanır: test edenler hep son gönderimi görsün
+		@code path / *.html *.js *.mjs *.css
+		header @code Cache-Control "no-cache"
+		file_server {
+			hide .*
+		}
+	}
+
+	# 4. Geri kalan her şey (eski adres yönlendirmeleri /gecmis..., bilinmeyen yollar) canlı sunucuya.
+	handle {
+		reverse_proxy app:3030 {
+			flush_interval -1
+		}
+	}
+}

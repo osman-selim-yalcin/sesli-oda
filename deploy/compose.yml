@@ -71,6 +71,39 @@ services:
       app:
         condition: service_healthy
 
+  # dev.agalar.app: dev dalının yalnız ön yüzü (statik dosyalar) + canlı app'e vekil (deploy/dev/Caddyfile).
+  # Dev dalından kod çalıştırmaz, sır almaz. Dosyalar deploy/dev-yayin.sh'nin yazdığı root'a ait sürümlerden.
+  # yayin.sh bu servise dokunmaz (app ve tunnel'i --no-deps ile başlatır). İlk açılış elle:
+  #   docker compose ... up -d --no-deps dev
+  dev:
+    <<: *hardening
+    image: caddy:2.11.9-alpine
+    user: "65534:65534" # nobody; dosyalar herkesçe okunur, 8080 ayrıcalıklı port değil
+    # Resmi imajda /usr/bin/caddy dosyasına cap_net_bind_service yetkisi verilmiş (setcap). Sınır kümesinde bu
+    # yetenek yoksa çekirdek programı hiç çalıştırmaz ("operation not permitted"); yalnız bu yetenek geri verilir.
+    # 8080'i dinlemek için gerekmez, yalnız programın açılabilmesi için.
+    cap_add: [NET_BIND_SERVICE]
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    environment:
+      XDG_CONFIG_HOME: /config
+      XDG_DATA_HOME: /data
+    tmpfs: [/config, /data, /tmp]
+    mem_limit: 128m
+    volumes:
+      # www/current -> www/releases/<kısa sha> göreli sembolik bağ: üst dizin bağlanır ki bağ değişince Caddy yeni
+      # sürümü görsün (doğrudan bağlanan bir sembolik bağ konteyner açılırken bir kez çözülür).
+      - /srv/sesli-oda/dev/www:/srv/dev/www:ro
+      - /srv/sesli-oda/dev/Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      app:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
 # IPv6 açılmadı (enable_ipv6 yok): sunucu güvenlik duvarı kuralları (deploy/sesli-oda-ag.sh) yalnız IPv4'tür.
 networks:
   sesli-oda:

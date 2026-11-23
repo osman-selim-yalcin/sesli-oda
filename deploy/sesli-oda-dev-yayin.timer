@@ -1,0 +1,12 @@
+# dev.agalar.app: dakikada bir dev dalında yeni commit var mı bakar (sesli-oda-dev-yayin.service).
+[Unit]
+Description=Sesli Oda dev yayini: dakikada bir origin/dev kontrolu
+
+[Timer]
+OnActiveSec=15s
+OnBootSec=1min
+OnUnitInactiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
