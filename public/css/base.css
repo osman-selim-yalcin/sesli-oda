@@ -717,6 +717,27 @@ body:has(dialog[open]) .toast:not(:last-child) { display: none; }
   }
 }
 
+/* ---------- Dev ortamı rozeti (public/dev.js; yalnız dev.* adresinde) ----------
+   Üst kenarın ortasında, üst çubuğun boş üst payında (12 px) duran küçük etiket. Tıklamaları geçirir, hiçbir
+   denetimi engellemez. */
+.dev-badge {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+  pointer-events: none;
+  padding: 0 var(--space-2);
+  height: 12px;
+  line-height: 12px;
+  font: 700 9px/12px var(--font-mono);
+  letter-spacing: .08em;
+  color: var(--danger-contrast);
+  background: var(--danger);
+  border-radius: 0 0 var(--radius-s) var(--radius-s);
+  opacity: .9;
+}
+
 /* ---------- Animasyon anahtar kareleri (çerçeve ve oyun dosyaları kullanır) ---------- */
 @keyframes rise { from { opacity: 0; transform: translateY(14px); } }
 @keyframes rise-sm { from { opacity: 0; transform: translateY(6px); } }

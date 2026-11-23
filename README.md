@@ -56,7 +56,9 @@ Derleme adımı yok; `public/` içindeki dosyalar olduğu gibi sunulur.
 | `store.js` | Supabase'e kalıcı kayıt (geçmiş, efektler, tier listler, skor tabloları) |
 | `accounts.js` | Hesaplar, oturumlar, profil resimleri, site yöneticileri (`ADMINS`) |
 | `clientip.js` | Ziyaretçinin gerçek adresi (deneme sınırları için; `CLIENT_IP_HEADER`) |
-| `deploy/` | Kendi sunucuda yayın: `Dockerfile`, `compose.yml`, `yayin.sh`, güvenlik duvarı `sesli-oda-ag.sh`, systemd birimleri (bkz. "Katkı ve yayın") |
+| `deploy/` | Kendi sunucuda yayın: `Dockerfile`, `compose.yml`, `yayin.sh`, güvenlik duvarı `sesli-oda-ag.sh`, dev ortamı (`dev/Caddyfile`, `dev-yayin.sh`), systemd birimleri (bkz. "Katkı ve yayın", "Geliştirme akışı") |
+| `public/dev.js` | dev.agalar.app'te üstteki DEV etiketi (canlıda bir şey yapmaz) |
+| `.github/workflows/test.yml` | PR'larda ve `dev`'e gönderimde `npm test` |
 | `db/` | Canlıya geçişte elle çalıştırılan SQL dosyaları |
 | `public/index.html` | Arayüzün işaretlemesi; gömülü ikon seti (`<svg id="ui-icons">`) |
 | `public/css/base.css`, `shell.css`, `games.css` | Ortak bileşenler, ekran çerçeveleri, oyun tahtaları (yalnız değişken kullanır) |
@@ -120,7 +122,7 @@ Yeni tema eklemek (örnek kimlik `yeni`):
 ## Testler ve test sunucusu
 
 ```bash
-npm test           # node --test --test-concurrency=1 test/  (test/*.test.js, sırayla)
+npm test           # node --test --test-concurrency=1 test/*.test.js  (test/*.test.js, sırayla)
 ```
 
 Testler kendi sunucularını hafızada, Supabase'siz açar.
@@ -154,12 +156,14 @@ Supabase ayarlıyken 1. ya da 3. adım eksikse yeni sunucu açılmayı reddeder:
 
 ## Katkı ve yayın
 
-`main` dalına yapılan her push birkaç dakika içinde canlı sitede olur. Push'tan önce:
+`main`'e giren her commit yaklaşık bir dakika içinde canlı sitede olur. `main`'e doğrudan push yapılmaz, yalnız
+pull request ile girilir (bkz. "Geliştirme akışı"). Önce:
 
 1. Değişikliği bilgisayarında test sunucusuyla (`PORT=<port> node -r ./test/preload.js server.js`) dene ve
    `npm test` çalıştır; tarayıcı konsolunda hata olmasın. `npm start` canlı veritabanına bağlandığı için
    deneme için kullanılmaz.
-2. Büyük ya da riskli bir değişiklikse ayrı bir dalda çalış ve pull request aç.
+2. Ön yüz değişikliğini `dev` dalına gönderip dev.agalar.app'te dene, sonra `main`'e pull request aç (testler
+   GitHub Actions'ta kendiliğinden çalışır).
 3. Commit mesajlarını Türkçe ve ne yaptığını anlatacak şekilde yaz.
 
 **Geçiş dönemi:** site Render'dan kendi sunucumuza taşınıyor. Geçiş onaylanana kadar Render servisi ve
@@ -328,6 +332,68 @@ ayarlanır: adres bu başlıktan alınır; başlık yoksa ya da geçerli tek bir
 kullanılır, `X-Forwarded-For`'a bakılmaz ve günlüğe uyarı yazılır (en fazla 10 dakikada bir). Bu ayar yalnız
 uygulamaya Cloudflare dışından ulaşılamıyorsa güvenlidir (başlığı istemci de yazabilir). Ayarlı değilse eski
 kural geçerlidir (Render'ın vekili: `X-Forwarded-For`'un son değeri).
+
+## Geliştirme akışı
+
+- **`dev` dalı → https://dev.agalar.app** (dakikada bir). Dev ortamı **yalnız ön yüzdür:** `dev` dalının
+  `public/` dizini olduğu gibi sunulur; API ve socket.io istekleri **canlı sunucuya** gider. Yani dev'de
+  **canlı veritabanı** kullanılır: giriş yaptığın hesap, açtığın oda, yazdığın mesaj, kazandığın skor gerçektir.
+  Dev'de deneme hesabı ya da deneme odası açarken bunu bil.
+- **Sunucu değişiklikleri dev'de çalışmaz.** `server.js`, `accounts.js`, `rooms.js`, `games/` gibi dosyalardaki
+  değişiklikler sunucuda yalnız `main`'e girince çalışır; dev'de testlerle (`npm test`, GitHub Actions) ve yerel
+  test sunucusuyla denenir. Yeni bir sunucu özelliğine ihtiyaç duyan bir dev ön yüzü, o özellik `main`'e girene
+  kadar dev'de çalışmaz (ör. yeni bir uç 404 döner).
+- **`main` yalnız pull request ile değişir.** PR açılınca ve `dev`'e her gönderimde `.github/workflows/test.yml`
+  `npm ci` ve `npm test` çalıştırır (sır kullanmaz, ağ gerekmez). PR birleşince canlı yayın kendiliğinden olur.
+- Dev sayfasının üstünde küçük kırmızı bir **DEV** etiketi görünür (`public/dev.js`; yalnız `dev.` ile başlayan
+  adreste çalışır, canlıda bir şey yapmaz). Dev arama motorlarına kapalıdır (`X-Robots-Tag: noindex`); html, js ve
+  css her açılışta yeniden doğrulanır (`Cache-Control: no-cache`), ses efektleri, yazı tipleri ve ikonlar
+  önbellekte kalır.
+
+### Dev yayını nasıl çalışır
+
+- `sesli-oda-dev-yayin` (`deploy/dev-yayin.sh`, zamanlayıcıyla dakikada bir, root): ortak git kopyasında
+  (`/srv/sesli-oda/app`) yalnız `origin/dev`'i çeker; **checkout yapmaz** (çalışma ağacı canlı yayının). Yeni
+  commit varsa önce o commit'in `public/` ağacını git'te denetler: yalnız düz dosya ve dizin (sembolik bağ ya da alt
+  modül varsa reddedilir), her yol `public/` altında, en çok 5000 dosya ve 200 MB. Sonra yalnız `public/`'in
+  arşivini (`git archive <sha> public`) root'a ait yeni bir dizine açar (`/srv/sesli-oda/dev/www/releases/<kısa
+  sha>/public`), `current` sembolik bağını atomik olarak ona çevirir ve commit'i `/srv/sesli-oda/state/dev-rev`'e
+  yazar. Son 3 sürüm tutulur. Konteyner yeniden başlatılmaz. Reddedilen commit tekrar denenmez (günlükte
+  `REDDEDİLDİ:` ve `HATA:`); dev'deki sürüm aynen sunulmaya devam eder. `dev` dalı yoksa sessizce çıkar.
+- Elle: `sudo sesli-oda-dev-yayin <sha>` (dev dalının geçmişinde olmalı). Eski bir commit'e dönülünce otomatik dev
+  yayını dev'e yeni bir commit gelene kadar durur.
+- `dev` konteyneri (Caddy, `deploy/dev/Caddyfile`): `:8080`, yalnız HTTP; `/srv/sesli-oda/dev/www` salt-okunur
+  bağlıdır ve `current/public`'ten sunar. Sırası: canlının dinamik uçları (socket.io, `/auth/*`, `/rooms*`,
+  `/admin/*`, `/config`, `/status`, `/search`, `/theme-list`, `/avatar/*`, `/img/*`, `/card-img/*`,
+  `/sfx-custom/*`, `/radio/*`) her zaman canlı `app`'e; sayfa adresleri (`/uyeler`, `/oda/...`) dev'in
+  `index.html`'i; dev'de var olan dosya dev'den; geri kalan her şey canlı `app`'e. Sunucuya yeni bir uç eklenince
+  Caddyfile'daki listeye de eklenmeli. `Cf-Connecting-Ip` olduğu gibi geçer; bu yolda istemcinin taklit
+  edebildiği bir şey doğrudan tünel yolundakinden fazla değildir.
+- Kod çalıştırmaz, sır almaz, `.env` görmez; canlı yayın (`sesli-oda-yayin`) bu konteynere dokunmaz.
+
+**Dev ortamını ilk kurma (bir kez, root; canlı kurulmuş olmalı):**
+
+```bash
+install -d -o root -g root -m 755 /srv/sesli-oda/dev /srv/sesli-oda/dev/www /srv/sesli-oda/dev/www/releases
+D=/srv/sesli-oda/app/deploy   # bu dosyalar, commit'i main'e girip canlıya yayınlanınca checkout'ta olur
+install -o root -g root -m 644 $D/dev/Caddyfile /srv/sesli-oda/dev/Caddyfile
+install -o root -g root -m 755 $D/dev-yayin.sh /usr/local/sbin/sesli-oda-dev-yayin
+install -o root -g root -m 644 $D/sesli-oda-dev-yayin.service $D/sesli-oda-dev-yayin.timer /etc/systemd/system/
+sudo diff -u /srv/sesli-oda/compose.yml $D/compose.yml       # yalnız dev servisi eklenmiş olmalı
+install -o root -g root -m 644 $D/compose.yml /srv/sesli-oda/compose.yml
+systemctl daemon-reload
+cd /
+sesli-oda-dev-yayin                                         # ilk sürüm (dev dalı GitHub'da olmalı)
+ls -l /srv/sesli-oda/dev/www                                # current -> releases/<kısa sha>
+docker compose -f /srv/sesli-oda/compose.yml --project-directory /srv/sesli-oda/app \
+  --env-file /srv/sesli-oda/.env up -d --no-deps dev
+systemctl enable --now sesli-oda-dev-yayin.timer
+```
+
+Cloudflare'de (Zero Trust → Tunnels → `sesli-oda` → Public hostnames): `dev.agalar.app` → `http://dev:8080`.
+`current` yokken `dev` açılırsa her şey 404 döner (sağlık denetimi de); önce ilk sürüm yayınlanır. Caddyfile
+değişince kopyalanır ve `dev` yeniden başlatılır (`... restart dev`): tek dosya bağlaması eski dosyayı görmeye devam
+eder. `dev` konteynerini durdurmak canlıyı etkilemez (`... stop dev`).
 
 ## Ortam değişkenleri
 
