@@ -50,7 +50,7 @@ function eventWhere(s, event, ok, ms = 3000) {
     s.on(event, on);
   });
 }
-const chatText = (s, re) => eventWhere(s, 'chat', (m) => m.system && re.test(m.text));
+const chatText = (s, re, ms) => eventWhere(s, 'chat', (m) => m.system && re.test(m.text), ms);
 // Koşul sağlanana kadar yoklar (zamanlamaya güvenmeden).
 async function until(fn, what, ms = 3000) {
   const end = Date.now() + ms;
@@ -632,7 +632,7 @@ test('etkin durum yönetici > sahip; yönetici kaldırınca kökendeki sahip kay
 });
 
 test('oda kapanınca: kapanan odanın kökenlileri iptal, öteki kökenlilerin yenileme payı sürer (dönen susturulmuş, dönmeyenin kaydı silinir)', async () => {
-  const slow = await startServer({ env: { REJOIN_GRACE_MS: '2500' } });
+  const slow = await startServer({ env: { REJOIN_GRACE_MS: '4000' } });
   const conn = async (name, room) => {
     const s = await client(slow.url, name);
     sockets.push(s);
@@ -659,7 +659,7 @@ test('oda kapanınca: kapanan odanın kökenlileri iptal, öteki kökenlilerin y
       const ob = await conn(`${variant}B`, B); // A'da, kökeni B
       const x = await conn(`${variant}x`, B);
       noError(await mute(ob, x));
-      const obLeft = chatText(oa, new RegExp(`^${variant}B ayrıldı$`));
+      const obLeft = chatText(oa, new RegExp(`^${variant}B ayrıldı$`), 8000); // yenileme payı 4 sn
       ob.close();
       await obLeft; // B sahibi gerçekten çıktı
       const xLeft = eventWhere(oa, 'user-left', (id) => id === x.joinId);
@@ -676,6 +676,106 @@ test('oda kapanınca: kapanan odanın kökenlileri iptal, öteki kökenlilerin y
         await until(async () => !(await rec(B, `${variant}x`)), 'pay dolunca kayıt silindi', 8000);
       }
     }
+  } finally {
+    await slow.stop();
+  }
+});
+
+// ---------- Tur 5 ----------
+
+test('yönetici kaldırınca hesabın her odadaki sahip susturması silinir (ayrılınca B\'ye girince susturulmuş değil)', async () => {
+  const t = await rooms();
+  const oa = await enter(t.ownerA, t.A);
+  const ob = await enter(t.ownerB, t.B);
+  const name = `Her${tag}`;
+  const x = await enter(name, t.B);
+  noError(await mute(ob, x)); // B: sahip kaydı
+  const adminB = await enter('osyalcin', t.B);
+  noError(await mute(adminB, x)); // hesap: yönetici
+  const gone = [chatText(ob, new RegExp(`^${name} ayrıldı$`)), eventWhere(ob, 'user-left', (id) => id === adminB.joinId)];
+  x.close();
+  adminB.close();
+  await Promise.all(gone);
+  const admin = await adminLobby();
+  const moved = next(ob, 'room:moved');
+  assert.deepEqual(await ack(admin, 'merge:request', { from: t.A, to: t.B }), { merged: true });
+  ob.joinId = (await moved).id;
+  const xa = await enter(name, t.A);
+  assert.equal(xa.joinRes.modMuted, 'admin');
+  const adminA = await enter('osyalcin', t.A);
+  assert.equal(noError(await mute(adminA, xa, false)).modMuted, null);
+  assert.equal(await record(t.B, name), null, 'B\'deki sahip kaydı da silindi');
+  const back = next(ob, 'room:moved');
+  assert.deepEqual(await ack(admin, 'merge:split', { room: t.A }), {});
+  await back;
+  const kicked = next(xa, 'kicked');
+  const xb = await enter(name, t.B);
+  await kicked;
+  assert.equal(xb.joinRes.modMuted, null);
+  void oa;
+});
+
+test('yönetici susturmasında da kendi mikrofonunu açamaz, efekt çalamaz ve yükleyemez', async () => {
+  const { A } = await rooms(1);
+  const watcher = await enter(`Izl${tag}`, A);
+  const x = await enter(`Efy${tag}`, A);
+  const adminIn = await enter('osyalcin', A);
+  noError(await mute(adminIn, x));
+  x.emit('mute', false);
+  await new Promise((r) => x.emit('time', r));
+  const late = await enter(`Efyg${tag}`, A);
+  assert.equal(late.joinRes.peers.find((q) => q.id === x.joinId).muted, true);
+  const notice = eventWhere(x, 'notice', (t) => /Susturuldun/.test(t));
+  const heard = [];
+  watcher.on('sfx', (d) => heard.push(d));
+  x.emit('sfx', 'clap');
+  await notice;
+  const wav = Buffer.alloc(100);
+  wav.write('RIFF', 0, 'latin1');
+  wav.write('WAVE', 8, 'latin1');
+  assert.match((await ack(x, 'sfx:upload', { data: wav, label: 'deneme' })).error || '', /Susturuldun/);
+  await new Promise((r) => x.emit('time', r));
+  assert.deepEqual(heard, []);
+  noError(await mute(adminIn, x, false));
+});
+
+test('yenileme payındaki kişi başka kapıdan dönünce eski kökeninin sahipsiz kaydı silinir', async () => {
+  const slow = await startServer({ env: { REJOIN_GRACE_MS: '4000' } });
+  const conn = async (name, room) => {
+    const s = await client(slow.url, name);
+    sockets.push(s);
+    const r = await ack(s, 'join', { token: s.token, clientId: name, room });
+    assert.equal(r.error, undefined, JSON.stringify(r).slice(0, 200));
+    s.joinId = r.id;
+    s.joinRes = r;
+    return s;
+  };
+  try {
+    const mk = async (name, owner) => {
+      await http(slow.url, 'POST', '/auth/register', { body: { name: owner, password: 'hesap-sifre' } });
+      return (await http(slow.url, 'POST', '/rooms', { token: ADMIN, body: { name, owner } })).json.room.id;
+    };
+    const A = await mk('Ors A', 'OrsA');
+    const B = await mk('Ors B', 'OrsB');
+    const oa = await conn('OrsA', A);
+    const admin = await client(slow.url, 'osyalcin');
+    sockets.push(admin);
+    await ack(admin, 'hello', { token: admin.token });
+    assert.deepEqual(await ack(admin, 'merge:request', { from: A, to: B }), { merged: true }); // B boş
+    const ob = await conn('OrsB', B);
+    const x = await conn('Orsx', B); // A'da, kökeni B
+    noError(await mute(ob, x));
+    const obLeft = chatText(oa, /^OrsB ayrıldı$/, 8000); // yenileme payı 4 sn
+    ob.close();
+    await obLeft;
+    const xLeft = eventWhere(oa, 'user-left', (id) => id === x.joinId);
+    x.close(); // yenileme payında
+    await xLeft;
+    assert.deepEqual(await ack(admin, 'merge:split', { room: A }), {}); // payda olduğu için B'nin kaydı kalır
+    assert.ok((await inspect(slow.url, B, 'Orsx')).record);
+    const xa = await conn('Orsx', A); // A'nın kapısından döner (kökeni artık A)
+    assert.equal(xa.joinRes.modMuted, null);
+    assert.equal((await inspect(slow.url, B, 'Orsx')).record, null, 'B kökenli kimse yok: kayıt silindi');
   } finally {
     await slow.stop();
   }

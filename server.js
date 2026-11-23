@@ -729,6 +729,7 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
   // Bekleyen çıkış hesaba bağlıdır: sekme kapanıp yeni sekmeden (yeni clientId) dönülse de iptal olur.
   const leaveKey = `${roomCode}:${account.key}`;
   let rejoined = pendingLeaves.has(leaveKey);
+  const pendingHome = pendingHomes.get(leaveKey); // payı iptal edilen eski girişin kökeni (aşağıda süpürülür)
   clearTimeout(pendingLeaves.get(leaveKey));
   pendingLeaves.delete(leaveKey);
   pendingHomes.delete(leaveKey);
@@ -742,10 +743,11 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
     io.sockets.sockets.get(id)?.disconnect(true);
   }
 
-  // Birleşik odada doluluk kökene göre: her odadan en fazla MAX_USERS.
+  // Birleşik odada doluluk kökene göre: her odadan en fazla MAX_USERS. Site yöneticisi sayılmaz ve dolu odaya da
+  // girer (dolu odayı yönetebilsin, susturduğunu kaldırabilsin); oda kartı onu saymadan n/10 gösterir.
   const merged = Boolean(merge.partnerOf(roomCode));
-  const count = merged ? [...room.users.values()].filter((u) => u.home === home).length : room.users.size;
-  if (count >= MAX_USERS) {
+  const count = [...room.users.values()].filter((u) => !u.admin && (!merged || u.home === home)).length;
+  if (count >= MAX_USERS && !accounts.isAdmin(account.key)) {
     return { error: `Oda dolu (en fazla ${MAX_USERS} kişi).` };
   }
 
@@ -773,6 +775,9 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
   socket.leave(LOBBY);
   socket.join([roomCode, JOINED]);
   socket.to(roomCode).emit('user-joined', peerView(socket.id, user));
+  // Payı iptal edilen eski giriş başka kökendense ve o odanın canlı durumu yoksa, birleşik de değilse süpürülür
+  // (o kökenden kimse kalmadıysa sahip kayıtları silinir; sahipsiz kayıt kalmasın).
+  if (pendingHome && pendingHome !== home && !rooms.get(pendingHome) && !merge.partnerOf(pendingHome)) sweepMutes(pendingHome);
   roomsChanged();
   const homeReg = (home !== roomCode && roomStore.get(home)) || reg;
   return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, color, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
@@ -883,15 +888,17 @@ const canMerge = (reg, account) => ['owner', 'admin'].includes(roomStore.role(re
 function mergeLive(id) {
   const partner = merge.partnerOf(id);
   const live = rooms.get(merge.hostOf(id));
-  const users = [...(live?.users.values() || [])].filter((u) => !partner || u.home === id).map((u) => u.name);
-  return { users, max: MAX_USERS, mergedWith: partner };
+  const inside = [...(live?.users.values() || [])].filter((u) => !partner || u.home === id);
+  // users: içeridekilerin hepsi (yönetici dahil); count: doluluğa sayılanlar (yönetici hariç), max ile karşılaştırılır.
+  return { users: inside.map((u) => u.name), count: inside.filter((u) => !u.admin).length, max: MAX_USERS, mergedWith: partner };
 }
 
 // Kişi sınırı: her taraf en fazla MAX_USERS, toplam en fazla iki katı. Taraf, odanın canlı durumundaki
 // herkestir (başka odayla birleşmiş ev sahibinde iki kökenin toplamı).
 function mergeCapacityError(from, to) {
-  const a = rooms.get(from)?.users.size || 0;
-  const b = rooms.get(to)?.users.size || 0;
+  const members = (id) => [...(rooms.get(id)?.users.values() || [])].filter((u) => !u.admin).length; // yönetici sayılmaz
+  const a = members(from);
+  const b = members(to);
   if (a > MAX_USERS || b > MAX_USERS || a + b > 2 * MAX_USERS) {
     return { error: `Birleşik oda en fazla ${2 * MAX_USERS} kişi olabilir (her odadan en fazla ${MAX_USERS}).` };
   }
@@ -1194,8 +1201,12 @@ function bindModEvents(socket) {
       postSystem(room, `${target.name} susturuldu (susturan: ${account.name})`);
     } else {
       if (!existing) return ack({ modMuted: effective() });
-      if (by === 'admin') mutes.removeAdmin(target.key); // yönetici tek seferde duyulur yapar: kökendeki sahip
-      mutes.removeOwner(target.home, target.key); // kaydı da silinir (sahibin kaldırması yalnız sahip kaydını)
+      // Yönetici tek seferde duyulur yapar: hesabın her odadaki sahip kayıtları da silinir. Sahibin kaldırması
+      // yalnız kendi odasının kaydını siler.
+      if (by === 'admin') {
+        mutes.removeAdmin(target.key);
+        mutes.removeOwnerEverywhere(target.key);
+      } else mutes.removeOwner(target.home, target.key);
       // Mikrofon kendiliğinden açılmaz: kişi kendisi açana kadar sessizde kalır.
       io.to(code).emit('user-modmuted', { id, muted: Boolean(effective()), by: effective() });
       postSystem(room, `${target.name} artık konuşabilir (susturmayı kaldıran: ${account.name})`);

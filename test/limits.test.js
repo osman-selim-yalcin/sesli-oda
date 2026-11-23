@@ -77,3 +77,49 @@ for (const [game, max] of [['kelime', 6], ['dino', 7], ['hedef', 11], ['kural', 
     else assert.deepEqual(notices, [], 'odadaki 10 kişinin hepsi lobiye girer');
   });
 }
+
+// ---------- Site yöneticisi doluluğa sayılmaz ----------
+const joinAs = async (name, id) => {
+  const s = await client(srv.url, name);
+  sockets.push(s);
+  return { s, r: await ack(s, 'join', { token: s.token, clientId: `${name}-${seq}`, room: id }) };
+};
+const view = async (id) => (await http(srv.url, 'GET', '/rooms', { token: 'test:osyalcin' })).json.rooms.find((r) => r.id === id);
+
+test('yönetici dolu odaya girer ve sayılmaz: 10 üye + yönetici; 11. üye yine reddedilir; kartta 10/10', async () => {
+  const id = await room();
+  await people(id, 10, `Dolu${seq}k`);
+  const { r } = await joinAs('osyalcin', id);
+  assert.equal(r.error, undefined, JSON.stringify(r).slice(0, 200));
+  const { r: eleventh } = await joinAs(`Fazla${seq}`, id);
+  assert.equal(eleventh.error, 'Oda dolu (en fazla 10 kişi).');
+  const v = await view(id);
+  assert.equal(v.count, 10, 'yönetici doluluğa sayılmaz');
+  assert.equal(v.max, 10);
+  assert.ok(v.users.includes('osyalcin'), 'içeridekiler listesinde görünür');
+});
+
+test('içerideki yönetici 10. üyeyi engellemez', async () => {
+  const id = await room();
+  assert.equal((await joinAs('osyalcin', id)).r.error, undefined);
+  await people(id, 10, `Ilk${seq}k`);
+  assert.equal((await view(id)).count, 10);
+});
+
+test('birleşik 10 + 10 odaya yönetici girer; her taraf yine 10', async () => {
+  const A = await room();
+  const B = await room();
+  await people(A, 10, `Ba${seq}k`);
+  const bs = await people(B, 10, `Bb${seq}k`);
+  const admin = await client(srv.url, 'osyalcin');
+  sockets.push(admin);
+  await ack(admin, 'hello', { token: admin.token });
+  const moved = next(bs[9], 'room:moved');
+  assert.deepEqual(await ack(admin, 'merge:request', { from: A, to: B }), { merged: true });
+  await moved;
+  const viaB = await joinAs('osyalcin', B);
+  assert.equal(viaB.r.error, undefined, JSON.stringify(viaB.r).slice(0, 200));
+  assert.equal((await view(A)).count, 10);
+  assert.equal((await view(B)).count, 10);
+  assert.match((await joinAs(`FazlaB${seq}`, B)).r.error || '', /dolu/);
+});

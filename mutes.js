@@ -5,7 +5,7 @@
 // - Yönetici susturması hesaba bağlı, site geneli: her odada, her kapıdan, birleşmede ve sonrasında geçerli;
 //   yalnız yönetici kaldırır (ya da sunucu yeniden başlar: hafızada). Yalnız yönetici eklediği için sınırlıdır.
 // - Etkin susturma: hesabın yönetici kaydı, yoksa kökenin sahip kaydı, yoksa yok.
-// - Yönetici herkesi susturur ve kaldırır (kaldırma kökendeki sahip kaydını da siler). Sahip kökeni kendi odası olanı
+// - Yönetici herkesi susturur ve kaldırır (kaldırma hesabın her odadaki sahip kaydını da siler). Sahip kökeni kendi odası olanı
 //   (yönetici ve yöneticinin susturduğu hariç) susturur ve sahip kaydını kaldırır. Kimse kendini susturamaz.
 // - Sahip kayıtları oda kapanınca ya da o kökenden canlı odalarda ve yenileme payında kimse kalmayınca silinir.
 const owners = new Map(); // oda id -> Map<hesap anahtarı, { by: 'owner', name }>
@@ -26,6 +26,9 @@ function removeOwner(room, key) {
   m.delete(key);
   if (!m.size) owners.delete(room);
 }
+function removeOwnerEverywhere(key) {
+  for (const room of [...owners.keys()]) removeOwner(room, key);
+}
 const clearRoom = (room) => owners.delete(room); // yalnız sahip kayıtları; yönetici kayıtları odaya bağlı değil
 
 const setAdmin = (key, name) => admins.set(key, { by: 'admin', name });
@@ -43,4 +46,4 @@ function check({ actor, target, existing }) {
   return null;
 }
 
-module.exports = { getOwner, getAdmin, effective, setOwner, removeOwner, clearRoom, setAdmin, removeAdmin, check };
+module.exports = { getOwner, getAdmin, effective, setOwner, removeOwner, removeOwnerEverywhere, clearRoom, setAdmin, removeAdmin, check };

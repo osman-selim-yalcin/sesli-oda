@@ -219,9 +219,11 @@ function tickLevels() {
 // ---------- Katılımcı listesi ----------
 
 // Birleşik odada sınır iki katı (her odadan en fazla 10).
+// Site yöneticisi doluluğa sayılmaz (dolu odaya da girer): sayaç onu saymaz.
 function renderPeopleCount() {
   const max = curRoom?.max || 10;
-  $('people-count').textContent = `${peers.size + 1}/${curRoom?.mergedWith ? 2 * max : max}`;
+  const n = [...peers.values()].filter((p) => !p.admin).length + (account?.admin ? 0 : 1);
+  $('people-count').textContent = `${n}/${curRoom?.mergedWith ? 2 * max : max}`;
 }
 
 // İsimden sabit bir renk: herkes her yerde (liste, sohbet) aynı renkte görünür.
@@ -7096,7 +7098,8 @@ function rsError(text) {
 // İçeridekiler: odanın kendi kökenli kişileri (birleşik odada öteki odanın kişileri kendi odasında sayılır).
 function renderRsPeople(r) {
   const users = r.users || [];
-  $('rs-people-count').textContent = r.max ? `${users.length}/${r.max}` : String(users.length);
+  const count = r.count ?? users.length; // yönetici sayılmaz
+  $('rs-people-count').textContent = r.max ? `${count}/${r.max}` : String(users.length);
   if (!users.length) {
     $('rs-people').replaceChildren(Object.assign(document.createElement('li'), { className: 'rs-people-none', textContent: 'Şu an içeride kimse yok.' }));
     return;

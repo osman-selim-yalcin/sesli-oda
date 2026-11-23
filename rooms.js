@@ -205,7 +205,7 @@ let live = () => ({ users: [], max: 0, mergedWith: null });
 let onChange = () => {};
 
 function view(room, account) {
-  const { users, max, mergedWith } = live(room.id);
+  const { users, count = users.length, max, mergedWith } = live(room.id);
   return {
     id: room.id,
     name: room.name,
@@ -213,6 +213,7 @@ function view(room, account) {
     locked: Boolean(room.passHash),
     theme: room.theme,
     users,
+    count, // doluluğa sayılanlar (site yöneticisi sayılmaz)
     max,
     mergedWith,
     role: role(room, account),

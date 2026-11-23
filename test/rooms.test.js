@@ -21,7 +21,7 @@ test('GET /rooms oturumsuz 401; oturumla tek oda genel', async () => {
   assert.equal(r.status, 200);
   assert.deepEqual(r.json.rooms, [{
     id: 'genel', name: 'genel', owner: 'osyalcin', locked: false, theme: 'gece',
-    users: [], max: 10, mergedWith: null, role: 'member',
+    users: [], count: 0, max: 10, mergedWith: null, role: 'member',
   }]);
   assert.equal((await list('test:osyalcin')).json.rooms[0].role, 'admin');
 });

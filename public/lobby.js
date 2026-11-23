@@ -140,7 +140,9 @@ window.Lobby = (() => {
   const MAX_FACES = 5; // kartta en çok bu kadar yüz, fazlası "+N"
   // Dolu oda: hesabın kendisi zaten içerideyse (ör. telefondan dizüstüne geçiş) dolu sayılmaz; sunucu girişte o
   // hesabın eski oturumunu düşürüp öyle sayar.
-  const isFull = (r) => r.users.length >= r.max && !r.users.includes(account?.name);
+  // Doluluk count'la (site yöneticisi sayılmaz; yönetici dolu odaya da girer).
+  const countOf = (r) => r.count ?? r.users.length;
+  const isFull = (r) => countOf(r) >= r.max && !r.users.includes(account?.name) && !isAdmin();
   // Ayar düğmesi: sahip kendi odasında, site yöneticisi her odada (şifreli, dolu ya da hiç girmediği odada da).
   const canManage = (r) => r.role === 'owner' || r.role === 'admin';
 
@@ -213,8 +215,8 @@ window.Lobby = (() => {
 
     // Alt satır: yüzler, doluluk, eylem
     const foot = el('span', 'room-foot');
-    const occ = el('span', `room-occ${r.users.length ? ' is-live' : ''}`, `${r.users.length}/${r.max}`);
-    occ.title = `${r.users.length} kişi içeride, en fazla ${r.max}`;
+    const occ = el('span', `room-occ${r.users.length ? ' is-live' : ''}`, `${countOf(r)}/${r.max}`);
+    occ.title = `${countOf(r)} kişi içeride${r.users.length > countOf(r) ? ' (yönetici sayılmaz)' : ''}, en fazla ${r.max}`;
     const go = el('span', 'room-go');
     if (busyId === r.id) {
       go.innerHTML = icon('loader');
@@ -235,7 +237,7 @@ window.Lobby = (() => {
       r.role === 'owner' && 'Senin odan',
       `sahibi ${r.owner}`,
       r.locked && 'şifreli',
-      `${r.users.length}/${r.max} kişi`,
+      `${countOf(r)}/${r.max} kişi`,
       partner && `${partner.name} ile birleşik`,
     ].filter(Boolean).join(', ');
     card.setAttribute('aria-label', label);

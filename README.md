@@ -1,7 +1,7 @@
 # Sesli Oda
 
 Birden çok odalı sesli sohbet + senkronize YouTube izleme/dinleme ve oyunlar. Her oda en fazla 10 kişi;
-iki oda birleşince 20 kişi (her odadan 10).
+iki oda birleşince 20 kişi (her odadan 10). Site yöneticisi bu sayıya girmez, dolu odaya da girer.
 
 **Canlı:** https://agalar.app
 
@@ -111,7 +111,7 @@ açar. Kurallar:
 - Yöneticinin susturması hesaba bağlıdır: her odada, her kapıdan, birleşmede ve sonrasında geçerlidir; yalnız
   yönetici kaldırır (hafızadadır: sunucu yeniden başlarsa kalkar). Kişinin susturması: yöneticininki, yoksa
   kökeninin sahip susturması.
-- Yönetici herkesi susturur ve kaldırır; kaldırınca kökendeki sahip susturması da kalkar. Sahip kökeni kendi
+- Yönetici herkesi susturur ve kaldırır; kaldırınca kişinin her odadaki sahip susturması da kalkar. Sahip kökeni kendi
   odası olanları (yönetici ve yöneticinin susturduğu hariç) susturur ve kaldırır. Kimse kendini susturamaz.
 - Sahip susturması oda kapanınca ya da o odanın kökenlilerinden canlı odalarda ve yenileme payında kimse
   kalmayınca silinir; odadan çıkıp dönen yine susturulmuştur.
