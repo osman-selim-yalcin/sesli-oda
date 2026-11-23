@@ -255,7 +255,7 @@ function renderHedefRecords() {
   list.replaceChildren(...rows.map((r, i) => {
     const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
     const row = timingRow(r.name, `${r.points} puan`, date, i === 0 ? 'great' : '');
-    row.prepend(rankCell(i));
+    row.prepend(rankCell(i, i + 1, rows[0].points > 0 && rows[0].points !== rows[1]?.points));
     if (hedef?.done && r.at === hedef.id) row.classList.add('winner'); // az önce biten oyun
     return row;
   }));

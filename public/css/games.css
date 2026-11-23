@@ -62,12 +62,14 @@
 .game-home-icon.img { width: 24px; height: 24px; border-radius: var(--radius-s); }
 .game-chip-icon.img { width: 22px; height: 22px; border-radius: var(--radius-s); }
 .game-chip-icon:not(.img) { font-size: 14px; }
-.game-card-badge { position: absolute; top: var(--space-2); left: var(--space-2); }
+/* Alt satır: kişi sayısı ve rozet (rozet çizimin üstüne binmez) */
+.game-card-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); min-width: 0; }
+.game-card-badge { margin-left: auto; flex-shrink: 0; }
 .game-card-body { display: grid; gap: 2px; padding: var(--space-3) var(--space-3) var(--space-3); min-width: 0; }
 .game-card-name { font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: -.005em; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-card-desc { font-size: 13px; color: var(--muted); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .game-card.lobby-open .game-card-desc { color: var(--live); }
-.game-card-meta { display: inline-flex; align-items: center; gap: 5px; margin-top: var(--space-2); font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.game-card-meta { display: inline-flex; align-items: center; gap: 5px; min-width: 0; font-size: 12px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .game-card-meta .ic { width: 14px; height: 14px; }
 .game-card.lobby-open, .game-card.running { border-color: color-mix(in srgb, var(--live) 45%, var(--border)); }
 .game-card.soon { opacity: .6; }
@@ -113,10 +115,11 @@
 .timing-display.running { color: var(--accent); } /* hareketsiz: ritmi saniye saymaya yaramasın */
 .timing-diff { min-height: 1.5em; font-weight: 600; color: var(--muted); }
 .timing-diff.great, .timing-val.great { color: var(--live); }
-/* içerik: süre tahmininin not ölçeği (kusursuz → uzak); iki ara basamak temanın dışında kendi rengindedir */
-.timing { --grade-good: #9BE15D; --grade-ok: #FFBF5F; }
-.timing-diff.good, .timing-val.good { color: var(--grade-good, var(--live)); }
-.timing-diff.ok, .timing-val.ok { color: var(--grade-ok, var(--muted)); }
+/* Not ölçeği sözleşme renklerinden: kusursuz --live, iyi açık yeşil, fena değil açık kırmızı, uzak --danger.
+   Sarı (--accent-2) yalnız taç / ilk üç / senin sıran için kalır. */
+.timing { --grade-good: color-mix(in srgb, var(--live) 60%, var(--text)); --grade-ok: color-mix(in srgb, var(--danger) 55%, var(--text)); }
+.timing-diff.good, .timing-val.good { color: var(--grade-good); }
+.timing-diff.ok, .timing-val.ok { color: var(--grade-ok); }
 .timing-diff.far, .timing-val.far { color: var(--danger); }
 .timing-btn { min-width: 200px; min-height: 52px; padding: 0 var(--space-6); font-size: 17px; border-radius: var(--radius-pill); }
 .timing-btn.stop { background: var(--danger); border-color: var(--danger); }
@@ -204,8 +207,9 @@
 /* Senin sıran: açılabilen taşların kenarı --accent-2 */
 .memory-tile.can .memory-back { border-color: color-mix(in srgb, var(--accent-2) 35%, var(--border-strong)); }
 .memory-tile.can:hover .memory-back { border-color: var(--accent-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 30%, transparent); }
-/* içerik: taşın açık yüzü kâğıt rengi, sayı ve çerçeve taşın kendi rengi (--c, app.js MEMORY.colors) */
-.memory { --memory-paper: #F4F1EA; }
+/* içerik: taşın açık yüzü kâğıt rengi (taşlarda ve lobideki sayı/renk çiplerinde), sayı ve çerçeve taşın kendi rengi
+   (--c, app.js MEMORY.colors). Lobi kutusu #game-memory içinde olduğu için tek tanım yeter. */
+#game-memory { --memory-paper: #F4F1EA; }
 .memory-face { transform: rotateY(180deg); background: var(--memory-paper); border: 3px solid var(--c, var(--border-strong)); color: var(--c, var(--bg)); font-weight: 800; font-size: clamp(15px, 3.2vw, 28px); }
 .memory-tile.taken .memory-face { opacity: .3; }
 .memory-tile.miss .memory-face { box-shadow: 0 0 0 2px var(--danger); }
@@ -246,7 +250,7 @@
 .memory-sizes { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .memory-sizes:empty { display: none; }
 .memory-sizes button.active { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
-.memory-chip { --memory-paper: #F4F1EA; display: inline-flex; align-items: center; gap: 2px; min-width: 32px; height: var(--control-h-sm); padding: 0 4px 0 10px; justify-content: center; border-radius: var(--radius-s); background: var(--memory-paper); color: var(--c, var(--bg)); border: 2px solid var(--c, var(--border-strong)); font-weight: 700; font-size: 13px; }
+.memory-chip { display: inline-flex; align-items: center; gap: 2px; min-width: 32px; height: var(--control-h-sm); padding: 0 4px 0 10px; justify-content: center; border-radius: var(--radius-s); background: var(--memory-paper); color: var(--c, var(--bg)); border: 2px solid var(--c, var(--border-strong)); font-weight: 700; font-size: 13px; }
 .memory-chip:not(:has(button)) { padding-right: 10px; }
 .memory-chip-x { min-height: 0; padding: 0 4px; border: none; background: none; color: var(--c, var(--bg)); opacity: .6; font-size: 15px; line-height: 1; }
 .memory-chip-x:hover:where(:not(:disabled)) { opacity: 1; }
@@ -299,7 +303,7 @@
   .lobby.hero .lobby-title { font-size: 21px; }
   .lobby-hero-icon { width: 76px; height: 76px; }
   .lobby-player { width: 60px; }
-  .lobby-actions > .btn, .lobby-actions > button.primary { flex: 1 1 auto; }
+  .lobby-actions > button.primary { flex: 1 1 auto; }
 }
 .tab.lobby-open::after { content: ''; display: inline-block; width: 7px; height: 7px; margin-left: 6px; vertical-align: 2px; border-radius: 50%; background: var(--live); }
 #race-rounds button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
@@ -341,7 +345,9 @@
 .kelime-chosen b { color: var(--kelime-hot); }
 .kelime-play { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
 .kelime-main { display: grid; gap: 10px; }
-.kelime-scroll { height: 75vh; min-height: 320px; overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 8px 4px; background: var(--surface-2); border-radius: var(--radius-s); }
+/* Tahta görünen alana sığar: üst çubuk (--topbar-h), telefonda alt çubuk (--dock-h) ve paylaşım şeridi (--share-h)
+   çıkarılır; kalan pay oyun seçici, başlık satırı ve tahmin kutusu içindir. Tahmin kutusu kaydırmadan görünür. */
+.kelime-scroll { height: calc(100dvh - var(--topbar-h) - var(--share-h, 0px) - var(--dock-h, 0px) - 260px); min-height: 280px; overflow-y: auto; overscroll-behavior: contain; padding: 4px 8px 8px 4px; background: var(--surface-2); border-radius: var(--radius-s); }
 .kelime-guess { width: min(100%, 420px); justify-self: center; }
 .kelime-slot { display: flex; align-items: center; gap: 8px; min-height: 40px; margin-bottom: 6px; padding: 6px 10px; border: 2px dashed color-mix(in srgb, var(--kelime-hot) 55%, transparent); border-radius: var(--radius-s); font-weight: 700; color: var(--kelime-hot); }
 .kelime-slot.found { border-style: solid; background: color-mix(in srgb, var(--kelime-hot) 14%, transparent); color: var(--text); }
@@ -359,10 +365,10 @@
 .kelime-word.selected { box-shadow: 0 0 0 2px var(--accent); }
 .kelime-word.grab { cursor: grab; touch-action: none; }
 .kelime-side { display: grid; gap: 10px; align-content: start; }
-.kelime-turn { display: grid; gap: 8px; padding: 10px; background: var(--surface-2); border-radius: var(--radius-s); min-height: 44px; }
+/* Anlatıcının sırası (yerleştirmesi gereken kelimeler): --accent-2 kenar */
+.kelime-turn { display: grid; gap: 8px; padding: 10px; background: var(--surface-2); border: var(--border-w) solid color-mix(in srgb, var(--accent-2) 45%, transparent); border-radius: var(--radius-s); min-height: 44px; }
 .kelime-turn:empty { display: none; }
 .kelime-turn .row { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
-.kelime-turn { border: var(--border-w) solid color-mix(in srgb, var(--accent-2) 45%, transparent); } /* anlatıcının sırası: yerleştirmesi gereken kelimeler */
 .kelime-turn .secs { flex-shrink: 0; font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent-2); }
 .kelime-turn .kelime-word { position: static; flex: 1; min-width: 0; }
 .kelime-trash { padding: 14px 10px; border: 2px dashed var(--border-strong); border-radius: var(--radius-s); text-align: center; color: var(--muted); font-size: 13px; }
@@ -383,7 +389,7 @@
 #kelime-pool-form { flex-wrap: wrap; }
 #kelime-pool-form input { flex: 1 1 180px; min-width: 0; }
 .kelime .timing-list li { flex-wrap: wrap; }
-.kelime .timing-list li > .small { flex-basis: 100%; padding-left: 48px; overflow-wrap: anywhere; }
+.kelime .timing-list li > .small { flex-basis: 100%; padding-left: 48px; white-space: normal; overflow-wrap: anywhere; }
 /* Oyun öner */
 .oner { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .oner-step, .oner-form, .oner-list, .oner-review, .oner-body { grid-template-columns: minmax(0, 1fr); }
@@ -447,8 +453,8 @@
 .timing-boards { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); text-align: left; }
 .timing-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; min-width: 0; }
 .timing-list li { --avatar-gap: var(--surface); display: flex; align-items: center; gap: var(--space-2); min-height: 44px; padding: 6px var(--space-3) 6px var(--space-2); background: var(--surface); border: var(--border-w) solid var(--border); border-radius: var(--radius-s); min-width: 0; font-size: 14px; }
-.timing-list li.muted { min-height: 0; background: none; border-color: transparent; padding: 6px 0; }
-.timing-list li.me { --avatar-gap: var(--surface); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
+.timing-list li.muted { min-height: 0; background: none; border-color: transparent; padding: 6px 0; white-space: normal; } /* boş tablo yazısı kırılır */
+.timing-list li.me { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 .timing-list li.winner { border-color: color-mix(in srgb, var(--accent-2) 55%, transparent); }
 .timing-list .avatar { width: 26px; height: 26px; font-size: 11px; }
 .timing-rank { flex-shrink: 0; display: inline-grid; place-items: center; width: 22px; text-align: center; font-weight: 700; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -458,7 +464,6 @@
 .timing-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .timing-val { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .timing-list li > .small { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.timing-list li.muted { white-space: normal; } /* boş tablo yazısı satıra sığmazsa kırılır */
 .timing-list li > .small:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .timing-list + h2, .timing-boards h2 { margin-top: var(--space-4); }
 
@@ -492,7 +497,9 @@
 .tier-drop.over { background: var(--accent-soft); }
 .tier-row-actions { display: flex; flex-direction: column; justify-content: center; padding: 0 2px; opacity: .35; transition: opacity .15s; }
 .tier-row:hover .tier-row-actions { opacity: 1; }
-.tier-row-actions button { padding: 2px; }
+.tier-row-actions button { position: relative; padding: 2px; }
+/* Dokunma alanı görünüşü büyütmeden genişler: yanlara 10 px (40 px'i aşar); dikeyde üç düğme satırı paylaşır */
+.tier-row-actions button::after { content: ''; position: absolute; inset: -1px -10px; }
 .tier-add-row { margin-top: 6px; }
 .tier-pool { display: flex; flex-wrap: wrap; gap: 4px; min-height: 84px; padding: 4px; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); margin-bottom: 10px; }
 .tier-pool.empty-pool::before { content: "Bütün kartlar yerleşti. Yeni kart eklersen burada çıkar."; margin: auto; color: var(--muted); font-size: 13px; }
@@ -554,7 +561,7 @@
   .oner-steps button span { display: none; }
   .oner-steps li { min-width: 0; }
   .kelime-side { order: -1; }
-  .kelime-scroll { height: 62vh; }
+  .kelime-scroll { height: calc(100dvh - var(--topbar-h) - var(--share-h, 0px) - var(--dock-h, 0px) - 330px); min-height: 240px; }
   .kelime-role { flex: 1; min-width: 0; }
   .timing-display { font-size: 52px; }
 }
@@ -799,7 +806,8 @@
 }
 .hedef-board li { flex-wrap: wrap; }
 .hedef-board .hedef-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hedef-board .hedef-note { flex: 1; min-width: 0; white-space: normal; }
+/* .timing-list li > .small (nowrap) kuralından özgül: not kırılır, puanın üstüne binmez */
+.hedef-board li > .hedef-note { flex: 1 1 120px; min-width: 0; white-space: normal; } /* yer yoksa alt satıra iner */
 .hedef-board .hedef-note.ok { color: var(--live); }
 .hedef-board .hedef-total { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
 @media (max-width: 520px) {
@@ -1036,5 +1044,6 @@
   .memory-chip-x { align-self: stretch; padding: 0 8px; }
   .kelime-pool button { min-width: 32px; min-height: 32px; }
   .sayi-cell { height: 40px; }
-  .hedef-ops button { height: 52px; }
+  .tier-row-actions { justify-content: stretch; }
+  .tier-row-actions button { flex: 1; min-width: 32px; } /* satırın üçte biri yükseklik, alan yanlara genişler */
 }

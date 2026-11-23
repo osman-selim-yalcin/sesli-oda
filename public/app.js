@@ -1744,12 +1744,13 @@ function timingVerdict(diff) {
   return [diff > 0 ? 'Geç kaldın' : 'Erken bıraktın', 'far'];
 }
 
-// Skor tablosunun sıra hücresi: ilk üç --accent-2 ile işaretlenir, birincide taç (css/games.css .timing-rank.top).
-// label sayı değilse (ör. bot simgesi ya da boş) olduğu gibi yazılır.
-function rankCell(i, label = i + 1) {
+// Skor tablosunun sıra hücresi. mark: sıralama kesinleşmiş, birinci tek ve puanı sıfırdan büyük (oyun bitti ya da
+// kalıcı rekor tablosu): o zaman ilk üç --accent-2 ile işaretlenir, birincide taç (css/games.css .timing-rank.top);
+// değilse düz sıra numarası. label sayı değilse (ör. bot simgesi ya da boş) olduğu gibi yazılır.
+function rankCell(i, label = i + 1, mark = true) {
   const el = document.createElement('span');
   el.className = 'timing-rank';
-  if (typeof label === 'number' && i < 3) {
+  if (mark && typeof label === 'number' && i < 3) {
     el.classList.add('top', `top-${i + 1}`);
     el.title = `${i + 1}.`;
     if (i === 0) el.innerHTML = icon('crown');
@@ -1842,9 +1843,9 @@ function renderTiming() {
   }
   const bestList = $('timing-best');
   bestList.replaceChildren();
-  [...best.values()].sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff)).slice(0, TIMING_BOARD).forEach((r, i) => {
+  [...best.values()].sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff)).slice(0, TIMING_BOARD).forEach((r, i, all) => {
     const row = timingRow(r.name, fmtDiff(r.diff), `${fmtSeconds(r.elapsed)} sn`, timingVerdict(r.diff)[1]);
-    row.prepend(rankCell(i));
+    row.prepend(rankCell(i, i + 1, Math.abs(all[0].diff) !== Math.abs(all[1]?.diff))); // birincilikte eşitlik yoksa
     bestList.append(row);
   });
   if (!best.size) bestList.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Bu hedefte henüz deneme yok.' }));
@@ -1909,6 +1910,7 @@ function renderRaceBoard() {
 
   const names = [...race.players].sort((a, b) => raceTotal(race, a) - raceTotal(race, b));
   const best = names.length ? raceTotal(race, names[0]) : 0;
+  const sole = names.filter((n) => raceTotal(race, n) === best).length === 1; // taç yalnız tek kazanana
   const list = $('race-list');
   list.replaceChildren();
   names.forEach((name, i) => {
@@ -1921,7 +1923,7 @@ function renderRaceBoard() {
     else sub = ms === undefined ? 'sayıyor…' : 'durdurdu ✓';
     const row = timingRow(name, `${fmtSeconds(total)} sn`, sub, won ? 'great' : '');
     row.classList.toggle('winner', won);
-    row.prepend(rankCell(i));
+    row.prepend(rankCell(i, i + 1, race.done && race.ended > 0 && sole));
     list.append(row);
   });
 }
@@ -2199,7 +2201,8 @@ function kelimeScoreList(list, scores, sub, crown) {
   list.replaceChildren();
   scores.forEach((s, i) => {
     const li = timingRow(s.name, `${s.points > 0 ? '+' : ''}${s.points} puan`, sub(s));
-    li.prepend(rankCell(i));
+    // Taç ve sarı sıralar yalnız oyun sonunda, birinci tek ve puanı artıdaysa; tur puanlarında ve oyun sürerken düz sıra
+    li.prepend(rankCell(i, i + 1, Boolean(crown) && scores[0].points > 0 && scores[0].points !== scores[1]?.points));
     if (crown && i === 0 && s.points > 0) li.classList.add('winner');
     list.append(li);
   });
@@ -2567,7 +2570,7 @@ function renderMemory() {
     const row = timingRow(name, `${game.scores[name]} çift`, sub, turn ? 'good' : '');
     if (game.done && !solo && best > 0 && game.scores[name] === best) row.classList.add('winner');
     row.classList.toggle('memory-turn', turn);
-    row.prepend(rankCell(i, game.done && !solo ? i + 1 : ''));
+    row.prepend(rankCell(i, game.done && !solo ? i + 1 : '', best > 0 && game.players.filter((n) => game.scores[n] === best).length === 1));
     list.append(row);
   });
   if (game.done && solo && !left) {
@@ -2643,9 +2646,10 @@ socket.on('memory', setMemory);
 let memoryRanks = { solo: {}, wins: [] };
 let memorySize = null; // rekorlarda seçili tahta (çift sayısı)
 
-function memoryRankRow(name, main, sub, i) {
-  const row = timingRow(name, main, sub, i === 0 ? 'great' : '');
-  row.prepend(rankCell(i));
+// mark: birinci işaretlensin mi (kazananlar tablosunda 0 galibiyet ya da birincilikte eşitlik varsa işaret yok)
+function memoryRankRow(name, main, sub, i, mark = true) {
+  const row = timingRow(name, main, sub, i === 0 && mark ? 'great' : '');
+  row.prepend(rankCell(i, i + 1, mark));
   return row;
 }
 const memoryEmpty = (text) => Object.assign(document.createElement('li'), { className: 'muted small', textContent: text });
@@ -2669,7 +2673,9 @@ function renderMemoryRanks() {
   }));
   if (!best.children.length) best.append(memoryEmpty('Tek başına bitirilen oyun yok.'));
   const wins = $('memory-wins');
-  wins.replaceChildren(...memoryRanks.wins.map((w, i) => memoryRankRow(w.name, `${w.wins} galibiyet`, `${w.games} oyun · ${w.pairs} çift`, i)));
+  const [w1, w2] = memoryRanks.wins;
+  const winsMark = w1?.wins > 0 && w1.wins !== w2?.wins;
+  wins.replaceChildren(...memoryRanks.wins.map((w, i) => memoryRankRow(w.name, `${w.wins} galibiyet`, `${w.games} oyun · ${w.pairs} çift`, i, winsMark)));
   if (!wins.children.length) wins.append(memoryEmpty('Birlikte oynanan oyun yok.'));
 }
 socket.on('memory:board', (board) => {
@@ -3766,13 +3772,17 @@ function renderLobby(game) {
   box.style.setProperty('--hue', gameInfo(def.tab).hue);
   const mine = lobby.players.includes(myName);
   const host = lobby.host === myName;
-  const ready = lobby.players.length > 1; // tek kişiyle de başlatılabilen oyunlarda da diğerleri beklenir
+  // Durum: iki ve üstü kişi "Hazır"; tek kişiyle başlatılabiliyorsa sakin kişi sayısı; başlatılamıyorsa (kelime en az 2)
+  // "Oyuncu bekleniyor".
+  const n = lobby.players.length;
+  const ready = n > 1;
+  const canStart = n >= (game === 'kelime' ? 2 : 1);
   const headText = document.createElement('div');
   headText.className = 'lobby-head-text';
   headText.append(Object.assign(document.createElement('strong'), { className: 'lobby-name', textContent: `${def.title} lobisi` }),
-    kelimeSmall(`${lobby.players.length} kişi · ${lobby.host} kurdu`));
+    kelimeSmall(ready ? `${n} kişi · ${lobby.host} kurdu` : `${lobby.host} kurdu`));
   head.append(gameIcon(def.tab, 'lobby-head-icon'), headText,
-    Object.assign(document.createElement('span'), { className: ready ? 'badge badge-live' : 'badge', textContent: ready ? 'Hazır' : 'Oyuncu bekleniyor' }));
+    Object.assign(document.createElement('span'), { className: ready ? 'badge badge-live' : 'badge', textContent: ready ? 'Hazır' : canStart ? `${n} kişi` : 'Oyuncu bekleniyor' }));
 
   const list = document.createElement('div');
   list.className = 'lobby-players';
@@ -4413,11 +4423,13 @@ function renderDinoUi() {
   jef.querySelector('.avatar').style.background = DINO_JEF_COLOR;
   jef.prepend(rankCell(-1, '🤖'));
   list.append(jef);
+  // Taç ve sarı sıralar yalnız koşu bitince, birinci tekse (eskiden 🏆 yalnız kazanana çıkıyordu)
+  const sole = rows.length > 1 && rows[0][1].dist > 0 && rows[0][1].dist !== rows[1][1].dist;
   rows.forEach(([name, p], i) => {
     const won = game.done && i === 0 && rows.length > 1;
     const row = timingRow(name, `${Math.round(p.dist / 10)} m`, p.dead ? (won ? 'Kazandı' : 'Öldü') : 'Koşuyor', won ? 'great' : '');
     row.classList.toggle('winner', won);
-    row.prepend(rankCell(i));
+    row.prepend(rankCell(i, i + 1, game.done && sole));
     list.append(row);
   });
 }
@@ -7074,12 +7086,15 @@ function renderGameHome() {
       b.style.setProperty('--hue', info.hue);
       const art = el('span', 'game-card-art');
       art.append(gameIcon(t.key, 'game-card-icon'));
-      if (lobbyOpen(t) || running) art.append(el('span', 'badge badge-live game-card-badge', lobbyOpen(t) ? 'Lobi açık' : 'Oynanıyor'));
-      if (info.soon) art.append(el('span', 'badge game-card-badge', 'Yakında'));
       const body = el('span', 'game-card-body');
       body.append(el('strong', 'game-card-name', t.name));
       if (info.desc && !info.soon) body.append(el('small', 'game-card-desc', lobbyOpen(t) ? 'Lobi açık, katılabilirsin' : info.desc));
-      if (info.players) body.append(withIcon(el('span', 'game-card-meta', info.players), 'users'));
+      // Alt satır: kişi sayısı solda, rozet sağda (çizimin üstüne binmez)
+      const foot = el('span', 'game-card-foot');
+      if (info.players) foot.append(withIcon(el('span', 'game-card-meta', info.players), 'users'));
+      if (lobbyOpen(t) || running) foot.append(el('span', 'badge badge-live game-card-badge', lobbyOpen(t) ? 'Lobi açık' : 'Oynanıyor'));
+      if (info.soon) foot.append(el('span', 'badge game-card-badge', 'Yakında'));
+      if (foot.childNodes.length) body.append(foot);
       b.append(art, body);
       return b;
     }));
