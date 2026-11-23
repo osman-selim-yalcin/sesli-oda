@@ -92,7 +92,8 @@ function renderDaktiloBoard() {
   const list = $('daktilo-records-list');
   list.replaceChildren(...rows.map((r, i) => {
     const li = document.createElement('li');
-    li.append(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }), makeAvatar(r.name),
+    if (r.name === myName) li.className = 'me';
+    li.append(rankCell(i), makeAvatar(r.name),
       Object.assign(document.createElement('span'), { className: 'timing-name', textContent: r.name }),
       Object.assign(document.createElement('span'), { className: 'timing-val', textContent: `${r.wpm} kelime/dk` }),
       Object.assign(document.createElement('span'), { className: 'muted small', textContent: r.wrong ? `${r.wrong} yanlış` : 'hatasız' }));

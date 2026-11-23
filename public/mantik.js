@@ -546,7 +546,7 @@ function renderMantik() {
   $('mantik-scores').replaceChildren(...game.players.map((p) => {
     const f = game.finished[p];
     const li = document.createElement('li');
-    li.className = f ? 'found' : '';
+    li.className = (f ? 'found' : '') + (p === myName ? ' me' : '');
     li.append(mantikCell('strong', null, p === myName ? 'Sen' : p));
     if (f) li.append(` · ✓ ${fmtTime(f.ms / 1000)} · `, mantikCell('b', null, `${f.points} puan`));
     else li.append(game.done ? ' · çözemedi' : ' · çözüyor');

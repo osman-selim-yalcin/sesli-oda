@@ -251,7 +251,7 @@ function renderKural() {
     const f = game.finished[p];
     const c = game.counts[p] || { tries: 0, wrong: 0 };
     const gone = game.gone.includes(p);
-    const li = kuralEl('li', f ? 'found' : '');
+    const li = kuralEl('li', (f ? 'found' : '') + (p === myName ? ' me' : ''));
     li.append(kuralEl('strong', '', p === myName ? 'Sen' : p));
     if (f) {
       li.append(` · ${f.tries} deneme${f.wrong ? ` · ${f.wrong} yanlış` : ''} · ${fmtTime(f.ms / 1000)} · `, kuralEl('b', '', `${f.points} puan`));

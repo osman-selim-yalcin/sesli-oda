@@ -185,6 +185,7 @@ function renderHedefBoard(game) {
   $('hedef-board').replaceChildren(...ranked.map((p) => {
     const li = document.createElement('li');
     if (game.done && game.winners.includes(p)) li.className = 'winner';
+    if (p === myName) li.classList.add('me');
     const gone = game.left.includes(p);
     const s = play ? game.status[p] : game.last?.results[p];
     let note;
@@ -254,7 +255,7 @@ function renderHedefRecords() {
   list.replaceChildren(...rows.map((r, i) => {
     const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
     const row = timingRow(r.name, `${r.points} puan`, date, i === 0 ? 'great' : '');
-    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i < 3 ? ['🥇', '🥈', '🥉'][i] : i + 1 }));
+    row.prepend(rankCell(i));
     if (hedef?.done && r.at === hedef.id) row.classList.add('winner'); // az önce biten oyun
     return row;
   }));

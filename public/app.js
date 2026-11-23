@@ -1744,8 +1744,24 @@ function timingVerdict(diff) {
   return [diff > 0 ? 'Geç kaldın' : 'Erken bıraktın', 'far'];
 }
 
+// Skor tablosunun sıra hücresi: ilk üç --accent-2 ile işaretlenir, birincide taç (css/games.css .timing-rank.top).
+// label sayı değilse (ör. bot simgesi ya da boş) olduğu gibi yazılır.
+function rankCell(i, label = i + 1) {
+  const el = document.createElement('span');
+  el.className = 'timing-rank';
+  if (typeof label === 'number' && i < 3) {
+    el.classList.add('top', `top-${i + 1}`);
+    el.title = `${i + 1}.`;
+    if (i === 0) el.innerHTML = icon('crown');
+    else el.textContent = label;
+  } else el.textContent = label;
+  return el;
+}
+
+// Skor tablolarının ortak satırı (.timing-list): avatar, ad, değer, alt yazı. Kendi satırın .me (--accent-soft).
 function timingRow(name, main, sub, cls) {
   const li = document.createElement('li');
+  if (name === myName) li.classList.add('me');
   li.append(makeAvatar(name));
   const text = document.createElement('span');
   text.className = 'timing-name';
@@ -1828,7 +1844,7 @@ function renderTiming() {
   bestList.replaceChildren();
   [...best.values()].sort((a, b) => Math.abs(a.diff) - Math.abs(b.diff)).slice(0, TIMING_BOARD).forEach((r, i) => {
     const row = timingRow(r.name, fmtDiff(r.diff), `${fmtSeconds(r.elapsed)} sn`, timingVerdict(r.diff)[1]);
-    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+    row.prepend(rankCell(i));
     bestList.append(row);
   });
   if (!best.size) bestList.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Bu hedefte henüz deneme yok.' }));
@@ -1905,7 +1921,7 @@ function renderRaceBoard() {
     else sub = ms === undefined ? 'sayıyor…' : 'durdurdu ✓';
     const row = timingRow(name, `${fmtSeconds(total)} sn`, sub, won ? 'great' : '');
     row.classList.toggle('winner', won);
-    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: won ? '🏆' : i + 1 }));
+    row.prepend(rankCell(i));
     list.append(row);
   });
 }
@@ -2183,7 +2199,7 @@ function kelimeScoreList(list, scores, sub, crown) {
   list.replaceChildren();
   scores.forEach((s, i) => {
     const li = timingRow(s.name, `${s.points > 0 ? '+' : ''}${s.points} puan`, sub(s));
-    li.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+    li.prepend(rankCell(i));
     if (crown && i === 0 && s.points > 0) li.classList.add('winner');
     list.append(li);
   });
@@ -2551,7 +2567,7 @@ function renderMemory() {
     const row = timingRow(name, `${game.scores[name]} çift`, sub, turn ? 'good' : '');
     if (game.done && !solo && best > 0 && game.scores[name] === best) row.classList.add('winner');
     row.classList.toggle('memory-turn', turn);
-    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: game.done && !solo ? i + 1 : '' }));
+    row.prepend(rankCell(i, game.done && !solo ? i + 1 : ''));
     list.append(row);
   });
   if (game.done && solo && !left) {
@@ -2629,7 +2645,7 @@ let memorySize = null; // rekorlarda seçili tahta (çift sayısı)
 
 function memoryRankRow(name, main, sub, i) {
   const row = timingRow(name, main, sub, i === 0 ? 'great' : '');
-  row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+  row.prepend(rankCell(i));
   return row;
 }
 const memoryEmpty = (text) => Object.assign(document.createElement('li'), { className: 'muted small', textContent: text });
@@ -2991,7 +3007,7 @@ function renderSayi() {
   scores.replaceChildren(...game.players.map((p) => {
     const f = game.finished?.[p];
     const li = document.createElement('li');
-    li.className = f ? 'found' : '';
+    li.className = (f ? 'found' : '') + (p === myName ? ' me' : '');
     li.append(Object.assign(document.createElement('strong'), { textContent: p === myName ? 'Sen' : p }),
       f ? ` · ${f.guesses} tahmin · ${fmtTime(f.ms / 1000)} · ` : ` · ${game.done ? 'bulamadı' : 'arıyor'} (${game.guesses[p].length} tahmin)`,
       ...(f ? [Object.assign(document.createElement('b'), { textContent: `${f.points} puan` })] : []));
@@ -3715,6 +3731,7 @@ function renderLobby(game) {
   box.replaceChildren();
   box.hidden = def.running();
   $(`game-tab-${def.tab}`).classList.toggle('lobby-open', Boolean(lobby) && box.hidden === false);
+  $(`game-tab-${def.tab}`).classList.toggle('game-running', box.hidden); // oyunlar sayfasındaki "Oynanıyor" rozeti
   if (box.hidden) return;
 
   box.classList.remove('hero');
@@ -3733,28 +3750,37 @@ function renderLobby(game) {
     if (!hero) box.append(Object.assign(document.createElement('p'), { className: 'muted small', textContent: def.hint }));
     const row = document.createElement('div');
     row.className = 'lobby-actions';
-    row.append(lobbyButton('Oda kur', 'lobby-start', () => lobbyEmit('lobby:open', game)));
+    row.append(withIcon(lobbyButton('Oda kur', 'primary lobby-start', () => lobbyEmit('lobby:open', game)), 'plus'));
     if (def.last()) row.append(lobbyButton('Aynı ekiple kur', 'ghost lobby-again', () => lobbyEmit('lobby:open', game, { again: true })));
     box.append(row);
     if (hero) box.append(Object.assign(document.createElement('p'), { className: 'lobby-desc', textContent: def.hint }));
     return;
   }
 
+  // Lobi kartı: başlıkta oyunun simgesi, adı, kimin kurduğu ve durum rozeti (tek kişiyse "bekleniyor", fazlaysa
+  // "hazır"); altında oyuncular avatar sırası, ayarlar ve eylemler.
   const head = document.createElement('div');
   head.className = 'lobby-head';
-  head.append(Object.assign(document.createElement('strong'), { textContent: `${def.title} lobisi` }));
   box.append(head);
   box.classList.add('open');
+  box.style.setProperty('--hue', gameInfo(def.tab).hue);
   const mine = lobby.players.includes(myName);
   const host = lobby.host === myName;
-  head.append(kelimeSmall(`${lobby.players.length} kişi · ${lobby.host} kurdu`));
+  const ready = lobby.players.length > 1; // tek kişiyle de başlatılabilen oyunlarda da diğerleri beklenir
+  const headText = document.createElement('div');
+  headText.className = 'lobby-head-text';
+  headText.append(Object.assign(document.createElement('strong'), { className: 'lobby-name', textContent: `${def.title} lobisi` }),
+    kelimeSmall(`${lobby.players.length} kişi · ${lobby.host} kurdu`));
+  head.append(gameIcon(def.tab, 'lobby-head-icon'), headText,
+    Object.assign(document.createElement('span'), { className: ready ? 'badge badge-live' : 'badge', textContent: ready ? 'Hazır' : 'Oyuncu bekleniyor' }));
 
   const list = document.createElement('div');
   list.className = 'lobby-players';
   for (const name of lobby.players) {
     const chip = document.createElement('span');
     chip.className = 'lobby-player' + (name === myName ? ' me' : '');
-    chip.append(makeAvatar(name), name);
+    chip.title = name;
+    chip.append(makeAvatar(name), Object.assign(document.createElement('span'), { className: 'lobby-player-name', textContent: name === myName ? `${name} (sen)` : name }));
     if (name === lobby.host) chip.append(kelimeSmall('kurucu'));
     if (name === lobby.opts.narrator) chip.append(withIcon(kelimeSmall('anlatıcı'), 'mic'));
     list.append(chip);
@@ -3804,14 +3830,14 @@ function renderLobby(game) {
   const actions = document.createElement('div');
   actions.className = 'lobby-actions';
   if (host) {
-    actions.append(lobbyButton(`Başlat (${lobby.players.length} kişi)`, 'primary', () => lobbyEmit('lobby:start', game)));
-    actions.append(lobbyButton('Lobiden çık', 'ghost', () => lobbyEmit('lobby:leave', game)));
+    actions.append(withIcon(lobbyButton(`Başlat (${lobby.players.length} kişi)`, 'primary', () => lobbyEmit('lobby:start', game)), 'play'));
+    actions.append(withIcon(lobbyButton('Lobiden çık', 'ghost', () => lobbyEmit('lobby:leave', game)), 'logout'));
     actions.append(lobbyButton('Lobiyi kapat', 'ghost danger', () => lobbyEmit('lobby:cancel', game)));
   } else if (mine) {
-    actions.append(lobbyButton('Lobiden çık', '', () => lobbyEmit('lobby:leave', game)));
+    actions.append(withIcon(lobbyButton('Lobiden çık', 'ghost', () => lobbyEmit('lobby:leave', game)), 'logout'));
     actions.append(kelimeSmall(`${lobby.host} başlatınca oyun bu ekiple başlar.`));
   } else {
-    actions.append(lobbyButton('Lobiye katıl', 'primary', () => lobbyEmit('lobby:join', game)));
+    actions.append(withIcon(lobbyButton('Lobiye katıl', 'primary', () => lobbyEmit('lobby:join', game)), 'plus'));
     actions.append(kelimeSmall('Katılmazsan oyunu izlersin.'));
   }
   box.append(actions);
@@ -4385,13 +4411,13 @@ function renderDinoUi() {
   const rows = Object.entries(game.players).map(([name, p]) => [name, { ...p, dist: dist(name, p) }]).sort((a, b) => b[1].dist - a[1].dist);
   const jef = timingRow('Jef (bot)', `${Math.round(dinoJefNow() / 10)} m`, 'Kusursuz', '');
   jef.querySelector('.avatar').style.background = DINO_JEF_COLOR;
-  jef.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: '🤖' }));
+  jef.prepend(rankCell(-1, '🤖'));
   list.append(jef);
   rows.forEach(([name, p], i) => {
     const won = game.done && i === 0 && rows.length > 1;
     const row = timingRow(name, `${Math.round(p.dist / 10)} m`, p.dead ? (won ? 'Kazandı' : 'Öldü') : 'Koşuyor', won ? 'great' : '');
     row.classList.toggle('winner', won);
-    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: won ? '🏆' : i + 1 }));
+    row.prepend(rankCell(i));
     list.append(row);
   });
 }
@@ -4403,7 +4429,7 @@ function renderDinoBoard(board) {
   (board?.auto || []).forEach((r, i) => {
     const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
     const row = timingRow(r.name, `${Math.round(r.dist / 10)} m`, date, i === 0 ? 'great' : '');
-    row.prepend(Object.assign(document.createElement('span'), { className: 'timing-rank', textContent: i + 1 }));
+    row.prepend(rankCell(i));
     list.append(row);
   });
   if (!board?.auto?.length) list.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz skor yok.' }));
@@ -6956,20 +6982,21 @@ addEventListener('DOMContentLoaded', async () => {
 // Sekme düğmeleri (game-tab-*) gizli durur ve hâlâ asıl geçişi yapar; kartlar ve son oynananlar onları tıklar.
 // Yeni bir oyunun sekmesi eklenince kartlarda kendiliğinden görünür (bilgisi yoksa "Diğer" altında).
 
+// players: kartta görünen kişi sayısı aralığı (sunucudaki LOBBY_GAMES sınırları; bot ayrıca katılabilir)
 const GAME_INFO = {
-  sayi: { icon: '🔢', hue: 210, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul' },
-  kural: { icon: '🕵️', hue: 265, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala' },
-  hedef: { icon: '🎯', hue: 0, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş' },
-  mantik: { icon: '🧠', hue: 320, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu' },
-  klotski: { icon: '🧩', hue: 130, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar' },
-  memory: { icon: '🃏', hue: 40, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla' },
-  timing: { icon: '⏱️', hue: 190, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur' },
-  daktilo: { icon: '⌨️', hue: 280, group: 'Hız ve refleks', desc: 'Aynı kelimeleri yaz, en hızlı olan kazanır' },
-  okuma: { icon: '📖', hue: 35, group: 'Hız ve refleks', desc: 'Göz açısı, blok görme, takistoskop' },
-  dino: { icon: '🦖', hue: 100, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş' },
+  sayi: { icon: '🔢', hue: 210, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
+  kural: { icon: '🕵️', hue: 265, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–6 kişi' },
+  hedef: { icon: '🎯', hue: 0, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–6 kişi' },
+  mantik: { icon: '🧠', hue: 320, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–6 kişi' },
+  klotski: { icon: '🧩', hue: 130, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
+  memory: { icon: '🃏', hue: 40, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–6 kişi' },
+  timing: { icon: '⏱️', hue: 190, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur', players: '1–6 kişi' },
+  daktilo: { icon: '⌨️', hue: 280, group: 'Hız ve refleks', desc: 'Aynı kelimeleri yaz, en hızlı olan kazanır', players: '1–6 kişi' },
+  okuma: { icon: '📖', hue: 35, group: 'Hız ve refleks', desc: 'Göz açısı, blok görme, takistoskop', players: 'Tek kişi' },
+  dino: { icon: '🦖', hue: 100, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş', players: '1–6 kişi' },
   peacock: { icon: '🦚', hue: 170, group: 'Hız ve refleks', desc: 'Yakında', soon: true },
-  kelime: { icon: '💬', hue: 230, group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir' },
-  tier: { icon: '📊', hue: 25, group: 'Birlikte', desc: 'Birlikte sıralama listeleri' },
+  kelime: { icon: '💬', hue: 230, group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir', players: '2–6 kişi' },
+  tier: { icon: '📊', hue: 25, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },
   oner: { icon: '💡', hue: 50, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
 };
 const GAME_GROUPS = ['Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
@@ -7030,22 +7057,30 @@ function renderGameSwitch() {
   if (!$('game-home').hidden) renderGameHome();
 }
 
+// Kart: üstte oyunun çizimi (oyunun tonunda hafif zemin), altta ad, tek satır açıklama ve kişi sayısı.
+// Lobisi açık ya da oyunu süren oyunda köşede --live rozeti (lobisi olmayan oyunlarda rozet yok).
 function renderGameHome() {
   const tabs = gameTabs();
   const groups = GAME_GROUPS.map((g) => [g, tabs.filter((t) => gameInfo(t.key).group === g)]).filter(([, list]) => list.length);
+  const el = (tag, className, text) => Object.assign(document.createElement(tag), { className, ...(text != null ? { textContent: text } : {}) });
   $('game-home').replaceChildren(...groups.map(([group, list]) => {
     const sec = document.createElement('section');
-    sec.append(Object.assign(document.createElement('h3'), { textContent: group }));
-    const grid = document.createElement('div');
-    grid.className = 'game-home-grid';
+    sec.append(el('h3', '', group));
+    const grid = el('div', 'game-home-grid');
     grid.append(...list.map((t) => {
       const info = gameInfo(t.key);
-      const b = gameEntry(t, 'game-card' + (info.soon ? ' soon' : ''));
+      const running = t.btn.classList.contains('game-running');
+      const b = gameEntry(t, 'game-card' + (info.soon ? ' soon' : '') + (running ? ' running' : ''));
       b.style.setProperty('--hue', info.hue);
-      b.append(gameIcon(t.key, 'game-card-icon'),
-        Object.assign(document.createElement('strong'), { textContent: t.name }),
-        Object.assign(document.createElement('small'), { textContent: lobbyOpen(t) ? 'Lobi açık, katılabilirsin' : info.desc }));
-      if (lobbyOpen(t)) b.append(Object.assign(document.createElement('span'), { className: 'game-card-badge', textContent: 'Lobi' }));
+      const art = el('span', 'game-card-art');
+      art.append(gameIcon(t.key, 'game-card-icon'));
+      if (lobbyOpen(t) || running) art.append(el('span', 'badge badge-live game-card-badge', lobbyOpen(t) ? 'Lobi açık' : 'Oynanıyor'));
+      if (info.soon) art.append(el('span', 'badge game-card-badge', 'Yakında'));
+      const body = el('span', 'game-card-body');
+      body.append(el('strong', 'game-card-name', t.name));
+      if (info.desc && !info.soon) body.append(el('small', 'game-card-desc', lobbyOpen(t) ? 'Lobi açık, katılabilirsin' : info.desc));
+      if (info.players) body.append(withIcon(el('span', 'game-card-meta', info.players), 'users'));
+      b.append(art, body);
       return b;
     }));
     sec.append(grid);
