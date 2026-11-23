@@ -1,0 +1,31 @@
+# Testler: main'e açılan her PR'da ve dev'e her gönderimde. Testler kendi sunucularını test/preload.js ile
+# Supabase'siz ve sırsız açar; ağ gerekmez. Hiçbir sır kullanılmaz.
+name: test
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
