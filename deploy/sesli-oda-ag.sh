@@ -12,6 +12,10 @@
 #                gelmesi gerekmez.
 #   DOCKER-USER: önce alt ağ içi (app <-> tunnel) RETURN, sonra özel/iç ağlara (10/8, 172.16/12, 192.168/16,
 #                100.64/10 Tailscale, 169.254/16 metadata) DROP. Gerisi (internet) olduğu gibi geçer.
+#   raw PREROUTING: Tailscale adreslerine (100.64/10) gideni yönlendirmeden önce düşürür. Gerekçe: tailscaled
+#                FORWARD'ın başına kendi zincirini (ts-forward) koyar ve "-o tailscale0 -j ACCEPT" ile DOCKER-USER'a
+#                sıra gelmeden kabul eder; DOCKER-USER'daki 100.64/10 kuralı tek başına tailnet'i kapatmaz
+#                (sunucuda denendi: 100.100.100.100:53'e bağlanılabiliyordu).
 # IPv6 kuralı yok: compose ağında IPv6 açık değil. Docker'ın kurulum (build) ağı bu kuralların dışındadır.
 # Başka birimlerin DOCKER-USER kurallarına (ör. "-o tailscale0 -j DROP") dokunulmaz; bizimkiler en üste eklenir.
 set -euo pipefail
@@ -20,10 +24,11 @@ SUBNET=172.31.240.0/28
 TAG=sesli-oda-ag # yorum etiketi: kaldırırken yalnız bizim kurallar bulunur
 IPT=(iptables -w)
 
-# Kurallar sırasıyla: zincir|kural
+# Kurallar sırasıyla: zincir|kural. "raw:" ile başlayan zincir raw tablosundadır; gerisi filter.
 rules() {
   local m=(-m comment --comment "$TAG")
   printf '%s\n' \
+    "raw:PREROUTING|-s $SUBNET -d 100.64.0.0/10 ${m[*]} -j DROP" \
     "INPUT|-s $SUBNET ${m[*]} -j DROP" \
     "DOCKER-USER|-s $SUBNET -d $SUBNET ${m[*]} -j RETURN" \
     "DOCKER-USER|-s $SUBNET -d 10.0.0.0/8 ${m[*]} -j DROP" \
@@ -34,16 +39,23 @@ rules() {
 }
 
 # Kural metninde boşluklu değer yok (yorum etiketi tek kelime), kelimelere bölmek güvenli.
+# ipt <işlem (-C/-I/-D)> <zincir ya da raw:zincir> <kalan...>
+ipt() {
+  local op=$1 chain=$2
+  shift 2
+  if [[ $chain == raw:* ]]; then "${IPT[@]}" -t raw "$op" "${chain#raw:}" "$@"; else "${IPT[@]}" "$op" "$chain" "$@"; fi
+}
+
 has() { # has <zincir> <kural>
   # shellcheck disable=SC2086
-  "${IPT[@]}" -C "$1" $2 2>/dev/null
+  ipt -C "$1" $2 2>/dev/null
 }
 
 remove_all() {
   local chain rule
   while IFS='|' read -r chain rule; do
     # shellcheck disable=SC2086
-    while has "$chain" "$rule"; do "${IPT[@]}" -D "$chain" $rule; done
+    while has "$chain" "$rule"; do ipt -D "$chain" $rule; done
   done < <(rules)
 }
 
@@ -65,11 +77,12 @@ install() {
   fi
   # Sıra önemli (RETURN DROP'lardan önce): eksik varsa hepsi silinip baştan, en üste sırayla eklenir.
   remove_all
-  local chain rule n_input=0 n_user=0 pos
+  local chain rule pos
+  local -A n=()
   while IFS='|' read -r chain rule; do
-    if [[ $chain == INPUT ]]; then n_input=$(( n_input + 1 )); pos=$n_input; else n_user=$(( n_user + 1 )); pos=$n_user; fi
+    n[$chain]=$(( ${n[$chain]:-0} + 1 )); pos=${n[$chain]}
     # shellcheck disable=SC2086
-    "${IPT[@]}" -I "$chain" "$pos" $rule
+    ipt -I "$chain" "$pos" $rule
   done < <(rules)
   echo "sesli-oda-ag: kurallar eklendi ($SUBNET)."
 }
