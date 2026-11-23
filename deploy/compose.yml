@@ -1,6 +1,9 @@
-# Sesli Oda: uygulama + Cloudflare tüneli. Sunucuda /srv/sesli-oda/app/deploy/compose.yml olarak durur.
-# Sırlar /srv/sesli-oda/.env'dedir ve compose'a --env-file ile verilir (deploy/yayin.sh böyle çağırır):
-#   docker compose --env-file /srv/sesli-oda/.env -f /srv/sesli-oda/app/deploy/compose.yml ...
+# Sesli Oda: uygulama + Cloudflare tüneli.
+# Depodaki bu dosya yalnız kaynaktır: sunucuda root'a ait onaylı kopyası /srv/sesli-oda/compose.yml kullanılır
+# (yönetici gözden geçirip elle kopyalar; main'e push compose'u değiştiremez). Çağrı (deploy/yayin.sh böyle yapar):
+#   docker compose -f /srv/sesli-oda/compose.yml --project-directory /srv/sesli-oda/app \
+#     --env-file /srv/sesli-oda/.env ...
+# Göreli yollar (build bağlamı) --project-directory'ye, yani depo kopyasına göre çözülür.
 # env_file kullanılmaz: o dosyanın tamamını konteynere verirdi. Her konteyner yalnız kendi değişkenlerini alır:
 # app TUNNEL_TOKEN'ı, tunnel Supabase anahtarını görmez. --env-file unutulursa zorunlu değişkenler (:?) yüzünden
 # compose hiç çalışmaz (uygulama Supabase'siz, boş hafızayla açılmasın).
@@ -22,12 +25,22 @@ x-hardening: &hardening
 services:
   app:
     <<: *hardening
-    # deploy/yayin.sh imajı sesli-oda-app:<kısa sha> olarak kurar ve yayındakini :current olarak etiketler.
-    image: sesli-oda-app:current
+    # deploy/yayin.sh imajı sesli-oda-app:<kısa sha> olarak kurar, APP_TAG=<kısa sha> ile başlatır ve sağlıklı
+    # açılınca :current etiketini verir. Elle çalıştırmada APP_TAG yok: son sağlıklı sürüm (current).
+    image: sesli-oda-app:${APP_TAG:-current}
     pull_policy: never
     build:
-      context: ..
+      context: .
       dockerfile: deploy/Dockerfile
+    # Dockerfile'daki USER ve HEALTHCHECK'e güvenilmez (push ile değişebilir): burada sabit.
+    user: "1000:1000" # node:22-alpine'daki node kullanıcısı
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3030/theme-list').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      start_interval: 2s
+      retries: 3
     tmpfs: [/tmp]
     mem_limit: 512m
     environment:
@@ -53,6 +66,7 @@ services:
       app:
         condition: service_healthy
 
+# IPv6 açılmadı (enable_ipv6 yok): sunucu güvenlik duvarı kuralları (deploy/sesli-oda-ag.sh) yalnız IPv4'tür.
 networks:
   sesli-oda:
     name: sesli-oda

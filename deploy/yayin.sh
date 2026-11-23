@@ -3,24 +3,30 @@
 # depodaki bu dosyanın sonraki değişiklikleri kendiliğinden devreye girmez (elle yeniden kopyalanır).
 #
 #   sesli-oda-yayin           origin/main'deki son commit'i yayınlar (zamanlayıcı dakikada bir çağırır).
-#                             Zaten yayındaysa ve sağlıklıysa sessizce çıkar.
-#   sesli-oda-yayin <sha>     O commit'i yayınlar (geri alma ya da elle onay). main'in geçmişinde olmalı.
+#                             Zaten yayında ve sağlıklıysa ya da konteyner hâlâ açılıyorsa sessizce çıkar.
+#   sesli-oda-yayin <sha>     O commit'i yayınlar (geri alma ya da başarısız commit'i yeniden deneme).
+#                             main'in geçmişinde olmalı.
 #
 # root olarak çalışır (docker için); git adımları ayrıcalıksız $GIT_USER kullanıcısıyla yapılır.
-# Yeni imaj kurulamaz ya da $HEALTH_WAIT saniyede sağlıklı açılmazsa önceki imaj geri konur ve betik hata
-# koduyla çıkar. Başarısız commit kaydedilir; zamanlayıcı aynı commit'i tekrar tekrar denemez.
-# Otomatik yayın deploy/compose.yml değişen bir commit'i yayınlamaz (compose dosyası konteynere host üzerinde
-# yetki verebilir): gözden geçirilip elle `sesli-oda-yayin <sha>` ile yayınlanır.
+# Compose dosyası depodan değil, root'a ait onaylı kopyadan ($COMPOSE_FILE) okunur: main'e push yalnız imajı
+# değiştirir, konteynerin sunucudaki yetkilerini (kullanıcı, bağlamalar, ağ) değiştiremez. Depodaki
+# deploy/compose.yml kurulu kopyadan farklıysa yine kurulu kopya kullanılır ve commit başına bir uyarı yazılır.
+#
+# Yeni imaj sha etiketiyle başlatılır; $HEALTH_WAIT saniyede sağlıklı açılırsa "current" etiketini alır.
+# Kurulamaz, başlatılamaz ya da sağlıklı açılmazsa "current" (önceki sağlıklı sürüm) yeniden başlatılır ve betik
+# hata koduyla çıkar. Başarısız commit kaydedilir; zamanlayıcı onu tekrar tekrar denemez. Site kapalı kaldıysa
+# (iki sürüm de açılmadı) her turda "SİTE KAPALI" yazar ve hata koduyla çıkar.
 set -euo pipefail
 
 BASE_DIR=${BASE_DIR:-/srv/sesli-oda}
 APP_DIR=${APP_DIR:-$BASE_DIR/app}                 # deponun git kopyası ($GIT_USER'a ait)
+COMPOSE_FILE=${COMPOSE_FILE:-$BASE_DIR/compose.yml} # onaylı compose kopyası (root, 644)
 ENV_FILE=${ENV_FILE:-$BASE_DIR/.env}              # sırlar (root, 600)
-STATE_DIR=${STATE_DIR:-$BASE_DIR/state}           # başarısız / bekletilen commit kayıtları (root)
+STATE_DIR=${STATE_DIR:-$BASE_DIR/state}           # başarısız / sabitlenmiş commit kayıtları (root)
 LOCK_FILE=${LOCK_FILE:-/run/lock/sesli-oda-yayin.lock}
 GIT_USER=${GIT_USER-sesli-oda}                    # boşsa git çalıştıranın kendisiyle çalışır (yalnız deneme)
 PROJECT=sesli-oda                                 # compose proje adı
-IMAGE=sesli-oda-app                               # imaj adı; etiketler: <kısa sha> ve current (yayındaki)
+IMAGE=sesli-oda-app                               # imaj adı; etiketler: <kısa sha> ve current (son sağlıklı)
 BRANCH=main
 HEALTH_WAIT=${HEALTH_WAIT:-60}                    # sn; yeni konteynerin sağlıklı olması için süre
 HEALTH_POLL=${HEALTH_POLL:-2}                     # sn
@@ -38,7 +44,8 @@ git_app() {
 }
 
 compose() {
-  docker compose --project-name "$PROJECT" --env-file "$ENV_FILE" -f "$APP_DIR/deploy/compose.yml" "$@"
+  docker compose --project-name "$PROJECT" -f "$COMPOSE_FILE" --project-directory "$APP_DIR" \
+    --env-file "$ENV_FILE" "$@"
 }
 
 # İmajın (etiket ya da kimlik) kurulduğu commit; yoksa boş.
@@ -51,7 +58,7 @@ app_container() {
   compose ps -a -q app 2>/dev/null | head -n 1 || true
 }
 
-# healthy | starting | unhealthy | exited | ... | none
+# healthy | starting | unhealthy | exited | restarting | ... | none
 app_health() {
   local id
   id=$(app_container)
@@ -82,8 +89,9 @@ wait_healthy() {
   return 1
 }
 
+# start_app <imaj etiketi>: app'i o imajla yeniden yaratır (kısa kesinti; iki sunucu aynı anda çalışmaz).
 start_app() {
-  compose up -d --no-deps --force-recreate app
+  APP_TAG=$1 compose up -d --no-deps --force-recreate app
 }
 
 # Son $KEEP_IMAGES sha etiketli imaj kalır; daha eskiler (yalnız bu projenin imajları) silinir.
@@ -107,6 +115,21 @@ marked() { # marked <dosya> <sha>: o commit zaten kayıtlı mı
   [[ -f $STATE_DIR/$1 && $(cat "$STATE_DIR/$1") == "$2" ]]
 }
 
+# Site açık değil: her turda görünür bir satır ve hata kodu.
+site_down() {
+  log "SİTE KAPALI: $* Elle: sesli-oda-yayin <sha>; günlük: journalctl -t sesli-oda-sesli-oda-app-1"
+  exit 1
+}
+
+# Depodaki compose hedef commit'te kurulu kopyadan farklıysa commit başına bir kez uyarır.
+compose_note() {
+  if git_app show "$target:deploy/compose.yml" 2>/dev/null | cmp -s - "$COMPOSE_FILE"; then return 0; fi
+  if marked compose-uyarildi "$target"; then return 0; fi
+  mark compose-uyarildi "$target"
+  log "UYARI: compose değişti, kurulu kopya kullanılıyor: elle güncelle (depodaki deploy/compose.yml @ $short ->" \
+    "$COMPOSE_FILE, gözden geçirip kopyala)."
+}
+
 # ---------- Ana akış ----------
 
 manual=${1:-}
@@ -117,8 +140,16 @@ fi
 
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
-  log "başka bir yayın sürüyor; bu çağrı atlandı."
-  exit 0
+  if [[ -n $manual ]]; then
+    log "HATA: başka bir yayın sürüyor; biraz sonra tekrar dene."
+    exit 1
+  fi
+  exit 0 # zamanlayıcı: bir sonraki turda denenir
+fi
+
+if [[ ! -f $COMPOSE_FILE ]]; then
+  log "HATA: kurulu compose kopyası yok: $COMPOSE_FILE (README: ilk kurulum)."
+  exit 1
 fi
 
 git_app fetch --quiet origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
@@ -138,49 +169,61 @@ fi
 short=${target:0:12}
 
 running=$(running_revision)
-head=$(git_app rev-parse HEAD)
-if [[ $head == "$target" && $running == "$target" && $(app_health) == healthy ]]; then
-  if [[ -n $manual ]]; then log "$short zaten yayında ve sağlıklı."; fi
-  exit 0
-fi
+health=$(app_health)
 
 if [[ -z $manual ]]; then
-  if marked failed "$target"; then exit 0; fi # daha önce başarısız oldu; elle yayınlanana kadar beklenir
-  if marked held "$target"; then exit 0; fi
-  if [[ -n $running ]] && ! git_app diff --quiet "$running" "$target" -- deploy/compose.yml; then
-    mark held "$target"
-    log "BEKLETİLDİ: $short deploy/compose.yml'yi değiştiriyor; otomatik yayınlanmadı. Gözden geçirip elle yayınla: sesli-oda-yayin $short"
-    exit 0
-  fi
+  # Zamanlayıcı turu: yeni bir şey yoksa, konteyner açılıyorsa ya da commit daha önce başarısız olduysa
+  # (ya da elle eski bir sürüme dönüldüyse) hiçbir şey yeniden başlatılmaz.
+  case $health in
+    starting) exit 0 ;;
+    healthy)
+      if [[ $running == "$target" ]] || marked failed "$target" || marked pinned "$target"; then exit 0; fi ;;
+    *)
+      if [[ $running == "$target" ]]; then
+        site_down "yayındaki ${short} sağlıksız (durum: $health); otomatik olarak yeniden yaratılmıyor."
+      fi
+      if marked failed "$target" || marked pinned "$target"; then
+        site_down "app konteyneri çalışmıyor ya da sağlıksız (durum: $health, yayındaki: ${running:0:12}," \
+          "main: $short daha önce başarısız)."
+      fi ;;
+  esac
+elif [[ $running == "$target" && $health == healthy ]]; then
+  log "$short zaten yayında ve sağlıklı."
+  exit 0
 fi
 
 prev_image=$(docker image inspect -f '{{.Id}}' "$IMAGE:current" 2>/dev/null || true)
 prev_rev=""
 if [[ -n $prev_image ]]; then prev_rev=$(revision_of "$prev_image"); fi
 
-log "yayın başlıyor: $short (yayındaki: ${running:0:12})"
+restore_checkout() {
+  if [[ -n $prev_rev ]]; then git_app checkout --quiet --force --detach "$prev_rev"; fi
+}
+
+log "yayın başlıyor: $short (yayındaki: ${running:0:12}, durum: $health)"
 git_app checkout --quiet --force --detach "$target"
 
 if [[ $(revision_of "$IMAGE:$short") == "$target" ]]; then
   log "$IMAGE:$short zaten var; yeniden kurulmadı." # geri almada hızlı dönüş
-elif ! docker build --pull --quiet --label "$REV_LABEL=$target" -t "$IMAGE:$short" -f "$APP_DIR/deploy/Dockerfile" "$APP_DIR" >/dev/null; then
+elif ! docker build --pull --quiet --label "$REV_LABEL=$target" -t "$IMAGE:$short" \
+    -f "$APP_DIR/deploy/Dockerfile" "$APP_DIR" >/dev/null; then
   mark failed "$target"
-  if [[ -n $prev_rev ]]; then git_app checkout --quiet --force --detach "$prev_rev"; fi
+  restore_checkout
   log "HATA: $short imajı kurulamadı; yayındaki sürüm aynen çalışıyor."
   exit 1
 fi
+compose_note
 
-docker tag "$IMAGE:$short" "$IMAGE:current"
-start_app
-if wait_healthy; then
+if start_app "$short" && wait_healthy; then
+  docker tag "$IMAGE:$short" "$IMAGE:current"
   if ! compose up -d tunnel; then # ilk kurulumda tüneli açar; çalışıyorsa dokunmaz
     log "HATA: tunnel konteyneri başlatılamadı (uygulama $short çalışıyor)."
   fi
-  rm -f "$STATE_DIR/failed" "$STATE_DIR/held"
+  rm -f "$STATE_DIR/failed" "$STATE_DIR/pinned"
   log "yayında: $short"
   if [[ $target != "$main_head" ]]; then
     # Geri alma: zamanlayıcı main'deki sürümü hemen geri getirmesin; main'e yeni commit gelince yayın sürer.
-    mark held "$main_head"
+    mark pinned "$main_head"
     log "otomatik yayın main'e yeni bir commit gelene kadar durdu (main: ${main_head:0:12})."
   fi
   prune_images
@@ -188,19 +231,15 @@ if wait_healthy; then
 fi
 
 mark failed "$target"
-log "HATA: $short $HEALTH_WAIT saniyede sağlıklı açılmadı (durum: $(app_health)); son günlük satırları:"
+log "HATA: $short başlatılamadı ya da $HEALTH_WAIT saniyede sağlıklı açılmadı (durum: $(app_health)); son günlük satırları:"
 docker logs --tail 30 "$(app_container)" 2>&1 | sed 's/^/  | /' || true
 if [[ -z $prev_image ]]; then
-  log "HATA: geri dönülecek önceki imaj yok; site kapalı."
-  exit 1
+  site_down "ilk yayın $short açılmadı; dönülecek önceki sürüm yok."
 fi
 log "önceki sürüme dönülüyor: ${prev_rev:0:12}"
-if [[ -n $prev_rev ]]; then git_app checkout --quiet --force --detach "$prev_rev"; fi
-docker tag "$prev_image" "$IMAGE:current"
-start_app
-if wait_healthy; then
+restore_checkout
+if start_app current && wait_healthy; then
   log "HATA: $short yayınlanamadı; önceki sürüm ${prev_rev:0:12} yeniden çalışıyor."
-else
-  log "HATA: $short yayınlanamadı ve önceki sürüm ${prev_rev:0:12} de sağlıklı açılmadı (durum: $(app_health))!"
+  exit 1
 fi
-exit 1
+site_down "$short yayınlanamadı ve önceki sürüm ${prev_rev:0:12} de açılmadı (durum: $(app_health))."

@@ -38,4 +38,5 @@ SystemCallArchitectures=native
 # setpriv için SETUID/SETGID; sesli-oda'ya ait (750) depo dizinini docker build bağlamı olarak okumak için
 # DAC_READ_SEARCH. Başka yetenek yok.
 CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_READ_SEARCH
-UMask=0027
+# 0022: git'in yazdığı dosyalar herkesçe okunur kalsın (imaja izinleriyle girer).
+UMask=0022
