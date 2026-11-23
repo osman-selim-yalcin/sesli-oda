@@ -24,6 +24,9 @@
   --danger-contrast: #0E0F13;
   --overlay: rgba(6, 7, 10, .72);
   --avatar-text: #FFFFFF;
+  --on-media: #E8E9ED;        /* uydu küresinin üstünde: halka, seçili yer */
+  --on-media-accent: #8B9CFF; /* uydu küresinin üstünde: radyo noktaları */
+  --ink-mix: 0%;              /* içerik renkleri koyu zeminde olduğu gibi okunur */
 
   --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

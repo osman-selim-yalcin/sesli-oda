@@ -130,8 +130,8 @@
 .timing-custom { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
 .timing-custom input { width: 120px; padding: 5px 10px; font-size: 13px; text-align: center; }
 /* Radyo: tema zemininde dönen uydu küresi (MapLibre), ortada seçim halkası; masaüstünde paneller kürenin üstünde
-   sol altta, araçlar sağ altta. Küredeki nokta renkleri de temadan (app.js radioPaint, Theme.color):
-   yerler --accent, halkanın seçtiği --text, çalan yer --live. */
+   sol altta, araçlar sağ altta. Küredeki nokta renkleri de temadan (app.js radioPaint, Theme.color): uydu resmi her
+   temada koyu olduğu için yerler --on-media-accent, halkanın seçtiği ve halka --on-media, çalan yer --live. */
 .radio {
   position: relative;
   height: calc(100dvh - 92px);
@@ -187,12 +187,12 @@
   width: 88px;
   height: 88px;
   margin: -44px 0 0 -44px;
-  border: 2px solid color-mix(in srgb, var(--text) 45%, transparent);
+  border: 2px solid color-mix(in srgb, var(--on-media) 45%, transparent);
   border-radius: 50%;
   pointer-events: none;
   transition: border-color var(--dur) var(--ease);
 }
-.radio-ring.on { border-color: var(--text); }
+.radio-ring.on { border-color: var(--on-media); }
 /* Küre yüklenirken / yüklenemezse ortada not */
 .radio-globe-note {
   position: absolute;
@@ -375,8 +375,8 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .memory-tile.can:hover .memory-back { border-color: var(--accent-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 30%, transparent); }
 /* içerik: taşın açık yüzü kâğıt rengi (taşlarda ve lobideki sayı/renk çiplerinde), sayı ve çerçeve taşın kendi rengi
    (--c, app.js MEMORY.colors). Lobi kutusu #game-memory içinde olduğu için tek tanım yeter. */
-#game-memory { --memory-paper: #F4F1EA; }
-.memory-face { transform: rotateY(180deg); background: var(--memory-paper); border: 3px solid var(--c, var(--border-strong)); color: var(--c, var(--bg)); font-weight: 800; font-size: clamp(15px, 3.2vw, 28px); }
+#game-memory { --memory-paper: #F4F1EA; --memory-ink: #0E0F13; } /* kâğıt hep açık: rengi olmayan çipin yazısı hep koyu */
+.memory-face { transform: rotateY(180deg); background: var(--memory-paper); border: 3px solid var(--c, var(--border-strong)); color: var(--c, var(--memory-ink)); font-weight: 800; font-size: clamp(15px, 3.2vw, 28px); }
 .memory-tile.taken .memory-face { opacity: .3; }
 .memory-tile.miss .memory-face { box-shadow: 0 0 0 2px var(--danger); }
 .memory-scores { width: 100%; max-width: 720px; justify-self: center; }
@@ -417,9 +417,9 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .memory-sizes { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .memory-sizes:empty { display: none; }
 .memory-sizes button.active { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
-.memory-chip { display: inline-flex; align-items: center; gap: 2px; min-width: 32px; height: var(--control-h-sm); padding: 0 4px 0 10px; justify-content: center; border-radius: var(--radius-s); background: var(--memory-paper); color: var(--c, var(--bg)); border: 2px solid var(--c, var(--border-strong)); font-weight: 700; font-size: 13px; }
+.memory-chip { display: inline-flex; align-items: center; gap: 2px; min-width: 32px; height: var(--control-h-sm); padding: 0 4px 0 10px; justify-content: center; border-radius: var(--radius-s); background: var(--memory-paper); color: var(--c, var(--memory-ink)); border: 2px solid var(--c, var(--border-strong)); font-weight: 700; font-size: 13px; }
 .memory-chip:not(:has(button)) { padding-right: 10px; }
-.memory-chip-x { min-height: 0; padding: 0 4px; border: none; background: none; color: var(--c, var(--bg)); opacity: .6; font-size: 15px; line-height: 1; }
+.memory-chip-x { min-height: 0; padding: 0 4px; border: none; background: none; color: var(--c, var(--memory-ink)); opacity: .6; font-size: 15px; line-height: 1; }
 .memory-chip-x:hover:where(:not(:disabled)) { opacity: 1; }
 .memory-chip-x:hover { background: none; color: var(--danger); }
 .memory-plus { min-width: 30px; font-weight: 700; }
@@ -487,6 +487,10 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 @media (pointer: coarse) { .dino-touch { display: flex; } .dino-help { display: none; }
 }
 .dino-help { margin: 0; }
+/* içerik: tuvaldeki turuncu kuşun rengi (app.js drawDino); yazıyken açık temada yarı --ink-mix oranında koyulaşır,
+   turuncu kalır ve beyaz panelde 4,5:1'i geçer (koyu temada --ink-mix 0%, renk aynen) */
+.dino-help { --dino-bird: #d9822b; }
+.dino-bird-word { color: color-mix(in srgb, var(--dino-bird), var(--text) calc(var(--ink-mix) / 2)); }
 .dino-results { max-width: 420px; }
 .kelime { display: grid; gap: 12px; }
 .kelime-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 32px; }
@@ -508,7 +512,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .kelime-pick-tools { display: flex; gap: 8px; flex-wrap: wrap; }
 .kelime-chosen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 16px; }
 /* içerik: hedef kelime çubuğun en sıcak ucunun renginde (--kelime-hot) */
-.kelime { --kelime-hot: #FF7676; }
+.kelime { --kelime-hot: color-mix(in srgb, #FF7676, var(--text) var(--ink-mix)); } /* açık temada koyulaşır (--ink-mix) */
 .kelime-chosen b { color: var(--kelime-hot); }
 .kelime-play { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
 .kelime-main { display: grid; gap: 10px; }
@@ -526,7 +530,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .kelime-line { position: absolute; left: 28px; height: 2px; margin-top: -1px; background: var(--border-strong); transform-origin: 0 50%; pointer-events: none; }
 .kelime-word { position: absolute; left: 44px; right: 0; height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: var(--radius-s); background: color-mix(in srgb, var(--who, var(--muted)) 22%, var(--surface-3)); border-left: 4px solid var(--who, var(--muted)); font-size: 14px; white-space: nowrap; overflow: hidden; user-select: none; -webkit-user-select: none; }
 .kelime-word b { overflow: hidden; text-overflow: ellipsis; }
-.kelime-word .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; color: var(--who, var(--muted)); }
+.kelime-word .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; color: color-mix(in srgb, var(--who, var(--muted)), var(--text) var(--ink-mix)); }
 .kelime-word .rank { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); }
 .kelime-word.moving { box-shadow: 0 0 0 2px var(--accent); z-index: 2; }
 .kelime-word.selected { box-shadow: 0 0 0 2px var(--accent); }

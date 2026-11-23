@@ -1467,8 +1467,9 @@ button.room-card.is-full { cursor: not-allowed; }
   border-radius: var(--radius-m);
   background: linear-gradient(145deg, hsl(var(--hue) 55% 46% / .55), hsl(var(--hue) 50% 30% / .35));
   box-shadow: inset 0 0 0 1px hsl(var(--hue) 70% 70% / .3);
-  /* harf temanın metin rengine karışır: koyu temada açık, açık temada koyu kalır (zemin yarı saydam) */
-  color: color-mix(in srgb, hsl(var(--hue) 80% 66%) 40%, var(--text));
+  /* harf temanın metin rengine karışır: koyu temada açık, açık temada koyu kalır (zemin yarı saydam); açık temada
+     --ink-mix oranında bir kez daha --text'e karışır ki küçük (14 px) amblemde de 4,5:1'i geçsin */
+  color: color-mix(in srgb, color-mix(in srgb, hsl(var(--hue) 80% 66%) 40%, var(--text)), var(--text) var(--ink-mix));
   font-family: var(--font-display);
   font-size: 20px;
   font-weight: 600;

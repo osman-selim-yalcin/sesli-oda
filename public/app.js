@@ -3474,14 +3474,15 @@ function radioMapReady() {
   return radioMapLoading;
 }
 
-// Küredeki noktaların renkleri temadan: yerler --accent, halkanın seçtiği --text, çalan yer --live (kenarı --text).
+// Küredeki noktaların renkleri temadan. Uydu resmi her temada koyu: yerler --on-media-accent, halkanın seçtiği
+// --on-media, çalan yer --live (kenarı --on-media).
 function radioPaint() {
   if (!radioMap?.isStyleLoaded()) return;
   const c = (name) => Theme.color(name);
-  radioMap.setPaintProperty('places', 'circle-color', c('--accent'));
-  radioMap.setPaintProperty('selected', 'circle-color', c('--text'));
+  radioMap.setPaintProperty('places', 'circle-color', c('--on-media-accent'));
+  radioMap.setPaintProperty('selected', 'circle-color', c('--on-media'));
   radioMap.setPaintProperty('playing', 'circle-color', c('--live'));
-  radioMap.setPaintProperty('playing', 'circle-stroke-color', c('--text'));
+  radioMap.setPaintProperty('playing', 'circle-stroke-color', c('--on-media'));
 }
 document.addEventListener('themechange', radioPaint);
 
@@ -4462,7 +4463,7 @@ function renderDinoUi() {
   renderLobby('dino');
   $('dino-help').innerHTML = '<b>W</b> / <b>↑</b> / boşluk: zıpla · <b>S</b> / <b>↓</b>: eğil (havadayken hızlı iner). '
     + 'Hız otomatik ve gitgide artar; herkes kusursuz koşan Jef\'in arkasında koşar. Engele çarpan ölür, en uzağa giden kazanır. '
-    + 'Gökten inen <b style="color:#d9822b">turuncu kuş sürüsü</b>nün altından koşarak geç; zıplarsan çarparsın.';
+    + 'Gökten inen <b class="dino-bird-word">turuncu kuş sürüsü</b>nün altından koşarak geç; zıplarsan çarparsın.';
   let status = 'Lobi kurulup başlatılınca lobidekiler Jef\'in peşinden koşar.';
   if (running) {
     const alive = Object.values(game.players).filter((p) => !p.dead).length;

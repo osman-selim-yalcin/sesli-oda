@@ -7,9 +7,13 @@
    Değişken sözleşmesi: her tema dosyası (public/themes/*.css) bunların hepsini :root üstünde tanımlar.
      Renk:    --bg --surface --surface-2 --surface-3 --border --border-strong --text --muted
               --accent --accent-contrast --accent-soft --accent-2 --live --live-soft --danger --danger-soft
-              --danger-contrast --overlay --avatar-text
+              --danger-contrast --overlay --avatar-text --on-media --on-media-accent --ink-mix
               (--danger-contrast: dolu --danger üstündeki yazı; --live-soft: --live'ın yumuşak zemini;
-               --avatar-text: kişi renkli avatar üstündeki baş harf)
+               --avatar-text: kişi renkli avatar üstündeki baş harf;
+               --on-media / --on-media-accent: temadan bağımsız koyu bir resmin (radyonun uydu küresi) üstünde
+               çizilen halka ve noktalar, her temada açık renk;
+               --ink-mix: içerik renkleri (oyuncu rengi, kelime oyununun sıcak rengi) yazı olarak kullanılınca
+               --text'e bu oranda karışır ki temanın yüzeyinde okunsun; koyu temada 0%)
      Yazı:    --font-display (başlık) --font-body (gövde) --font-mono
      Biçim:   --radius-s --radius-m --radius-l --radius-pill --border-w --shadow-1 --shadow-2 --focus-ring
      Aralık:  --space-1 … --space-6 (4, 8, 12, 16, 24, 32 px)
@@ -42,6 +46,9 @@
   --danger-contrast: #0E0F13;
   --overlay: rgba(6, 7, 10, .72);
   --avatar-text: #FFFFFF;
+  --on-media: #E8E9ED;
+  --on-media-accent: #8B9CFF;
+  --ink-mix: 0%;
 
   --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;

@@ -101,7 +101,8 @@ Birleşme yalnız hafızadadır: sunucu yeniden başlarsa odalar ayrı açılır
 Görünümün bütün renkleri, yazı tipleri, köşeleri ve gölgeleri değişkendir; değişken sözleşmesi
 `public/css/base.css`'in başında yazılıdır. Kurallarda sabit renk yazılmaz. Oda sahibi temayı oda
 ayarlarından seçip "Uygula"ya basar; odadaki herkeste sayfa yenilenmeden değişir. Oda listesi ve giriş ekranı
-her zaman varsayılan temadadır (Gece Odası).
+her zaman varsayılan temadadır (Gece Odası). Temalar: Gece Odası (`gece`, koyu, varsayılan) ve Aydınlık Oda
+(`aydinlik`, açık).
 
 Yeni tema eklemek (örnek kimlik `piksel`):
 

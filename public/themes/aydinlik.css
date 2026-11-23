@@ -1,0 +1,59 @@
+/* Tema: Aydınlık Oda. Gece Odası'nın gündüz kardeşi: sıcak kırık beyaz kâğıt zemin, üstünde beyaz kartlar,
+   biraz koyu çukurlar; yumuşak sıcak gri 1 px çizgiler, çok hafif gölgeler, aynı lavanta-mavi vurgu (koyulaştırılmış).
+   Bir tema dosyası değişken sözleşmesinin hepsini tanımlar (sözleşme ve yedek değerler: css/base.css).
+   Renk yalnız canlı olan şeylerde: konuşan kişi (--live), oynayan video, senin sıran.
+   --accent-2 (kehribar) yalnız skor, taç ve "senin sıran" için.
+   Kontrast (WCAG): --muted, --accent, --live, --danger ve --accent-2 her yüzeyde (--surface-3 dahil) en az 4,5:1;
+   --accent-contrast / --danger-contrast dolu zeminlerinde en az 4,5:1. */
+:root {
+  color-scheme: light;
+
+  --bg: #F6F4EF;
+  --surface: #FFFFFF;
+  --surface-2: #F1EEE7;
+  --surface-3: #E8E4DB;
+  --border: #E0DBD0;
+  --border-strong: #C9C1B2;
+  --text: #171A22;
+  --muted: #595E6C; /* --surface-3 üstünde de 4,5:1'in üstünde */
+  --accent: #4553C4;
+  --accent-contrast: #FFFFFF;
+  --accent-soft: rgba(69, 83, 196, .11);
+  --accent-2: #94560A;
+  --live: #13703A;
+  --live-soft: rgba(19, 112, 58, .10);
+  --danger: #B4243A;
+  --danger-soft: rgba(180, 36, 58, .09);
+  --danger-contrast: #FFFFFF;
+  --overlay: rgba(23, 26, 34, .45);
+  --avatar-text: #FFFFFF;
+  --on-media: #F6F4EF;        /* uydu küresi her temada koyu resimdir: halka ve seçili yer açık kalır */
+  --on-media-accent: #A9B4FF; /* radyo noktaları: Gece'nin lavantası, koyu resim üstünde okunur */
+  --ink-mix: 60%;             /* oyuncu ve kelime renkleri yazıyken %60 --text'e karışır: açık zeminde en az 4,5:1 */
+
+  --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 16px;
+  --radius-pill: 999px;
+  --border-w: 1px;
+
+  --shadow-1: 0 1px 2px rgba(48, 40, 24, .07);
+  --shadow-2: 0 12px 32px rgba(48, 40, 24, .11), 0 2px 6px rgba(48, 40, 24, .05);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+
+  --focus-ring: 0 0 0 3px rgba(69, 83, 196, .28);
+}

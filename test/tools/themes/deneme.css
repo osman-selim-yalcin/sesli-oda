@@ -25,6 +25,9 @@
   --danger-contrast: #FFFFFF;
   --overlay: rgba(31, 35, 40, .45);
   --avatar-text: #FFFFFF;
+  --on-media: #FFFFFF;
+  --on-media-accent: #FDBA74;
+  --ink-mix: 60%;
 
   --font-display: ui-serif, Georgia, 'Times New Roman', serif;
   --font-body: ui-serif, Georgia, 'Times New Roman', serif;

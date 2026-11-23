@@ -7,17 +7,18 @@
 // çıkmaz; test sunucusu (test/preload.js) yalnız denemelik bir temayı adı ve önizleme renkleriyle buradan ekler.
 // Liste değişince document'a 'themelist' olayı gelir (seçiciler ve oda kartları yeniden çizilir).
 window.Theme = (() => {
-  const LIST = ['gece'];
+  const LIST = ['gece', 'aydinlik'];
   const DEFAULT = 'gece';
-  const NAMES = { gece: 'Gece Odası' };
+  const NAMES = { gece: 'Gece Odası', aydinlik: 'Aydınlık Oda' };
   // Temanın ikon seti: public/icons/ui/<set>.svg, hepsi aynı adları (i-play, i-mic…) taşır.
   // Varsayılan set index.html'de <svg id="ui-icons" data-set="lucide"> olarak gömülüdür (ilk boyamada ikon olsun diye).
-  const ICON_SETS = { gece: 'lucide' };
+  const ICON_SETS = { gece: 'lucide', aydinlik: 'lucide' };
   // Oda kartındaki önizleme şeridinin ve tema seçici kutucuğunun renkleri (zemin, panel, metin, vurgu). Kart ve
   // seçici başka temaları da gösterdiği için bu renkler o anki temanın değişkenlerinden değil, bu tablodan gelir
   // (tema CSS'i yüklenmeden); sabit renkler yalnız burada durur, kurallar onları yerel değişkenlerle kullanır.
   const PREVIEW = {
     gece: { bg: '#0E0F13', surface: '#1E2129', text: '#E8E9ED', accent: '#8B9CFF' },
+    aydinlik: { bg: '#F6F4EF', surface: '#FFFFFF', text: '#171A22', accent: '#4553C4' },
   };
   const root = document.documentElement;
   let current = root.dataset.theme || DEFAULT;
