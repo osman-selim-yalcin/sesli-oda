@@ -1,13 +1,17 @@
 # Sesli Oda
 
-En fazla 6 kişilik sesli sohbet + senkronize YouTube izleme/dinleme.
+Birden çok odalı sesli sohbet + senkronize YouTube izleme/dinleme ve oyunlar. Her oda en fazla 6 kişi;
+iki oda birleşince 12 kişi.
 
 **Canlı:** https://agalar.app
 
 ## Neler var
 
 - Hesaplar: kullanıcı adı + şifreyle kayıt/giriş, isteğe bağlı profil resmi. Giriş tarayıcıda açık
-  kalır; aynı isim ikinci kez alınamaz, aynı hesapla ikinci yerden girilince eskisi odadan düşer.
+  kalır; aynı isim ikinci kez alınamaz, aynı hesapla ikinci yerden girilince eskisi odadan düşer. Hesap
+  şifresi hesap penceresinden değiştirilir.
+- Odalar: giriş yapınca oda listesi açılır; adres `/oda/<oda>` (oyunlar `/oda/<oda>/oyunlar/...`, radyo
+  `/oda/<oda>/radyo`). Bir hesap aynı anda tek odadadır. Ayrıntı aşağıda "Odalar ve yetkiler".
 - Sesli sohbet (WebRTC, Opus); gürültü kapısı ve ses eşiği ayarı
 - Herkeste aynı anda oynayan YouTube; site içi arama ve oynatma geçmişi
 - Yazılı sohbet, emoji seçici
@@ -39,15 +43,102 @@ Derleme adımı yok; `public/` içindeki dosyalar olduğu gibi sunulur.
 
 | Dosya | Ne işe yarar |
 | --- | --- |
-| `server.js` | Express + Socket.IO: odalar, sinyalleşme, sohbet, YouTube araması, oyunlar |
-| `store.js` | Supabase'e kalıcı kayıt (geçmiş, efektler, tier listler) |
-| `accounts.js` | Hesaplar, oturumlar, profil resimleri |
-| `public/index.html`, `style.css` | Arayüz |
-| `public/app.js` | İstemcinin tamamı: ses, YouTube, sohbet, kayıt, oyunlar |
+| `server.js` | Express + Socket.IO: odaların canlı durumu, sinyalleşme, sohbet, YouTube araması, oyunlar |
+| `rooms.js` | Oda kayıtları, oda istekleri, şifreli odaların üyeleri, tema listesi (`THEMES`) |
+| `merge.js` | Oda birleştirme (yalnız hafızada) |
+| `games/` | Daktilo, hedef sayı, gizli kural, mantık tablosu oyunlarının sunucu tarafı |
+| `store.js` | Supabase'e kalıcı kayıt (geçmiş, efektler, tier listler, skor tabloları) |
+| `accounts.js` | Hesaplar, oturumlar, profil resimleri, site yöneticileri (`ADMINS`) |
+| `db/` | Canlıya geçişte elle çalıştırılan SQL dosyaları |
+| `public/index.html` | Arayüzün işaretlemesi; gömülü ikon seti (`<svg id="ui-icons">`) |
+| `public/css/base.css`, `shell.css`, `games.css` | Ortak bileşenler, ekran çerçeveleri, oyun tahtaları (yalnız değişken kullanır) |
+| `public/themes/<tema>.css` | Tema: renk, yazı tipi, köşe, gölge değişkenleri |
+| `public/theme.js` | Tema yükleyici, tema listesi ve önizleme renkleri |
+| `public/lobby.js` | Giriş sonrası oda listesi, oda istekleri, şifre pencereleri, Üyeler sayfası |
+| `public/app.js` | Oda içi istemci: ses, YouTube, sohbet, kayıt, oyunlar |
+| `public/icons/ui/` | Arayüz ikonları (Lucide, lisansı yanında) |
+| `public/vendor/fonts/` | Gömülü yazı tipleri (Geist, Nunito; lisansları yanında) |
 | `public/sfx.js`, `public/sfx/` | Ses efektleri |
 | `public/gate-worklet.js` | Mikrofon gürültü kapısı (AudioWorklet) |
 | `public/rec-worklet.js`, `mp3-worker.js` | Kayıt ve MP3'e çevirme |
 | `public/vendor/lame.min.js` | MP3 kodlayıcı (lamejs 1.2.1, LGPL); elle düzenlemeyin |
+
+## Odalar ve yetkiler
+
+Üç rol var:
+
+- **Site yöneticisi** (`accounts.js` `ADMINS`, şu an `osyalcin`): oda açar (sahibini seçebilir), oda
+  isteklerini onaylar ya da reddeder, odayı kapatır (`genel` kapatılamaz), her odada sahibin yapabildiği
+  her şeyi yapar, odanın adını ve sahibini değiştirir. Üyeler sayfasını (`/uyeler`) ve 🫏 düğmesini yalnız
+  yönetici görür.
+- **Oda sahibi**: kendi odasının temasını ve şifresini değiştirir, odasını başka bir odayla birleştirir ya
+  da birleşmeyi ayırır.
+- **Üye**: şifresiz odaya doğrudan girer; şifreli odaya şifreyi bir kez doğru yazınca üye olur ve bir daha
+  sorulmaz.
+
+**Oda isteği:** yönetici olmayan kişi listedeki "Oda iste" ile ad, isteğe bağlı şifre, tema ve not gönderir
+(aynı anda tek bekleyen istek). Yönetici "İstekler"den onaylayınca oda açılır ve isteyen sahibi olur; sonuç
+isteyene anında gelir.
+
+**Şifreler:** oda şifresi 4-200 karakter; yalnız özeti saklanır. Şifre değişince ya da kaldırılınca eski
+üyelikler silinir, herkes yeni şifreyi yeniden yazar.
+
+**Birleştirme:** oda sahibi (ya da yönetici) oda ayarlarından başka bir odayla birleşme ister; karşı odanın
+sahibi 60 saniye içinde kabul ederse misafir odadakiler ev sahibi odaya taşınır, sohbet, müzik, oyun lobileri
+ve tema (ev sahibinin teması) ortak olur. Her odadan en fazla 6, toplam 12 kişi. Yönetici isterse hemen
+birleşir. Reddedilen ya da süresi dolan istekten sonra aynı yöne 60 saniye yeni istek yok; bir hesap
+dakikada en çok 3 istek gönderir. "Odaları ayır" ile herkes kendi odasına, kendi temasıyla döner.
+Birleşme yalnız hafızadadır: sunucu yeniden başlarsa odalar ayrı açılır.
+
+## Temalar
+
+Görünümün bütün renkleri, yazı tipleri, köşeleri ve gölgeleri değişkendir; değişken sözleşmesi
+`public/css/base.css`'in başında yazılıdır. Kurallarda sabit renk yazılmaz. Oda sahibi temayı oda
+ayarlarından seçip "Uygula"ya basar; odadaki herkeste sayfa yenilenmeden değişir. Oda listesi ve giriş ekranı
+her zaman varsayılan temadadır (Gece Odası).
+
+Yeni tema eklemek (örnek kimlik `piksel`):
+
+1. `public/themes/piksel.css`: sözleşmedeki bütün değişkenleri tanımlar (`public/themes/gece.css`'i kopyala).
+   Metin kontrastı en az 4,5:1 olmalı.
+2. İkon seti: `public/icons/ui/<set>.svg`, `lucide.svg` ile aynı `i-…` adlarını taşır (lisansı yanına).
+   Aynı seti kullanacaksa bu adım yok.
+3. `public/theme.js`: `LIST`'e `'piksel'`, `NAMES`'e görünen ad, `ICON_SETS`'e ikon seti, `PREVIEW`'e oda
+   kartı önizleme renkleri (bg, surface, text, accent).
+4. `rooms.js`: `THEMES` dizisine `'piksel'` (sunucu tanımadığı temayı kabul etmez).
+
+## Testler ve test sunucusu
+
+```bash
+npm test           # node --test, test/*.test.js
+```
+
+Testler kendi sunucularını hafızada, Supabase'siz açar.
+
+Arayüzü elle denemek için **test sunucusu** (Supabase'e bağlanmaz, `.env` okumaz, her şey hafızada):
+
+```bash
+PORT=4100 node -r ./test/preload.js server.js
+```
+
+Tarayıcıda giriş yapmadan `localStorage.token = 'test:Ali'` yazıp sayfayı yenilemek o adla oturum açar;
+`test:osyalcin` site yöneticisidir. Hesap şifresi değiştirme gibi kayıtlı hesap isteyen işler için
+`POST /auth/register` ile hesap açılır. Test sunucusunda denemelik ikinci bir tema ("Deneme (test)") da
+vardır; canlıda yoktur. **Bir dalda sunucuyu önyüklemesiz (`npm start`) çalıştırma:** `.env` varsa canlı
+veritabanına bağlanır.
+
+## Canlıya alma (çoklu oda geçişi)
+
+Çoklu oda ilk kez canlıya alınırken sıra tam olarak şudur (SQL'ler Supabase SQL düzenleyicisinde elle
+çalıştırılır, dosyaların başındaki notları oku):
+
+1. `db/2026-11-22-rooms.sql` uygulanır (oda, istek ve üyelik tabloları; eski sunucu bunları kullanmaz, önceden
+   yapılabilir).
+2. Eski sunucu durdurulur.
+3. `db/2026-11-22-golive.sql` uygulanır (`genel` odası ve ortak skor tabloları).
+4. Yeni sunucu açılır.
+
+1. ya da 3. adım eksikse yeni sunucu açılmaz; log'da `SUNUCU AÇILMIYOR` satırı çıkar.
 
 ## Katkı ve yayın
 
