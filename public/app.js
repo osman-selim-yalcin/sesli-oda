@@ -454,12 +454,16 @@ function addPeer(id, name, info = {}) {
     if (open) modBtn.focus();
   };
   modBtn.onclick = async () => {
+    const wasMuted = Boolean(peer.modMuted);
     modBtn.disabled = true;
     const res = (await emitAck(8000, 'mod:mute', { id, muted: !peer.modMuted })) ?? { error: 'Sunucuya ulaşılamadı.' };
     modBtn.disabled = false;
     if (res.error) toast(res.error);
+    const lifted = !res.error && wasMuted;
     open = false; // susturunca satır kapanır; kaldırma düğmesi kendiliğinden görünür
     peer.renderMod();
+    // Kaldırınca satır kapanır: odak aynı satırın Yönet düğmesine (görünmüyorsa satırın düğmesine) geçer.
+    if (lifted || document.activeElement === document.body) (moreBtn.hidden ? muteBtn : moreBtn).focus();
   };
 
   peers.set(id, peer);
@@ -780,9 +784,13 @@ socket.on('user-modmuted', ({ id, muted, by } = {}) => {
   if (id === selfId) {
     const was = setModMuted(muted ? by : null);
     if (muted && !was) toast(by === 'admin' ? 'Yönetici seni susturdu. Mikrofonun kapalı.' : 'Oda sahibi seni susturdu. Mikrofonun kapalı.', 'danger');
-    else if (!muted && was) toast(screenAudioHeld && screenStream
-      ? 'Susturman kaldırıldı; mikrofonunu açınca ekran paylaşımının sesi de açılır.'
-      : 'Susturman kaldırıldı; istersen mikrofonunu açabilirsin.', 'live');
+    else if (!muted && was) {
+      // Mikrofonu olmayan dinleyicide mikrofon düğmesi yok: paylaşımın sesi ancak yeni paylaşımla gelir.
+      const held = screenAudioHeld && screenStream;
+      toast(!held ? 'Susturman kaldırıldı; istersen mikrofonunu açabilirsin.'
+        : sendStream ? 'Susturman kaldırıldı; mikrofonunu açınca ekran paylaşımının sesi de açılır.'
+          : 'Susturman kaldırıldı; ekran paylaşımının sesi için paylaşımı durdurup yeniden başlat.', 'live');
+    }
     return;
   }
   const peer = peers.get(id);

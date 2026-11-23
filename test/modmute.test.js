@@ -162,7 +162,7 @@ test('susturulan kendi mute(false) ile açamaz; yük geç girenlere ve kendisine
   // Protokolde kendi susturmasını kaldıracak olay yok; mic açma (mute false) yok sayılır
   assert.ok((await ack(m, 'mod:mute', { id: m.joinId, muted: false })).error);
   m.emit('mute', false);
-  await sleep(150);
+  await new Promise((r) => m.emit('time', r)); // aynı soketin sonraki olayı: mute(false) işlendi
   const late = await enter(`Gec${tag}`, A);
   const peer = late.joinRes.peers.find((p) => p.id === m.joinId);
   assert.equal(peer.muted, true);
@@ -207,10 +207,12 @@ test('çıkıp dönen yine susturulmuş; oda boşalınca susturma gider', async 
   const o = await enter(ownerA, A);
   const m = await enter(`Donen${tag}`, A, `donen${tag}`);
   assert.deepEqual(await mute(o, m), {});
-  const gone = eventWhere(o, 'user-left', (id) => id === m.joinId);
+  // Gerçek çıkış: yenileme payı geçip "ayrıldı" yazılınca döner (yenileme yolu değil)
+  const gone = chatText(o, new RegExp(`^Donen${tag} ayrıldı$`));
   m.close();
   await gone;
   const back = await enter(`Donen${tag}`, A);
+  assert.equal(back.joinRes.rejoined, undefined);
   assert.equal(back.joinRes.modMuted, 'owner');
   assert.equal(back.joinRes.peers.find((p) => p.id === o.joinId).modMuted, null);
   const seen = await user(`Izle${tag}`);
@@ -220,6 +222,9 @@ test('çıkıp dönen yine susturulmuş; oda boşalınca susturma gider', async 
   // Herkes çıkar: oda boşalır, susturma temizlenir
   for (const s of [o, back, seen]) s.close();
   await emptied(A);
+  // Oda boşaldı; yenileme payı (300 ms) içinde dönen olsaydı susturma kalırdı. Pay sunucu zamanlayıcısıyla dolar:
+  // gözlenecek olay yok (oda silindi), bu yüzden payın üç katı beklenir (alt sınır beklemesi, yarış değil).
+  await sleep(900);
   const again = await enter(`Donen${tag}`, A);
   assert.equal(again.joinRes.modMuted, null);
 });
@@ -286,70 +291,6 @@ test('hız sınırı: bir soket 4 sn\'de en çok 8 susturma/kaldırma', async ()
   assert.ok(out[8].error);
 });
 
-test('birleşikken kapı değiştiren susturulmuş kişi susturulmuş kalır (B kökenli A kapısından, A kökenli B kapısından; yönetici susturması da)', async () => {
-  const { A, B, ownerA, ownerB } = await rooms();
-  const oa = await enter(ownerA, A);
-  const ob = await enter(ownerB, B);
-  const b1 = await enter(`Bkapi${tag}`, B, `bkapi${tag}`);
-  const a1 = await enter(`Akapi${tag}`, A, `akapi${tag}`);
-  const b2 = await enter(`Bkapi2${tag}`, B, `bkapi2${tag}`);
-  const admin = await adminLobby();
-  const moved = [next(ob, 'room:moved'), next(b1, 'room:moved'), next(b2, 'room:moved')];
-  assert.deepEqual(await ack(admin, 'merge:request', { from: A, to: B }), { merged: true });
-  const [mob, mb1, mb2] = await Promise.all(moved);
-  ob.joinId = mob.id;
-  b1.joinId = mb1.id;
-  b2.joinId = mb2.id;
-  const adminIn = await enter('osyalcin', A);
-
-  assert.deepEqual(await mute(ob, b1), {}); // B sahibi
-  assert.deepEqual(await mute(oa, a1), {}); // A sahibi
-  assert.deepEqual(await mute(adminIn, b2), {}); // yönetici
-
-  // B kökenli A kapısından yeniden girer
-  for (const [s, name, door, by, origin] of [[b1, `Bkapi${tag}`, A, 'owner', B], [a1, `Akapi${tag}`, B, 'owner', A], [b2, `Bkapi2${tag}`, A, 'admin', B]]) {
-    const left = eventWhere(oa, 'user-left', (id) => id === s.joinId);
-    s.close();
-    await left;
-    const joined = eventWhere(oa, 'user-joined', (d) => d.name === name);
-    const back = await enter(name, door);
-    assert.equal(back.joinRes.modMuted, by, `${name} ${door} kapısından`);
-    assert.equal(back.joinRes.home.id, origin, 'kökeni değişmez');
-    const j = await joined;
-    assert.equal(j.modMuted, by);
-    assert.equal(j.home, origin);
-    const late = await enter(`Gec${name}`, A);
-    assert.equal(late.joinRes.peers.find((p) => p.name === name).modMuted, by, 'geç girene de');
-    late.close();
-    s.joinId = back.joinId;
-  }
-  // Sahip, kapı değiştiren kendi kökenlisini hâlâ yönetir; öteki sahip yönetemez
-  assert.ok((await mute(oa, b1, false)).error);
-  assert.deepEqual(await mute(ob, b1, false), {});
-  assert.ok((await mute(ob, b2, false)).error, 'yöneticinin susturması');
-});
-
-test('birleşikken susturulmuş kişi kapı değiştirerek dolu tarafa sığmaz (köken tarafında sayılır)', async () => {
-  const { A, B, ownerA, ownerB } = await rooms();
-  const ob = await enter(ownerB, B);
-  const bm = await enter(`Bdolu${tag}`, B);
-  const admin = await adminLobby();
-  const moved = [next(ob, 'room:moved'), next(bm, 'room:moved')];
-  assert.deepEqual(await ack(admin, 'merge:request', { from: A, to: B }), { merged: true });
-  const [mob, mbm] = await Promise.all(moved);
-  ob.joinId = mob.id;
-  bm.joinId = mbm.id;
-  assert.deepEqual(await mute(ob, bm), {});
-  const left = eventWhere(ob, 'user-left', (id) => id === bm.joinId);
-  bm.close();
-  await left;
-  for (let i = 0; i < 9; i++) await enter(`Bdol${i}x${tag}`, B); // B tarafı 10 (sahip + 9)
-  const s = await user(`Bdolu${tag}`);
-  const r = await join(s, A); // A kapısı boş ama köken B
-  assert.match(r.error || '', /dolu/, JSON.stringify(r).slice(0, 200));
-  void ownerA;
-});
-
 test('boş misafir odayla birleşmede susturma, birleşme bitince bayatlamaz', async () => {
   const { A, B, ownerA, ownerB } = await rooms();
   const oa = await enter(ownerA, A);
@@ -359,9 +300,10 @@ test('boş misafir odayla birleşmede susturma, birleşme bitince bayatlamaz', a
   const b1 = await enter(`Bayat${tag}`, B);
   assert.equal(b1.joinRes.room.id, A);
   assert.deepEqual(await mute(ob, b1), {});
-  // Ayrılma: B kökenliler B'ye döner; sonra hepsi çıkar → B boşalır, susturma silinir
+  // B kökenliler gerçekten çıkar ("ayrıldı" yazılır: yenileme payı doldu), sonra ayrılınca B'nin susturması silinir
+  const gone = [chatText(oa, new RegExp(`^${ownerB} ayrıldı$`)), chatText(oa, new RegExp(`^Bayat${tag} ayrıldı$`))];
   for (const s of [ob, b1]) s.close();
-  await until(async () => (await listed(B)).users.length === 0, 'B kökenliler çıktı');
+  await Promise.all(gone);
   assert.deepEqual(await ack(admin, 'merge:split', { room: A }), {});
   const back = await enter(`Bayat${tag}`, B);
   assert.equal(back.joinRes.room.id, B);
@@ -379,6 +321,7 @@ test('boş misafir odayla birleşmede susturma, birleşme bitince bayatlamaz', a
   for (const s of [oa2, ob2, b2]) s.close();
   await emptied(t.A);
   await until(async () => !(await listed(t.A)).mergedWith, 'birleşme bitti');
+  await sleep(900); // yenileme payı (300 ms) dolsun: gözlenecek oda kalmadı, alt sınır beklemesi
   const again = await enter(`Bayat2${tag}`, t.B);
   assert.equal(again.joinRes.modMuted, null);
 });
@@ -466,4 +409,197 @@ test('susturulan ses efekti çalamaz ve yükleyemez; kaldırılınca çalabilir'
   m.emit('sfx', 'clap');
   await ok;
   assert.equal(heard.length, 1, 'susturulmuşken gelen efekt yayılmadı');
+});
+
+// ---------- Köken kapıdır; ortak odadaki susturma kapının odasına kopyalanır ----------
+
+// A ve B birleşik (A ev sahibi). X, B'de susturulmuş ve B'den çıkmış (B dolu kaldığı için kayıt duruyor).
+async function mutedInB({ by = 'owner', lockB = false } = {}) {
+  const t = await rooms();
+  const oa = await enter(t.ownerA, t.A);
+  const ob = await enter(t.ownerB, t.B);
+  const x = await enter(`X${tag}`, t.B);
+  const admin = await adminLobby();
+  const adminIn = by === 'admin' ? await enter('osyalcin', t.B) : null;
+  assert.deepEqual(await mute(by === 'admin' ? adminIn : ob, x), {});
+  if (adminIn) {
+    const left = eventWhere(ob, 'user-left', (id) => id === adminIn.joinId);
+    adminIn.close();
+    await left;
+  }
+  const gone = chatText(ob, new RegExp(`^X${tag} ayrıldı$`));
+  x.close();
+  await gone;
+  if (lockB) assert.equal((await http(srv.url, 'PATCH', `/rooms/${t.B}`, { token: `test:${t.ownerB}`, body: { password: 'kilit-sifre' } })).status, 200);
+  const moved = next(ob, 'room:moved');
+  assert.deepEqual(await ack(admin, 'merge:request', { from: t.A, to: t.B }), { merged: true });
+  ob.joinId = (await moved).id;
+  return { ...t, oa, ob, admin };
+}
+
+test('B\'de susturulan A kapısından girer: kökeni A, susturma A\'ya kopyalanır; herkes ve geç girenler görür', async () => {
+  const p = await mutedInB();
+  const joined = eventWhere(p.oa, 'user-joined', (d) => d.name === `X${tag}`);
+  const x = await enter(`X${tag}`, p.A);
+  assert.equal(x.joinRes.home.id, p.A, 'köken kapı');
+  assert.equal(x.joinRes.modMuted, 'owner');
+  const j = await joined;
+  assert.equal(j.modMuted, 'owner');
+  assert.equal(j.home, p.A);
+  const late = await enter(`Gec${tag}`, p.A);
+  assert.equal(late.joinRes.peers.find((q) => q.name === `X${tag}`).modMuted, 'owner');
+  // Kopya sahip düzeyinde: kapının (A) sahibi kaldırabilir; B'nin sahibi artık bu kişiye karışamaz
+  assert.ok((await mute(p.ob, x, false)).error);
+  assert.deepEqual(await mute(p.oa, x, false), {});
+});
+
+test('ters yön: A\'da susturulan B kapısından girer → kökeni B, susturulmuş', async () => {
+  const t = await rooms();
+  const oa = await enter(t.ownerA, t.A);
+  const ob = await enter(t.ownerB, t.B);
+  const x = await enter(`Y${tag}`, t.A);
+  assert.deepEqual(await mute(oa, x), {});
+  const gone = chatText(oa, new RegExp(`^Y${tag} ayrıldı$`));
+  x.close();
+  await gone;
+  const admin = await adminLobby();
+  const moved = next(ob, 'room:moved');
+  assert.deepEqual(await ack(admin, 'merge:request', { from: t.A, to: t.B }), { merged: true });
+  ob.joinId = (await moved).id;
+  const y = await enter(`Y${tag}`, t.B);
+  assert.equal(y.joinRes.room.id, t.A);
+  assert.equal(y.joinRes.home.id, t.B);
+  assert.equal(y.joinRes.modMuted, 'owner');
+  assert.deepEqual(await mute(ob, y, false), {}, 'B kapısının sahibi kaldırabilir');
+});
+
+test('yönetici susturması kapı değişince yönetici susturması kalır; kapının sahibi kaldıramaz', async () => {
+  const p = await mutedInB({ by: 'admin' });
+  const x = await enter(`X${tag}`, p.A);
+  assert.equal(x.joinRes.modMuted, 'admin');
+  assert.ok((await mute(p.oa, x, false)).error);
+  const adminIn = await enter('osyalcin', p.A);
+  assert.deepEqual(await mute(adminIn, x, false), {});
+});
+
+test('ayrılınca kapının odasında kalır ve susturulmuş; şifreli öteki odaya girmez; B\'deki asıl kayıt durur', async () => {
+  const p = await mutedInB({ lockB: true });
+  const x = await enter(`X${tag}`, p.A);
+  assert.equal(x.joinRes.modMuted, 'owner');
+  const got = [];
+  x.on('room:moved', (d) => got.push(d));
+  const back = next(p.ob, 'room:moved');
+  assert.deepEqual(await ack(p.admin, 'merge:split', { room: p.A }), {});
+  assert.equal((await back).room.id, p.B);
+  await new Promise((r) => x.emit('time', r));
+  assert.deepEqual(got, [], 'X taşınmadı');
+  assert.ok(!(await listed(p.B)).users.includes(`X${tag}`), 'şifreli B\'ye girmedi');
+  const look = await enter(`Bak${tag}`, p.A);
+  assert.equal(look.joinRes.peers.find((q) => q.name === `X${tag}`).modMuted, 'owner', 'A\'da susturulmuş');
+  // B'deki asıl kayıt: X B'ye (şifreyle) dönerse yine susturulmuş
+  const left = eventWhere(p.oa, 'user-left', (id) => id === x.joinId);
+  x.close();
+  await left;
+  const xb = await user(`X${tag}`);
+  const r = await join(xb, p.B, { password: 'kilit-sifre' });
+  assert.equal(r.error, undefined, JSON.stringify(r).slice(0, 200));
+  assert.equal(r.modMuted, 'owner');
+});
+
+test('birleşme anındaki taşınma kökeni değiştirmez, kopyalamaz: B\'de oturan, A\'daki eski kaydına rağmen susturulmuş değil', async () => {
+  const t = await rooms();
+  const oa = await enter(t.ownerA, t.A);
+  const z = await enter(`Z${tag}`, t.A);
+  assert.deepEqual(await mute(oa, z), {});
+  const gone = chatText(oa, new RegExp(`^Z${tag} ayrıldı$`));
+  z.close();
+  await gone;
+  const zb = await enter(`Z${tag}`, t.B); // B'de oturuyor (B kaydı yok)
+  assert.equal(zb.joinRes.modMuted, null);
+  const admin = await adminLobby();
+  const moved = next(zb, 'room:moved');
+  assert.deepEqual(await ack(admin, 'merge:request', { from: t.A, to: t.B }), { merged: true });
+  const m = await moved;
+  assert.equal(m.home.id, t.B);
+  assert.equal(m.modMuted, null);
+  // A'nın sahibi B kökenliye karışamaz; A kapısından girenleri her zaman susturabilir
+  zb.joinId = m.id;
+  assert.ok((await mute(oa, zb)).error);
+  const w = await enter(`W${tag}`, t.A);
+  assert.deepEqual(await mute(oa, w), {});
+});
+
+test('etkin susturma: kapının odasında sahip kaydı, öteki odada yönetici kaydı varsa yönetici kazanır; sahip kaldıramaz, yönetici kaldırınca duyulur', async () => {
+  const t = await rooms();
+  const oa = await enter(t.ownerA, t.A);
+  const ob = await enter(t.ownerB, t.B);
+  const v = await enter(`V${tag}`, t.B);
+  const adminB = await enter('osyalcin', t.B);
+  assert.deepEqual(await mute(adminB, v), {}); // B: yönetici kaydı
+  const goneAdmin = eventWhere(ob, 'user-left', (id) => id === adminB.joinId);
+  adminB.close();
+  await goneAdmin;
+  const gone = chatText(ob, new RegExp(`^V${tag} ayrıldı$`));
+  v.close();
+  await gone;
+  const va = await enter(`V${tag}`, t.A); // birleşik değilken A: susturulmamış
+  assert.equal(va.joinRes.modMuted, null);
+  assert.deepEqual(await mute(oa, va), {}); // A: sahip kaydı
+  const admin = await adminLobby();
+  const flag = eventWhere(oa, 'user-modmuted', (d) => d.id === va.joinId && d.by === 'admin');
+  assert.deepEqual(await ack(admin, 'merge:request', { from: t.A, to: t.B }), { merged: true });
+  await flag; // birleşince etkin durum yönetici; odadakilere bildirilir
+  assert.ok((await mute(oa, va, false)).error, 'sahip kaldıramaz');
+  const look = await enter(`Bakan${tag}`, t.A);
+  assert.equal(look.joinRes.peers.find((q) => q.name === `V${tag}`).modMuted, 'admin');
+  const adminIn = await enter('osyalcin', t.A);
+  assert.deepEqual(await mute(adminIn, va, false), {});
+  const look2 = await enter(`Bakan2${tag}`, t.A);
+  assert.equal(look2.joinRes.peers.find((q) => q.name === `V${tag}`).modMuted, null, 'yönetici kaldırınca duyulur');
+});
+
+test('ayrılma sırasında sayfasını yenileyen susturulmuş kişi susturmasını kaybetmez', async () => {
+  const slow = await startServer({ env: { REJOIN_GRACE_MS: '4000' } });
+  const conn = async (name, room, cidv = name) => {
+    const s = await client(slow.url, name);
+    sockets.push(s);
+    const r = await ack(s, 'join', { token: s.token, clientId: cidv, room });
+    assert.equal(r.error, undefined, JSON.stringify(r).slice(0, 200));
+    s.joinId = r.id;
+    s.joinRes = r;
+    return s;
+  };
+  try {
+    const mk = async (name, owner) => {
+      await http(slow.url, 'POST', '/auth/register', { body: { name: owner, password: 'hesap-sifre' } });
+      return (await http(slow.url, 'POST', '/rooms', { token: ADMIN, body: { name, owner } })).json.room.id;
+    };
+    const A = await mk('Yen A', 'YenA');
+    const B = await mk('Yen B', 'YenB');
+    const oa = await conn('YenA', A);
+    const ob = await conn('YenB', B);
+    const x = await conn('Yenileyen', B);
+    const admin = await client(slow.url, 'osyalcin');
+    sockets.push(admin);
+    await ack(admin, 'hello', { token: admin.token });
+    const moved = [next(ob, 'room:moved'), next(x, 'room:moved')];
+    assert.deepEqual(await ack(admin, 'merge:request', { from: A, to: B }), { merged: true });
+    const [mob, mx] = await Promise.all(moved);
+    ob.joinId = mob.id;
+    x.joinId = mx.id;
+    assert.deepEqual(await mute(ob, x), {});
+    // B sahibi çıkar (B kökenli yalnız X kalır); X yenilenirken (bağlantı koptu, yenileme payı içinde) ayrılma olur
+    const obLeft = eventWhere(oa, 'user-left', (id) => id === ob.joinId);
+    ob.close();
+    await obLeft;
+    const xLeft = eventWhere(oa, 'user-left', (id) => id === x.joinId);
+    x.close();
+    await xLeft;
+    assert.deepEqual(await ack(admin, 'merge:split', { room: A }), {});
+    const back = await conn('Yenileyen', B);
+    assert.equal(back.joinRes.room.id, B);
+    assert.equal(back.joinRes.modMuted, 'owner');
+  } finally {
+    await slow.stop();
+  }
 });
