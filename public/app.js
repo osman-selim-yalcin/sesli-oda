@@ -7154,38 +7154,38 @@ addEventListener('DOMContentLoaded', async () => {
 // Yeni bir oyunun sekmesi eklenince kartlarda kendiliğinden görünür (bilgisi yoksa "Diğer" altında).
 
 // players: kartta görünen kişi sayısı aralığı (sunucudaki LOBBY_GAMES sınırları; bot ayrıca katılabilir)
+// hue: oyunun tonu, oklch ton açısı (simgenin rengi, kartın ve lobinin simge zemini; açıklığı temadan gelir)
 const GAME_INFO = {
-  sayi: { icon: '🔢', hue: 210, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
-  kural: { icon: '🕵️', hue: 265, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–6 kişi' },
-  hedef: { icon: '🎯', hue: 0, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–6 kişi' },
-  mantik: { icon: '🧠', hue: 320, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–6 kişi' },
-  klotski: { icon: '🧩', hue: 130, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
-  memory: { icon: '🃏', hue: 40, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–6 kişi' },
-  timing: { icon: '⏱️', hue: 190, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur', players: '1–6 kişi' },
-  daktilo: { icon: '⌨️', hue: 280, group: 'Hız ve refleks', desc: 'Aynı kelimeleri yaz, en hızlı olan kazanır', players: '1–6 kişi' },
-  okuma: { icon: '📖', hue: 35, group: 'Hız ve refleks', desc: 'Göz açısı, blok görme, takistoskop', players: 'Tek kişi' },
-  dino: { icon: '🦖', hue: 100, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş', players: '1–6 kişi' },
-  peacock: { icon: '🦚', hue: 170, group: 'Hız ve refleks', desc: 'Yakında', soon: true },
-  kelime: { icon: '💬', hue: 230, group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir', players: '2–6 kişi' },
-  tier: { icon: '📊', hue: 25, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },
-  oner: { icon: '💡', hue: 50, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
+  sayi: { hue: 245, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
+  kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–6 kişi' },
+  hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–6 kişi' },
+  mantik: { hue: 345, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–6 kişi' },
+  klotski: { hue: 150, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
+  memory: { hue: 65, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–6 kişi' },
+  timing: { hue: 215, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur', players: '1–6 kişi' },
+  daktilo: { hue: 315, group: 'Hız ve refleks', desc: 'Aynı kelimeleri yaz, en hızlı olan kazanır', players: '1–6 kişi' },
+  okuma: { hue: 50, group: 'Hız ve refleks', desc: 'Göz açısı, blok görme, takistoskop', players: 'Tek kişi' },
+  dino: { hue: 130, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş', players: '1–6 kişi' },
+  peacock: { hue: 185, group: 'Hız ve refleks', desc: 'Yakında', soon: true },
+  kelime: { hue: 265, group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir', players: '2–6 kişi' },
+  tier: { hue: 35, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },
+  oner: { hue: 90, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
 };
 const GAME_GROUPS = ['Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
-// Çizilmiş simgeler public/icons/<oyun>.webp (192 px); dosyası olmayan oyunda emoji görünür.
-const GAME_ICONS = new Set(['sayi', 'kural', 'hedef', 'mantik', 'klotski', 'memory', 'timing', 'dino', 'peacock', 'kelime', 'tier', 'oner']);
+// Oyun simgeleri: index.html'deki gömülü <svg id="game-icons"> (kaynağı icons/games.svg, test/tools/game-icons.js).
+// Sembolü olmayan (yeni eklenmiş) oyunda arayüz setinin oyun kolu ikonu görünür.
 function gameIcon(key, cls) {
   const el = Object.assign(document.createElement('span'), { className: cls });
-  if (GAME_ICONS.has(key)) {
-    el.classList.add('img');
-    el.append(Object.assign(document.createElement('img'), { src: `/icons/${key}.webp`, alt: '', decoding: 'async', draggable: false }));
-  } else el.textContent = gameInfo(key).icon;
+  el.style.setProperty('--hue', gameInfo(key).hue);
+  const id = document.getElementById(`g-${key}`) ? `g-${key}` : 'i-gamepad';
+  el.innerHTML = `<svg class="${id === 'i-gamepad' ? 'ic' : 'gi'}" aria-hidden="true"><use href="#${id}"></use></svg>`;
   return el;
 }
 const gameRecentKey = 'gameRecent';
 
 const gameTabs = () => [...document.querySelectorAll('.games-panel > .tabs > .tab[id^="game-tab-"]')]
   .map((btn) => ({ btn, key: btn.id.slice('game-tab-'.length), name: btn.textContent.trim() }));
-const gameInfo = (key) => GAME_INFO[key] || { icon: '🎮', hue: 230, group: 'Diğer', desc: '' };
+const gameInfo = (key) => GAME_INFO[key] || { hue: 260, group: 'Diğer', desc: '' };
 const lobbyOpen = (tab) => tab.btn.classList.contains('lobby-open');
 
 function gameEntry(tab, cls) {
