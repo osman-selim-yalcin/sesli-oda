@@ -934,7 +934,7 @@ dialog.room-settings[open] { display: flex; flex-direction: column; }
 }
 .theme-swatch:hover { border-color: var(--border-strong); }
 .theme-swatch:has(.theme-swatch-input:checked) { border-color: var(--accent); box-shadow: 0 0 0 var(--border-w) var(--accent); }
-.theme-swatch:has(.theme-swatch-input:focus-visible) { box-shadow: var(--focus-ring); }
+.theme-swatch:has(.theme-swatch-input:focus-visible) { box-shadow: var(--focus-ring); outline: 2px solid var(--accent); outline-offset: 2px; }
 .theme-swatch:has(.theme-swatch-input:checked:focus-visible) { box-shadow: 0 0 0 var(--border-w) var(--accent), var(--focus-ring); }
 .theme-picker:disabled .theme-swatch { cursor: progress; opacity: .7; }
 /* Radyo düğmesi görünmez ama odaklanabilir ve klavyeyle seçilebilir kalır (kutucuğun kendisi görünür seçimdir) */

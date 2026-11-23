@@ -397,7 +397,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 /* Alttaki çıkış: büyük karenin çıkacağı açıklık */
 .klotski-board::after { content: ''; position: absolute; left: calc(10px + (100% - 20px) / 4); width: calc((100% - 20px) / 2); bottom: -1px; height: 4px; background: var(--danger); border-radius: var(--radius-pill); opacity: .8; }
 .klotski-piece { position: absolute; width: calc(var(--w) * (100% - 20px) / 4); height: calc(var(--h) * (100% - 20px) / 5); left: calc(10px + var(--x) * (100% - 20px) / 4); top: calc(10px + var(--y) * (100% - 20px) / 5); padding: 3px; box-sizing: border-box; transition: left .09s ease-out, top .09s ease-out; cursor: grab; }
-.klotski-piece i { display: block; width: 100%; height: 100%; border-radius: var(--radius-s); background: linear-gradient(160deg, var(--border-strong), var(--surface-3)); border: var(--border-w) solid var(--border-strong); box-shadow: var(--shadow-1); }
+.klotski-piece i { display: block; width: 100%; height: 100%; border-radius: var(--radius-s); background: linear-gradient(160deg, var(--border-strong), var(--surface-raised)); /* koyu temada --surface-raised = --surface-3 */ border: var(--border-w) solid var(--border-strong); box-shadow: var(--shadow-1); }
 /* içerik: çıkarılacak büyük kare kırmızı (oyunun hedef parçası) */
 .klotski-piece.big i { background: linear-gradient(160deg, #FF7585, #D83A50); border-color: #FF8B98; }
 .klotski-piece.drag { cursor: grabbing; z-index: 2; }
@@ -512,7 +512,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .kelime-pick-tools { display: flex; gap: 8px; flex-wrap: wrap; }
 .kelime-chosen { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 16px; }
 /* içerik: hedef kelime çubuğun en sıcak ucunun renginde (--kelime-hot) */
-.kelime { --kelime-hot: color-mix(in srgb, #FF7676, var(--text) var(--ink-mix)); } /* açık temada koyulaşır (--ink-mix) */
+.kelime { --kelime-hot: color-mix(in srgb, #FF7676, var(--danger) calc(var(--ink-mix) * 4 / 3)); } /* açık temada --danger'a karışır (Aydınlık %80): kırmızı kalır, 4,5:1; koyu temada aynen */
 .kelime-chosen b { color: var(--kelime-hot); }
 .kelime-play { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
 .kelime-main { display: grid; gap: 10px; }
@@ -531,7 +531,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .kelime-word { position: absolute; left: 44px; right: 0; height: 26px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-radius: var(--radius-s); background: color-mix(in srgb, var(--who, var(--muted)) 22%, var(--surface-3)); border-left: 4px solid var(--who, var(--muted)); font-size: 14px; white-space: nowrap; overflow: hidden; user-select: none; -webkit-user-select: none; }
 .kelime-word b { overflow: hidden; text-overflow: ellipsis; }
 .kelime-word .muted { font-size: 12px; overflow: hidden; text-overflow: ellipsis; color: color-mix(in srgb, var(--who, var(--muted)), var(--text) var(--ink-mix)); }
-.kelime-word .rank { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--muted); }
+.kelime-word .rank { margin-left: auto; font-size: 11px; font-weight: 700; color: color-mix(in srgb, var(--muted), var(--text) var(--ink-mix)); } /* renkli satırda açık temada 4,5:1 */
 .kelime-word.moving { box-shadow: 0 0 0 2px var(--accent); z-index: 2; }
 .kelime-word.selected { box-shadow: 0 0 0 2px var(--accent); }
 .kelime-word.grab { cursor: grab; touch-action: none; }
@@ -680,7 +680,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
   width: 76px;
   height: 76px;
   border-radius: var(--radius-s);
-  background: var(--surface-3);
+  background: var(--surface-raised); /* satırın (--surface-2) üstünden kalkar */
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -737,7 +737,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .sayi-play { display: grid; gap: 14px; width: 100%; }
 .sayi-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
 .sayi-code { display: grid; gap: 4px; }
-.sayi-code-box { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-s); background: var(--text); color: var(--bg); font-size: 17px; font-weight: 600; width: fit-content; }
+.sayi-code-box { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius-s); background: var(--emphasis); color: var(--emphasis-text); font-size: 17px; font-weight: 600; width: fit-content; }
 .sayi-code-box .sayi-num { letter-spacing: .12em; font-weight: 800; }
 .sayi-sure { display: grid; gap: 6px; justify-items: end; }
 .sayi-sure[hidden] { display: none; }
@@ -915,7 +915,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 #hedef-rules-pop { width: min(420px, calc(100vw - 32px)); }
 .hedef-play { display: grid; gap: 12px; justify-items: center; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface); }
 .hedef-target { display: grid; justify-items: center; gap: 2px; }
-.hedef-target strong { font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: .04em; font-variant-numeric: tabular-nums; padding: 8px 22px; border-radius: var(--radius-s); background: var(--text); color: var(--bg); }
+.hedef-target strong { font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: .04em; font-variant-numeric: tabular-nums; padding: 8px 22px; border-radius: var(--radius-s); background: var(--emphasis); color: var(--emphasis-text); }
 .hedef-tiles { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; min-height: 60px; }
 .hedef-tile { min-width: 64px; height: 60px; padding: 0 12px; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; border-radius: var(--radius-s); background: var(--surface-2); border: 2px solid var(--border-strong); touch-action: manipulation; }
 .hedef-tile.big { border-color: color-mix(in srgb, var(--accent) 50%, transparent); }

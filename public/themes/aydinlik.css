@@ -12,6 +12,9 @@
   --surface: #FFFFFF;
   --surface-2: #F1EEE7;
   --surface-3: #E8E4DB;
+  --surface-raised: #FFFFFF; /* bildirim, tier kartı, kaydırmaca parçası: yüzen şey beyaz, sayfadan koyu değil */
+  --emphasis: #E1E4F8;        /* hedef sayı, "Senin sayın": ağır siyah blok yerine vurgu tonunda açık blok */
+  --emphasis-text: #1E2670;   /* koyu vurgu mürekkebi */
   --border: #E0DBD0;
   --border-strong: #C9C1B2;
   --text: #171A22;
@@ -55,5 +58,5 @@
   --dur: 200ms;
   --ease: cubic-bezier(.2, 0, 0, 1);
 
-  --focus-ring: 0 0 0 3px rgba(69, 83, 196, .28);
+  --focus-ring: 0 0 0 3px rgba(69, 83, 196, .45);
 }

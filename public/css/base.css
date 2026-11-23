@@ -5,10 +5,14 @@
    games: oyunlar sayfası, lobi kartları, oyun tahtaları, skor tabloları, radyo.
 
    Değişken sözleşmesi: her tema dosyası (public/themes/*.css) bunların hepsini :root üstünde tanımlar.
-     Renk:    --bg --surface --surface-2 --surface-3 --border --border-strong --text --muted
+     Renk:    --bg --surface --surface-2 --surface-3 --surface-raised --emphasis --emphasis-text --border --border-strong --text --muted
               --accent --accent-contrast --accent-soft --accent-2 --live --live-soft --danger --danger-soft
               --danger-contrast --overlay --avatar-text --on-media --on-media-accent --ink-mix
-              (--danger-contrast: dolu --danger üstündeki yazı; --live-soft: --live'ın yumuşak zemini;
+              (--surface-raised: zeminden kalkan yüzey: bildirim, sürüklenen kart, kaydırmaca parçası; koyu temada
+               en açık kat, açık temada beyaz — yüzen şey sayfadan koyu olmaz;
+               --emphasis / --emphasis-text: oyunun en önemli sayısının bloğu (hedef sayı, "Senin sayın"); koyu temada
+               ters blok (--text zemin), açık temada ağır siyah blok yerine vurgu tonunda yumuşak blok;
+               --danger-contrast: dolu --danger üstündeki yazı; --live-soft: --live'ın yumuşak zemini;
                --avatar-text: kişi renkli avatar üstündeki baş harf;
                --on-media / --on-media-accent: temadan bağımsız koyu bir resmin (radyonun uydu küresi) üstünde
                çizilen halka ve noktalar, her temada açık renk;
@@ -31,12 +35,17 @@
   --surface: #16181E;
   --surface-2: #1E2129;
   --surface-3: #272B35;
+  --surface-raised: #272B35;
+  --emphasis: #E8E9ED;
+  --emphasis-text: #0E0F13;
   --border: #2A2E38;
   --border-strong: #3A3F4C;
   --text: #E8E9ED;
   --muted: #8C91A1;
   --accent: #8B9CFF;
   --accent-contrast: #0E0F13;
+  /* Yumuşak zeminler (--*-soft) üstündeki kendi renkli rozet yazısı --surface-3 üstünde 4,5:1'in altına düşer
+     (Aydınlık'ta 4,24-4,45): yumuşak rozet --surface-3'e konmaz, en koyu --surface-2'ye. */
   --accent-soft: rgba(139, 156, 255, .16);
   --accent-2: #FFD23F;
   --live: #4ADE80;
@@ -648,7 +657,7 @@ body:has(dialog[open]) .toast:not(:last-child) { display: none; }
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
-  background: var(--surface-3);
+  background: var(--surface-raised);
   color: var(--text);
   border: var(--border-w) solid var(--border-strong);
   border-radius: var(--radius-m);

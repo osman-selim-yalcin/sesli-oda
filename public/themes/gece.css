@@ -9,6 +9,9 @@
   --surface: #16181E;
   --surface-2: #1E2129;
   --surface-3: #272B35;
+  --surface-raised: #272B35; /* bildirim, sürüklenen kart: en açık kat */
+  --emphasis: #E8E9ED;      /* hedef sayı, "Senin sayın": ters blok (metin rengi zemin) */
+  --emphasis-text: #0E0F13;
   --border: #2A2E38;
   --border-strong: #3A3F4C;
   --text: #E8E9ED;

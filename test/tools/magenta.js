@@ -2,7 +2,7 @@
 // Macenta denemesi: temaya bağlanmamış (sabit yazılmış) renkleri ortaya çıkarır.
 // Sayfayı başsız Chrome'da açar, değişken sözleşmesindeki bütün renkleri çiğ renklere çeker
 // ve ekran görüntüsü alır:
-//   #FF00FF  zeminler ve yumuşak zeminler (--bg, --surface*, --accent-soft, --danger-soft, --live-soft, --overlay)
+//   #FF00FF  zeminler ve yumuşak zeminler (--bg, --surface* (--surface-raised dahil), --accent-soft, --danger-soft, --live-soft, --overlay)
 //   #00FFFF  vurgu ve durum renkleri (--accent, --accent-2, --live, --danger, --on-media-accent); zemin üstünde de görünür
 //   #00FF00  metin (--text, --muted, --accent-contrast, --danger-contrast, --avatar-text, --on-media)
 //   (--ink-mix bir orandır, renk değil: denemede 0%, içerik renkleri olduğu gibi kalır)
@@ -38,9 +38,9 @@ const fs = require('fs');
 const path = require('path');
 
 const CONTRACT = {
-  '#FF00FF': ['--bg', '--surface', '--surface-2', '--surface-3', '--accent-soft', '--danger-soft', '--live-soft', '--overlay'],
+  '#FF00FF': ['--bg', '--surface', '--surface-2', '--surface-3', '--surface-raised', '--emphasis', '--accent-soft', '--danger-soft', '--live-soft', '--overlay'],
   '#00FFFF': ['--accent', '--accent-2', '--live', '--danger', '--on-media-accent'],
-  '#00FF00': ['--text', '--muted', '--accent-contrast', '--danger-contrast', '--avatar-text', '--on-media'],
+  '#00FF00': ['--text', '--muted', '--accent-contrast', '--danger-contrast', '--avatar-text', '--on-media', '--emphasis-text'],
   '#FFFF00': ['--border', '--border-strong'],
 };
 const EXTRA = { '--ink-mix': '0%', '--shadow-1': '0 0 0 1px #FF00FF', '--shadow-2': '0 0 0 1px #FF00FF', '--focus-ring': '0 0 0 3px #FF00FF' };
