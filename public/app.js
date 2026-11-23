@@ -6387,6 +6387,7 @@ function signedOut(error) {
   account = null;
   socket.disconnect();
   Lobby.hide();
+  Lobby.reset();
   $('room-screen').hidden = true;
   applyTheme(Theme.DEFAULT); // giriş ekranı her zaman varsayılan tema
   $('join-screen').hidden = false;
@@ -6460,6 +6461,8 @@ $('join-form').onsubmit = async (e) => {
 
 // ---------- Oda listesi ----------
 // Liste açılınca soket bağlanır ve hello ile hesaba bağlanır; aynı soket sonra odaya girerken (join) kullanılır.
+// Kayıtlı oturumla açılışta liste beklenmez: oturum belirteci belliyse /rooms isteği ve soket bağlantısı,
+// /auth/me ile aynı anda başlar (açılış, aşağıda). Liste gelene kadar Lobby iskelet kartlar gösterir.
 
 function openLobby() {
   applyTheme(Theme.DEFAULT); // oda listesi her zaman varsayılan tema; odanın teması yalnız odada
@@ -6477,7 +6480,10 @@ async function helloLobby() {
     error: 'Sunucuya bağlanılamadı. İnternetini kontrol edip tekrar dene.',
   };
   if (res.auth) return signedOut(res.error);
-  if (res.error) return toast(res.error);
+  if (res.error) {
+    Lobby.failed(res.error); // liste hiç gelmediyse listenin yerinde hata notu
+    return toast(res.error);
+  }
   Lobby.update({ rooms: res.rooms, pending: res.pending });
 }
 socket.on('rooms', ({ rooms } = {}) => Array.isArray(rooms) && Lobby.update({ rooms }));
@@ -7127,6 +7133,7 @@ addEventListener('pagehide', () => socket.disconnect());
 // dosyadan sonra yüklenir; bu yüzden açılış sayfanın bütün betikleri çalıştıktan sonra yapılır.
 addEventListener('DOMContentLoaded', async () => {
   Lobby.onEnter(({ id, password }) => enterRoomFlow(id, password));
+  Lobby.onRetry(helloLobby);
   if (!authToken) {
     $('join-screen').hidden = false;
     // Oturumu kapatılıp buraya dönüldüyse nedeni giriş ekranında yazar.
@@ -7137,9 +7144,13 @@ addEventListener('DOMContentLoaded', async () => {
     } catch {}
     return;
   }
+  // Oturum belirteci belli: liste ve soket bağlantısı /auth/me cevabını beklemez (hello yine openLobby'de)
+  Lobby.prefetch();
+  socket.connect();
   const res = await api('GET', '/auth/me');
   if (res.error) {
     if (res.status === 401) return signedOut();
+    socket.disconnect(); // erken açılan bağlantı: giriş ekranında soket gerekmez
     $('join-screen').hidden = false;
     return showJoinError(res.error);
   }

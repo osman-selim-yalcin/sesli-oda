@@ -191,6 +191,13 @@
 
         <ul id="room-list" class="room-grid" aria-label="Odalar"></ul>
 
+        <!-- İlk liste alınamadı (liste varken hata olursa liste kalır) -->
+        <div id="room-list-error" class="notice notice-danger room-list-error" role="alert" hidden>
+          <svg class="ic"><use href="#i-alert"></use></svg>
+          <span id="room-list-error-text"></span>
+          <button type="button" id="room-list-retry" class="btn btn-sm">Tekrar dene</button>
+        </div>
+
         <!-- Boş liste: üç adım şeridi -->
         <div id="room-list-empty" class="room-empty" hidden>
           <svg class="ic room-empty-icon"><use href="#i-door"></use></svg>

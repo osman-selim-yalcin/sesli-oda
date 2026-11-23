@@ -1317,6 +1317,8 @@ button.account-chip:active:not(:disabled) { transform: none; background: var(--s
 .roomlist-title { font-size: 26px; }
 .roomlist-summary { margin: var(--space-1) 0 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
 .roomlist-summary:empty { display: none; }
+/* Liste yüklenirken özet yazısı yok ama satırı yerinde: liste gelince başlık kaymaz */
+.roomlist-page:has(#room-list[aria-busy=true]) #lobby-summary:empty { display: block; min-height: 1.5em; }
 /* Liste boşken eylem boş durumun ortasında durur; başlıktaki ikinci kopya gizlenir */
 .roomlist-page:has(#room-list-empty:not([hidden])) .roomlist-head .btn { display: none; }
 
@@ -1386,6 +1388,33 @@ button.room-card.is-full { cursor: not-allowed; }
    çizgisi, sohbet sütunu). Renkler kartın yerel değişkenleri (--pv-*; theme.js Theme.preview). Tek tema varken
    ince bir ipucu; tema sayısı artınca --pv-h büyütülebilir. Rozetler şeridin alt kenarına biner. */
 .room-card { --pv-h: 28px; }
+
+/* Liste yüklenirken (lobby.js skeletonCard): gerçek kartla aynı iskelet ve dış ölçü, üstünden sakin bir parıltı geçer.
+   Hareket azaltılmışsa parıltı yok, bloklar durur. */
+.room-skel {
+  position: relative; width: 100%; min-width: 0; display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); border: var(--border-w) solid var(--border); border-radius: var(--radius-l);
+}
+.room-skel .room-top { background: var(--surface-2); }
+.skel { display: block; background: var(--surface-2); border-radius: var(--radius-s); }
+.skel-emblem { width: 44px; height: 44px; flex-shrink: 0; border-radius: var(--radius-m); }
+.skel-name { width: 140px; max-width: 100%; height: 14px; margin: 3px 0; }
+.skel-owner { width: 84px; max-width: 100%; height: 12px; margin: 4px 0 3px; }
+.room-skel .room-faces { gap: 6px; }
+.skel-face { width: 28px; height: 28px; border-radius: var(--radius-round); }
+.skel-go { width: 64px; height: 32px; flex-shrink: 0; border-radius: var(--radius-pill); }
+.room-skel::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--text) 6%, transparent) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: skel-shine 1.6s var(--ease) infinite;
+}
+@keyframes skel-shine { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .room-skel::after { display: none; } }
+/* İlk liste alınamadı: hata notu ve "Tekrar dene" */
+.room-list-error { display: flex; align-items: center; gap: var(--space-2); }
+.room-list-error[hidden] { display: none; }
+.room-list-error > span { flex: 1; min-width: 0; }
 .room-top { position: relative; display: block; height: var(--pv-h); flex-shrink: 0; border-bottom: var(--border-w) solid var(--border); }
 .room-pv {
   position: absolute;
