@@ -289,7 +289,7 @@ button.radio-icon { display: grid; place-items: center; width: 32px; height: 32p
 button.radio-icon:hover:where(:not(:disabled)) { background: var(--surface-3); color: var(--text); border: none; }
 .radio-icon .ic { width: 16px; height: 16px; }
 button.radio-icon.on { color: var(--accent); }
-.radio-icon.on .ic { fill: currentColor; }
+.radio-icon.on .ic { fill: currentColor; --ic-fill: currentColor; } /* --ic-fill: piksel setin iç boşluğu (icons.js PIXEL_INNER) */
 
 /* Çalan istasyon kartı */
 .radio-player { padding: var(--space-4); display: grid; gap: var(--space-3); }
@@ -631,7 +631,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .timing-rank { flex-shrink: 0; display: inline-grid; place-items: center; width: 22px; text-align: center; font-weight: 700; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .timing-rank:empty { width: 0; margin-right: calc(var(--space-2) * -1); }
 .timing-rank.top { color: var(--accent-2); }
-.timing-rank.top-1 .ic { width: 17px; height: 17px; stroke-width: 2; fill: color-mix(in srgb, var(--accent-2) 30%, transparent); }
+.timing-rank.top-1 .ic { width: 17px; height: 17px; stroke-width: 2; fill: color-mix(in srgb, var(--accent-2) 30%, transparent); --ic-fill: color-mix(in srgb, var(--accent-2) 45%, transparent); }
 .timing-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 .timing-val { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .timing-list li > .small { white-space: nowrap; font-variant-numeric: tabular-nums; }

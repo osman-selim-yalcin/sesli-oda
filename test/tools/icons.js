@@ -60,11 +60,11 @@ const PIXEL_MAP = {
   like: 'thumbs-up', dislike: 'thumbs-down', send: 'send', link: 'link', logout: 'logout', heart: 'heart',
   search: 'search', globe: 'globe', locate: 'gps', minus: 'minus', shuffle: 'shuffle', radio: 'radio',
   music: 'music', upload: 'upload', chevron: 'chevron-down', users: 'users', trophy: 'trophy', image: 'image',
-  up: 'chevron-up', back: 'chevron-left', loader: 'loader', lock: 'lock', unlock: 'unlock', door: 'door-closed',
-  crown: 'crown', merge: 'git-merge', split: 'git-branch', palette: 'colors-swatch', key: 'key', bell: 'bell',
+  up: 'chevron-up', back: 'chevron-left', loader: 'loader', lock: 'lock', unlock: 'unlock',
+  crown: 'crown', merge: 'git-merge', split: 'git-branch', key: 'key', bell: 'bell',
   user: 'user', shield: 'shield', home: 'home', gamepad: 'gamepad', message: 'message', list: 'bulletlist',
   history: 'clock', trash: 'trash', edit: 'pencil', copy: 'copy', info: 'info-box', bot: 'robot',
-  timer: 'hourglass', undo: 'undo', sparkles: 'sparkles', more: 'more-horizontal', cog: 'settings-cog',
+  undo: 'undo', sparkles: 'sparkles', more: 'more-horizontal', cog: 'settings-cog',
 };
 
 // Elle çizilen piksel ikonlar: 12×12 ızgara, "#" = dolu 2×2 birimlik piksel (24×24 görünümde).
@@ -205,7 +205,67 @@ const PIXEL_DRAWN = {
     '............',
   ],
 };
+Object.assign(PIXEL_DRAWN, {
+  // Süre: kronometre (kum saati sayacın yanında "8" gibi okunuyordu)
+  timer: [
+    '....####....',
+    '.....##.....',
+    '...######...',
+    '..#......#..',
+    '.#...#....#.',
+    '.#...#....#.',
+    '.#...###..#.',
+    '.#........#.',
+    '.#........#.',
+    '..#......#..',
+    '...######...',
+    '............',
+  ],
+  // Kapı: kasa + dışa açılmış kanat + eşik
+  door: [
+    '.######.....',
+    '.#....##....',
+    '.#....#.#...',
+    '.#....#..#..',
+    '.#....#..#..',
+    '.#....#.##..',
+    '.#....#..#..',
+    '.#....#..#..',
+    '.#....#..#..',
+    '.#....#.#...',
+    '.#....##....',
+    '##########..',
+  ],
+  // Palet: boya lekeli ressam paleti, sağda başparmak deliği
+  palette: [
+    '...######...',
+    '.##......##.',
+    '#..##..##..#',
+    '#..##..##..#',
+    '#..........#',
+    '#.##....###.',
+    '#.##...#....',
+    '#......#....',
+    '#.......###.',
+    '.#........#.',
+    '..########..',
+    '............',
+  ],
+});
 PIXEL_DRAWN.prev = PIXEL_DRAWN.skip.map((row) => [...row].reverse().join(''));
+
+// Dolu durum: bazı kurallar ikonu "dolu" çizer (favori kalp, oynat/duraklat düğmesi, birincinin tacı; Lucide'da
+// .ic { fill }). Piksel ikonlar zaten dolu pikseldir; iç boşlukları ayrı bir yolda --ic-fill ile boyanır
+// (yoksa saydam). Kural --ic-fill'i verir (games.css, shell.css), değişken <use> içine miras geçer.
+// Yollar Pixelarticons çiziminin dışarıdan ulaşılamayan iç pikselleridir (24×24 ızgarada taşma dolgusu).
+const PIXEL_INNER = {
+  heart: 'M5 4h4v2h-4zM15 4h4v2h-4zM3 6h8v2h-8zM13 6h8v2h-8zM3 8h18v4h-18zM5 12h14v2h-14zM7 14h10v2h-10zM9 16h6v2h-6zM11 18h2v2h-2z',
+  trophy: 'M8 5h8v10h-8zM4 7h2v4h-2zM18 7h2v4h-2z',
+  crown: 'M11 5h2v2h-2zM5 7h2v2h-2zM9 7h6v2h-6zM17 7h2v2h-2zM5 9h14v6h-14z',
+  play: 'M9 7h2v2h-2zM9 9h4v2h-4zM9 11h6v2h-6zM9 13h4v2h-4zM9 15h2v2h-2z',
+  pause: 'M6 6h2v12h-2zM14 6h2v12h-2z',
+};
+const INNER_STYLE = 'fill:var(--ic-fill,transparent)';
 
 const ROOT = path.join(__dirname, '..', '..');
 const OUT = path.join(ROOT, 'public', 'icons', 'ui', 'lucide.svg');
@@ -246,7 +306,8 @@ function pixelSymbols(dir) {
   return Object.keys(MAP).map((name) => {
     const body = PIXEL_DRAWN[name] ? gridPath(PIXEL_DRAWN[name]) : pixelInner(path.join(dir, `${PIXEL_MAP[name]}.svg`));
     if (!body) throw new Error(`piksel ikon yok: ${name}`);
-    return `<symbol id="i-${name}" viewBox="0 0 24 24">${PIXEL_G}${body}</g></symbol>`;
+    const fill = PIXEL_INNER[name] ? `<path style="${INNER_STYLE}" d="${PIXEL_INNER[name]}"/>` : '';
+    return `<symbol id="i-${name}" viewBox="0 0 24 24">${PIXEL_G}${body}${fill}</g></symbol>`;
   });
 }
 
@@ -300,4 +361,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = { MAP, PIXEL_MAP, PIXEL_DRAWN };
+module.exports = { MAP, PIXEL_MAP, PIXEL_DRAWN, PIXEL_INNER, INNER_STYLE, gridPath, PIXEL_G };

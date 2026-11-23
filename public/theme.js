@@ -89,6 +89,11 @@ window.Theme = (() => {
   // dosya temayı durdurmaz (font-display: swap, yedek yazı tipiyle açılır).
   const FONT_WAIT = 1500;
   const fontFaces = new Map(); // src → Promise
+  const FONT_DESCRIPTORS = [
+    ['font-weight', 'weight'], ['font-style', 'style'], ['font-stretch', 'stretch'], ['font-display', 'display'],
+    ['unicode-range', 'unicodeRange'], ['font-feature-settings', 'featureSettings'], ['size-adjust', 'sizeAdjust'],
+    ['ascent-override', 'ascentOverride'], ['descent-override', 'descentOverride'], ['line-gap-override', 'lineGapOverride'],
+  ];
   function loadFonts(link) {
     let rules = [];
     try {
@@ -100,11 +105,15 @@ window.Theme = (() => {
       const st = r.style;
       const family = st.getPropertyValue('font-family').trim().replace(/^['"]|['"]$/g, '');
       const src = st.getPropertyValue('src');
-      const key = `${family}|${src}`;
+      const key = `${family}|${src}|${st.getPropertyValue('unicode-range')}`;
       if (!fontFaces.has(key)) {
-        const desc = { weight: st.getPropertyValue('font-weight') || 'normal', style: st.getPropertyValue('font-style') || 'normal', display: 'swap' };
-        const size = st.getPropertyValue('size-adjust');
-        if (size) desc.sizeAdjust = size;
+        // @font-face tanımlayıcılarının hepsi FontFace'e aynen geçer (unicode-range önemli: Piksel Oda'da rakamlar
+        // başka yüzden çizilir); tanımlanmamış olan FontFace'in varsayılanında kalır.
+        const desc = {};
+        for (const [prop, key] of FONT_DESCRIPTORS) {
+          const val = st.getPropertyValue(prop).trim();
+          if (val) desc[key] = val;
+        }
         let face;
         try {
           face = new FontFace(family, src, desc);

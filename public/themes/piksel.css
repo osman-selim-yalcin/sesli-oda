@@ -9,15 +9,21 @@
 
 /* Yazı tipleri yalnız bu tema yüklenince iner (SIL OFL 1.1, lisanslar dosyaların yanında).
    Kaynak: github.com/google/fonts (ofl/pixelifysans, ofl/vt323), TTF'ten woff2'ye çevrildi, alt küme yok.
-   size-adjust: kurallar 12–15 px ister; iki piksel yüzü de bu boyda Geist/Nunito'dan küçük görünür, aynı boyda
-   okunacak kadar büyütülür (sabit px kurallarına dokunmadan). Dosya inmezse yedek yazı tipiyle açılır (swap). */
+   Pixelify Sans yalnız başlık, etiketli düğme ve sekme yazısında; 1 em = 11 piksellik ızgara (22 px'te tam ızgarada).
+   Kalın ağırlıkları ve rakamları küçük boyda belirsiz (9→8, 7→ㄱ); büyük B ile G birbirine, Z de 2'ye benzer (her boyda).
+   Bu yüzden yalnız 400 ağırlığı tanımlanır (kalın istense de 400 çizilir) ve unicode-range rakamları (U+0030–0039) ile
+   B, G, Z'yi (U+0042, U+0047, U+005A) dışarıda bırakır: bunlar yığındaki sonraki yüzle, VT323 ile çizilir (iki piksel yüzü
+   kelimenin içinde uyumlu durur; avatarda O harfi Pixelify, 0 rakamı VT323: ayrışır). Sayaçlar, oyun hücreleri ve küçük
+   büyük harfli etiketler tamamen VT323'te.
+   VT323: size-adjust 120% (kurallar 12–16 px ister; 14 px ≈ 16,8 px çizilir, yazı tipinin doğal boyu).
+   Dosya inmezse yedek yazı tipiyle açılır (swap). */
 @font-face {
   font-family: 'Pixelify Sans';
   src: url('/vendor/fonts/pixelify-sans/PixelifySans-wght.woff2') format('woff2');
-  font-weight: 400 700;
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
-  size-adjust: 104%;
+  unicode-range: U+0000-002F, U+003A-0041, U+0043-0046, U+0048-0059, U+005B-10FFFF;
 }
 @font-face {
   font-family: 'VT323';
@@ -36,6 +42,7 @@
   --surface-2: #232753;
   --surface-3: #2D3266;
   --surface-raised: #2D3266;  /* bildirim, tier kartı, kaydırmaca parçası: en açık kat */
+  --surface-dock: #232753; /* telefondaki şimdi çalıyor şeridi */
   --emphasis: #EEEAF8;        /* hedef sayı, "Senin sayın": ters blok */
   --emphasis-text: #13152F;
   --border: #353A78;
@@ -56,13 +63,16 @@
   --on-media: #EEEAF8;
   --on-media-accent: #5AD8F0;
   --ink-mix: 50%;             /* oyuncu renkleri yazıyken %50 --text'e karışır: kendi renkli kelime satırında da 4,5:1 */
+  --selection: rgba(90, 216, 240, .4);
 
-  --font-display: 'Pixelify Sans', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-display: 'Pixelify Sans', 'VT323', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-body: 'VT323', ui-monospace, 'SF Mono', Menlo, monospace;
   --font-mono: 'VT323', ui-monospace, 'SF Mono', Menlo, monospace;
-  --font-control: 'Pixelify Sans', ui-monospace, 'SF Mono', Menlo, monospace; /* düğme, sekme, rozet */
-  /* VT323'ün tek ağırlığı var: tarayıcının yapay kalını (bulanık leke) yerine kalın yazı aynı kalır; vurgu renk ve
-     başlık yüzüyle verilir. Pixelify Sans'ın gerçek 400–700 ağırlıkları etkilenmez. */
+  --font-control: 'Pixelify Sans', 'VT323', ui-monospace, 'SF Mono', Menlo, monospace; /* etiketli düğme, sekme */
+  --font-name: 'Pixelify Sans', 'VT323', ui-monospace, 'SF Mono', Menlo, monospace; /* adlar gövdeden ayrışsın (kalın yok) */
+  --font-label: 'VT323', ui-monospace, 'SF Mono', Menlo, monospace; /* 12 px büyük harfli etiketler (Pixelify'da Ç→Q) */
+  /* İki yüz de tek ağırlıkla tanımlı: tarayıcının yapay kalını (bulanık leke) yerine kalın yazı aynı ağırlıkta kalır;
+     vurgu renk ve başlık yüzüyle verilir (adlar --font-name ile). */
   font-synthesis: none;
 
   --radius-s: 0;
@@ -76,7 +86,8 @@
   --shadow-1: 2px 2px 0 #090A1C;
   --shadow-2: 4px 4px 0 #090A1C;
   --btn-shadow: 3px 3px 0 #090A1C;
-  --press: translate(3px, 3px); /* basılı düğme gölgesinin içine kayar */
+  --press: translate(3px, 3px); /* basılı dolu düğme gölgesinin içine kayar */
+  --press-flat: none;           /* gölgesi olmayan düğme yerinde kalır (renk değişimi yeter) */
 
   --space-1: 4px;
   --space-2: 8px;

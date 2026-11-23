@@ -11,6 +11,7 @@
   --surface-2: #ECE7DC;
   --surface-3: #E0D9CB;
   --surface-raised: #FFFFFF;
+  --surface-dock: #FFFFFF;
   --emphasis: #1F2328;
   --emphasis-text: #F4F1EA;
   --border: #D6CEBE;
@@ -31,11 +32,14 @@
   --on-media: #FFFFFF;
   --on-media-accent: #FDBA74;
   --ink-mix: 60%;
+  --selection: initial;
 
   --font-display: ui-serif, Georgia, 'Times New Roman', serif;
   --font-body: ui-serif, Georgia, 'Times New Roman', serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --font-control: initial; /* denetimler bulundukları yerin yazı tipiyle */
+  --font-label: initial;   /* küçük büyük harfli etiketler --font-display ile */
+  --font-name: initial;    /* kişi adları bulundukları yerin yazı tipiyle */
 
   --radius-s: 2px;
   --radius-m: 3px;
@@ -48,6 +52,7 @@
   --shadow-2: 0 10px 30px rgba(31, 35, 40, .18), 0 0 0 1px rgba(31, 35, 40, .06);
   --btn-shadow: none;
   --press: scale(.97);
+  --press-flat: scale(.97);
 
   --space-1: 4px;
   --space-2: 8px;

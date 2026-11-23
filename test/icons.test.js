@@ -98,15 +98,28 @@ test('public/icons/ui altındaki her set aynı ikon adlarını taşır; lisansı
 });
 
 test('piksel set dolu ve keskin: her sembol kendi dolgusunu taşır, başka renk yok', () => {
+  const { INNER_STYLE } = require('./tools/icons');
   const svg = read('icons/ui/piksel.svg');
   for (const s of symbolsOf(svg)) {
     assert.match(s, /^<symbol id="i-[a-z0-9-]+" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges">/, s.slice(0, 80));
-    const body = s.replace(/^<symbol[^>]*><g[^>]*>/, '');
-    assert.ok(!/fill=|stroke|opacity|<text/.test(body), s.slice(0, 80));
+    // Tek izin verilen renk: dolu durumun iç boşluğu (kural --ic-fill verir, yoksa saydam)
+    const body = s.replace(/^<symbol[^>]*><g[^>]*>/, '').replaceAll(`style="${INNER_STYLE}" `, '');
+    assert.ok(!/fill=|stroke|opacity|style=|<text/.test(body), s.slice(0, 80));
   }
-  // Üretici yeniden çalıştırılınca aynı dosya (elle çizilenler ızgaradan; Pixelarticons kaynağı depoda değil)
-  const { PIXEL_MAP, PIXEL_DRAWN, MAP } = require('./tools/icons');
+});
+
+// Üreticinin depodaki girdileri (elle çizilen ızgaralar, iç dolgular) sprite ile birebir aynı mı. Pixelarticons'tan
+// alınan 60 ikonun kaynağı depoda değil (ağ kullanılmaz): onlar için yalnız ad eşlemesi denetlenir.
+test('piksel set üreticiyle tutarlı: elle çizilenler ve dolu durumlar yeniden üretilince aynı', () => {
+  const { MAP, PIXEL_MAP, PIXEL_DRAWN, PIXEL_INNER, INNER_STYLE, gridPath, PIXEL_G } = require('./tools/icons');
   assert.deepStrictEqual(Object.keys(MAP).filter((n) => !PIXEL_MAP[n] && !PIXEL_DRAWN[n]), [], 'piksel karşılığı olmayan ikon');
+  assert.deepStrictEqual(Object.keys(MAP).filter((n) => PIXEL_MAP[n] && PIXEL_DRAWN[n]), [], 'iki kaynaktan gelen ikon');
+  const bySym = Object.fromEntries(symbolsOf(read('icons/ui/piksel.svg')).map((s) => [s.match(/id="i-([a-z0-9-]+)"/)[1], s]));
+  for (const name of Object.keys(PIXEL_DRAWN)) {
+    const fill = PIXEL_INNER[name] ? `<path style="${INNER_STYLE}" d="${PIXEL_INNER[name]}"/>` : '';
+    assert.strictEqual(bySym[name], `<symbol id="i-${name}" viewBox="0 0 24 24">${PIXEL_G}${gridPath(PIXEL_DRAWN[name])}${fill}</g></symbol>`, name);
+  }
+  for (const name of Object.keys(PIXEL_INNER)) assert.ok(bySym[name].endsWith(`<path style="${INNER_STYLE}" d="${PIXEL_INNER[name]}"/></g></symbol>`), name);
 });
 
 test('her temanın bir ikon seti var ve dosyası duruyor', () => {
