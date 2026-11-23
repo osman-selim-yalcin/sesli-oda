@@ -149,7 +149,18 @@
   background: radial-gradient(circle at calc(50% + var(--radio-off, 0px) / 2) 50%, var(--accent-soft), transparent 42%), var(--bg);
 }
 #radio-map { position: absolute; inset: 0; } /* MapLibre'nin kendi .maplibregl-map kuralı position: relative yapmasın */
+/* Küre klavyeyle odaklanınca (ok tuşlarıyla döner) kenarında odak halkası; tuvalin kendi çizgisi yerine,
+   tuval içeriği iç gölgeyi örttüğü için üstteki bir katmanda. Fareyle tıklayınca görünmez (focus-visible). */
 .radio-map .maplibregl-canvas { outline: none; }
+.radio-map:has(.maplibregl-canvas:focus-visible)::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: var(--radius-m);
+  box-shadow: inset var(--focus-ring);
+  pointer-events: none;
+}
 /* Kaynak atfı: sol üstte küçük, sakin yazı */
 .radio-attrib {
   position: absolute;
@@ -716,7 +727,6 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 }
 
 /* ---------- Sayı bulmaca ---------- */
-.lobby-opts button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 .sayi { display: grid; gap: 12px; }
 .sayi-secret { display: grid; gap: 10px; justify-items: center; text-align: center; padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface-2); width: 100%; max-width: 520px; justify-self: center; }
 .sayi-wait { text-align: center; margin: 0; }
@@ -777,9 +787,8 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .sayi-scores li { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; max-width: 100%; padding: 2px 10px; border-radius: var(--radius-pill); background: var(--surface-2); border: var(--border-w) solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sayi-scores li strong { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
 .sayi-scores li.me { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
-.sayi-scores li.found { border-color: color-mix(in srgb, var(--live) 45%, transparent); }
+.sayi-scores li.found { border-color: color-mix(in srgb, var(--live) 45%, transparent); color: var(--text); }
 .sayi-scores[hidden] { display: none; }
-.sayi-scores li.found { color: var(--text); }
 .sayi-scores li b { color: var(--live); }
 .sayi-tools { display: flex; gap: 8px; justify-content: flex-end; align-items: center; margin-top: -6px; }
 .sayi-tools[hidden], .sayi-extra[hidden] { display: none; }
@@ -1021,7 +1030,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .mantik-sheet th { text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; padding: 0 8px 6px 0; white-space: nowrap; }
 .mantik-sheet th.mantik-sheet-name { font-size: 14px; text-transform: none; letter-spacing: 0; color: var(--text); padding: 3px 12px 3px 0; }
 .mantik-sheet td { padding: 3px 8px 3px 0; }
-.mantik-sheet select { display: block; width: 100%; min-width: 120px; margin: 0; padding: 6px 8px; font-size: 14px; border-radius: var(--radius-s); text-align: left; }
+.mantik-sheet select { display: block; width: 100%; min-width: 120px; min-height: var(--control-h-sm); margin: 0; padding: 6px 8px; font-size: 14px; border-radius: var(--radius-s); text-align: left; }
 .mantik-sheet td { vertical-align: middle; }
 .mantik-sheet select.empty { color: var(--muted); }
 .mantik-view { display: inline-flex; gap: 4px; padding: 3px; border-radius: var(--radius-s); background: var(--surface-2); justify-self: start; }
@@ -1183,13 +1192,12 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
    Genel giriş kuralı (base.css) her kutuya --control-h, dokunmatikte 44 px ve 16 px yazı verir; tahtalardaki sıkı
    kutular kendi ölçüsünde kalır, dokunmatikte en az 40 px olur. Yerleşim değişmez. */
 .timing-custom input { min-height: var(--control-h-sm); }
-.mantik-sheet select { min-height: var(--control-h-sm); }
 .sayi-hidden-input { min-height: 0; } /* üstündeki rakam kutularının boyunda kalır, kutudan taşmaz */
 .sayi-info-btn { position: relative; }
 .sayi-info-btn::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; } /* görünüş 28 px, dokunma alanı 40 px */
 @media (pointer: coarse) {
-  .timing-custom input, .mantik-sheet select { min-height: 40px; }
-  .mantik-sheet select { padding: 0 6px; }
+  .timing-custom input { min-height: 40px; }
+  .mantik-sheet select { min-height: 40px; padding: 0 6px; }
   .klotski-levels button, .oner-chips button, .memory-sizes button { min-height: 40px; }
   .memory-chip { height: 40px; }
   .memory-chip-x { align-self: stretch; padding: 0 8px; }

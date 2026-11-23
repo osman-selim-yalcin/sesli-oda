@@ -632,6 +632,8 @@ window.Lobby = (() => {
     if (page === 'members' && !isAdmin()) page = 'list';
     $('lobby-nav-rooms').classList.toggle('active', page === 'list');
     $('lobby-nav-members').classList.toggle('active', page === 'members');
+    $('lobby-nav-rooms').setAttribute('aria-selected', String(page === 'list'));
+    $('lobby-nav-members').setAttribute('aria-selected', String(page === 'members'));
     $('lobby-rooms').hidden = page !== 'list';
     $('members').hidden = page !== 'members';
     if (page === 'members') loadMembers();

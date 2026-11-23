@@ -3044,7 +3044,9 @@ function renderSayi() {
   code.replaceChildren();
   if (playing && game.players.length > 1) {
     code.append('Senin sayın: ', sayiDigitsEl(game.secrets[myName] || ''));
-    $('sayi-code-label').textContent = game.done ? `${other}'in sayısı: ${game.secrets[other]}` : 'rakibinin bulmaya çalıştığı sayı';
+    // Rakip sayı tutmadan oyun bittiyse (gizli sayı aşamasında ayrıldı) gösterilecek sayısı yok
+    $('sayi-code-label').textContent = !game.done ? 'rakibinin bulmaya çalıştığı sayı'
+      : game.secrets[other] ? `${other}'in sayısı: ${game.secrets[other]}` : `${other} sayı tutmadan oyun bitti`;
   } else {
     code.append(`${other}: `, sayiDigitsEl(game.done ? game.secrets[other] || '' : '?'.repeat(game.digits)));
     $('sayi-code-label').textContent = playing ? 'bulmaya çalıştığın sayı' : `${viewer}'in tahminleri aşağıda`;
@@ -6707,14 +6709,14 @@ socket.on('room:merge', ({ mergedWith = null, name = null } = {}) => {
 
 // Odanın teması değişti: odadaki herkes sayfa yenilenmeden yeni temaya geçer (Theme.apply yazı tipi, renk ve
 // ikonları birlikte değiştirir; JS'te çizilenler 'themechange' ile yeniden çizilir). Sunucu olayı yalnız o
-// odanın soketlerine gönderir; birleşikken misafir oda ev sahibininkinde olduğundan kendi odasının teması
-// değişirse yalnız kaydedilir, ayrılınca (room:moved) uygulanır.
+// odanın soketlerine gönderir. Birleşikken misafirler ev sahibi odadadır: kendi (misafir) odalarının teması
+// değişirse onlara olay gelmez; ayrılınca room:moved odanın güncel temasını getirir ve o uygulanır.
 socket.on('room:theme', ({ id, theme } = {}) => {
   if (!curRoom || typeof theme !== 'string') return;
   const roomOf = id || curRoom.id;
-  if (curHome?.id === roomOf) curHome.theme = theme;
   if (curRoom.id !== roomOf) return;
   curRoom.theme = theme;
+  if (curHome?.id === roomOf) curHome.theme = theme;
   applyTheme(theme);
   if ($('room-settings').open && settingsRoom?.id === roomOf) {
     settingsRoom.theme = theme;
@@ -6893,11 +6895,9 @@ async function saveRoomSetting(body, done, btn) {
   if (done) toast(done);
 }
 const submitter = (e) => e.submitter || e.target.querySelector('button[type=submit]');
-// Tema kutucuğuna basınca hemen kaydedilir; kayıt sürerken seçici kilitli, hata olursa eski seçim geri gelir.
-// Yeni tema odadakilere room:theme ile gelir (bu sekme dahil).
 // Tema seçimi: kutucuğa basmak (ya da ok tuşlarıyla gezmek) yalnız seçer, kimseye gitmez. "Uygula" (ya da seçili
-// kutucukta Enter) kaydeder; yeni tema odadakilere room:theme ile gelir (bu sekme dahil). Kayıt sürerken yalnız
-// düğme kilitlenir: seçici odakta kalır, kutucuklar yeniden yazılmaz.
+// kutucukta Enter) kaydeder; yeni tema odadakilere room:theme ile gelir (bu sekme dahil). Kayıt sürerken seçici
+// odakta kalır, kutucuklar yeniden yazılmaz; ikinci gönderimi aria-busy ve rsThemeSaving engeller.
 function renderThemeApply() {
   const differs = Boolean(settingsRoom && rsThemePending && rsThemePending !== settingsRoom.theme);
   // Kayıt sürerken düğme kilitlenmez (odağı düşürürdü); aria-busy ve rsThemeSaving ikinci gönderimi engeller.

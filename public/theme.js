@@ -61,10 +61,13 @@ window.Theme = (() => {
     };
   }
 
+  // Yeni bağlantı media="not all" ile eklenir: dosya iner ama uygulanmaz. Tema, ikonlarla aynı anda
+  // (load içindeki uygulama adımında) media="all" yapılarak açılır; yarıda kalan ya da hata veren yükleme görünmez.
   function loadCss(id) {
     return new Promise((resolve) => {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
+      link.media = 'not all';
       link.href = href(id);
       link.dataset.theme = id;
       link.onload = () => resolve(link);
@@ -115,7 +118,15 @@ window.Theme = (() => {
     if (typeof info.icons === 'string' && /^[a-z0-9-]+$/.test(info.icons)) ICON_SETS[id] = info.icons;
     return true;
   }
-  const ready = fetch('/theme-list')
+  // Liste en çok 5 sn beklenir: sunucu cevap vermezse bilinmeyen tema için apply sonsuza dek beklemesin.
+  const LIST_TIMEOUT = 5000;
+  const listSignal = () => {
+    if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(LIST_TIMEOUT);
+    const ctrl = new AbortController();
+    setTimeout(() => ctrl.abort(), LIST_TIMEOUT);
+    return ctrl.signal;
+  };
+  const ready = fetch('/theme-list', { signal: listSignal() })
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
       const themes = Array.isArray(data?.themes) ? data.themes : null;
@@ -168,6 +179,7 @@ window.Theme = (() => {
           return true;
         }
         commitIcons(); // hata verirse aşağıdaki catch yeni bağlantıyı kaldırır, eski tema kalır
+        link.media = 'all'; // renk ve yazı tipi ikonlarla aynı anda değişir
         document.getElementById('theme-css')?.remove();
         link.id = 'theme-css';
         root.dataset.theme = current = id;

@@ -158,3 +158,22 @@ test('birleşik odada ev sahibinin teması herkese gider; misafir odanın temas�
   assert.equal(b.room.theme, 'gece');
   assert.equal((await patch('tema-oda', OWNER, { theme: 'gece' })).status, 200);
 });
+
+// Değişken sözleşmesi: base.css'teki :where(:root) yedekleri sözleşmenin tam listesidir; her tema dosyası
+// (public/themes/*.css ve denemelik tema) :root üstünde tam olarak bu değişkenleri tanımlar.
+test('her tema dosyası sözleşmedeki değişkenlerin hepsini tanımlar, fazlası yok', () => {
+  const vars = (css) => new Set([...css.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]));
+  const base = fs.readFileSync(path.join(ROOT, 'public/css/base.css'), 'utf8');
+  const start = base.indexOf(':where(:root) {');
+  assert.ok(start >= 0, 'base.css sözleşme bloğu bulunamadı');
+  const contract = [...vars(base.slice(start, base.indexOf('}', start)))].sort();
+  assert.ok(contract.includes('--accent-2') && contract.length > 30, contract.join(' '));
+  const files = [
+    ...fs.readdirSync(path.join(ROOT, 'public/themes')).filter((f) => f.endsWith('.css')).map((f) => `public/themes/${f}`),
+    'test/tools/themes/deneme.css',
+  ];
+  for (const f of files) {
+    const css = fs.readFileSync(path.join(ROOT, f), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    assert.deepEqual([...vars(css)].sort(), contract, f);
+  }
+});
