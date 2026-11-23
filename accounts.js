@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { promisify } = require('util');
 const express = require('express');
 const store = require('./store');
+const { clientIp, HEADER: CLIENT_IP_HEADER } = require('./clientip');
 
 const scrypt = promisify(crypto.scrypt);
 const NAME_RE = /^[\p{L}\p{N}][\p{L}\p{N} ._-]{1,23}$/u; // 2-24 karakter: harf, rakam, boşluk, . _ -
@@ -120,7 +121,9 @@ const me = (a, key) => ({ name: a.name, avatar: a.avatar, admin: ADMINS.has(key)
 // onRevoke(anahtar, { keepHash, onlyHash }): oturum kapandı; açık bağlantıları kesmek için. Şifre değişince
 // keepHash (değiştiren oturum) dışındakiler, çıkışta yalnız onlyHash kapanır.
 function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
-  app.set('trust proxy', 1); // Render'ın vekil sunucusu: req.ip gerçek adres olsun
+  // Render'ın vekil sunucusu: req.ip gerçek adres olsun. CLIENT_IP_HEADER ayarlıysa vekile güvenilmez
+  // (X-Forwarded-For'u istemci yazabilir); adres clientIp ile o başlıktan alınır.
+  app.set('trust proxy', CLIENT_IP_HEADER ? false : 1);
   const json = express.json({ limit: '4kb' });
   const fail = (res, status, error) => res.status(status).json({ error });
   const PASSWORD_RULE = `Şifre ${PASSWORD_MIN}-${PASSWORD_MAX} karakter olmalı.`;
@@ -154,7 +157,7 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
 
   app.post('/auth/login', json, async (req, res) => {
     const { password, key } = readCredentials(req);
-    const release = logins.reserve(req.ip);
+    const release = logins.reserve(clientIp(req));
     if (!release) return fail(res, 429, 'Çok fazla yanlış deneme oldu; 10 dakika sonra tekrar dene.');
     const account = accounts.get(key);
     const hash = account?.passHash; // denetlenirken şifre değişirse eski şifre oturum kazandırmasın
@@ -183,7 +186,7 @@ function setup(app, { imageTypes, onProfile, online, onRevoke = () => {} }) {
     const token = bearer(req);
     const a = accountByToken(token);
     if (!a) return fail(res, 401, 'Oturum kapanmış.');
-    const ipKey = `ip:${req.ip}`;
+    const ipKey = `ip:${clientIp(req)}`;
     const sessionKey = `oturum:${sha256(token)}`;
     const releaseIp = passwordChanges.reserve(ipKey);
     const releaseKey = releaseIp && passwordChanges.reserve(sessionKey);

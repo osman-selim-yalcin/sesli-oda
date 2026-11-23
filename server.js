@@ -10,6 +10,7 @@ try {
   process.loadEnvFile();
 } catch {}
 const store = require('./store');
+const { clientIp } = require('./clientip'); // ziyaretçinin gerçek adresi (CLIENT_IP_HEADER)
 const accounts = require('./accounts');
 const roomStore = require('./rooms'); // oda kayıtları (canlı durum aşağıdaki rooms haritasında)
 const merge = require('./merge'); // oda birleştirme durumu (aşağıda "Oda birleştirme" bölümü bağlar)
@@ -656,14 +657,6 @@ const ROOM_PASS_FAIL_MAX = 10;                 // yanlış oda şifresi: bu kada
 const ROOM_PASS_FAIL_WINDOW = 10 * 60 * 1000;  // ...bu süre beklenir
 const roomPassTries = accounts.attemptLimiter(ROOM_PASS_FAIL_MAX, ROOM_PASS_FAIL_WINDOW);
 
-// Bağlananın adresi. Render'ın vekil sunucusu adresi X-Forwarded-For'un sonuna ekler; Express'teki
-// 'trust proxy' 1 ayarıyla aynı kuralla son değer alınır (öncekileri istemci kendisi yazabilir).
-function socketIp(socket) {
-  const forwarded = socket.handshake.headers['x-forwarded-for'];
-  const last = typeof forwarded === 'string' ? forwarded.split(',').pop().trim() : '';
-  return last || socket.handshake.address;
-}
-
 // join'in izin kısmı: oturum, oda, şifre. Hata ya da { account, clientId, roomId } döner.
 // Şifre yanlışsa oda hakkında hiçbir veri dönmez.
 async function admit(socket, { token, clientId, roomId, password }) {
@@ -677,7 +670,7 @@ async function admit(socket, { token, clientId, roomId, password }) {
   if (roomStore.role(reg, account) === 'none') {
     if (password == null || password === '') return { error: 'Bu oda şifreli.', needPassword: true };
     // Deneme await'ten önce sayılır (paralel denemeler sınırı aşamasın); doğru şifrede geri alınır.
-    const releaseIp = roomPassTries.reserve(`ip:${socketIp(socket)}`);
+    const releaseIp = roomPassTries.reserve(`ip:${clientIp(socket)}`);
     const releaseKey = releaseIp && roomPassTries.reserve(`hesap:${account.key}:${reg.id}`);
     if (!releaseKey) {
       releaseIp?.();

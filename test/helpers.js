@@ -74,9 +74,9 @@ function next(socket, event, ms = 3000) {
   });
 }
 
-// HTTP çağrısı; gövde JSON, cevap JSON'a çevrilir (çevrilemezse null).
-async function http(url, method, p, { token, body } = {}) {
-  const headers = {};
+// HTTP çağrısı; gövde JSON, cevap JSON'a çevrilir (çevrilemezse null). extra: eklenecek başlıklar.
+async function http(url, method, p, { token, body, headers: extra = {} } = {}) {
+  const headers = { ...extra };
   if (token) headers.authorization = `Bearer ${token}`;
   if (body !== undefined) headers['content-type'] = 'application/json';
   const res = await fetch(url + p, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
