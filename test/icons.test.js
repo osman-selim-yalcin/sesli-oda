@@ -142,3 +142,33 @@ test('icon() yalnız güvenli adları kabul eder', () => {
     assert.throws(() => icon(bad), /Geçersiz ikon adı/, String(bad));
   }
 });
+
+// Oyun simgeleri (public/icons/games.svg, gömülü kopya index.html <svg id="game-icons">): GAME_INFO'daki her oyunun
+// sembolü var ve fazlası yok; elle çizilmiş vektör, resim ya da dış bağlantı yok, renkler yalnız var(…) içinden.
+test('oyun simgeleri: GAME_INFO ile birebir, gömülü kopya dosyayla aynı, sabit renk yok', () => {
+  const svg = read('icons/games.svg');
+  const ids = [...svg.matchAll(/<symbol id="g-([a-z0-9-]+)" viewBox="0 0 48 48">/g)].map((m) => m[1]);
+  assert.strictEqual(symbolsOf(svg).length, ids.length, 'her sembol 48×48 görünümlü olmalı');
+  const info = read('app.js').match(/\nconst GAME_INFO = \{([\s\S]*?)\n\};/);
+  assert.ok(info, 'app.js içinde GAME_INFO yok');
+  const keys = [...info[1].matchAll(/^ {2}(\w+): \{/gm)].map((m) => m[1]);
+  assert.deepStrictEqual([...ids].sort(), [...keys].sort());
+  const html = read('index.html');
+  const block = html.match(/<svg id="game-icons"[^>]*>([\s\S]*?)<\/svg><!-- \/game-icons -->/);
+  assert.ok(block, 'index.html içinde <svg id="game-icons"> yok');
+  assert.deepStrictEqual(symbolsOf(block[1]), symbolsOf(svg));
+  for (const s of symbolsOf(svg)) {
+    const id = s.slice(0, 40);
+    assert.ok(!/<image|<use|<text|<style|<script|href=|url\(|<filter|filter=|Gradient/i.test(s), `${id}: resim, dış bağlantı ya da filtre`);
+    // Renk yalnız var(--…, yedek) içinde; yedek currentColor ya da none
+    const outside = s.replace(/var\(--[a-z0-9-]+(,[^()]*)?\)/g, '');
+    assert.ok(!/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(|oklch\(/i.test(outside), `${id}: sabit renk`);
+    assert.ok(!/\b(fill|stroke)="/.test(s), `${id}: boya özniteliği (style ve değişken kullanılmalı)`);
+    for (const m of s.matchAll(/var\(--[a-z0-9-]+,([^()]*)\)/g)) assert.match(m[1], /^(currentColor|none|round|3|1)$/, `${id}: yedek ${m[1]}`);
+  }
+  // Üretici ile aynı (elle düzenlenmiş sprite kalmasın)
+  const { sprite } = require('./tools/game-icons');
+  assert.deepStrictEqual(symbolsOf(svg), sprite());
+  // Eski resim simgeleri kalmadı
+  assert.deepStrictEqual(fs.readdirSync(path.join(PUB, 'icons')).filter((f) => /\.(webp|png|jpe?g)$/.test(f)), []);
+});
