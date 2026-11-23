@@ -56,7 +56,7 @@ Derleme adımı yok; `public/` içindeki dosyalar olduğu gibi sunulur.
 | `store.js` | Supabase'e kalıcı kayıt (geçmiş, efektler, tier listler, skor tabloları) |
 | `accounts.js` | Hesaplar, oturumlar, profil resimleri, site yöneticileri (`ADMINS`) |
 | `clientip.js` | Ziyaretçinin gerçek adresi (deneme sınırları için; `CLIENT_IP_HEADER`) |
-| `deploy/` | Kendi sunucuda yayın: `Dockerfile`, `compose.yml`, `yayin.sh`, systemd birimleri (bkz. "Katkı ve yayın") |
+| `deploy/` | Kendi sunucuda yayın: `Dockerfile`, `compose.yml`, `yayin.sh`, güvenlik duvarı `sesli-oda-ag.sh`, systemd birimleri (bkz. "Katkı ve yayın") |
 | `db/` | Canlıya geçişte elle çalıştırılan SQL dosyaları |
 | `public/index.html` | Arayüzün işaretlemesi; gömülü ikon seti (`<svg id="ui-icons">`) |
 | `public/css/base.css`, `shell.css`, `games.css` | Ortak bileşenler, ekran çerçeveleri, oyun tahtaları (yalnız değişken kullanır) |
@@ -172,42 +172,125 @@ O zamana kadar Render'daki yayının durumu ve kayıtları Render panelindeki **
 Uygulama sunucuda bir Docker konteynerinde çalışır ve dışarıya port açmaz; ziyaretçiler Cloudflare Tunnel
 üzerinden gelir (`tunnel` konteyneri Cloudflare'e kendisi bağlanır, yalnız `app:3030`'a iletir).
 
+**Her yayında birkaç saniye kesinti olur; bozuk bir commit'te ~1 dakika** (yeni konteyner sağlık denetimini
+bekler, geçemezse önceki sürüm geri açılır). Eski ve yeni sunucu hiçbir an birlikte çalışmaz: oda durumu
+zaten hafızada ve her yeniden başlatmada sıfırlanıyor, aynı veritabanına iki sunucunun yazması daha kötü olurdu.
+
 Sunucudaki yerleşim:
 
-| Yol | Ne |
-| --- | --- |
-| `/srv/sesli-oda/app/` | Bu deponun git kopyası (`sesli-oda` kullanıcısına ait; yayın betiği belli bir commit'e geçirir) |
-| `/srv/sesli-oda/.env` | Sırlar (root, `600`): `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN`, `YT_API_KEY`, `CLIENT_IP_HEADER=cf-connecting-ip`, `TUNNEL_TOKEN`. Git'e girmez. |
-| `/srv/sesli-oda/state/` | Yayın betiğinin kayıtları (başarısız ya da bekletilen commit) |
-| `/usr/local/sbin/sesli-oda-yayin` | `deploy/yayin.sh`'nin root'a ait kopyası |
-| `/etc/systemd/system/sesli-oda-yayin.{service,timer}` | `deploy/` altındakilerin kopyası; dakikada bir yayın betiğini çalıştırır |
+| Yol | Sahibi, izin | Ne |
+| --- | --- | --- |
+| `/srv/sesli-oda/` | `root:sesli-oda 750` | Kök dizin |
+| `/srv/sesli-oda/app/` | `sesli-oda` | Bu deponun git kopyası; yayın betiği belli bir commit'e geçirir |
+| `/srv/sesli-oda/compose.yml` | `root:root 644` | **Kullanılan** compose dosyası: `deploy/compose.yml`'nin gözden geçirilmiş kopyası |
+| `/srv/sesli-oda/.env` | `root:root 600` | Sırlar: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN`, `YT_API_KEY`, `CLIENT_IP_HEADER=cf-connecting-ip`, `TUNNEL_TOKEN`. Git'e girmez. |
+| `/srv/sesli-oda/state/` | `root 755` | Yayın betiğinin kayıtları (başarısız ya da sabitlenmiş commit, uyarılar) |
+| `/usr/local/sbin/sesli-oda-yayin` | `root:root 755` | `deploy/yayin.sh`'nin kopyası |
+| `/usr/local/sbin/sesli-oda-ag` | `root:root 755` | `deploy/sesli-oda-ag.sh`'nin kopyası (güvenlik duvarı) |
+| `/etc/systemd/system/sesli-oda-yayin.{service,timer}`, `sesli-oda-ag.service` | `root:root 644` | `deploy/` altındakilerin kopyası |
 
-- `deploy/compose.yml`: compose projesi `sesli-oda`; `app` (salt-okunur dosya sistemi, kök olmayan kullanıcı,
-  yetenek yok, 512 MB) ve `tunnel` (`cloudflare/cloudflared`). Kendi ağı `sesli-oda` (`172.31.240.0/28`), port
-  yayınlanmaz. Sırlar compose'a `--env-file /srv/sesli-oda/.env` ile verilir ve her konteyner yalnız kendi
-  değişkenlerini alır (`app` tünel anahtarını, `tunnel` Supabase anahtarını görmez). Günlükler journald'ye
-  gider: `journalctl -t sesli-oda-sesli-oda-app-1 -f` (tünel için `...-tunnel-1`), yayın betiği için
-  `journalctl -u sesli-oda-yayin`.
+- `deploy/compose.yml` (kaynak) ve onaylı kopyası: compose projesi `sesli-oda`; `app` (kullanıcı `1000:1000`,
+  salt-okunur dosya sistemi, yetenek yok, 512 MB, sağlık denetimi `GET /theme-list`) ve `tunnel`
+  (`cloudflare/cloudflared`). Kendi ağı `sesli-oda` (`172.31.240.0/28`, yalnız IPv4), port yayınlanmaz. Sırlar
+  compose'a `--env-file /srv/sesli-oda/.env` ile verilir ve her konteyner yalnız kendi değişkenlerini alır
+  (`app` tünel anahtarını, `tunnel` Supabase anahtarını görmez). Kullanıcı ve sağlık denetimi compose'ta sabit:
+  push'lanan bir Dockerfile uygulamayı root çalıştıramaz.
 - `deploy/Dockerfile`: `node:22-alpine`, yalnız `package*.json`, kökteki `*.js`, `games/` ve `public/` kopyalanır.
   Köke yeni bir klasör eklenirse Dockerfile'a ve `.dockerignore`'a da eklenmeli.
-- **Yayın (`sesli-oda-yayin`, dakikada bir):** `origin/main`'i çeker; yeni commit varsa imajı
-  `sesli-oda-app:<kısa sha>` olarak kurar, `current` etiketini ona verir, `app`'i yeniden başlatır ve 60 saniye
-  içinde sağlık denetiminden (`GET /theme-list`) geçmesini bekler. Geçemezse (ör. log'da `SUNUCU AÇILMIYOR`)
-  önceki imaja döner, hata koduyla çıkar ve o commit'i bir daha kendiliğinden denemez. Son 3 imaj tutulur.
-  `deploy/compose.yml`'yi değiştiren bir commit otomatik yayınlanmaz (compose dosyası konteynere sunucuda yetki
-  verebilir): log'da `BEKLETİLDİ` yazar, gözden geçirilip elle yayınlanır. `deploy/yayin.sh` ve systemd
-  birimlerindeki değişiklikler de kendiliğinden devreye girmez; sunucuya elle kopyalanır.
+- Günlükler journald'de: `journalctl -t sesli-oda-sesli-oda-app-1 -f` (tünel `...-tunnel-1`), yayın betiği
+  `journalctl -u sesli-oda-yayin`.
+
+**Yayın (`sesli-oda-yayin`, zamanlayıcıyla dakikada bir):** `origin/main`'i çeker; yeni commit varsa imajı
+`sesli-oda-app:<kısa sha>` olarak kurar, `app`'i onunla yeniden başlatır ve 60 saniye içinde sağlık denetiminden
+geçmesini bekler. Geçerse imaj `current` etiketini alır (son sağlıklı sürüm). Kurulamaz, başlatılamaz ya da
+geçemezse (ör. log'da `SUNUCU AÇILMIYOR`) `current` yeniden başlatılır, betik hata koduyla çıkar ve o commit'i
+bir daha kendiliğinden denemez. Son 3 imaj tutulur. Konteyner açılıyorsa (`starting`) tur atlanır; yayındaki
+sürüm sağlıksızsa otomatik olarak yeniden yaratılmaz. Site açılamadıysa (yeni ve önceki sürüm de açılmadı) her
+turda `SİTE KAPALI: ...` satırı yazılır.
+- **Compose değişikliği kendiliğinden devreye girmez.** Compose her zaman `/srv/sesli-oda/compose.yml`'den
+  okunur (`--project-directory /srv/sesli-oda/app`); main'e push yalnız imajı değiştirir. Depodaki
+  `deploy/compose.yml` kurulu kopyadan farklıysa yine kurulu kopya kullanılır ve commit başına bir kez
+  `UYARI: compose değişti, kurulu kopya kullanılıyor: elle güncelle` yazılır. Aynısı `deploy/yayin.sh`,
+  `deploy/sesli-oda-ag.sh` ve systemd birimleri için geçerli: depoda değişince sunucuya elle kopyalanır
+  (aşağıda "Kurulu kopyaları güncelleme").
 - **Elle yayın ve geri alma:** `ssh otomasyon sudo sesli-oda-yayin <sha>` o commit'i yayınlar (main'in
   geçmişinde olmalı; imajı hâlâ duruyorsa yeniden kurulmaz). Eski bir commit'e dönülünce otomatik yayın main'e
-  yeni bir commit gelene kadar durur. Bekletilmiş ya da başarısız olmuş bir commit de aynı komutla yayınlanır.
-- Compose'u elle çalıştırırken `--env-file` unutulmamalı (unutulursa compose zorunlu değişken hatasıyla durur):
-  `sudo docker compose --env-file /srv/sesli-oda/.env -f /srv/sesli-oda/app/deploy/compose.yml ps`.
+  yeni bir commit gelene kadar durur. Başarısız olmuş bir commit de aynı komutla yeniden denenir. Başka bir yayın
+  sürerken elle çağrı hata verir; biraz sonra tekrar denenir.
+- Compose'u elle çalıştırmak:
+  `sudo docker compose -f /srv/sesli-oda/compose.yml --project-directory /srv/sesli-oda/app --env-file /srv/sesli-oda/.env ps`.
+  `--env-file` unutulursa compose zorunlu değişken hatasıyla durur. **Kabuktaki ortam değişkenleri
+  `--env-file` değerlerinin önüne geçer:** `sudo -E` kullanılmaz, kabukta `SUPABASE_*`, `APP_TAG` gibi
+  değişkenler tanımlı olmamalı.
+
+**Sunucu güvenlik duvarı (`sesli-oda-ag`):** konteyner ağından (`172.31.240.0/28`) sunucunun kendisine giden her
+şey (`INPUT`) ve özel/iç ağlara (`10/8`, `172.16/12`, `192.168/16`, Tailscale `100.64/10`, `169.254/16`) giden her
+şey (`DOCKER-USER`) düşer; app ile tunnel arası ve internet açıktır. Kurallar yalnız IPv4 (compose ağında IPv6
+yok). Docker her açıldığında `sesli-oda-ag.service` kuralları yeniden kontrol eder (tekrar çalıştırmak güvenli);
+`sudo sesli-oda-ag kaldir` yalnız bu kuralları siler. Başka birimlerin `DOCKER-USER` kurallarına dokunulmaz.
+**Kapsam dışı:** imaj kurulurken (`docker build`) Dockerfile'daki `RUN` adımları Docker'ın varsayılan kurulum
+ağında çalışır ve bu kurallara takılmaz. Kabul edilen kalan risk: buna yalnız main'e push yapabilen biri ulaşır.
+Docker açılırken konteynerler kurallardan birkaç saniye önce başlayabilir.
+
+**İlk kurulum (bir kez, root):**
+
+```bash
+useradd --system --home-dir /nonexistent --no-create-home --shell /usr/sbin/nologin sesli-oda
+install -d -o root -g sesli-oda -m 750 /srv/sesli-oda
+install -d -o sesli-oda -g sesli-oda -m 755 /srv/sesli-oda/app
+setpriv --reuid=sesli-oda --regid=sesli-oda --init-groups --reset-env \
+  git clone https://github.com/osman-selim-yalcin/sesli-oda.git /srv/sesli-oda/app
+install -d -o root -g root -m 755 /srv/sesli-oda/state
+install -o root -g root -m 600 /dev/null /srv/sesli-oda/.env   # sonra değerler yazılır (editörle)
+cd /srv/sesli-oda/app/deploy
+install -o root -g root -m 644 compose.yml /srv/sesli-oda/compose.yml
+install -o root -g root -m 755 yayin.sh /usr/local/sbin/sesli-oda-yayin
+install -o root -g root -m 755 sesli-oda-ag.sh /usr/local/sbin/sesli-oda-ag
+install -o root -g root -m 644 sesli-oda-yayin.service sesli-oda-yayin.timer sesli-oda-ag.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now sesli-oda-ag.service          # kurallar; iptables -L DOCKER-USER -n ile bak
+sesli-oda-yayin                                      # ilk yayın elle: imaj, app, sonra tunnel
+systemctl enable --now sesli-oda-yayin.timer
+```
+
+`.env`'de `$` geçen bir değer varsa tek tırnağa alınır (compose onu değişken sanar).
+
+**Sunucu yeniden açılınca:** Docker açılır, `restart: unless-stopped` ile `app` ve `tunnel` son hâlleriyle
+(`current` imajı) kalkar, `sesli-oda-ag.service` kuralları ekler, zamanlayıcı 1 dakika sonra yayın turlarına
+başlar. Elle bir şey gerekmez.
+
+**Kurulu kopyaları güncelleme** (depoda `deploy/` altında bir şey değişince; önce farka bakılır):
+
+```bash
+D=/srv/sesli-oda/app/deploy   # yönetici bu dizine giremez (750); komutlar sudo ile
+sudo diff -u /srv/sesli-oda/compose.yml $D/compose.yml
+sudo install -o root -g root -m 644 $D/compose.yml /srv/sesli-oda/compose.yml
+sudo docker compose -f /srv/sesli-oda/compose.yml --project-directory /srv/sesli-oda/app \
+  --env-file /srv/sesli-oda/.env up -d                # yeni compose ayarlarıyla yeniden yaratır
+sudo install -o root -g root -m 755 $D/yayin.sh /usr/local/sbin/sesli-oda-yayin
+sudo install -o root -g root -m 755 $D/sesli-oda-ag.sh /usr/local/sbin/sesli-oda-ag && sudo systemctl restart sesli-oda-ag
+sudo install -o root -g root -m 644 $D/sesli-oda-yayin.{service,timer} $D/sesli-oda-ag.service /etc/systemd/system/ \
+  && sudo systemctl daemon-reload
+```
+
+**Sunucuda denetlenecekler** (kurulumda ve ara sıra):
+
+- `172.31.240.0/28` başka bir Docker ağıyla ya da sunucunun bir arayüzüyle çakışmıyor mu
+  (`docker network inspect $(docker network ls -q) | grep Subnet`, `ip -4 addr`).
+- Docker kurulum önbelleği büyüyor mu (`docker system df`); gerekirse `docker builder prune --filter until=168h`.
+- Sunucuda Docker etiketlerine bakarak iş yapan bir servis (ör. Traefik, Watchtower, otomatik yedek) var mı;
+  varsa `sesli-oda` konteynerlerini kendiliğinden yayınlamadığından ya da güncellemediğinden emin olunur.
+- Güvenlik duvarı gerçekten çalışıyor mu: `sudo docker exec sesli-oda-app-1 node -e "fetch('http://<sunucunun iç
+  adresi>:22').catch(e=>console.log('engelli',e.cause?.code))"` zaman aşımı vermeli; ad çözme ve internet açık
+  olmalı: `... node -e "require('dns').promises.lookup('supabase.co').then(console.log)"` ve `lookup('tunnel')`.
+  `sudo iptables -L INPUT -v -n | grep sesli-oda` sayaçları DNS sorgusunda artmamalı.
 
 **Gerçek ziyaretçi adresi (`CLIENT_IP_HEADER`):** giriş, şifre değiştirme, oda şifresi ve kayıt olma sınırları
-ziyaretçi adresine göre sayılır. Tünel arkasında `CLIENT_IP_HEADER=cf-connecting-ip` ayarlanır: adres bu
-başlıktan alınır; başlık yoksa ya da geçerli tek bir adres değilse bağlantının kendi adresi kullanılır ve
-`X-Forwarded-For`'a bakılmaz. Bu ayar yalnız uygulamaya Cloudflare dışından ulaşılamıyorsa güvenlidir (başlığı
-istemci de yazabilir). Ayarlı değilse eski kural geçerlidir (Render'ın vekili: `X-Forwarded-For`'un son değeri).
+ziyaretçi adresine göre sayılır (IPv6'da adresin /64 öneki). Tünel arkasında `CLIENT_IP_HEADER=cf-connecting-ip`
+ayarlanır: adres bu başlıktan alınır; başlık yoksa ya da geçerli tek bir adres değilse bağlantının kendi adresi
+kullanılır, `X-Forwarded-For`'a bakılmaz ve günlüğe uyarı yazılır (en fazla 10 dakikada bir). Bu ayar yalnız
+uygulamaya Cloudflare dışından ulaşılamıyorsa güvenlidir (başlığı istemci de yazabilir). Ayarlı değilse eski
+kural geçerlidir (Render'ın vekili: `X-Forwarded-For`'un son değeri).
 
 ## Ortam değişkenleri
 

@@ -1,0 +1,15 @@
+# Sesli Oda konteyner ağı için sunucu güvenlik duvarı kuralları (deploy/sesli-oda-ag.sh).
+# Kurulum: /etc/systemd/system/ altına kopyalanır; betik /usr/local/sbin/sesli-oda-ag (root:root 755).
+# docker her açıldığında (açılışta ve yeniden başlatmada) kuralları yeniden kontrol eder.
+[Unit]
+Description=Sesli Oda konteyner agi guvenlik duvari kurallari
+After=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/sesli-oda-ag
+
+[Install]
+WantedBy=docker.service
