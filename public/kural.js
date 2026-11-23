@@ -26,7 +26,7 @@ const kuralLower = (s) => s.toLocaleLowerCase('tr');
 
 LOBBY.kural = {
   title: 'Gizli kural', tab: 'kural', running: () => Boolean(kuralActive()), last: () => kural,
-  hint: 'Bilgisayarın gizli kuralını 3 sayılık dizilerle bul. 1-6 kişi; tek başına da oynanır, bot açıksa bot da oynar.',
+  hint: 'Bilgisayarın gizli kuralını 3 sayılık dizilerle bul. 1-10 kişi; tek başına da oynanır, bot açıksa bot da oynar.',
 };
 
 function kuralNotes() {

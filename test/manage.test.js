@@ -52,6 +52,7 @@ test('yönetici hiç girmediği şifreli odada: rol admin, içeridekiler görün
   const view = await listed(id);
   assert.equal(view.role, 'admin');
   assert.deepEqual(view.users, ['Icerde1']);
+  assert.equal(view.max, 10);
 
   // Yönetici listede beklerken (hello) değişiklikleri canlı alır
   const lobby = await user('osyalcin');

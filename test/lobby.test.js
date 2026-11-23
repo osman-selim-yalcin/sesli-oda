@@ -193,7 +193,7 @@ test('oda kapanınca içerideki soket listeye döner ve rooms alır', async () =
 
 test('hello demeden dolu odaya giremeyen soket listeye alınır ve rooms alır', async () => {
   const inside = [];
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 1; i <= 10; i++) {
     const s = await user(`Dolu${i}`);
     assert.equal((await join(s, 'dolu-oda')).error, undefined);
     inside.push(s);
@@ -201,7 +201,7 @@ test('hello demeden dolu odaya giremeyen soket listeye alınır ve rooms alır',
   const late = await user('Gec');
   const res = await join(late, 'dolu-oda');
   assert.match(res.error, /Oda dolu/);
-  const got = roomsWhere(late, (d) => d.rooms.find((r) => r.id === 'dolu-oda')?.users.length === 5);
+  const got = roomsWhere(late, (d) => d.rooms.find((r) => r.id === 'dolu-oda')?.users.length === 9);
   inside[0].close();
   await got;
   for (const s of inside) s.close();

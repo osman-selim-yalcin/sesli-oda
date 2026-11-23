@@ -177,30 +177,48 @@ function setupAudio() {
 const SPEAK_THRESHOLD = 12;
 const SPEAK_HOLD = 350; // ms; kelime aralarında gösterge titremesin
 
+// Bütün göstergeler tek zamanlayıcıyla ölçülür (20 kişilik birleşik odada 20 ayrı zamanlayıcı yerine biri);
+// sekme görünmezken ölçülmez (halka zaten görünmüyor; "konuşurken müziği kıs" sekme dönünce yeniden ölçer).
+const levelMeters = new Set();
+let levelTimer = 0;
 function watchLevel(source, row, state) {
   const analyser = audioCtx.createAnalyser();
   analyser.fftSize = 512;
   source.connect(analyser);
-  const data = new Uint8Array(analyser.fftSize);
-  let lastLoud = 0;
-  const timer = setInterval(() => {
-    if (!row.isConnected) return clearInterval(timer);
-    analyser.getByteTimeDomainData(data);
+  for (const m of levelMeters) if (m.state === state) levelMeters.delete(m); // bağlantı yenilenince eski ölçer düşer
+  levelMeters.add({ analyser, data: new Uint8Array(analyser.fftSize), row, state, lastLoud: 0 });
+  levelTimer ||= setInterval(tickLevels, 100);
+}
+function tickLevels() {
+  if (document.hidden) return;
+  for (const m of levelMeters) {
+    if (!m.row.isConnected) {
+      levelMeters.delete(m);
+      continue;
+    }
+    m.analyser.getByteTimeDomainData(m.data);
     let peak = 0;
-    for (const v of data) peak = Math.max(peak, Math.abs(v - 128));
-    if (peak > SPEAK_THRESHOLD) lastLoud = Date.now();
-    state.speaking = !state.silenced?.() && Date.now() - lastLoud < SPEAK_HOLD;
-    row.classList.toggle('speaking', state.speaking);
-    row.mini?.classList.toggle('speaking', state.speaking);
-  }, 100);
+    for (const v of m.data) peak = Math.max(peak, Math.abs(v - 128));
+    if (peak > SPEAK_THRESHOLD) m.lastLoud = Date.now();
+    const speaking = !m.state.silenced?.() && Date.now() - m.lastLoud < SPEAK_HOLD;
+    if (speaking === m.state.speaking && m.row.classList.contains('speaking') === speaking) continue; // DOM'a yalnız değişince
+    m.state.speaking = speaking;
+    m.row.classList.toggle('speaking', speaking);
+    m.row.mini?.classList.toggle('speaking', speaking);
+  }
+  if (!levelMeters.size) {
+    clearInterval(levelTimer);
+    levelTimer = 0;
+  }
 }
 
 // ---------- Katılımcı listesi ----------
 
-// Birleşik odada sınır iki katı (her odadan en fazla 6).
+// Birleşik odada sınır iki katı (her odadan en fazla 10).
 function renderPeopleCount() {
-  const max = curRoom?.max || 6;
+  const max = curRoom?.max || 10;
   $('people-count').textContent = `${peers.size + 1}/${curRoom?.mergedWith ? 2 * max : max}`;
+  assignRoomColors();
 }
 
 // İsimden sabit bir renk: herkes her yerde (liste, sohbet) aynı renkte görünür.
@@ -240,10 +258,36 @@ function avatarInitial(el, name) {
   el.style.background = avatarColor(name);
 }
 
-function avatarColor(name) {
+function avatarHash(name) {
   let hash = 2166136261; // FNV-1a: benzer isimler de farklı renge düşsün
   for (const ch of name) hash = Math.imul(hash ^ ch.codePointAt(0), 16777619);
-  return AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
+  return (hash >>> 0) % AVATAR_COLORS.length;
+}
+// Odadakiler aynı renge düşmesin: oda içinde giriş sırasıyla, ismin rengi alınmışsa sıradaki boş renk verilir
+// (önce girenin rengi değişmez). 10 renk var: 10 kişiye kadar herkes ayrı renkte, birleşik odada (20) her renk
+// en çok iki kişide. Odada olmayan (sohbet geçmişi, oda listesi) isim kendi rengindedir.
+const roomColors = new Map(); // isim -> renk sırası
+function avatarColor(name) {
+  return AVATAR_COLORS[roomColors.get(name) ?? avatarHash(name)];
+}
+function assignRoomColors() {
+  const names = [...(selfRow ? [myName] : []), ...[...peers.values()].map((p) => p.name)];
+  const kept = new Map([...roomColors].filter(([n]) => names.includes(n)));
+  const count = new Array(AVATAR_COLORS.length).fill(0);
+  for (const i of kept.values()) count[i]++;
+  for (const n of names) {
+    if (kept.has(n)) continue;
+    const want = avatarHash(n);
+    const least = Math.min(...count);
+    let i = want;
+    for (let k = 0; k < AVATAR_COLORS.length && count[i] > least; k++) i = (want + k + 1) % AVATAR_COLORS.length;
+    kept.set(n, i);
+    count[i]++;
+  }
+  const changed = kept.size !== roomColors.size || [...kept].some(([n, i]) => roomColors.get(n) !== i);
+  roomColors.clear();
+  for (const [n, i] of kept) roomColors.set(n, i);
+  if (changed) for (const el of document.querySelectorAll('.avatar')) if (roomColors.has(el.dataset.name)) fillAvatar(el);
 }
 
 function setProfile(name, version) {
@@ -416,7 +460,7 @@ function removePeer(id) {
 }
 
 // ---------- WebRTC (sesli sohbet) ----------
-// Her kişi diğer herkese doğrudan bağlanır (en fazla 6 kişi için ideal).
+// Her kişi diğer herkese doğrudan bağlanır: 10 kişilik odada 9, birleşik odada (10 + 10) 19 bağlantı.
 // Yeni katılan kişi teklif (offer) gönderir, odadakiler cevap verir.
 
 // Karşı tarafa Opus için DTX (sessizken veri göndermeme) ve bitrate sınırı bildirir.
@@ -441,9 +485,18 @@ function applyLimits(pc) {
     if (!sender.track) continue;
     const params = sender.getParameters();
     if (!params.encodings?.length) continue;
-    params.encodings[0].maxBitrate = sender.track.kind === 'video' ? SCREEN_BITRATE : VOICE_BITRATE;
+    params.encodings[0].maxBitrate = sender.track.kind === 'video' ? screenBitrate() : VOICE_BITRATE;
     sender.setParameters(params).catch(() => {});
   }
+}
+
+// Paylaşan görüntüyü her kişiye ayrı gönderir: kişi başı 1 Mbps, ama toplam yükleme SCREEN_UPLOAD'u geçmesin
+// (10 kişide kişi başı ~670 kbps, 20 kişide ~315 kbps). Kişi gelip gidince bütün bağlantılarda yeniden ayarlanır.
+const SCREEN_UPLOAD = 6000000; // bps
+const screenBitrate = () => Math.max(250000, Math.min(SCREEN_BITRATE, Math.floor(SCREEN_UPLOAD / Math.max(1, peers.size))));
+function retuneScreen() {
+  if (!screenStream) return;
+  for (const peer of peers.values()) if (peer.pc) applyLimits(peer.pc);
 }
 
 // Ekran görüntüsü ve (varsa) sekme sesi birlikte gider.
@@ -622,11 +675,13 @@ socket.on('signal', async ({ from, data }) => {
 socket.on('user-joined', ({ id, name, ...info }) => {
   addPeer(id, name, info);
   createPc(id);
+  retuneScreen();
   renderRecBanner();
 });
 
 socket.on('user-left', (id) => {
   removePeer(id);
+  retuneScreen();
   renderRecBanner();
 });
 
@@ -1196,7 +1251,7 @@ $('tabbar-radio').onclick = () => $('nav-radio').click();
 $('screen-strip').onclick = () => showRoomPane('stage');
 
 // Masaüstünde oynatıcı, denetim paneli ve kişi sırası ilk ekrana sığsın: oynatıcının bırakacağı yükseklik
-// (--stage-rest) panelin ve kişi sırasının gerçek boyundan hesaplanır (12 kişide kişi sırası iki satır olur).
+// (--stage-rest) panelin ve kişi sırasının gerçek boyundan hesaplanır (10 kişide kişi sırası iki satır, birleşik odada 20 kişide üç satır olur).
 const stageRest = new ResizeObserver(() => {
   const now = document.querySelector('.stage > .now').offsetHeight;
   const people = document.querySelector('.stage > .people').offsetHeight;
@@ -3880,7 +3935,7 @@ const LOBBY = {
   },
   kelime: {
     title: 'Kelime', tab: 'kelime', running: () => Boolean(kelimeActive()), last: () => kelime,
-    hint: 'Biri anlatır, diğerleri bilir; herkes bir kez anlatır. 2-6 kişi.',
+    hint: 'Biri anlatır, diğerleri bilir; herkes bir kez anlatır. 2-6 kişi (odada daha çok kişi varsa öbürleri izler).',
   },
 };
 
@@ -4003,6 +4058,11 @@ function renderLobby(game) {
   } else if (mine) {
     actions.append(withIcon(lobbyButton('Lobiden çık', 'ghost', () => lobbyEmit('lobby:leave', game)), 'logout'));
     actions.append(kelimeSmall(`${lobby.host} başlatınca oyun bu ekiple başlar.`));
+  } else if (lobby.max && n >= lobby.max && !lobby.players.includes(BOT_NAME)) {
+    // Dolu lobi (ör. kelime 6 kişilik): düğme kapalı, nedeni yazılı; oyunu izleyebilir
+    const b = withIcon(lobbyButton('Lobi dolu', 'primary', null), 'users');
+    b.disabled = true;
+    actions.append(b, kelimeSmall(`${def.title} en fazla ${lobby.max} kişiyle oynanır; bu oyunu izleyebilirsin.`));
   } else {
     actions.append(withIcon(lobbyButton('Lobiye katıl', 'primary', () => lobbyEmit('lobby:join', game)), 'plus'));
     actions.append(kelimeSmall('Katılmazsan oyunu izlersin.'));
@@ -4093,7 +4153,7 @@ const ONER_STEPS = [
     ],
   },
   {
-    title: 'Oyuncular', head: 'Kimler, nasıl oynuyor?', intro: 'Odada en fazla 6 kişi olabiliyor.',
+    title: 'Oyuncular', head: 'Kimler, nasıl oynuyor?', intro: 'Odada en fazla 10 kişi olabiliyor (iki oda birleşince 20).',
     fields: [
       { row: [
         { key: 'minOyuncu', label: 'En az kaç kişi?', type: 'choice', options: PLAYERS },
@@ -7371,19 +7431,20 @@ addEventListener('DOMContentLoaded', async () => {
 // Sekme düğmeleri (game-tab-*) gizli durur ve hâlâ asıl geçişi yapar; kartlar ve son oynananlar onları tıklar.
 // Yeni bir oyunun sekmesi eklenince kartlarda kendiliğinden görünür (bilgisi yoksa "Diğer" altında).
 
-// players: kartta görünen kişi sayısı aralığı (sunucudaki LOBBY_GAMES sınırları; bot ayrıca katılabilir)
+// players: kartta görünen kişi sayısı aralığı (sunucudaki LOBBY_GAMES sınırları: odada 10 kişi, bot ayrıca katılabilir;
+// dinozor 7 (bot dahil), kelime 6, sayı bulmaca 2)
 // hue: oyunun tonu, oklch ton açısı (simgenin rengi, kartın ve lobinin simge zemini; açıklığı temadan gelir)
 const GAME_INFO = {
   sayi: { hue: 245, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
-  kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–6 kişi' },
-  hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–6 kişi' },
-  mantik: { hue: 345, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–6 kişi' },
+  kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
+  hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–10 kişi' },
+  mantik: { hue: 345, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–10 kişi' },
   klotski: { hue: 150, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
-  memory: { hue: 65, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–6 kişi' },
-  timing: { hue: 215, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur', players: '1–6 kişi' },
-  daktilo: { hue: 315, group: 'Hız ve refleks', desc: 'Aynı kelimeleri yaz, en hızlı olan kazanır', players: '1–6 kişi' },
+  memory: { hue: 65, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–10 kişi' },
+  timing: { hue: 215, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur', players: '1–10 kişi' },
+  daktilo: { hue: 315, group: 'Hız ve refleks', desc: 'Aynı kelimeleri yaz, en hızlı olan kazanır', players: '1–10 kişi' },
   okuma: { hue: 50, group: 'Hız ve refleks', desc: 'Göz açısı, blok görme, takistoskop', players: 'Tek kişi' },
-  dino: { hue: 130, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş', players: '1–6 kişi' },
+  dino: { hue: 130, group: 'Hız ve refleks', desc: 'Engellerden zıplayarak koş', players: '1–7 kişi' },
   peacock: { hue: 185, group: 'Hız ve refleks', desc: 'Yakında', soon: true },
   kelime: { hue: 265, group: 'Birlikte', desc: 'Biri anlatır, diğerleri bilir', players: '2–6 kişi' },
   tier: { hue: 35, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },

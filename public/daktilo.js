@@ -206,7 +206,7 @@ socket.on('daktilo:board', setDaktiloBoard);
 
 LOBBY.daktilo = {
   title: 'Daktilo düellosu', tab: 'daktilo', running: () => Boolean(dkActive()), last: () => daktilo,
-  hint: 'Herkese aynı kelimeler gelir; süre bitene kadar en çok doğru kelimeyi yazan kazanır. 1-6 kişi; tek başına da çalışabilirsin.',
+  hint: 'Herkese aynı kelimeler gelir; süre bitene kadar en çok doğru kelimeyi yazan kazanır. 1-10 kişi; tek başına da çalışabilirsin.',
   opts: (lobby, host) => {
     const row = document.createElement('div');
     row.className = 'lobby-opts';

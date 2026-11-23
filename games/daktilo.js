@@ -1,7 +1,7 @@
 // ---------- Daktilo düellosu ----------
 // Lobidekilere aynı rastgele kelime dizisi gelir; geri sayımdan sonra herkes aynı anda yazmaya başlar. Her kelime
 // boşlukla gönderilir; sunucu sıradaki kelimeyle karşılaştırıp doğru/yanlış sayar. Süre (1-3 dk) bitince doğru
-// kelime sayısı (kelime/dk) en yüksek olan kazanır; eşitse yanlışı az olan. 1-6 kişi, tek başına da oynanır.
+// kelime sayısı (kelime/dk) en yüksek olan kazanır; eşitse yanlışı az olan. 1-10 kişi (bot ayrıca), tek başına da oynanır.
 // Rekorlar süreye göre ayrı tabloda, room_state 'daktiloboard' kaydında durur (bütün odalarda ortak, SHARED satırı).
 
 const WORDS = require('../public/tr-words');

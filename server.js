@@ -18,7 +18,7 @@ const mutes = require('./mutes'); // moderatör susturması (aşağıda "Susturm
 const hedef = require('./games/hedef');
 
 const PORT = process.env.PORT || 3030;
-const MAX_USERS = 6;
+const MAX_USERS = 10; // oda başına; birleşik odada her odadan bu kadar (toplam iki katı)
 const SHARED = 'ortak';    // room_state'te bütün odaların ortak kaydı (skor tabloları, öneriler); oda adı olamaz
 const JOINED = '@joined';  // Socket.IO odası: bir odaya girmiş bütün soketler (ortak tablolar buraya yayılır)
 const LOBBY = '@lobby';    // Socket.IO odası: oda listesinde bekleyen (hello demiş, odada olmayan) soketler
@@ -71,7 +71,8 @@ const KELIME_COOLDOWN = 5000;    // ms; bir oyuncunun iki tahmini arasında en a
 const KELIME_REVEAL = 3000;      // ms; tur başlayınca hedef kelime anlatıcının ekranında kalır
 const KELIME_COUNTDOWN = 3000;   // ms; ardından herkeste 3, 2, 1
 const KELIME_ROLLS = 6;          // "rastgele": ilk kelime + 5 kez değiştirme
-const KELIME_PLAYERS = 6;        // bir anlatıcı + 5 bilen
+const KELIME_PLAYERS = 6;        // bir anlatıcı + 5 bilen (odada 10 kişi olsa da)
+const DINO_PLAYERS = 7;          // dinozor lobisi (bot dahil): daha fazlası tuvalin solundan taşar
 const KELIME_MAX_LENGTH = 50;
 const KELIME_POOL_MAX = 1000;    // odanın kelime havuzundaki en fazla kelime
 const KELIME_WORDS_MAX = 200;    // bir turda yazılabilecek en fazla tahmin
@@ -1669,7 +1670,7 @@ io.on('connection', (socket) => {
     if (room.bot && players.length < LOBBY_GAMES[game].max) players.push(BOT);
     // Ayarlar (tur sayısı, tahta) son başlatılan lobiden kalır; kelimede anlatıcı her seferinde yeniden seçilir.
     const opts = { ...LOBBY_GAMES[game].opts, ...(game === 'kelime' ? {} : room.lobbyOpts[game]) };
-    room.lobbies[game] = { game, host: name, players, opts };
+    room.lobbies[game] = { game, host: name, players, opts, max: LOBBY_GAMES[game].max };
     sendLobbies(room);
     postSystem(room, `${name} ${LOBBY_GAMES[game].label} lobisi kurdu; katılmak isteyen girsin.`);
   }));
@@ -2158,14 +2159,17 @@ function leaveLobby(room, game, name) {
 }
 
 const LOBBY_GAMES = {
+  // max: lobideki en çok kişi (bot dahil). MAX_USERS + 1: odadaki herkes ve bot. Dinozor 7'de kalır: oyuncular Jef'in
+  // 60 px arkasına dizilir (Jef tuvalin 420. pikselinde), 8. oyuncu ekranın dışında başlardı. Kelime 6 (bir anlatıcı
+  // + 5 bilen; renkler ve tur sayısı buna göre). Sayı bulmaca iki kişilik.
   race: { label: 'süre yarışı', min: 1, max: MAX_USERS + 1, opts: { rounds: 5 }, start: (room, by, players, opts) => startRace(room, by, players, opts.rounds) },
-  dino: { label: 'dinozor', min: 1, max: MAX_USERS + 1, opts: {}, start: (room, by, players) => startDino(room, by, players) },
+  dino: { label: 'dinozor', min: 1, max: DINO_PLAYERS, opts: {}, start: (room, by, players) => startDino(room, by, players) },
   memory: { label: 'Eşini Bul', min: 1, max: MAX_USERS + 1, opts: { numbers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], colors: ['yesil', 'turuncu', 'mavi', 'kirmizi'] }, start: (room, by, players, opts) => startMemory(room, by, players, opts) },
-  hedef: { label: 'Hedef sayı', min: 1, max: 6, opts: { rounds: 5 }, start: (room, by, players, opts) => hedef.start(room, by, players, opts) },
+  hedef: { label: 'Hedef sayı', min: 1, max: MAX_USERS + 1, opts: { rounds: 5 }, start: (room, by, players, opts) => hedef.start(room, by, players, opts) },
   sayi: { label: 'Sayı bulmaca', min: 1, max: 2, opts: { digits: 4 }, start: (room, by, players, opts) => startSayi(room, by, players, opts) },
-  kural: { label: 'Gizli kural', min: 1, max: 6, opts: {}, start: (room, by, players) => kural.start(room, by, players) },
-  mantik: { label: 'Mantık tablosu', min: 1, max: 6, opts: { level: 'kolay' }, start: (room, by, players, opts) => mantik.start(room, by, players, opts) },
-  daktilo: { label: 'daktilo düellosu', min: 1, max: 6, opts: { secs: 60 }, start: (room, by, players, opts) => daktilo.start(room, by, players, opts) },
+  kural: { label: 'Gizli kural', min: 1, max: MAX_USERS + 1, opts: {}, start: (room, by, players) => kural.start(room, by, players) },
+  mantik: { label: 'Mantık tablosu', min: 1, max: MAX_USERS + 1, opts: { level: 'kolay' }, start: (room, by, players, opts) => mantik.start(room, by, players, opts) },
+  daktilo: { label: 'daktilo düellosu', min: 1, max: MAX_USERS + 1, opts: { secs: 60 }, start: (room, by, players, opts) => daktilo.start(room, by, players, opts) },
   kelime: { label: 'kelime', min: 2, max: KELIME_PLAYERS, opts: { narrator: null }, start: (room, by, players, opts) => startKelime(room, by, players, opts.narrator) },
 };
 
