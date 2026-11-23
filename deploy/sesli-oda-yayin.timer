@@ -1,0 +1,12 @@
+# Sesli Oda: dakikada bir yeni commit var mı bakar (sesli-oda-yayin.service).
+[Unit]
+Description=Sesli Oda yayini: dakikada bir origin/main kontrolu
+
+[Timer]
+OnActiveSec=10s
+OnBootSec=1min
+OnUnitInactiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,41 @@
+# Sesli Oda: main'deki yeni commit'i yayınlar (deploy/yayin.sh). sesli-oda-yayin.timer dakikada bir çalıştırır.
+# Kurulum: /etc/systemd/system/ altına kopyalanır; betik /usr/local/sbin/sesli-oda-yayin (root:root 755).
+#
+# Neden root ve sudoers kuralı değil: docker'ı çalıştırabilen her hesap fiilen root'tur (docker grubu da, "yalnız
+# docker" sudo kuralı da). sesli-oda kullanıcısına docker yetkisi verilirse o kullanıcıyı ele geçiren host'u ele
+# geçirir. Bunun yerine sesli-oda kullanıcısı hiçbir yetki almaz (docker grubunda değil, sudo kuralı yok, giriş
+# kabuğu yok); bu birim root çalışır, ağdan veri işleyen git adımlarını setpriv ile sesli-oda'ya düşürür (runuser
+# yerine setpriv: PAM oturumu açmaz). sudo hiç devreye girmediği için NoNewPrivileges kullanılabilir.
+[Unit]
+Description=Sesli Oda yayini (origin/main -> konteyner)
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/sesli-oda-yayin
+TimeoutStartSec=15min
+Nice=10
+IOSchedulingClass=idle
+SyslogIdentifier=sesli-oda-yayin
+
+# Sertleştirme. docker CLI yalnız /run/docker.sock'a konuşur; git sesli-oda kullanıcısıyla çalışır.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+# setpriv için SETUID/SETGID; sesli-oda'ya ait (750) depo dizinini docker build bağlamı olarak okumak için
+# DAC_READ_SEARCH. Başka yetenek yok.
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_READ_SEARCH
+UMask=0027

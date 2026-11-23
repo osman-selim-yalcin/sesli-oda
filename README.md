@@ -55,6 +55,8 @@ Derleme adımı yok; `public/` içindeki dosyalar olduğu gibi sunulur.
 | `games/` | Daktilo, hedef sayı, gizli kural, mantık tablosu oyunlarının sunucu tarafı |
 | `store.js` | Supabase'e kalıcı kayıt (geçmiş, efektler, tier listler, skor tabloları) |
 | `accounts.js` | Hesaplar, oturumlar, profil resimleri, site yöneticileri (`ADMINS`) |
+| `clientip.js` | Ziyaretçinin gerçek adresi (deneme sınırları için; `CLIENT_IP_HEADER`) |
+| `deploy/` | Kendi sunucuda yayın: `Dockerfile`, `compose.yml`, `yayin.sh`, systemd birimleri (bkz. "Katkı ve yayın") |
 | `db/` | Canlıya geçişte elle çalıştırılan SQL dosyaları |
 | `public/index.html` | Arayüzün işaretlemesi; gömülü ikon seti (`<svg id="ui-icons">`) |
 | `public/css/base.css`, `shell.css`, `games.css` | Ortak bileşenler, ekran çerçeveleri, oyun tahtaları (yalnız değişken kullanır) |
@@ -152,8 +154,7 @@ Supabase ayarlıyken 1. ya da 3. adım eksikse yeni sunucu açılmayı reddeder:
 
 ## Katkı ve yayın
 
-`main` dalına yapılan her push, Render'da otomatik olarak yayına alınır. Yani **`main`'e giden her şey
-birkaç dakika içinde canlı sitede olur.** Push'tan önce:
+`main` dalına yapılan her push birkaç dakika içinde canlı sitede olur. Push'tan önce:
 
 1. Değişikliği bilgisayarında test sunucusuyla (`PORT=<port> node -r ./test/preload.js server.js`) dene ve
    `npm test` çalıştır; tarayıcı konsolunda hata olmasın. `npm start` canlı veritabanına bağlandığı için
@@ -161,19 +162,68 @@ birkaç dakika içinde canlı sitede olur.** Push'tan önce:
 2. Büyük ya da riskli bir değişiklikse ayrı bir dalda çalış ve pull request aç.
 3. Commit mesajlarını Türkçe ve ne yaptığını anlatacak şekilde yaz.
 
-Yayının durumu ve kayıtları Render panelindeki **Events** ve **Logs** sekmelerindedir. Ücretsiz planda
-sunucu bir süre kullanılmayınca uyur; ilk açılış 30-60 saniye sürebilir.
+**Geçiş dönemi:** site Render'dan kendi sunucumuza taşınıyor. Geçiş onaylanana kadar Render servisi ve
+`render.yaml` yerinde kalır (Render'da `CLIENT_IP_HEADER` ayarlı olmadığı için davranış orada değişmez); geçiş bir
+hafta sorunsuz sürünce Render servisi silinir, `render.yaml` kaldırılır ve bu not güncellenir.
+O zamana kadar Render'daki yayının durumu ve kayıtları Render panelindeki **Events** ve **Logs** sekmelerindedir.
+
+### Kendi sunucuda yayın
+
+Uygulama sunucuda bir Docker konteynerinde çalışır ve dışarıya port açmaz; ziyaretçiler Cloudflare Tunnel
+üzerinden gelir (`tunnel` konteyneri Cloudflare'e kendisi bağlanır, yalnız `app:3030`'a iletir).
+
+Sunucudaki yerleşim:
+
+| Yol | Ne |
+| --- | --- |
+| `/srv/sesli-oda/app/` | Bu deponun git kopyası (`sesli-oda` kullanıcısına ait; yayın betiği belli bir commit'e geçirir) |
+| `/srv/sesli-oda/.env` | Sırlar (root, `600`): `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN`, `YT_API_KEY`, `CLIENT_IP_HEADER=cf-connecting-ip`, `TUNNEL_TOKEN`. Git'e girmez. |
+| `/srv/sesli-oda/state/` | Yayın betiğinin kayıtları (başarısız ya da bekletilen commit) |
+| `/usr/local/sbin/sesli-oda-yayin` | `deploy/yayin.sh`'nin root'a ait kopyası |
+| `/etc/systemd/system/sesli-oda-yayin.{service,timer}` | `deploy/` altındakilerin kopyası; dakikada bir yayın betiğini çalıştırır |
+
+- `deploy/compose.yml`: compose projesi `sesli-oda`; `app` (salt-okunur dosya sistemi, kök olmayan kullanıcı,
+  yetenek yok, 512 MB) ve `tunnel` (`cloudflare/cloudflared`). Kendi ağı `sesli-oda` (`172.31.240.0/28`), port
+  yayınlanmaz. Sırlar compose'a `--env-file /srv/sesli-oda/.env` ile verilir ve her konteyner yalnız kendi
+  değişkenlerini alır (`app` tünel anahtarını, `tunnel` Supabase anahtarını görmez). Günlükler journald'ye
+  gider: `journalctl -t sesli-oda-sesli-oda-app-1 -f` (tünel için `...-tunnel-1`), yayın betiği için
+  `journalctl -u sesli-oda-yayin`.
+- `deploy/Dockerfile`: `node:22-alpine`, yalnız `package*.json`, kökteki `*.js`, `games/` ve `public/` kopyalanır.
+  Köke yeni bir klasör eklenirse Dockerfile'a ve `.dockerignore`'a da eklenmeli.
+- **Yayın (`sesli-oda-yayin`, dakikada bir):** `origin/main`'i çeker; yeni commit varsa imajı
+  `sesli-oda-app:<kısa sha>` olarak kurar, `current` etiketini ona verir, `app`'i yeniden başlatır ve 60 saniye
+  içinde sağlık denetiminden (`GET /theme-list`) geçmesini bekler. Geçemezse (ör. log'da `SUNUCU AÇILMIYOR`)
+  önceki imaja döner, hata koduyla çıkar ve o commit'i bir daha kendiliğinden denemez. Son 3 imaj tutulur.
+  `deploy/compose.yml`'yi değiştiren bir commit otomatik yayınlanmaz (compose dosyası konteynere sunucuda yetki
+  verebilir): log'da `BEKLETİLDİ` yazar, gözden geçirilip elle yayınlanır. `deploy/yayin.sh` ve systemd
+  birimlerindeki değişiklikler de kendiliğinden devreye girmez; sunucuya elle kopyalanır.
+- **Elle yayın ve geri alma:** `ssh otomasyon sudo sesli-oda-yayin <sha>` o commit'i yayınlar (main'in
+  geçmişinde olmalı; imajı hâlâ duruyorsa yeniden kurulmaz). Eski bir commit'e dönülünce otomatik yayın main'e
+  yeni bir commit gelene kadar durur. Bekletilmiş ya da başarısız olmuş bir commit de aynı komutla yayınlanır.
+- Compose'u elle çalıştırırken `--env-file` unutulmamalı (unutulursa compose zorunlu değişken hatasıyla durur):
+  `sudo docker compose --env-file /srv/sesli-oda/.env -f /srv/sesli-oda/app/deploy/compose.yml ps`.
+
+**Gerçek ziyaretçi adresi (`CLIENT_IP_HEADER`):** giriş, şifre değiştirme, oda şifresi ve kayıt olma sınırları
+ziyaretçi adresine göre sayılır. Tünel arkasında `CLIENT_IP_HEADER=cf-connecting-ip` ayarlanır: adres bu
+başlıktan alınır; başlık yoksa ya da geçerli tek bir adres değilse bağlantının kendi adresi kullanılır ve
+`X-Forwarded-For`'a bakılmaz. Bu ayar yalnız uygulamaya Cloudflare dışından ulaşılamıyorsa güvenlidir (başlığı
+istemci de yazabilir). Ayarlı değilse eski kural geçerlidir (Render'ın vekili: `X-Forwarded-For`'un son değeri).
 
 ## Ortam değişkenleri
 
-Hepsi isteğe bağlı. Render'da **Environment** bölümünden eklenir; anahtarlar koda yazılmaz.
+Kendi sunucuda `/srv/sesli-oda/.env`'de (bkz. "Kendi sunucuda yayın"), Render'da **Environment** bölümünde,
+bilgisayarda `.env`'de durur; anahtarlar koda yazılmaz. Sunucudaki konteynerde `SUPABASE_URL`,
+`SUPABASE_SECRET_KEY`, `CLIENT_IP_HEADER` ve `TUNNEL_TOKEN` zorunludur, gerisi isteğe bağlı.
 
 | Değişken | Ne işe yarar |
 | --- | --- |
 | `YT_API_KEY` | Site içi YouTube araması (YouTube Data API v3, ücretsiz, günlük ~100 arama). Yoksa arama kapalıdır, link yapıştırma çalışır. Aynı arama 1 saat önbellekte tutulur. |
+| `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN` | Cloudflare TURN: bazı mobil ağlarda doğrudan bağlantı kurulamaz ("Bağlanamadı"); sunucu bu anahtarlarla geçici TURN bilgisi üretir. |
 | `TURN_URL`, `TURN_USERNAME`, `TURN_CREDENTIAL` | Bazı mobil ağlarda doğrudan bağlantı kurulamaz ("Bağlanamadı"); o zaman bir TURN sunucusu gerekir. |
 | `SUPABASE_URL`, `SUPABASE_SECRET_KEY` | Hesaplar, önceden çalanlar, özel efektler ve tier listler Supabase'de kalıcı tutulur (`accounts`, `sessions`, `room_state`, `rooms`, `room_requests`, `room_members` tabloları ve özel `media` bölmesi). Şifrelerin sadece scrypt özeti, oturum anahtarlarının sadece SHA-256 özeti saklanır. Yoksa sadece hafızada durur, sunucu uyuyunca silinir. Bilgisayarda `.env` dosyasına yazılır (git'e girmez). Bilgisayarda `npm start` ile açılan sunucu canlı siteyle aynı kayıtları kullanır (test sunucusu kullanmaz): ikisi aynı anda açıkken aynı odada değişiklik yapılırsa son yazan kazanır, ve her sunucu kayıtları sadece açılırken okur. |
-| `PORT` | Sunucu portu (varsayılan 3030; Render kendisi verir). |
+| `CLIENT_IP_HEADER` | Ziyaretçi adresinin okunacağı başlık; tünel arkasında `cf-connecting-ip`. Ayarlı değilse `X-Forwarded-For`'un son değeri (Render). Yalnız uygulamaya o başlığı yazan vekil dışında ulaşılamıyorsa ayarlanır. |
+| `TUNNEL_TOKEN` | Yalnız sunucuda, `tunnel` konteyneri için (Cloudflare Tunnel anahtarı); uygulama konteynerine verilmez. |
+| `PORT` | Sunucu portu (varsayılan 3030; Render kendisi verir, konteynerde 3030). |
 
 ## İnternet kullanımı
 

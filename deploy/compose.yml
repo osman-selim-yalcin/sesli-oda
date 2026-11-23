@@ -1,0 +1,62 @@
+# Sesli Oda: uygulama + Cloudflare tüneli. Sunucuda /srv/sesli-oda/app/deploy/compose.yml olarak durur.
+# Sırlar /srv/sesli-oda/.env'dedir ve compose'a --env-file ile verilir (deploy/yayin.sh böyle çağırır):
+#   docker compose --env-file /srv/sesli-oda/.env -f /srv/sesli-oda/app/deploy/compose.yml ...
+# env_file kullanılmaz: o dosyanın tamamını konteynere verirdi. Her konteyner yalnız kendi değişkenlerini alır:
+# app TUNNEL_TOKEN'ı, tunnel Supabase anahtarını görmez. --env-file unutulursa zorunlu değişkenler (:?) yüzünden
+# compose hiç çalışmaz (uygulama Supabase'siz, boş hafızayla açılmasın).
+name: sesli-oda
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  init: true
+  restart: unless-stopped
+  networks: [sesli-oda]
+  logging:
+    driver: journald
+    options:
+      tag: "sesli-oda-{{.Name}}"
+
+services:
+  app:
+    <<: *hardening
+    # deploy/yayin.sh imajı sesli-oda-app:<kısa sha> olarak kurar ve yayındakini :current olarak etiketler.
+    image: sesli-oda-app:current
+    pull_policy: never
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    tmpfs: [/tmp]
+    mem_limit: 512m
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:?/srv/sesli-oda/.env içinde SUPABASE_URL yok (--env-file verildi mi?)}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:?/srv/sesli-oda/.env içinde SUPABASE_SECRET_KEY yok}
+      CLIENT_IP_HEADER: ${CLIENT_IP_HEADER:?/srv/sesli-oda/.env içinde CLIENT_IP_HEADER yok (cf-connecting-ip)}
+      CF_TURN_KEY_ID: ${CF_TURN_KEY_ID:-}
+      CF_TURN_API_TOKEN: ${CF_TURN_API_TOKEN:-}
+      YT_API_KEY: ${YT_API_KEY:-}
+      TURN_URL: ${TURN_URL:-}
+      TURN_USERNAME: ${TURN_USERNAME:-}
+      TURN_CREDENTIAL: ${TURN_CREDENTIAL:-}
+    # ports: yok. Uygulamaya yalnız tunnel konteyneri bu ağ üzerinden (app:3030) ulaşır.
+
+  tunnel:
+    <<: *hardening
+    image: cloudflare/cloudflared:2026.11.1
+    command: tunnel --no-autoupdate run
+    mem_limit: 256m
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?/srv/sesli-oda/.env içinde TUNNEL_TOKEN yok}
+    depends_on:
+      app:
+        condition: service_healthy
+
+networks:
+  sesli-oda:
+    name: sesli-oda
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.240.0/28

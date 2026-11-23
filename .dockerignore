@@ -1,0 +1,8 @@
+# Konteynere yalnız sunucunun ihtiyacı girer (deploy/Dockerfile). Her şey dışarıda, aşağıdakiler hariç.
+*
+!package.json
+!package-lock.json
+!*.js
+!games
+!public
+**/.DS_Store
