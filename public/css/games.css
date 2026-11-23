@@ -25,7 +25,7 @@
 .games.at-home .game-home-btn { background: transparent; border-color: transparent; padding-left: var(--space-1); font-size: 17px; cursor: default; opacity: 1; }
 .game-recent { display: flex; gap: var(--space-1); min-width: 0; overflow-x: auto; scrollbar-width: none; scroll-padding-inline: var(--space-4); padding-right: var(--space-4); }
 /* Sığmayan son oynananlar yana kayar; sağ kenar söner, kesik çip kaydırılabilir olduğunu gösterir (maske yalnız saydamlık okur) */
-.game-recent:where(:not(:empty)) { mask-image: linear-gradient(to right, var(--text) calc(100% - var(--space-6)), transparent); }
+.game-recent.is-overflow { mask-image: linear-gradient(to right, var(--text) calc(100% - var(--space-6)), transparent); }
 .game-recent::-webkit-scrollbar { display: none; }
 .game-chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; min-height: var(--control-h-sm); padding: 0 var(--space-3) 0 6px; border-radius: var(--radius-pill); font-size: 13px; color: var(--muted); background: transparent; border-color: transparent; }
 .game-chip:hover:where(:not(:disabled)) { color: var(--text); background: var(--surface-2); border-color: var(--border); }
@@ -792,7 +792,8 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .sayi-digits[hidden] { display: none; }
 .sayi-digit { position: relative; height: 52px; padding: 0; font-size: 22px; font-weight: 700; display: grid; place-items: center; }
 .sayi-digit small { position: absolute; top: 2px; right: 5px; font-size: 13px; }
-.sayi-digit.mark-x { color: var(--muted); background: var(--danger-soft); border-color: var(--danger); }
+/* ✕ işaretli rakam soluk kalır ama kırmızımsı zeminde de 4,5:1 okunur (düz --muted 4,2:1) */
+.sayi-digit.mark-x { color: color-mix(in srgb, var(--muted) 90%, var(--text)); background: var(--danger-soft); border-color: var(--danger); }
 .sayi-digit.mark-x small { color: var(--danger); }
 .sayi-digit.mark-v { background: var(--live-soft); border-color: var(--live); }
 .sayi-digit.mark-v small { color: var(--live); }

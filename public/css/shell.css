@@ -131,12 +131,18 @@
    --topbar-h üst çubuğun kapladığı yükseklik: bildirimler bunun altında açılır (base.css --toast-top). */
 /* --bar-h: hap çubuğun kendi yüksekliği, --bar-top: üstündeki boşluk; --topbar-h bunlardan türer (elle tutulan ikinci
    sabit yok). Telefonda üstte boşluk yoktur. */
-:root:has(#room-screen:not([hidden])) { --bar-h: 56px; --bar-top: var(--space-3); --topbar-h: calc(var(--bar-h) + var(--bar-top)); }
+:root:has(#room-screen:not([hidden])) {
+  --bar-h: 56px;
+  --bar-top: var(--space-3);
+  --topbar-h: calc(var(--bar-h) + var(--bar-top));
+  --tabbar-h: 60px;
+  --strip-h: 48px;
+  /* Klavyeyle odaklanan ya da görünüme kaydırılan öğe sabit üst çubuğun altında kalmasın */
+  scroll-padding-top: calc(var(--topbar-h) + var(--space-2));
+}
 .room {
   --frame-w: 1480px;
   --panel-w: 360px;
-  --tabbar-h: 60px;
-  --strip-h: 48px;
   --dock-h: 0px;
 }
 
@@ -314,8 +320,8 @@ button.topbar-settings:active:not(:disabled) { transform: none; background: var(
 /* Sahne. Masaüstünde oynatıcı, denetimler ve kişi sırası tek ekrana sığsın: oynatıcının yüksekliği
    --stage-rest (denetim paneli + kişi sırası + aralıklar) kadar kısılır, video kutunun içinde ortalanır. */
 .stage { --stage-rest: 290px; display: grid; gap: var(--space-3); min-width: 0; }
-/* Sahne görünmezken ekrandan çıkar ama çalmaya devam eder */
-.media.away { position: absolute; left: -10000px; top: 0; width: 800px; }
+/* Sahne görünmezken ekrandan çıkar ama çalmaya devam eder; görünmez denetimler klavye sırasından da çıkar */
+.media.away { position: absolute; left: -10000px; top: 0; width: 800px; visibility: hidden; }
 
 .player-wrap {
   position: relative;
@@ -1041,7 +1047,9 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
 
 /* ---------- Telefon ve tablet (< 1000 px) ---------- */
 @media (max-width: 999px) {
-  :root:has(#room-screen:not([hidden])) { --bar-top: 0px; }
+  /* scroll-padding-bottom: odaklanan öğe alttaki sabit sekme çubuğunun (ve çalan şarkı şeridinin) altında kalmasın */
+  :root:has(#room-screen:not([hidden])) { --bar-top: 0px; scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--space-2)); }
+  :root:has(#room-screen:not([hidden]) #topbar-now:not([hidden])) { scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--strip-h) + var(--space-3)); }
   .room { --dock-h: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px)); }
   .room:has(#topbar-now:not([hidden])) { --dock-h: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + var(--strip-h) + var(--space-2)); }
   .room.kb-open { --dock-h: 0px; }
@@ -1297,6 +1305,8 @@ button.account-chip:active:not(:disabled) { transform: none; background: var(--s
 .roomlist-page { display: grid; gap: var(--space-5); align-content: start; min-width: 0; }
 .roomlist-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-3) var(--space-4); flex-wrap: wrap; }
 .roomlist-head-text { min-width: 0; }
+/* Üyeler: küçük "Yenile" düğmesi başlık satırıyla aynı hizada (Odalar'daki büyük düğme bloğun altına oturur) */
+.members .roomlist-head { align-items: baseline; }
 .roomlist-title { font-size: 26px; }
 .roomlist-summary { margin: var(--space-1) 0 0; color: var(--muted); font-size: 14px; font-variant-numeric: tabular-nums; }
 .roomlist-summary:empty { display: none; }

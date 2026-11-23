@@ -203,7 +203,8 @@ function renderPeopleCount() {
 }
 
 // İsimden sabit bir renk: herkes her yerde (liste, sohbet) aynı renkte görünür.
-const AVATAR_COLORS = ['#c2413b', '#d9822b', '#b59a1f', '#3f9b4f', '#1f9a8a', '#2f7fc1', '#5b5fd6', '#8f4fc9', '#c2448f', '#6b7280'];
+// Her ton beyaz baş harfle (--avatar-text) en az 4,5:1 kontrast verir; açık tonlar bu yüzden biraz koyu.
+const AVATAR_COLORS = ['#c2413b', '#a96522', '#897417', '#368544', '#1b8477', '#2d7ab9', '#5b5fd6', '#8f4fc9', '#c2448f', '#6b7280'];
 
 // Profil resmi olanlar: { ad: sürüm }. Resmi olmayanın avatarı baş harfi ve isimden gelen renktir.
 let profiles = {};
@@ -5495,6 +5496,8 @@ async function createPlayer() {
       events: {
         onReady: () => {
           playerReady = true;
+          // Oynatıcı yalnız bizim düğmelerle yönetilir (fare için .player-shield); klavye de içine girmesin
+          player.getIframe().tabIndex = -1;
           player.setVolume(musicVolume());
           appliedVolume = null;
           if (!resizeWatched) new ResizeObserver(applyQuality).observe($('player-wrap'));
@@ -6835,7 +6838,7 @@ function renderRoomSettings(list) {
   $('rs-pass-remove').hidden = !r.locked;
   const partner = r.mergedWith;
   $('rs-merged').hidden = !partner;
-  if (partner) state($('rs-merged'), 'badge-accent', 'merge', `⇄ ${roomNames.get(partner) || partner}`, 'ile birleşik.');
+  if (partner) state($('rs-merged'), 'badge-accent', 'merge', roomNames.get(partner) || partner, 'ile birleşik.'); // rozette birleşme simgesi var, ⇄ ikinci kez yazılmaz
   else $('rs-merged').replaceChildren();
   $('rs-merge-form').classList.toggle('is-merged', Boolean(partner));
   $('rs-split').hidden = !partner;
@@ -7193,6 +7196,13 @@ function gameEntry(tab, cls) {
   return b;
 }
 
+// Son oynananlar şeridinin sağ kenarı yalnız şerit taşınca solar (css/games.css .game-recent.is-overflow).
+function recentFade() {
+  const strip = $('game-recent');
+  strip.classList.toggle('is-overflow', strip.scrollWidth > strip.clientWidth + 1);
+}
+new ResizeObserver(recentFade).observe($('game-recent'));
+
 function renderGameSwitch() {
   const tabs = gameTabs();
   const current = $('game-home').hidden ? tabs.find((t) => t.btn.classList.contains('active')) : null;
@@ -7221,6 +7231,7 @@ function renderGameSwitch() {
     b.append(gameIcon(t.key, 'game-chip-icon'), t.name);
     return b;
   }));
+  recentFade();
   if (!$('game-home').hidden) renderGameHome();
 }
 
