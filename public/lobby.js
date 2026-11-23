@@ -72,37 +72,52 @@ window.Lobby = (() => {
   // <legend>); içine her tema için bir radyo kutucuğu yazılır (name = box.id): o temanın kendi renkleriyle küçük
   // bir oda taslağı (Theme.preview, tema CSS'i yüklenmeden) ve adı. Seçili olan vurgulu çerçeve ve onay işaretiyle
   // görünür. Tek tema varken yanına kısa bir not gelir (boş görünmesin). Klavye: ok tuşları (yerel radyo grubu).
-  function themePicker(box, value) {
+  // value: seçili olacak tema (verilmezse seçim korunur). current: odanın şu anki teması ("Şu an" etiketi; yalnız
+  // oda ayarlarında). Tema listesi değişmediyse kutucuklar yeniden yazılmaz, yalnız seçim ve etiket güncellenir
+  // (klavye odağı yerinde kalır); yeniden yazılırsa odak seçili kutucuğa döner.
+  function themePicker(box, value, current = null) {
     const list = Theme.list;
-    const picked = list.includes(value) ? value : list.includes(pickedTheme(box)) ? pickedTheme(box) : Theme.DEFAULT;
-    const grid = el('div', 'theme-picker-grid');
-    for (const id of list) {
-      const c = Theme.preview(id);
-      const opt = el('label', 'theme-swatch');
-      const input = el('input', 'theme-swatch-input');
-      input.type = 'radio';
-      input.name = box.id;
-      input.value = id;
-      input.checked = input.defaultChecked = id === picked; // form.reset() varsayılana döner
-      const art = el('span', 'theme-swatch-art');
-      art.setAttribute('aria-hidden', 'true');
-      art.style.setProperty('--sw-bg', c.bg);
-      art.style.setProperty('--sw-surface', c.surface);
-      art.style.setProperty('--sw-text', c.text);
-      art.style.setProperty('--sw-accent', c.accent);
-      const panel = el('span', 'theme-swatch-panel');
-      panel.append(el('span', 'theme-swatch-line'), el('span', 'theme-swatch-line is-short'), el('span', 'theme-swatch-btn'));
-      art.append(panel, el('span', 'theme-swatch-side'));
-      const foot = el('span', 'theme-swatch-foot');
-      const mark = el('span', 'theme-swatch-mark');
-      mark.innerHTML = icon('check');
-      foot.append(el('span', 'theme-swatch-name', Theme.name(id)), mark);
-      opt.append(input, art, foot);
-      grid.append(opt);
+    const old = pickedTheme(box);
+    const picked = list.includes(value) ? value : list.includes(old) ? old : Theme.DEFAULT;
+    const inputs = [...box.querySelectorAll('.theme-swatch-input')];
+    if (inputs.length !== list.length || inputs.some((x, i) => x.value !== list[i])) {
+      const hadFocus = box.contains(document.activeElement);
+      const grid = el('div', 'theme-picker-grid');
+      for (const id of list) {
+        const c = Theme.preview(id);
+        const opt = el('label', 'theme-swatch');
+        opt.dataset.theme = id;
+        const input = el('input', 'theme-swatch-input');
+        input.type = 'radio';
+        input.name = box.id;
+        input.value = id;
+        const art = el('span', 'theme-swatch-art');
+        art.setAttribute('aria-hidden', 'true');
+        art.style.setProperty('--sw-bg', c.bg);
+        art.style.setProperty('--sw-surface', c.surface);
+        art.style.setProperty('--sw-text', c.text);
+        art.style.setProperty('--sw-accent', c.accent);
+        const panel = el('span', 'theme-swatch-panel');
+        panel.append(el('span', 'theme-swatch-line'), el('span', 'theme-swatch-line is-short'), el('span', 'theme-swatch-btn'));
+        art.append(panel, el('span', 'theme-swatch-side'));
+        const foot = el('span', 'theme-swatch-foot');
+        const mark = el('span', 'theme-swatch-mark');
+        mark.innerHTML = icon('check');
+        foot.append(el('span', 'theme-swatch-name', Theme.name(id)), mark);
+        opt.append(input, art, el('span', 'badge theme-swatch-now', 'Şu an'), foot); // etiket taslağın köşesinde
+        grid.append(opt);
+      }
+      if (list.length === 1) grid.append(el('p', 'theme-picker-note', 'Şimdilik tek tema var; yeni temalar geldikçe burada seçilir.'));
+      const legend = box.querySelector('legend');
+      box.replaceChildren(...(legend ? [legend] : []), grid);
+      for (const input of box.querySelectorAll('.theme-swatch-input')) input.defaultChecked = input.value === picked; // form.reset()
+      if (hadFocus) queueMicrotask(() => box.querySelector('.theme-swatch-input:checked')?.focus());
     }
-    if (list.length === 1) grid.append(el('p', 'theme-picker-note', 'Şimdilik tek tema var; yeni temalar geldikçe burada seçilir.'));
-    const legend = box.querySelector('legend');
-    box.replaceChildren(...(legend ? [legend] : []), grid);
+    for (const input of box.querySelectorAll('.theme-swatch-input')) {
+      if (input.value === picked) input.checked = true;
+      const now = list.length > 1 && input.value === current;
+      input.closest('.theme-swatch').classList.toggle('is-current', now);
+    }
   }
   const pickedTheme = (box) => box.querySelector('input:checked')?.value || null;
 

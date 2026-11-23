@@ -103,7 +103,7 @@ window.Theme = (() => {
 
   // Sunucudaki tema listesi: bilinmeyen tema yalnız adı ve geçerli önizleme renkleriyle eklenir; ikon seti
   // verilmezse varsayılan set. Liste yoksa (eski sunucu, ağ hatası) yerleşik liste kalır.
-  const HEX = /^#[0-9a-f]{3,8}$/i;
+  const HEX = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i; // #rgb #rgba #rrggbb #rrggbbaa
   function register(info) {
     const id = info?.id;
     if (typeof id !== 'string' || !/^[a-z0-9-]{1,24}$/.test(id) || LIST.includes(id)) return false;

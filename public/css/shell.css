@@ -909,7 +909,7 @@ dialog.room-settings[open] { display: flex; flex-direction: column; }
    vurgu düğmesi, yan sütun), altta adı ve onay işareti. Renkler kutucuğun yerel değişkenleri (--sw-*;
    theme.js Theme.preview); seçili olan vurgu çerçeveli. Tek tema varken yanında kısa bir not durur. */
 .theme-picker { display: block; margin: 0; padding: 0; border: 0; min-width: 0; }
-.theme-picker > legend { padding: 0; margin-bottom: 6px; }
+.theme-picker > legend { padding: 0; margin-bottom: var(--space-2); }
 .theme-picker-grid { display: flex; flex-wrap: wrap; gap: var(--space-3); }
 .theme-swatch {
   position: relative;
@@ -940,11 +940,11 @@ dialog.room-settings[open] { display: flex; flex-direction: column; }
   background: var(--sw-surface);
   box-shadow: inset 0 0 0 var(--border-w) color-mix(in srgb, var(--sw-surface) 82%, var(--sw-text));
 }
-.theme-swatch-panel { left: var(--space-3); right: 36%; display: flex; flex-direction: column; gap: 6px; padding: var(--space-3) var(--space-2) 0 var(--space-3); }
-.theme-swatch-side { right: var(--space-3); width: calc(36% - var(--space-3) - 6px); opacity: .75; }
+.theme-swatch-panel { left: var(--space-3); right: 36%; display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-3) var(--space-2) 0 var(--space-3); }
+.theme-swatch-side { right: var(--space-3); width: calc(36% - var(--space-3) - var(--space-2)); opacity: .75; }
 .theme-swatch-line { display: block; height: 5px; width: 78%; border-radius: var(--radius-pill); background: var(--sw-text); opacity: .8; }
 .theme-swatch-line.is-short { width: 48%; opacity: .4; }
-.theme-swatch-btn { display: block; width: 34px; height: 10px; margin-top: 4px; border-radius: var(--radius-pill); background: var(--sw-accent); }
+.theme-swatch-btn { display: block; width: 34px; height: 10px; margin-top: var(--space-1); border-radius: var(--radius-pill); background: var(--sw-accent); }
 .theme-swatch-foot { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; padding: 0 var(--space-2) 0 var(--space-3); }
 .theme-swatch-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--text); }
 .theme-swatch-mark {
@@ -960,6 +960,12 @@ dialog.room-settings[open] { display: flex; flex-direction: column; }
 }
 .theme-swatch-mark .ic { width: 12px; height: 12px; stroke-width: 3; }
 .theme-swatch:has(.theme-swatch-input:checked) .theme-swatch-mark { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+/* Odanın şu anki teması (oda ayarlarında; seçim ondan farklı olabilir, Uygula ile kaydedilir) */
+.theme-swatch-now { display: none; position: absolute; top: var(--space-2); left: var(--space-2); pointer-events: none; color: var(--text); box-shadow: var(--shadow-1); }
+.theme-swatch.is-current .theme-swatch-now { display: inline-flex; }
+.rs-theme-actions { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+.rs-theme-hint { flex: 1; min-width: 0; margin: 0; font-size: 13px; color: var(--muted); }
+.rs-theme-actions > .btn { flex-shrink: 0; min-width: 88px; }
 .theme-picker-note { flex: 1 1 150px; align-self: center; margin: 0; font-size: 13px; font-weight: 400; line-height: 1.45; color: var(--muted); }
 .rs-hint { margin: 0; color: var(--muted); font-size: 12px; }
 .rs-form.is-merged .rs-hint { display: none; }

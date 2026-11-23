@@ -6792,11 +6792,17 @@ socket.on('room:moved', (res = {}) => {
 // Tema listesi oda isteği formundaki seçeneklerden gelir.
 
 let settingsRoom = null; // pencerenin değiştirdiği oda (curHome)
+let rsThemePending = null; // ayarlar penceresinde seçilmiş ama henüz uygulanmamış tema
+let rsThemeSaving = false;
 
 // Tema dosyası yüklenemezse önceki tema kalır (Theme.apply); kullanıcıya söylenir.
-function applyTheme(id) {
+// Aynı yükleme için birden çok çağrı (ayar kaydı + room:theme) tek bildirim gösterir: ekranda bir tema hatası
+// bildirimi varken yenisi eklenmez. quiet: bildirimi çağıran gösterir.
+const isThemeFail = (t) => /yüklenemedi[;,] (bu cihazda )?önceki görünüm|bu cihazda yüklenemedi/.test(t.textContent);
+const themeFailShown = () => [...$('toasts').children].some(isThemeFail);
+function applyTheme(id, { quiet = false } = {}) {
   return Theme.apply(id).then((ok) => {
-    if (!ok) toast('Tema yüklenemedi; önceki görünüm kullanılıyor.');
+    if (!ok && !quiet && !themeFailShown()) toast('Tema yüklenemedi; önceki görünüm kullanılıyor.');
     return ok;
   });
 }
@@ -6812,7 +6818,10 @@ function renderRoomSettings(list) {
   const admin = r.role === 'admin';
   $('rs-title').textContent = r.name;
   if (window.Lobby?.emblem) $('rs-emblem').replaceChildren(Lobby.emblem(r));
-  if (window.Lobby?.themePicker) Lobby.themePicker($('rs-theme'), r.theme);
+  // Tema: kutucuk yalnız seçer; Uygula kaydeder. Bekleyen seçim odanın temasına eşitse (ör. room:theme geldi) düşer.
+  if (rsThemePending === r.theme) rsThemePending = null;
+  if (window.Lobby?.themePicker) Lobby.themePicker($('rs-theme'), rsThemePending ?? r.theme, r.theme);
+  renderThemeApply();
   // Durum satırı: rozet + açıklama
   const state = (el, cls, iconName, label, text) => {
     el.innerHTML = `<span class="badge ${cls}">${icon(iconName)}</span><span class="rs-state-text"></span>`;
@@ -6848,6 +6857,7 @@ function renderRoomSettings(list) {
 $('room-settings-open').onclick = async () => {
   if ($('settings-pop').matches(':popover-open')) $('settings-pop').hidePopover();
   settingsRoom = curHome;
+  rsThemePending = null;
   rsError('');
   $('rs-pass').value = '';
   renderRoomSettings();
@@ -6877,20 +6887,52 @@ async function saveRoomSetting(body, done, btn) {
   roomNames.set(res.room.id, res.room.name);
   renderRoomInfo();
   renderRoomSettings();
-  toast(done);
+  if (done) toast(done);
 }
 const submitter = (e) => e.submitter || e.target.querySelector('button[type=submit]');
 // Tema kutucuğuna basınca hemen kaydedilir; kayıt sürerken seçici kilitli, hata olursa eski seçim geri gelir.
 // Yeni tema odadakilere room:theme ile gelir (bu sekme dahil).
-$('rs-theme-form').onsubmit = (e) => e.preventDefault();
-$('rs-theme').onchange = async () => {
-  const theme = Lobby.pickedTheme($('rs-theme'));
-  if (!settingsRoom || !theme || theme === settingsRoom.theme) return;
-  $('rs-theme').disabled = true;
-  await saveRoomSetting({ theme }, 'Tema kaydedildi.');
-  $('rs-theme').disabled = false;
-  if (curRoom && curRoom.id === settingsRoom?.id) applyTheme(curRoom.theme); // room:theme gecikse de bu sekme geçsin
-  renderRoomSettings(); // hata olduysa kayıtlı tema seçili görünsün
+// Tema seçimi: kutucuğa basmak (ya da ok tuşlarıyla gezmek) yalnız seçer, kimseye gitmez. "Uygula" (ya da seçili
+// kutucukta Enter) kaydeder; yeni tema odadakilere room:theme ile gelir (bu sekme dahil). Kayıt sürerken yalnız
+// düğme kilitlenir: seçici odakta kalır, kutucuklar yeniden yazılmaz.
+function renderThemeApply() {
+  const differs = Boolean(settingsRoom && rsThemePending && rsThemePending !== settingsRoom.theme);
+  // Kayıt sürerken düğme kilitlenmez (odağı düşürürdü); aria-busy ve rsThemeSaving ikinci gönderimi engeller.
+  $('rs-theme-apply').disabled = !differs;
+  $('rs-theme-apply').setAttribute('aria-busy', String(rsThemeSaving));
+  $('rs-theme-hint').textContent = differs
+    ? `${Theme.name(rsThemePending)} seçili; Uygula'ya basınca odadaki herkeste değişir.`
+    : 'Seçtiğin tema odadaki herkeste değişir.';
+}
+$('rs-theme').onchange = () => {
+  rsThemePending = Lobby.pickedTheme($('rs-theme'));
+  if (rsThemePending === settingsRoom?.theme) rsThemePending = null;
+  renderThemeApply();
+};
+$('rs-theme').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || !e.target.matches('.theme-swatch-input')) return;
+  e.preventDefault(); // tarayıcının örtük gönderimi yerine tek gönderim
+  $('rs-theme-form').requestSubmit();
+});
+$('rs-theme-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const theme = rsThemePending;
+  if (!settingsRoom || !theme || theme === settingsRoom.theme || rsThemeSaving) return;
+  rsThemeSaving = true;
+  renderThemeApply();
+  await saveRoomSetting({ theme }); // başarıda renderRoomSettings bekleyen seçimi düşürür; bildirim aşağıda
+  rsThemeSaving = false;
+  const saved = settingsRoom?.theme === theme;
+  const lost = [$('rs-theme-apply'), document.body].includes(document.activeElement);
+  renderThemeApply();
+  // Düğme artık kapalıysa odak seçili kutucuğa geçer (görünür halkayla), sayfanın başına düşmez.
+  if (lost && $('rs-theme-apply').disabled) $('rs-theme').querySelector('.theme-swatch-input:checked')?.focus({ focusVisible: true });
+  if (!saved) return; // hata pencerede yazılı (rsError)
+  // room:theme gecikse de bu sekme geçsin. Pencere açıkken yalnız son bildirim görünür: sonuç tek bildirimde.
+  const here = curRoom && curRoom.id === settingsRoom.id;
+  const ok = here ? await applyTheme(theme, { quiet: true }) : true;
+  if (!ok) for (const t of [...$('toasts').children]) if (isThemeFail(t)) t.remove();
+  toast(ok ? 'Tema kaydedildi.' : 'Tema kaydedildi; bu cihazda yüklenemedi, önceki görünüm kullanılıyor.');
 };
 // Sunucudan tema listesi geldi: açık ayarlar penceresinin seçicisi yeniden çizilir.
 document.addEventListener('themelist', () => $('room-settings').open && renderRoomSettings());
