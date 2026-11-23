@@ -495,14 +495,63 @@ window.Lobby = (() => {
   // ---------- Üyeler (/uyeler) ----------
   // Açılmış bütün hesaplar; sadece yöneticide listenin üst çubuğunda görünür.
 
-  const DATE_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const fmtDate = (ms) => (ms ? DATE_FMT.format(ms) : '—');
+  const DAY_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+  const TIME_FMT = new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  const FULL_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const fmtDay = (ms) => (ms ? DAY_FMT.format(ms) : '—');
+  // Son görülme: bugünse saat, değilse gün
+  const fmtSeen = (ms) => {
+    if (!ms) return '—';
+    return new Date(ms).toDateString() === new Date().toDateString() ? `Bugün ${TIME_FMT.format(ms)}` : DAY_FMT.format(ms);
+  };
+
+  // Satır: kişi (avatar, ad, "sen" ve "Yönetici" rozetleri) | Katıldı | Son görülme | Cihaz | Durum.
+  // Masaüstünde tablo sütunları (başlık satırı index.html'de); dar ekranda bilgiler adın altında tek satır.
+  function memberRow(m) {
+    const li = document.createElement('li');
+    li.className = 'member-row';
+    li.innerHTML = `
+      <div class="member-who">
+        <div class="member-name"><span class="member-label-name"></span></div>
+      </div>
+      <div class="member-meta">
+        <span class="member-cell member-joined"><span class="member-key">Katıldı</span><span class="member-val"></span></span>
+        <span class="member-cell member-seen"><span class="member-key">Son görülme</span><span class="member-val"></span></span>
+        <span class="member-cell member-devices"><span class="member-val"></span><span class="member-unit">cihaz</span></span>
+      </div>
+      <div class="member-state"></div>`;
+    const avatar = makeAvatar(m.name);
+    avatar.classList.add('avatar-md');
+    li.querySelector('.member-who').prepend(avatar);
+    const name = li.querySelector('.member-name');
+    li.querySelector('.member-label-name').textContent = m.name;
+    if (m.name === account?.name) name.append(Object.assign(document.createElement('span'), { className: 'badge member-you', textContent: 'sen' }));
+    if (m.admin) name.append(Object.assign(document.createElement('span'), { className: 'badge badge-accent', textContent: 'Yönetici' }));
+    const [joined, seen, devices] = li.querySelectorAll('.member-val');
+    joined.textContent = fmtDay(m.createdAt);
+    joined.parentElement.title = m.createdAt ? FULL_FMT.format(m.createdAt) : '';
+    seen.textContent = m.online ? 'Şu an' : fmtSeen(m.lastSeen);
+    seen.parentElement.title = m.lastSeen ? FULL_FMT.format(m.lastSeen) : '';
+    devices.textContent = m.devices ?? 0;
+    devices.parentElement.title = `${m.devices ?? 0} cihazda oturumu açık`;
+    const state = li.querySelector('.member-state');
+    if (m.online) state.append(Object.assign(document.createElement('span'), { className: 'badge badge-live member-badge', textContent: 'Odada' }));
+    else state.append(Object.assign(document.createElement('span'), { className: 'member-off', textContent: 'Çevrimdışı' }));
+    return li;
+  }
 
   async function loadMembers() {
+    $('members').setAttribute('aria-busy', 'true');
+    $('members-count').replaceChildren(Object.assign(document.createElement('span'), { className: 'spinner' }), ' Yükleniyor…');
     const res = await api('GET', '/admin/members');
+    $('members').removeAttribute('aria-busy');
     $('members-list').replaceChildren();
-    $('members-empty').hidden = !res.error && res.members.length > 0;
-    if (res.error) {
+    const failed = Boolean(res.error);
+    $('members-empty').hidden = !failed && res.members.length > 0;
+    $('members-empty').classList.toggle('notice', failed);
+    $('members-empty').classList.toggle('notice-danger', failed);
+    $('members-head').hidden = failed || !res.members.length;
+    if (failed) {
       $('members-count').textContent = '';
       $('members-empty').textContent = res.error;
       return;
@@ -510,23 +559,7 @@ window.Lobby = (() => {
     $('members-empty').textContent = 'Henüz hesap yok.';
     const here = res.members.filter((m) => m.online).length;
     $('members-count').textContent = `${res.members.length} hesap · ${here} odada`;
-    for (const m of res.members) {
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <div class="p-info">
-          <div class="p-name"><span class="p-label"></span></div>
-          <div class="p-status"></div>
-        </div>
-        <span class="badge badge-live member-badge" hidden></span>`;
-      li.prepend(makeAvatar(m.name));
-      li.querySelector('.p-label').textContent = m.name + (m.name === account?.name ? ' (sen)' : '') + (m.admin ? ' · yönetici' : '');
-      li.querySelector('.p-status').textContent =
-        `Katıldı: ${fmtDate(m.createdAt)} · Son giriş: ${m.online ? 'şu an odada' : fmtDate(m.lastSeen)} · ${m.devices} cihazda açık`;
-      const badge = li.querySelector('.member-badge');
-      badge.hidden = !m.online;
-      badge.textContent = 'Odada';
-      $('members-list').append(li);
-    }
+    $('members-list').append(...res.members.map(memberRow));
   }
   $('members-refresh').onclick = loadMembers;
 

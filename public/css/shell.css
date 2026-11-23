@@ -601,7 +601,7 @@ button.people-btn:hover:where(:not(:disabled)) { background: var(--surface-2); b
 }
 .rec-banner::before { content: ''; display: inline-block; width: 8px; height: 8px; margin: 0 var(--space-2) 1px 0; border-radius: 50%; background: currentColor; animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .25; } }
-.mic-note { margin: calc(var(--space-1) * -1) 0 0; color: var(--muted); font-size: 13px; }
+.mic-note { padding: 6px var(--space-2); font-size: 12px; }
 .people-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-1); min-width: 0; }
 /* Masaüstünde başlık solda, avatarlar sağda (12 kişide iki satıra iner) */
 @media (min-width: 1000px) {
@@ -770,6 +770,13 @@ button.send .ic { width: 18px; height: 18px; margin-left: -2px; }
 }
 .queue li:hover { border-color: var(--border-strong); }
 .queue .thumb { width: 64px; height: 36px; border-radius: var(--radius-s); object-fit: cover; flex-shrink: 0; background: var(--surface-3); }
+.thumb-missing { display: grid; place-items: center; color: var(--muted); }
+#search-label { display: inline-flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.queue > .search-note { display: grid; border: none; background: none; }
+.queue > .search-note.notice { display: flex; background: var(--danger-soft); }
+.queue > .search-note:hover { border-color: transparent; }
+.thumb-missing .ic { width: 16px; height: 16px; }
+.chat-img-missing { display: inline-flex; margin-top: var(--space-1); padding: 6px var(--space-3); font-size: 12px; }
 .queue .q-text { flex: 1; min-width: 0; }
 .queue .q-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; font-size: 13px; }
 .queue .small { font-size: 12px; }
@@ -1068,7 +1075,7 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
   .people-row { flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 0 var(--space-2); scroll-padding: 0 var(--space-2); }
   .people-row::-webkit-scrollbar { display: none; }
   button.person { flex-shrink: 0; width: 80px; }
-  .mic-note { padding: 0 var(--space-3); }
+  .mic-note { margin: 0 var(--space-3); }
 
   /* Sohbet ve Sıra: üst çubuk ile alt sekme çubuğu arasını dolduran tek panel (klavye açıkken görünür alan) */
   .room:not([data-page=room]) .side, .room[data-pane=stage] .side { display: none; }
@@ -1176,17 +1183,17 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
 
 /* ---------- Amuda kalkan eşek (public/esek.js) ---------- */
 .esek-overlay { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; align-content: center; gap: 6px;
-  background: radial-gradient(circle at 50% 50%, rgba(10, 12, 18, .25), rgba(10, 12, 18, .72) 70%);
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--overlay) 35%, transparent), var(--overlay) 70%);
   opacity: 0; transition: opacity .3s ease; }
 .esek-overlay.on { opacity: 1; }
 .esek-stage { position: relative; width: min(560px, 92vw); height: min(620px, 78vh); }
 .esek-canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .esek-canvas:active { cursor: grabbing; }
-.esek-bubble { position: absolute; left: 62%; top: 52%; padding: 8px 14px; border-radius: 16px 16px 16px 4px; background: #fff; color: #1b1b1b;
-  font-weight: 900; font-size: clamp(18px, 4vw, 26px); box-shadow: 0 6px 18px rgba(0, 0, 0, .35); pointer-events: none;
+.esek-bubble { position: absolute; left: 62%; top: 52%; padding: 8px 14px; border-radius: var(--radius-l) var(--radius-l) var(--radius-l) var(--space-1); background: var(--text); color: var(--bg);
+  font-family: var(--font-display); font-weight: 800; font-size: clamp(18px, 4vw, 26px); box-shadow: var(--shadow-2); pointer-events: none;
   transform: scale(.4) rotate(-8deg); opacity: 0; transition: transform .18s cubic-bezier(.3, 1.6, .5, 1), opacity .15s; }
 .esek-bubble.on { transform: scale(1) rotate(-4deg); opacity: 1; }
-.esek-caption { font-size: 14px; font-weight: 600; color: rgba(255, 255, 255, .85); text-shadow: 0 1px 3px rgba(0, 0, 0, .6); pointer-events: none; }
+.esek-caption { font-size: 14px; font-weight: 600; color: var(--text); text-shadow: 0 1px 3px var(--overlay); pointer-events: none; }
 
 /* ---------- Oda listesi (public/lobby.js) ----------
    Üst çubuk: marka, (yönetici) sekmeler, İstekler, hesap düğmesi. Altında başlık + birincil eylem, isteğin durum
@@ -1517,10 +1524,54 @@ button.room-card.is-busy .room-go {
   font-weight: 700;
 }
 
-/* Üyeler sayfası */
+/* Üyeler sayfası: masaüstünde tablo (başlık satırı + sütunlar), dar ekranda kişi + altında tek satır bilgi */
 .members-panel { margin-top: 0; padding: var(--space-2); }
-.members-list .p-status { white-space: normal; }
+.members-head, .member-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr) minmax(0, 1fr) 64px 112px;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3);
+}
+.members-head { min-height: 36px; border-bottom: var(--border-w) solid var(--border); margin-bottom: var(--space-1); color: var(--muted); font-size: 12px; font-weight: 600; }
+.members-head > :nth-child(4) { text-align: center; }
+.members-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.member-row { min-height: 56px; border-radius: var(--radius-s); }
+.member-row:hover { background: var(--surface-2); }
+.member-who { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.member-name { display: flex; align-items: center; gap: var(--space-2); min-width: 0; font-weight: 600; font-size: 14px; }
+.member-label-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-name .badge { flex-shrink: 0; height: 20px; padding: 0 var(--space-2); font-size: 11px; }
+.member-meta { display: contents; }
+.member-cell { min-width: 0; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-devices { text-align: center; }
+.member-key, .member-unit { display: none; }
+.member-state { display: flex; justify-content: flex-start; min-width: 0; }
 .member-badge { flex-shrink: 0; }
+.member-off { color: var(--muted); font-size: 13px; }
+#members-count { display: inline-flex; align-items: center; gap: var(--space-2); }
+#members-empty.notice { margin: var(--space-2); }
+
+@media (max-width: 759px) {
+  .members-head { display: none; }
+  .member-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "who state" "meta meta";
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3);
+  }
+  .member-who { grid-area: who; }
+  .member-state { grid-area: state; }
+  .member-off { display: none; }
+  /* Bilgiler avatarın hizasından başlar, iki satır: "Katıldı 23 Kas 2026 · 1 cihaz" / "Son görülme Bugün 14:20" */
+  .member-meta { grid-area: meta; display: flex; flex-wrap: wrap; gap: 2px var(--space-2); padding-left: calc(32px + var(--space-3)); }
+  .member-cell { display: inline-flex; gap: var(--space-1); overflow: visible; font-size: 12px; }
+  .member-joined { order: 1; }
+  .member-devices { order: 2; text-align: left; }
+  .member-devices::before { content: '·'; margin-right: var(--space-1); }
+  .member-seen { order: 3; flex-basis: 100%; }
+  .member-key, .member-unit { display: inline; }
+}
 
 /* ---------- Liste ekranının pencereleri ---------- */
 .dialog-form { display: grid; gap: var(--space-4); }

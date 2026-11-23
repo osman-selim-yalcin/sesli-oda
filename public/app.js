@@ -62,11 +62,17 @@ function emitAck(ms, event, ...args) {
   return new Promise((resolve) => socket.timeout(ms).emit(event, ...args, (err, res) => resolve(err ? null : res)));
 }
 
-function toast(text) {
+// kind: 'danger' (bağlantı koptu, yayın açılmadı) ya da 'live' (geri geldi) başa ikon koyar; yoksa düz bildirim.
+const TOAST_ICONS = { danger: 'alert', live: 'check' };
+function toast(text, kind) {
   const box = $('toasts');
   const el = document.createElement('div');
   el.className = 'toast';
-  el.textContent = text;
+  if (TOAST_ICONS[kind]) {
+    el.classList.add(`toast-${kind}`);
+    el.innerHTML = icon(TOAST_ICONS[kind]);
+    el.append(Object.assign(document.createElement('span'), { textContent: text }));
+  } else el.textContent = text;
   box.append(el);
   // Kutu üst katmanda (popover) durur; sonradan açılmış bir pencere varsa onun da üstüne çıksın diye yeniden açılır.
   if (box.showPopover) {
@@ -220,9 +226,14 @@ function fillAvatar(el) {
     const img = document.createElement('img');
     img.alt = '';
     img.src = `/avatar/${encodeURIComponent(name)}?v=${version}`;
+    img.onerror = () => img.isConnected && img.parentNode === el && avatarInitial(el, name); // resim gelmezse baş harf
     el.append(img);
     return;
   }
+  avatarInitial(el, name);
+}
+
+function avatarInitial(el, name) {
   el.textContent = [...name][0]?.toLocaleUpperCase('tr-TR') || '?';
   el.style.background = avatarColor(name);
 }
@@ -586,7 +597,7 @@ socket.on('notice', toast);
 socket.on('disconnect', (reason) => {
   if (reason === 'io client disconnect') return; // kendimiz çıktık
   if (reason === 'io server disconnect') toast('Bu hesapla başka bir sekmeden ya da cihazdan odaya girildi.');
-  else toast('Sunucu bağlantısı koptu, yeniden bağlanılıyor…');
+  else toast('Sunucu bağlantısı koptu, yeniden bağlanılıyor…', 'danger');
 });
 
 // Sunucu bağlantısı geri gelince odaya sayfa yenilenmeden yeniden girilir. Sunucu aynı
@@ -622,7 +633,7 @@ async function rejoin() {
     if (!r || r.error) stopScreen();
   }
   syncClock();
-  toast('Bağlantı geri geldi');
+  toast('Bağlantı geri geldi', 'live');
 }
 socket.io.on('reconnect', rejoin);
 
@@ -2033,7 +2044,7 @@ const kelimeActive = () => (kelime && kelime.phase !== 'done' ? kelime : null);
 const kelimePlaying = () => kelime?.phase === 'play' && serverNow() >= kelime.startAt;
 const kelimeNarrating = () => Boolean(kelimePlaying() && kelime.narrator === myName);
 const kelimeMe = () => kelime?.players.find((p) => p.name === myName);
-const kelimeColor = (name) => kelime?.players.find((p) => p.name === name)?.color || '#888';
+const kelimeColor = (name) => kelime?.players.find((p) => p.name === name)?.color || Theme.color('--muted');
 const kelimeUnplaced = () => (kelime?.phase === 'play' ? kelime.words.filter((w) => w.pos == null) : []);
 const kelimeLast = () => kelime?.rounds.at(-1);
 // Maviden (soğuk) kırmızıya (sıcak)
@@ -3309,7 +3320,7 @@ socket.on('klotski:board', (board) => {
 });
 
 // ---------- Radyo ----------
-// Uydu görüntülü dönen bir dünya küresi; yeşil noktalar radyo olan yerler (aynı şehirdeki istasyonlar tek nokta).
+// Uydu görüntülü dönen bir dünya küresi; noktalar radyo olan yerler (aynı şehirdeki istasyonlar tek nokta).
 // Küre çevrilince ortadaki halkanın altına gelen yer seçilir, istasyonları sol altta listelenir; birine basınca
 // odanın ortak radyosu o olur. Ses sadece Radyo sayfasındayken çalar (o sırada YouTube sende kısılır), sayfadan
 // çıkınca yayın indirilmeyi de bırakır. Harita kütüphanesi (MapLibre) ve istasyon listesi sayfa ilk açılınca yüklenir.
@@ -3380,7 +3391,17 @@ function radioGroup(rows) {
   }
 }
 
+// Küre yüklenirken ve yüklenemezse kürenin ortasında not (yükleniyor / hata + Tekrar dene).
+function radioGlobeNote(state, text) {
+  $('radio-globe-note').hidden = !state;
+  $('radio-globe-note').dataset.state = state || '';
+  if (text) $('radio-globe-text').textContent = text;
+  $('radio-retry').hidden = state !== 'error';
+}
+$('radio-retry').onclick = () => openRadioPage();
+
 function radioMapReady() {
+  if (!radioMapLoading && !radioMap) radioGlobeNote('loading', 'Küre yükleniyor…');
   radioMapLoading ||= (async () => {
     await Promise.all([loadAsset(`${RADIO_LIB}maplibre-gl.min.css`), loadAsset(`${RADIO_LIB}maplibre-gl.min.js`)]);
     const res = await fetch('/radio/stations');
@@ -3408,19 +3429,19 @@ function radioMapReady() {
           {
             id: 'places', type: 'circle', source: 'places',
             paint: {
-              'circle-color': '#50f08c',
               'circle-opacity': 0.9,
               // Çok istasyonlu yerler biraz daha büyük; yakınlaştıkça hepsi büyür
               'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, ['min', 3.2, ['+', 1.4, ['*', 0.12, ['get', 'n']]]], 6, ['min', 8, ['+', 3.5, ['*', 0.25, ['get', 'n']]]]],
             },
           },
-          { id: 'selected', type: 'circle', source: 'places', filter: ['==', ['get', 'i'], -1], paint: { 'circle-color': '#ffffff', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3.5, 6, 7] } },
-          { id: 'playing', type: 'circle', source: 'places', filter: ['==', ['get', 'i'], -1], paint: { 'circle-color': '#50f08c', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 4, 6, 8], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 } },
+          { id: 'selected', type: 'circle', source: 'places', filter: ['==', ['get', 'i'], -1], paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 3.5, 6, 7] } },
+          { id: 'playing', type: 'circle', source: 'places', filter: ['==', ['get', 'i'], -1], paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, 4, 6, 8], 'circle-stroke-width': 2 } },
         ],
       },
     });
-    radioMap.addControl(new maplibregl.AttributionControl({ compact: true }), 'top-left'); // sağ alttaki butonlarla çakışmasın
+    // Kaynak atfı MapLibre'nin beyaz kutusu yerine kürenin köşesinde temalı yazı (index.html .radio-attrib)
     await new Promise((resolve) => radioMap.once('load', resolve));
+    radioPaint();
     let pending = false;
     radioMap.on('move', () => {
       if (pending) return;
@@ -3441,13 +3462,25 @@ function radioMapReady() {
     radioMap.on('mouseleave', 'places', () => (radioMap.getCanvas().style.cursor = ''));
     renderRadioPlaying();
     radioPickCenter();
+    radioGlobeNote(null);
   })();
   radioMapLoading.catch((err) => {
     radioMapLoading = null;
-    toast(err.message || 'Harita yüklenemedi.');
+    radioGlobeNote('error', err.message || 'Harita yüklenemedi.');
   });
   return radioMapLoading;
 }
+
+// Küredeki noktaların renkleri temadan: yerler --accent, halkanın seçtiği --text, çalan yer --live (kenarı --text).
+function radioPaint() {
+  if (!radioMap?.isStyleLoaded()) return;
+  const c = (name) => Theme.color(name);
+  radioMap.setPaintProperty('places', 'circle-color', c('--accent'));
+  radioMap.setPaintProperty('selected', 'circle-color', c('--text'));
+  radioMap.setPaintProperty('playing', 'circle-color', c('--live'));
+  radioMap.setPaintProperty('playing', 'circle-stroke-color', c('--text'));
+}
+document.addEventListener('themechange', radioPaint);
 
 // Halkanın içine düşen yerlerden merkeze en yakını seçilir; halka boşsa son seçilen kalır.
 function radioPickCenter() {
@@ -3472,7 +3505,7 @@ function renderRadioPlace() {
   const p = radioPlace;
   $('radio-place-count').textContent = p ? p.stations.length : '–';
   $('radio-place-title').textContent = p ? p.title : 'Dünyayı çevir';
-  $('radio-place-sub').textContent = p ? `${radioFlag(p.cc)} ${p.title === p.country ? '' : p.country}`.trim() : 'Halkayı yeşil bir noktanın üstüne getir';
+  $('radio-place-sub').textContent = p ? `${radioFlag(p.cc)} ${p.title === p.country ? '' : p.country}`.trim() : 'Halkayı bir noktanın üstüne getir';
   if (radioTab === 'explore') renderRadioList();
 }
 
@@ -3510,6 +3543,8 @@ function renderRadioList() {
     const fav = document.createElement('button');
     fav.className = 'radio-icon radio-row-fav' + (radioFavs.includes(s.id) ? ' on' : '');
     fav.title = radioFavs.includes(s.id) ? 'Favorilerden çıkar' : 'Favorilere ekle';
+    fav.setAttribute('aria-label', `${s.name}: ${fav.title}`);
+    fav.setAttribute('aria-pressed', String(radioFavs.includes(s.id)));
     fav.innerHTML = '<svg class="ic"><use href="#i-heart"></use></svg>';
     fav.onclick = () => radioToggleFav(s.id);
     li.append(play, fav);
@@ -3531,7 +3566,7 @@ function radioToggleFav(id) {
 }
 
 function renderRadioPlayer() {
-  const status = { loading: 'Bağlanıyor…', playing: '● Canlı', error: 'Yayın açılmadı' }[radioState] || '';
+  const status = { loading: 'Bağlanıyor…', playing: 'Canlı', error: 'Yayın açılmadı' }[radioState] || '';
   $('radio-now-name').textContent = radio ? radio.name : 'Radyo kapalı';
   $('radio-now-sub').textContent = radio
     ? [[radio.state, radio.country].filter(Boolean).join(', '), `${radio.by} açtı`].join(' · ')
@@ -3617,7 +3652,7 @@ radioAudio.addEventListener('error', () => {
   if (!radioAudio.dataset.id) return; // sayfadan çıkınca bilerek durduruldu
   radioState = 'error';
   renderRadioPlayer();
-  toast('Bu radyonun yayını açılmadı; başka bir istasyon seç.');
+  toast('Bu radyonun yayını açılmadı; başka bir istasyon seç.', 'danger');
 });
 // Engellenen ilk çalma, sayfaya ilk tıklamada yeniden denenir.
 document.addEventListener('pointerdown', () => {
@@ -3675,7 +3710,10 @@ $('radio-locate').onclick = () => {
 for (const tab of $('radio').querySelectorAll('.radio-tabs button')) {
   tab.onclick = () => {
     radioTab = tab.dataset.tab;
-    for (const b of $('radio').querySelectorAll('.radio-tabs button')) b.classList.toggle('active', b === tab);
+    for (const b of $('radio').querySelectorAll('.radio-tabs button')) {
+      b.classList.toggle('active', b === tab);
+      b.setAttribute('aria-selected', String(b === tab));
+    }
     $('radio-search').hidden = radioTab !== 'search';
     if (radioTab === 'search') $('radio-search').focus();
     renderRadioList();
@@ -4530,6 +4568,14 @@ function dinoKick() {
   else requestAnimationFrame(() => drawDino(false));
 }
 
+// Tuvalin arayüz renkleri (zemin çizgisi, yazılar) ve yazı tipi temadan; dinozorlar, kaktüs ve kuşlar oyun içeriği.
+const dinoUi = (name) => Theme.color(name);
+const dinoFont = (weight, px) => `${weight} ${px}px ${Theme.color('--font-body') || 'system-ui, sans-serif'}`;
+// Tema değişince (oyun durmuşken de) son kare yeni renklerle yeniden çizilir.
+document.addEventListener('themechange', () => {
+  if (!dinoLoop) requestAnimationFrame(() => drawDino(Boolean(dinoGame)));
+});
+
 function drawDino(started) {
   const canvas = $('dino-canvas');
   if (!canvas.offsetParent) return; // sekme kapalı: hesapla ama çizme
@@ -4548,17 +4594,17 @@ function drawDino(started) {
   const sy = (y, h) => DINO.groundY - y - h;
 
   // Zemin ve kayan çakıllar
-  ctx.fillStyle = '#343946';
+  ctx.fillStyle = dinoUi('--border-strong');
   ctx.fillRect(0, DINO.groundY, DINO.viewW, 2);
-  ctx.fillStyle = '#262a34';
+  ctx.fillStyle = dinoUi('--border');
   for (let gx = Math.floor(left / 37) * 37; gx < left + DINO.viewW; gx += 37) {
     const n = Math.abs(Math.sin(gx * 12.9898) * 43758.5453) % 1;
     ctx.fillRect(sx(gx + n * 30), DINO.groundY + 6 + Math.floor(n * 3) * 6, 3 + n * 6, 2);
   }
 
   if (!dinoGame) {
-    ctx.fillStyle = '#8b92a3';
-    ctx.font = '600 16px system-ui, sans-serif';
+    ctx.fillStyle = dinoUi('--muted');
+    ctx.font = dinoFont(600, 16);
     ctx.textAlign = 'center';
     ctx.fillText('Lobi kur, birlikte Jef\'in peşinden koşun', DINO.viewW / 2, 100);
     drawOneDino(ctx, 'Jef 🤖', { x: 80, y: 0, duck: false }, false, sx, sy, 0, DINO_JEF_COLOR);
@@ -4627,8 +4673,8 @@ function drawOneDino(ctx, name, d, faded, sx, sy, lift = 0, color = avatarColor(
   ctx.fillStyle = '#0b0c10';
   ctx.fillRect(x + w - 8, y + 4, 3, 3); // göz
   ctx.globalAlpha = faded ? 0.4 : 0.85;
-  ctx.fillStyle = '#eceef4';
-  ctx.font = '600 12px system-ui, sans-serif';
+  ctx.fillStyle = dinoUi('--text');
+  ctx.font = dinoFont(600, 12);
   ctx.textAlign = 'center';
   ctx.fillText(name, x + w / 2, y - 6 - lift);
   ctx.globalAlpha = 1;
@@ -4636,23 +4682,23 @@ function drawOneDino(ctx, name, d, faded, sx, sy, lift = 0, color = avatarColor(
 
 // Üstte: mesafe, hız; başta geri sayım, sonda durum
 function drawDinoHud(ctx, started) {
-  ctx.fillStyle = '#8b92a3';
-  ctx.font = '600 14px system-ui, sans-serif';
+  ctx.fillStyle = dinoUi('--muted');
+  ctx.font = dinoFont(600, 14);
   ctx.textAlign = 'right';
   if (dinoMe) {
     const live = dinoMe.dead || dinoGame.done ? '' : ` · hız ${Math.round(dinoMe.vx / 10)}`;
     ctx.fillText(`${Math.round(dinoJefX(dinoMe.t) / 10)} m${live}`, DINO.viewW - 14, 24);
   }
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#eceef4';
+  ctx.fillStyle = dinoUi('--text');
   if (!started) {
-    ctx.font = '800 64px system-ui, sans-serif';
+    ctx.font = dinoFont(800, 64);
     ctx.fillText(Math.ceil((dinoGame.startAt - serverNow()) / 1000), DINO.viewW / 2, 120);
   } else if (dinoGame.done) {
-    ctx.font = '800 32px system-ui, sans-serif';
+    ctx.font = dinoFont(800, 32);
     ctx.fillText('Oyun bitti', DINO.viewW / 2, 110);
   } else if (dinoMe?.dead) {
-    ctx.font = '700 24px system-ui, sans-serif';
+    ctx.font = dinoFont(700, 24);
     ctx.fillText('Öldün, diğerlerini izliyorsun', DINO.viewW / 2, 110);
   }
 }
@@ -4912,6 +4958,11 @@ function renderChatMessage({ from, name, text, image, ts, system }) {
     img.src = abs(image);
     // Resim yüklenince boyu değişir; alttaysak aşağıda kalalım.
     img.onload = () => nearBottom && (list.scrollTop = list.scrollHeight);
+    img.onerror = () => {
+      const note = Object.assign(document.createElement('span'), { className: 'notice chat-img-missing', innerHTML: icon('image') });
+      note.append('Resim yüklenemedi');
+      img.replaceWith(note);
+    };
     link.append(img);
     content.append(link);
   }
@@ -5765,6 +5816,14 @@ function thumb(videoId, src) {
   img.loading = 'lazy';
   img.alt = '';
   img.src = isX(videoId) ? src || '' : `https://i.ytimg.com/vi/${videoId}/default.jpg`;
+  // Resim yoksa ya da gelmezse aynı boyda sakin bir yer tutucu (müzik ikonu)
+  const missing = () => {
+    const box = Object.assign(document.createElement('span'), { className: 'thumb thumb-missing', innerHTML: icon('music') });
+    if (img.isConnected) img.replaceWith(box);
+    return box;
+  };
+  if (!img.getAttribute('src')) return missing();
+  img.onerror = missing;
   return img;
 }
 
@@ -6134,9 +6193,19 @@ function setSearchEnabled(on) {
   $('add-form').querySelector('button').textContent = on ? 'Ara / Ekle' : 'Ekle';
 }
 
+// Arama durumu sonuç listesinin içinde: sonuç yoksa boş durum, hata varsa kırmızı not.
+function searchNote(kind, text) {
+  const li = document.createElement('li');
+  const failed = kind === 'error';
+  li.className = failed ? 'notice notice-danger search-note' : 'empty search-note';
+  li.innerHTML = failed ? icon('alert') : icon('search');
+  li.append(Object.assign(document.createElement('p'), { textContent: text }));
+  $('search-results').append(li);
+}
+
 async function searchYouTube(q) {
   $('search-box').hidden = false;
-  $('search-label').textContent = `"${q}" aranıyor…`;
+  $('search-label').replaceChildren(Object.assign(document.createElement('span'), { className: 'spinner' }), ` "${q}" aranıyor…`);
   $('search-results').replaceChildren();
   let data;
   try {
@@ -6146,10 +6215,12 @@ async function searchYouTube(q) {
     data = { error: 'Arama yapılamadı.' };
   }
   if (data.error) {
-    $('search-label').textContent = data.error;
+    $('search-label').textContent = `"${q}"`;
+    searchNote('error', data.error);
     return;
   }
-  $('search-label').textContent = data.results.length ? `"${q}" için sonuçlar` : `"${q}" için sonuç yok`;
+  $('search-label').textContent = data.results.length ? `"${q}" için sonuçlar` : `"${q}"`;
+  if (!data.results.length) searchNote('empty', 'Sonuç yok. Başka bir şey dene ya da linki yapıştır.');
   for (const r of data.results) {
     const li = document.createElement('li');
     li.innerHTML = `
@@ -6434,7 +6505,7 @@ async function enterRoom(id, password) {
     watchMicTrack();
   } catch {
     localStream = null;
-    $('mic-note').textContent = 'Mikrofona erişilemedi; sadece dinleyebilirsin.';
+    $('mic-note-text').textContent = 'Mikrofona erişilemedi; sadece dinleyebilirsin.';
     $('mic-note').hidden = false;
     $('mic-toggle').disabled = true;
     $('gate-btn').hidden = true;

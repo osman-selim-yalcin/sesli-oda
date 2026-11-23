@@ -74,6 +74,22 @@ window.Theme = (() => {
     });
   }
 
+  // JS'te çizilen arayüz renkleri (tuval, harita, 3B sahne) değişkenden okunur: Theme.color('--accent').
+  // Okunan değer tema değişene kadar saklanır; her karede getComputedStyle çağrılmaz.
+  // Tema değişince document'a 'themechange' olayı gelir (detail: { id }); renk okuyan kod onu dinleyip yeniden çizer.
+  const colors = new Map();
+  function color(name) {
+    if (!colors.has(name)) colors.set(name, getComputedStyle(root).getPropertyValue(name).trim());
+    return colors.get(name);
+  }
+  // Renkler değişti (tema değişimi ya da sayfaya eklenen bir değişken katmanı, örn. test/tools/magenta.js):
+  // saklananlar silinir, tarayıcı çubuğu güncellenir, dinleyenlere haber verilir.
+  function changed() {
+    colors.clear();
+    syncMeta();
+    document.dispatchEvent(new CustomEvent('themechange', { detail: { id: current } }));
+  }
+
   // Tarayıcı çubuğunun rengi temanın zeminine uyar.
   function syncMeta() {
     const meta = document.querySelector('meta[name="theme-color"]');
@@ -100,7 +116,7 @@ window.Theme = (() => {
         document.getElementById('theme-css')?.remove();
         link.id = 'theme-css';
         root.dataset.theme = current = id;
-        syncMeta();
+        changed();
       })
       .catch((err) => {
         console.warn(`Tema uygulanamadı (${id}), önceki tema kalıyor:`, err);
@@ -117,6 +133,8 @@ window.Theme = (() => {
     list: LIST.slice(),
     apply,
     current: () => current,
+    color,
+    changed,
     preview: (id) => ({ ...(Object.hasOwn(PREVIEW, id) ? PREVIEW[id] : PREVIEW[DEFAULT]) }),
   };
 })();

@@ -196,7 +196,10 @@
           <button id="members-refresh" class="btn btn-ghost btn-sm"><svg class="ic"><use href="#i-undo"></use></svg>Yenile</button>
         </div>
         <div class="panel members-panel">
-          <ul id="members-list" class="people-list members-list"></ul>
+          <div id="members-head" class="members-head" aria-hidden="true" hidden>
+            <span>Üye</span><span>Katıldı</span><span>Son görülme</span><span>Cihaz</span><span>Durum</span>
+          </div>
+          <ul id="members-list" class="members-list" aria-label="Üyeler"></ul>
           <p id="members-empty" class="muted empty" hidden></p>
         </div>
       </section>
@@ -612,7 +615,7 @@
             </button>
             <div id="rec-banner" class="rec-banner" hidden></div>
           </div>
-          <p id="mic-note" class="mic-note" hidden></p>
+          <p id="mic-note" class="mic-note notice notice-danger" hidden><svg class="ic"><use href="#i-mic-off"></use></svg><span id="mic-note-text"></span></p>
           <div id="avatar-strip" class="people-row"></div>
         </section>
       </section>
@@ -1179,58 +1182,67 @@
         </div>
       </section>
 
-      <!-- Radyo: dönen dünya küresi; ortadaki halkanın altına gelen yerin istasyonları sol altta listelenir.
-           Seçilen istasyon odanın ortak radyosudur, Radyo sayfasındaki herkes onu dinler. -->
+      <!-- Radyo: dönen dünya küresi; ortadaki halkanın altına gelen yerin istasyonları yandaki panelde listelenir.
+           Seçilen istasyon odanın ortak radyosudur, Radyo sayfasındaki herkes onu dinler. Masaüstünde paneller
+           kürenin üstünde (sol altta) durur; telefonda küre üstte, paneller altında (liste kendi içinde kayar). -->
       <section id="radio" class="radio" hidden>
-        <div id="radio-map" class="radio-map"></div>
-        <div class="radio-ring" aria-hidden="true"></div>
+        <div class="radio-globe">
+          <div id="radio-map" class="radio-map"></div>
+          <div class="radio-ring" aria-hidden="true"></div>
+          <div id="radio-globe-note" class="radio-globe-note" role="status" hidden>
+            <span class="spinner" aria-hidden="true"></span><span id="radio-globe-text">Küre yükleniyor…</span>
+            <button id="radio-retry" class="btn btn-sm" hidden>Tekrar dene</button>
+          </div>
+          <p class="radio-attrib">Uydu görüntüsü © Esri, Maxar, Earthstar Geographics · <a href="https://maplibre.org/" target="_blank" rel="noopener">MapLibre</a></p>
+          <div class="radio-tools">
+            <button id="radio-random" class="radio-tool" title="Rastgele bir istasyon aç (herkeste)" aria-label="Rastgele bir istasyon aç (herkeste)"><svg class="ic"><use href="#i-shuffle"></use></svg></button>
+            <button id="radio-locate" class="radio-tool" title="Konumuma git" aria-label="Konumuma git"><svg class="ic"><use href="#i-locate"></use></svg></button>
+            <div class="radio-zoom">
+              <button id="radio-zoom-in" class="radio-tool" title="Yakınlaştır" aria-label="Yakınlaştır"><svg class="ic"><use href="#i-plus"></use></svg></button>
+              <button id="radio-zoom-out" class="radio-tool" title="Uzaklaştır" aria-label="Uzaklaştır"><svg class="ic"><use href="#i-minus"></use></svg></button>
+            </div>
+          </div>
+        </div>
 
         <div class="radio-side">
           <div class="radio-card radio-place">
             <div class="radio-place-head">
-              <span id="radio-place-count" class="radio-badge">–</span>
+              <span id="radio-place-count" class="radio-badge" title="Bu yerdeki istasyon sayısı">–</span>
               <div class="radio-place-name">
                 <strong id="radio-place-title">Dünyayı çevir</strong>
-                <span id="radio-place-sub">Halkayı yeşil bir noktanın üstüne getir</span>
+                <span id="radio-place-sub">Halkayı bir noktanın üstüne getir</span>
               </div>
             </div>
-            <div class="radio-tabs" role="tablist">
-              <button data-tab="explore" class="active" role="tab"><svg class="ic"><use href="#i-globe"></use></svg><span>Keşfet</span></button>
-              <button data-tab="favs" role="tab"><svg class="ic"><use href="#i-heart"></use></svg><span>Favoriler</span></button>
-              <button data-tab="search" role="tab"><svg class="ic"><use href="#i-search"></use></svg><span>Ara</span></button>
+            <div class="tabs radio-tabs" role="tablist">
+              <button data-tab="explore" class="tab active" role="tab"><svg class="ic"><use href="#i-globe"></use></svg><span>Keşfet</span></button>
+              <button data-tab="favs" class="tab" role="tab"><svg class="ic"><use href="#i-heart"></use></svg><span>Favoriler</span></button>
+              <button data-tab="search" class="tab" role="tab"><svg class="ic"><use href="#i-search"></use></svg><span>Ara</span></button>
             </div>
-            <input id="radio-search" class="radio-search" placeholder="İstasyon, şehir ya da ülke ara" autocomplete="off" hidden>
+            <input id="radio-search" class="input radio-search" placeholder="İstasyon, şehir ya da ülke ara" autocomplete="off" hidden>
             <ol id="radio-list" class="radio-list"></ol>
           </div>
 
           <div class="radio-card radio-player">
             <div class="radio-player-top">
+              <span class="radio-player-art" aria-hidden="true"><svg class="ic"><use href="#i-radio"></use></svg></span>
               <div class="radio-player-name">
                 <strong id="radio-now-name">Radyo kapalı</strong>
                 <span id="radio-now-sub">Listeden bir istasyona bas, herkeste açılsın</span>
               </div>
-              <button id="radio-fav" class="radio-icon" title="Favorilere ekle" hidden><svg class="ic"><use href="#i-heart"></use></svg></button>
+              <button id="radio-fav" class="radio-icon" title="Favorilere ekle" aria-label="Favorilere ekle" hidden><svg class="ic"><use href="#i-heart"></use></svg></button>
             </div>
             <div class="radio-controls">
-              <button id="radio-prev" class="radio-icon" title="Bu yerdeki önceki istasyon"><svg class="ic"><use href="#i-prev"></use></svg></button>
-              <button id="radio-toggle" class="radio-icon big" title="Çal / duraklat (sadece sende)"><svg class="ic"><use href="#i-play"></use></svg></button>
-              <button id="radio-next" class="radio-icon" title="Bu yerdeki sonraki istasyon"><svg class="ic"><use href="#i-skip"></use></svg></button>
-              <input id="radio-vol" class="radio-vol" type="range" min="0" max="100" value="70" aria-label="Radyo sesi (sadece sende)">
-              <button id="radio-stop" class="radio-icon" title="Radyoyu herkeste kapat" hidden><svg class="ic"><use href="#i-x"></use></svg></button>
+              <button id="radio-prev" class="ctl" title="Bu yerdeki önceki istasyon" aria-label="Bu yerdeki önceki istasyon"><svg class="ic"><use href="#i-prev"></use></svg></button>
+              <button id="radio-toggle" class="ctl ctl-play" title="Çal / duraklat (sadece sende)" aria-label="Çal / duraklat (sadece sende)"><svg class="ic"><use href="#i-play"></use></svg></button>
+              <button id="radio-next" class="ctl" title="Bu yerdeki sonraki istasyon" aria-label="Bu yerdeki sonraki istasyon"><svg class="ic"><use href="#i-skip"></use></svg></button>
+              <svg class="ic radio-vol-ic" aria-hidden="true"><use href="#i-volume"></use></svg>
+              <input id="radio-vol" class="range radio-vol" type="range" min="0" max="100" value="70" aria-label="Radyo sesi (sadece sende)">
+              <button id="radio-stop" class="ctl radio-stop" title="Radyoyu herkeste kapat" aria-label="Radyoyu herkeste kapat" hidden><svg class="ic"><use href="#i-x"></use></svg></button>
             </div>
             <div class="radio-player-bottom">
               <span id="radio-now-status" class="radio-now-status"></span>
-              <button id="radio-shuffle" class="radio-shuffle" title="Dünyadan rastgele bir istasyon aç (herkeste)"><svg class="ic"><use href="#i-shuffle"></use></svg>Rastgele çal</button>
+              <button id="radio-shuffle" class="btn btn-sm radio-shuffle" title="Dünyadan rastgele bir istasyon aç (herkeste)"><svg class="ic"><use href="#i-shuffle"></use></svg>Rastgele çal</button>
             </div>
-          </div>
-        </div>
-
-        <div class="radio-tools">
-          <button id="radio-random" title="Rastgele bir istasyon aç (herkeste)"><svg class="ic"><use href="#i-shuffle"></use></svg></button>
-          <button id="radio-locate" title="Konumuma git"><svg class="ic"><use href="#i-locate"></use></svg></button>
-          <div class="radio-zoom">
-            <button id="radio-zoom-in" title="Yakınlaştır"><svg class="ic"><use href="#i-plus"></use></svg></button>
-            <button id="radio-zoom-out" title="Uzaklaştır"><svg class="ic"><use href="#i-minus"></use></svg></button>
           </div>
         </div>
         <audio id="radio-audio" preload="none"></audio>
@@ -1279,7 +1291,7 @@
               <ol id="search-results" class="queue"></ol>
             </div>
             <ol id="queue" class="queue"></ol>
-            <p id="queue-empty" class="muted small empty">Sıra boş. Yukarıya bir YouTube ya da X linki yapıştır.</p>
+            <div id="queue-empty" class="empty"><svg class="ic"><use href="#i-playlist"></use></svg><p class="empty-title">Sıra boş</p><p>Yukarıya bir YouTube ya da X linki yapıştır.</p></div>
           </div>
 
           <div id="history-view" hidden>
@@ -1288,7 +1300,7 @@
               <span class="caption">Açılan sayfada "Kaydet" ile hesabına ekleyebilirsin (son 50 şarkı).</span>
             </div>
             <ol id="history" class="queue"></ol>
-            <p id="history-empty" class="muted small empty">Henüz çalan şarkı yok.</p>
+            <div id="history-empty" class="empty"><svg class="ic"><use href="#i-history"></use></svg><p class="empty-title">Henüz çalan şarkı yok</p><p>Çalan her şarkı buraya düşer; yeniden sıraya ekleyebilirsin.</p></div>
           </div>
         </div>
       </aside>

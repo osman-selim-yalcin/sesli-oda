@@ -7,6 +7,7 @@
 //   #00FF00  metin (--text, --muted, --accent-contrast, --danger-contrast, --avatar-text)
 //   #FFFF00  kenarlık (--border, --border-strong)
 // Görüntüde bu dört renkten başka bir renkte kalan her öğe temaya bağlanmamıştır.
+// Değişkenler eklendikten sonra Theme.changed() çağrılır: JS'in Theme.color ile okuduğu renkler de değişir.
 // (Kişi tonu --hue gibi oyun içeriği renkleri kural gereği kendi renginde kalır.)
 //
 // Kullanım:
@@ -222,6 +223,7 @@ async function main() {
         s.id = 'magenta-probe';
         s.textContent = ${JSON.stringify(css)};
         document.head.append(s);
+        window.Theme?.changed?.(); // JS'te değişkenden okunan renkler (tuval, harita, 3B sahne) de yeniden okunsun
         return true;
       })()`);
     }

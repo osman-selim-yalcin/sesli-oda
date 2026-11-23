@@ -220,7 +220,14 @@ export function showDonkey({ by } = {}) {
   sun.shadow.mapSize.set(1024, 1024);
   Object.assign(sun.shadow.camera, { left: -3, right: 3, top: 6, bottom: -1, near: 1, far: 25 });
   scene.add(sun);
+  // Arkadan vuran kenar ışığı temanın vurgu rengi (arayüz tonu); modelin kendi renkleri ve öteki ışıklar içerik.
   const rim = new THREE.DirectionalLight(0x8fa6ff, 1.1);
+  const tintRim = () => {
+    const accent = window.Theme?.color('--accent');
+    if (accent) rim.color.setStyle(accent);
+  };
+  tintRim();
+  document.addEventListener('themechange', tintRim);
   rim.position.set(-4, 3, -4);
   scene.add(rim);
   const ground = new THREE.Mesh(new THREE.CircleGeometry(2.4, 48), new THREE.ShadowMaterial({ opacity: 0.4 }));
@@ -359,6 +366,7 @@ export function showDonkey({ by } = {}) {
     closed = true;
     cancelAnimationFrame(raf);
     removeEventListener('keydown', onKey);
+    document.removeEventListener('themechange', tintRim);
     overlay.classList.remove('on');
     setTimeout(() => {
       scene.traverse((o) => {
