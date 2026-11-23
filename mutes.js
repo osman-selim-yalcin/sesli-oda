@@ -1,55 +1,46 @@
 // Moderatör susturması: saf durum ve yetki kuralı (soket bilmez; server.js bağlar). Model:
-// - Köken: kişinin girdiği kapının odası (birleşik odada da; ayrılınca o odada kalır). Hiçbir şey kökeni değiştirmez.
-// - Kayıt: oda id + hesap anahtarı -> { by: 'owner' | 'admin', name }. Etkin susturma = kişinin kökeninin kaydı, başka bir şey değil.
-// - Taşıma: birleşik odaya join ile başarıyla girerken çiftin öteki odasındaki kayıt kapının odasına bir kez kopyalanır
-//   (kapıda kayıt yoksa; ya da kapıdaki sahip kaydını öteki odanın yönetici kaydı geçer). Birleşme, kapı ve hesap
-//   başına bir kez: kaldırılan susturma yenilemede geri gelmez. Birleşme anındaki taşınmada kopyalama yok.
-// - Kim: yönetici herkesi susturur ve kaldırır; oda sahibi kökeni kendi odası olanı (yönetici hariç) susturur ve
-//   sahip kaydını kaldırır, yönetici kaydına dokunamaz; kimse kendini (kendi sessizi mikrofon düğmesi).
-// - Silinme: oda kapanınca; odanın canlı durumu silinince, birleşme bitince ya da gerçek çıkışta o kökenden odada
-//   ya da yenileme payında kimse kalmadıysa. Öteki odadaki asıl kayıt kendi kurallarıyla durur. Yalnız hafızadadır.
-const state = new Map(); // köken oda id -> Map<hesap anahtarı, { by: 'owner' | 'admin', name }>
+// - Köken: kişinin girdiği kapının odası (birleşik odada da). Odalar arasında kayıt kopyalanmaz.
+// - Sahip susturması odaya bağlı: (oda, hesap) kaydı; yalnız kökeni o oda olan kişiye uygulanır. Birleşik odada
+//   kapı değiştiren kişiye eski odanın sahip susturması uygulanmaz; girdiği kapının sahibi ya da yönetici susturur.
+// - Yönetici susturması hesaba bağlı, site geneli: her odada, her kapıdan, birleşmede ve sonrasında geçerli;
+//   yalnız yönetici kaldırır (ya da sunucu yeniden başlar: hafızada). Yalnız yönetici eklediği için sınırlıdır.
+// - Etkin susturma: hesabın yönetici kaydı, yoksa kökenin sahip kaydı, yoksa yok.
+// - Yönetici herkesi susturur ve kaldırır (kaldırma kökendeki sahip kaydını da siler). Sahip kökeni kendi odası olanı
+//   (yönetici ve yöneticinin susturduğu hariç) susturur ve sahip kaydını kaldırır. Kimse kendini susturamaz.
+// - Sahip kayıtları oda kapanınca ya da o kökenden canlı odalarda ve yenileme payında kimse kalmayınca silinir.
+const owners = new Map(); // oda id -> Map<hesap anahtarı, { by: 'owner', name }>
+const admins = new Map(); // hesap anahtarı -> { by: 'admin', name }
 
-const get = (room, key) => state.get(room)?.get(key) || null;
+const getOwner = (room, key) => owners.get(room)?.get(key) || null;
+const getAdmin = (key) => admins.get(key) || null;
+// Kişinin etkin susturması: yönetici kaydı, yoksa kökeninin sahip kaydı.
+const effective = (room, key) => getAdmin(key) || getOwner(room, key);
 
-function set(room, key, info) {
-  if (!state.has(room)) state.set(room, new Map());
-  state.get(room).set(key, { by: info.by, name: info.name });
+function setOwner(room, key, name) {
+  if (!owners.has(room)) owners.set(room, new Map());
+  owners.get(room).set(key, { by: 'owner', name });
 }
-
-function remove(room, key) {
-  const m = state.get(room);
+function removeOwner(room, key) {
+  const m = owners.get(room);
   if (!m) return;
   m.delete(key);
-  if (!m.size) state.delete(room);
+  if (!m.size) owners.delete(room);
 }
+const clearRoom = (room) => owners.delete(room); // yalnız sahip kayıtları; yönetici kayıtları odaya bağlı değil
 
-// Bu birleşmede kapının odasına taşınmış kayıtlar: "oda id\nhesap" (birleşme bitince ya da kayıt silinince unutulur).
-const imports = new Set();
-const ik = (room, key) => `${room}\n${key}`;
-const imported = (room, key) => imports.has(ik(room, key));
-const markImported = (room, key) => imports.add(ik(room, key));
-function forgetImports(...rooms) {
-  for (const x of [...imports]) if (rooms.includes(x.slice(0, x.indexOf('\n')))) imports.delete(x);
-}
+const setAdmin = (key, name) => admins.set(key, { by: 'admin', name });
+const removeAdmin = (key) => admins.delete(key);
 
-function clear(room) {
-  state.delete(room);
-  forgetImports(room);
-}
-const size = () => state.size; // test için
-
-// Kim kimi susturabilir (ya da susturmasını kaldırabilir). Hata metni ya da null döner.
-// actor: { key, admin, ownsOrigin } (ownsOrigin: hedefin köken odasının sahibi mi)
-// target: { key, admin }; existing: hedefin şu anki susturması (yoksa null); mute: true sustur, false kaldır.
-function check({ actor, target, existing, mute }) {
+// Kim kimi susturabilir ya da kaldırabilir. Hata metni ya da null döner.
+// actor: { key, admin, ownsOrigin } (ownsOrigin: hedefin köken odasının sahibi mi); target: { key, admin };
+// existing: hedefin etkin susturması (yoksa null).
+function check({ actor, target, existing }) {
   if (actor.key === target.key) return 'Kendini buradan susturamazsın; mikrofon düğmesini kullan.';
   if (actor.admin) return null; // site yöneticisi herkesi, her odada
   if (!actor.ownsOrigin) return 'Bu kişiyi yalnız kendi odasının sahibi ya da yönetici susturabilir.';
   if (target.admin) return 'Yöneticiyi susturamazsın.';
-  // Yöneticinin susturmasını sahip kaldıramaz, üstüne kendi susturmasını da yazamaz (sonra kaldırabilirdi).
-  if (existing?.by === 'admin') return 'Bu susturmayı yönetici koydu; yalnız yönetici kaldırabilir.';
+  if (existing?.by === 'admin') return 'Bu kişiyi yönetici susturdu; yalnız yönetici kaldırabilir.';
   return null;
 }
 
-module.exports = { get, set, remove, clear, size, check, imported, markImported, forgetImports };
+module.exports = { getOwner, getAdmin, effective, setOwner, removeOwner, clearRoom, setAdmin, removeAdmin, check };

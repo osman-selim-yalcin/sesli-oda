@@ -717,8 +717,7 @@ async function admit(socket, { token, clientId, roomId, password }) {
 // Hesabın başka bir odadaki soketi oradan düşürülür; aynı odadaki eski soketi (aynı sekme ya da hesap) kapatılır.
 // home: kişinin kökeni (birleşik odada misafir odanın id'si; değilse girdiği oda).
 // Döner: join cevabı ve rejoined (sayfa yenilendi: "katıldı" mesajı yazılmaz) ya da { error }.
-// carry: join ile giriş (birleşik odada öteki odanın susturması kapının odasına taşınır; taşınmada false).
-function enterRoom(socket, account, clientId, roomId, home = roomId, { carry = false } = {}) {
+function enterRoom(socket, account, clientId, roomId, home = roomId) {
   const reg = roomStore.get(roomId);
   if (!reg) return { error: 'Böyle bir oda yok.', gone: true }; // canlı durum yalnız açık kayıtlı odaya kurulur
   const roomCode = reg.id;
@@ -766,7 +765,6 @@ function enterRoom(socket, account, clientId, roomId, home = roomId, { carry = f
   // Her girişte (taşınma dahil) yeni dönem: önceki bağlantının geç kalan sinyalleri yeni odaya geçmesin.
   const epoch = socket.data.epoch = (socket.data.epoch || 0) + 1;
   // Susturulmuş (köken odası + hesap) kişi girerken de sessizdedir; kendi mikrofonunu açamaz.
-  if (carry) carryMute(home, account.key); // bütün retlerden sonra: giremeyen kişiye kayıt taşınmaz
   const modMuted = modMuteOf(home, account.key)?.by || null;
   // Avatar rengi: odadakilerle çakışmayan renk (herkes aynısını görür; odada kaldıkça değişmez)
   const color = colors.pick(name, [...room.users.values()].map((u) => u.color));
@@ -807,6 +805,7 @@ function leaveRoom(socket, { grace, quiet = false }) {
     // Köken canlıyken süpürülmez: birleşik ev sahibinde yalnız misafir kökenliler kaldıysa ev sahibi kökenli
     // kayıtlar ev sahibinin canlı durumu silinene kadar kalır (fazla susturma yönünde; kabul).
     if (!quiet && !rooms.get(user.home) && !merge.partnerOf(user.home)) sweepMutes(user.home);
+    // (Yönetici susturması hesaba bağlıdır; hiçbir süpürme ona dokunmaz.)
     const current = rooms.get(roomCode);
     if (!current) return;
     if (!quiet) postSystem(current, `${user.name} ayrıldı`, { event: 'leave' });
@@ -842,17 +841,16 @@ function closeRoom({ id, name }) {
     leaveRoom(socket, { grace: false });
     socket.emit('room:closed', { name });
   }
-  const origins = new Set();
+  // Kapanan odanın kökenlilerinin yenileme payı iptal (dönecekleri oda yok). Öteki kökenlilerin (birleşik ev sahibi
+  // kapandıysa misafir odanın kişileri) payı sürer: kendi odasına dönebilir; dönmezse normal çıkışları susturmayı süpürür.
   for (const [key, timer] of pendingLeaves) {
-    if (!key.startsWith(`${id}:`)) continue; // yenileme bekleyenler geri dönemez
+    if (!key.startsWith(`${id}:`) || (pendingHomes.has(key) && pendingHomes.get(key) !== id)) continue;
     clearTimeout(timer);
     pendingLeaves.delete(key);
-    if (pendingHomes.has(key)) origins.add(pendingHomes.get(key));
     pendingHomes.delete(key);
   }
   if (rooms.has(id)) dropRoom(id);
-  mutes.clear(id);
-  for (const home of origins) if (!rooms.get(home) && !merge.partnerOf(home)) sweepMutes(home); // dönemeyecekler
+  mutes.clearRoom(id); // sahip susturmaları; yönetici susturmaları hesaba bağlı, kalır
 }
 
 // Boşalan odanın canlı durumunu ve zamanlayıcılarını siler (kalıcı kayıtları silmez).
@@ -991,7 +989,6 @@ function startMerge({ host, guest }) {
 // Birleşmeyi taşımasız bitirir; bekleyen misafir oda boşsa canlı durumu silinir.
 function endMerge(roomId) {
   const pair = merge.split(roomId);
-  if (pair) mutes.forgetImports(pair.host, pair.guest);
   if (pair && rooms.get(pair.guest)?.users.size === 0) dropRoom(pair.guest);
   if (pair) sweepMutes(pair.guest);
   return pair;
@@ -1003,14 +1000,13 @@ function endMerge(roomId) {
 function sweepMutes(roomId) {
   for (const room of rooms.values()) for (const u of room.users.values()) if (u.home === roomId) return;
   for (const home of pendingHomes.values()) if (home === roomId) return;
-  mutes.clear(roomId);
+  mutes.clearRoom(roomId);
 }
 
 // Ayrılma: home'u misafir oda olanlar kendi odasına döner. Birleşik değilse null.
 function splitRooms(roomId) {
   const pair = merge.split(roomId);
   if (!pair) return null;
-  mutes.forgetImports(pair.host, pair.guest); // yeni birleşmede taşınma yeniden olabilir
   for (const [id, user] of [...(rooms.get(pair.host)?.users || [])]) {
     if (user.home !== pair.guest) continue;
     const socket = io.sockets.sockets.get(id);
@@ -1037,7 +1033,6 @@ function mergeRoomClosed(id, name) {
     return;
   }
   merge.split(id);
-  mutes.forgetImports(partner, id);
   for (const [socketId, user] of [...(rooms.get(partner)?.users || [])]) {
     if (user.home !== id) continue;
     const socket = io.sockets.sockets.get(socketId);
@@ -1157,25 +1152,13 @@ function peerView(id, u) {
   return { id, name: u.name, muted: u.muted, recording: u.recording, home: u.home, admin: Boolean(u.admin), color: u.color, modMuted: modMuteOf(u.home, u.key)?.by || null };
 }
 
-// Etkin susturma yalnız kişinin kökeninin (girdiği kapının odası) kaydıdır (model: mutes.js başı).
-const modMuteOf = (home, key) => mutes.get(home, key);
+// Etkin susturma (model: mutes.js başı): hesabın yönetici kaydı, yoksa kökeninin (girdiği kapı) sahip kaydı.
+// Bütün okuma ve denetim yerleri (join cevabı, peers, user-joined, room:moved, user-modmuted, kendi mikrofonu,
+// ses efekti) bunu kullanır.
+const modMuteOf = (home, key) => mutes.effective(home, key);
 
-// join ile birleşik odaya başarıyla girerken (refüzlerden sonra; birleşme anındaki taşınmada değil): çiftin öteki
-// odasındaki kayıt kapının odasına bir kez taşınır. Kapının odasında kayıt yoksa kopyalanır; sahip kaydı varsa ve
-// öteki odadaki yöneticininse yöneticinin kaydı geçer. Bu birleşmede bu kapı ve hesap için bir kez: sonradan
-// kaldırılırsa yenilemede geri gelmez (birleşme bitince, oda kapanınca ya da kayıtları silinince yeniden olabilir).
-function carryMute(door, key) {
-  const partner = merge.partnerOf(door);
-  if (!partner || mutes.imported(door, key)) return;
-  const other = mutes.get(partner, key);
-  if (!other) return;
-  const own = mutes.get(door, key);
-  if (!own || (own.by === 'owner' && other.by === 'admin')) mutes.set(door, key, other);
-  mutes.markImported(door, key);
-}
-
-// Sahip, kendi odasının kapısından girenleri (kökeni o oda) her zaman yönetir: başka odalardaki kayıtlar buna
-// engel değildir; yalnız kökendeki kayıt yöneticininse kaldıramaz.
+// Sahip, kendi odasının kapısından girenleri (kökeni o oda) yönetir; yöneticinin susturduğuna dokunamaz.
+// Kişi tek bir canlı odadadır: o odanın yayını herkese yeter (yönetici susturması da).
 function bindModEvents(socket) {
   let times = [];
   // { id: hedefin soket kimliği (aynı odada), muted: true sustur | false kaldır }
@@ -1196,7 +1179,6 @@ function bindModEvents(socket) {
       actor: { key: account.key, admin: accounts.isAdmin(account.key), ownsOrigin: roomStore.get(target.home)?.ownerId === account.key },
       target: { key: target.key, admin: accounts.isAdmin(target.key) },
       existing,
-      mute: muted,
     });
     if (error) return ack({ error });
     times.push(Date.now());
@@ -1204,14 +1186,16 @@ function bindModEvents(socket) {
     // Yayın ve cevap, kayda yazıldıktan sonra okunan etkin durumu taşır.
     const effective = () => modMuteOf(target.home, target.key)?.by || null;
     if (muted) {
-      mutes.set(target.home, target.key, { by, name: account.name });
+      if (by === 'admin') mutes.setAdmin(target.key, account.name); // hesaba: her odada, kalkana kadar
+      else mutes.setOwner(target.home, target.key, account.name); // kökenin odasına
       target.muted = true; // kendi mikrofonu da kapalı sayılır
       io.to(code).emit('user-muted', { id, muted: true });
       io.to(code).emit('user-modmuted', { id, muted: Boolean(effective()), by: effective() });
       postSystem(room, `${target.name} susturuldu (susturan: ${account.name})`);
     } else {
       if (!existing) return ack({ modMuted: effective() });
-      mutes.remove(target.home, target.key);
+      if (by === 'admin') mutes.removeAdmin(target.key); // yönetici tek seferde duyulur yapar: kökendeki sahip
+      mutes.removeOwner(target.home, target.key); // kaydı da silinir (sahibin kaldırması yalnız sahip kaydını)
       // Mikrofon kendiliğinden açılmaz: kişi kendisi açana kadar sessizde kalır.
       io.to(code).emit('user-modmuted', { id, muted: Boolean(effective()), by: effective() });
       postSystem(room, `${target.name} artık konuşabilir (susturmayı kaldıran: ${account.name})`);
@@ -1289,7 +1273,7 @@ io.on('connection', (socket) => {
       if (!bindAccount(socket, res.account)) return ack(OTHER_ACCOUNT); // denetlenirken hello başka hesapla bağladı
       bindToken(socket, token);
       // Birleşik misafir odaya giren ev sahibi odaya yerleşir; kökeni misafir oda kalır.
-      ({ rejoined, ...payload } = enterRoom(socket, res.account, res.clientId, merge.hostOf(res.roomId), res.roomId, { carry: true }));
+      ({ rejoined, ...payload } = enterRoom(socket, res.account, res.clientId, merge.hostOf(res.roomId), res.roomId));
     } catch (err) {
       // Beklenmeyen hata sunucuyu düşürmesin (yakalanmayan ret süreci kapatır); istemci cevapsız kalmasın.
       console.warn('odaya giriş', err.message);

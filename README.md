@@ -105,14 +105,16 @@ Birleşme yalnız hafızadadır: sunucu yeniden başlarsa odalar ayrı açılır
 mikrofonu ve ekran paylaşımının sesi kapanır ve kilitlenir; ses efekti çalamaz ve yükleyemez; öteki herkes, o
 kişiden ne gelirse gelsin sesini çalmaz. Sohbete kimin susturduğu yazılır; kaldırılınca kişi mikrofonunu kendisi
 açar. Kurallar:
-- Köken, kişinin girdiği kapının odasıdır (birleşik odada da; ayrılınca o odada kalır).
-- Kayıt oda + hesaba bağlıdır; kişinin susturması yalnız kökeninin kaydıdır.
-- Birleşik odaya girerken çiftin öteki odasındaki kayıt kapının odasına bir kez taşınır (kapıda kayıt yoksa, ya da
-  öteki odadaki yöneticininse); kaldırılan susturma yenilemede geri gelmez. Birleşme anındaki taşınmada taşınmaz.
-- Yönetici herkesi susturur ve kaldırır; oda sahibi kökeni kendi odası olanları (yönetici hariç) susturur ve
-  kendi düzeyindeki susturmayı kaldırır, yöneticininkine dokunamaz; kimse kendini susturamaz.
-- Hafızadadır: odadan çıkıp dönen yine susturulmuştur. Oda kapanınca, ya da odanın canlı durumu silinince,
-  birleşme bitince veya gerçek çıkışta o kökenden kimse kalmadıysa (yenileme payındakiler sayılır) silinir.
+- Köken, kişinin girdiği kapının odasıdır (birleşik odada da). Odalar arasında susturma kopyalanmaz.
+- Oda sahibinin susturması odaya bağlıdır ve yalnız o odanın kapısından girene uygulanır. Birleşikken öteki
+  odanın kapısından giren kişiye uygulanmaz; o kapının sahibi (aynı birleşik odadadır) ya da yönetici susturur.
+- Yöneticinin susturması hesaba bağlıdır: her odada, her kapıdan, birleşmede ve sonrasında geçerlidir; yalnız
+  yönetici kaldırır (hafızadadır: sunucu yeniden başlarsa kalkar). Kişinin susturması: yöneticininki, yoksa
+  kökeninin sahip susturması.
+- Yönetici herkesi susturur ve kaldırır; kaldırınca kökendeki sahip susturması da kalkar. Sahip kökeni kendi
+  odası olanları (yönetici ve yöneticinin susturduğu hariç) susturur ve kaldırır. Kimse kendini susturamaz.
+- Sahip susturması oda kapanınca ya da o odanın kökenlilerinden canlı odalarda ve yenileme payında kimse
+  kalmayınca silinir; odadan çıkıp dönen yine susturulmuştur.
 
 ## Temalar
 
