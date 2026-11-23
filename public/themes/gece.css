@@ -34,15 +34,19 @@
   --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-control: initial; /* denetimler bulundukları yerin yazı tipiyle */
 
   --radius-s: 8px;
   --radius-m: 12px;
   --radius-l: 16px;
   --radius-pill: 999px;
+  --radius-round: 50%;
   --border-w: 1px;
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
   --shadow-2: 0 16px 40px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .03);
+  --btn-shadow: none;
+  --press: scale(.97);
 
   --space-1: 4px;
   --space-2: 8px;

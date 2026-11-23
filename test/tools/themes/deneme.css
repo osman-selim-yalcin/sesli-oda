@@ -35,15 +35,19 @@
   --font-display: ui-serif, Georgia, 'Times New Roman', serif;
   --font-body: ui-serif, Georgia, 'Times New Roman', serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-control: initial; /* denetimler bulundukları yerin yazı tipiyle */
 
   --radius-s: 2px;
   --radius-m: 3px;
   --radius-l: 4px;
   --radius-pill: 4px;
+  --radius-round: 50%;
   --border-w: 1px;
 
   --shadow-1: 0 1px 0 rgba(31, 35, 40, .08);
   --shadow-2: 0 10px 30px rgba(31, 35, 40, .18), 0 0 0 1px rgba(31, 35, 40, .06);
+  --btn-shadow: none;
+  --press: scale(.97);
 
   --space-1: 4px;
   --space-2: 8px;

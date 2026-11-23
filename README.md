@@ -101,18 +101,19 @@ Birleşme yalnız hafızadadır: sunucu yeniden başlarsa odalar ayrı açılır
 Görünümün bütün renkleri, yazı tipleri, köşeleri ve gölgeleri değişkendir; değişken sözleşmesi
 `public/css/base.css`'in başında yazılıdır. Kurallarda sabit renk yazılmaz. Oda sahibi temayı oda
 ayarlarından seçip "Uygula"ya basar; odadaki herkeste sayfa yenilenmeden değişir. Oda listesi ve giriş ekranı
-her zaman varsayılan temadadır (Gece Odası). Temalar: Gece Odası (`gece`, koyu, varsayılan) ve Aydınlık Oda
-(`aydinlik`, açık).
+her zaman varsayılan temadadır (Gece Odası). Temalar: Gece Odası (`gece`, koyu, varsayılan), Aydınlık Oda
+(`aydinlik`, açık) ve Piksel Oda (`piksel`, retro oyun: kendi piksel yazı tipleri ve piksel ikon seti).
 
-Yeni tema eklemek (örnek kimlik `piksel`):
+Yeni tema eklemek (örnek kimlik `yeni`):
 
-1. `public/themes/piksel.css`: sözleşmedeki bütün değişkenleri tanımlar (`public/themes/gece.css`'i kopyala).
-   Metin kontrastı en az 4,5:1 olmalı.
-2. İkon seti: `public/icons/ui/<set>.svg`, `lucide.svg` ile aynı `i-…` adlarını taşır (lisansı yanına).
-   Aynı seti kullanacaksa bu adım yok.
-3. `public/theme.js`: `LIST`'e `'piksel'`, `NAMES`'e görünen ad, `ICON_SETS`'e ikon seti, `PREVIEW`'e oda
+1. `public/themes/yeni.css`: sözleşmedeki bütün değişkenleri tanımlar (`public/themes/gece.css`'i kopyala).
+   Metin kontrastı en az 4,5:1 olmalı. Kendi yazı tipi varsa `@font-face` bu dosyada (yalnız tema seçilince
+   iner), dosyası lisansıyla `public/vendor/fonts/<ad>/` altında.
+2. İkon seti: `public/icons/ui/<set>.svg`, `lucide.svg` ile aynı `i-…` adlarını taşır (lisansı yanına,
+   `LICENSE-<set kaynağı>`). Üretici: `test/tools/icons.js`. Aynı seti kullanacaksa bu adım yok.
+3. `public/theme.js`: `LIST`'e `'yeni'`, `NAMES`'e görünen ad, `ICON_SETS`'e ikon seti, `PREVIEW`'e oda
    kartı önizleme renkleri (bg, surface, text, accent).
-4. `rooms.js`: `THEMES` dizisine `'piksel'` (sunucu tanımadığı temayı kabul etmez).
+4. `rooms.js`: `THEMES` dizisine `'yeni'` (sunucu tanımadığı temayı kabul etmez).
 
 ## Testler ve test sunucusu
 

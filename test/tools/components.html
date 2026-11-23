@@ -4,7 +4,9 @@
        node test/tools/magenta.js file://$PWD/test/tools/components.html vitrin.png 1440 --full --no-magenta --force-pseudo
      Gerçek CSS dosyalarını göreli yolla bağlar. :hover/:focus-visible/:active durumları gerçek tarayıcıda fareyle
      görülür; ekran görüntüsünde data-pseudo="hover" gibi işaretli öğelere magenta.js --force-pseudo ile zorlanır.
-     Aşağıdaki ikon sembolleri public/icons/ui/lucide.svg'den kopyadır (file:// altında dış <use> çalışmaz). -->
+     Aşağıdaki ikon sembolleri public/icons/ui/lucide.svg'den, "icons-piksel" şablonundakiler piksel.svg'den kopyadır
+     (file:// altında dış <use> çalışmaz; ikisini de test/tools/icons.js yazar).
+     Başka tema: components.html?tema=aydinlik ya da ?tema=piksel (tema dosyası ve, piksel için, ikon seti değişir). -->
 <html lang="tr" data-theme="gece">
 <head>
   <meta charset="utf-8">
@@ -18,6 +20,9 @@
     /* base.css yazı tiplerini /vendor/ altından ister; file:// altında aynı dosyalar göreli yoldan */
     @font-face { font-family: 'Geist'; src: url('../../public/vendor/fonts/geist/Geist-wght.woff2') format('woff2'); font-weight: 100 900; font-display: swap; }
     @font-face { font-family: 'Nunito'; src: url('../../public/vendor/fonts/nunito/Nunito-wght.woff2') format('woff2'); font-weight: 200 1000; font-display: swap; }
+    /* piksel.css'teki yazı tipleri (aynı size-adjust ile) */
+    @font-face { font-family: 'Pixelify Sans'; src: url('../../public/vendor/fonts/pixelify-sans/PixelifySans-wght.woff2') format('woff2'); font-weight: 400 700; font-display: swap; size-adjust: 104%; }
+    @font-face { font-family: 'VT323'; src: url('../../public/vendor/fonts/vt323/VT323-Regular.woff2') format('woff2'); font-display: swap; size-adjust: 120%; }
     /* Yalnız vitrin yerleşimi (bileşen kuralı değil) */
     .sc { max-width: 1120px; margin: 0 auto; padding: var(--space-6) var(--space-4) 64px; display: grid; gap: var(--space-6); }
     .sc-head h1 { margin-bottom: var(--space-1); }
@@ -32,6 +37,11 @@
     .sc .pop { position: static; }
     .sc .toast { animation: none; }
     .sc-toasts { display: grid; gap: var(--space-2); max-width: 360px; }
+    .sc-icons { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--space-2); }
+    .sc-icons figure { margin: 0; display: grid; justify-items: center; gap: var(--space-1); padding: var(--space-2); background: var(--surface); border: var(--border-w) solid var(--border); border-radius: var(--radius-s); }
+    .sc-icons .ic.big { width: 32px; height: 32px; }
+    .sc-icons .ic.tiny { width: 14px; height: 14px; }
+    .sc-icons figcaption { font-size: 12px; color: var(--muted); }
     @media (max-width: 720px) {
       .sc-grid { grid-template-columns: 1fr 1fr; }
       .sc-grid > .sc-label { grid-column: 1 / -1; margin-top: var(--space-2); }
@@ -41,19 +51,155 @@
 </head>
 <body>
   <svg id="ui-icons" xmlns="http://www.w3.org/2000/svg" hidden>
-    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
-    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
-    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M17.971 4.285A2 2 0 0 1 21 6v12a2 2 0 0 1-3.029 1.715l-9.997-5.998a2 2 0 0 1-.003-3.432z"/><path d="M3 20V4"/></symbol>
+    <symbol id="i-back5" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><text x="12" y="16.4" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor" stroke="none">5</text></symbol>
+    <symbol id="i-fwd5" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><text x="12" y="16.4" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor" stroke="none">5</text></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.364 18.364a9 9 0 0 0 0-12.728"/></symbol>
+    <symbol id="i-volume-x" viewBox="0 0 24 24"><path d="M11 4.702a.7.7 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.7.7 0 0 0 11 19.298z"/><path d="m16.5 14.5 5-5"/><path d="m16.5 9.5 5 5"/></symbol>
+    <symbol id="i-party" viewBox="0 0 24 24"><path d="M5.8 11.3 2 22l10.7-3.79"/><path d="M4 3h.01"/><path d="M22 8h.01"/><path d="M15 2h.01"/><path d="M22 20h.01"/><path d="m22 2-2.24.75a2.9 2.9 0 0 0-1.96 3.12c.1.86-.57 1.63-1.45 1.63h-.38c-.86 0-1.6.6-1.76 1.44L14 10"/><path d="m22 13-.82-.33c-.86-.34-1.82.2-1.98 1.11c-.11.7-.72 1.22-1.43 1.22H17"/><path d="m11 2 .33.82c.34.86-.2 1.82-1.11 1.98C9.52 4.9 9 5.52 9 6.23V7"/><path d="M11 13c1.93 1.93 2.83 4.17 2 5-.83.83-3.07-.07-5-2-1.93-1.93-2.83-4.17-2-5 .83-.83 3.07.07 5 2Z"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
     <symbol id="i-mic" viewBox="0 0 24 24"><path d="M12 19v3"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><rect x="9" y="2" width="6" height="13" rx="3"/></symbol>
     <symbol id="i-mic-off" viewBox="0 0 24 24"><path d="M12 19v3"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M16.95 16.95A7 7 0 0 1 5 12v-2"/><path d="M18.89 13.23A7 7 0 0 0 19 12v-2"/><path d="m2 2 20 20"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/></symbol>
-    <symbol id="i-music" viewBox="0 0 24 24"><path d="M21 16V3a1 1 0 0 0-1.28-.96l-10 2.917a1 1 0 0 0-.72.96V19"/><circle cx="18" cy="16" r="3"/><circle cx="6" cy="19" r="3"/></symbol>
-    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
-    <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
-    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></symbol>
-    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-gate" viewBox="0 0 24 24"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></symbol>
+    <symbol id="i-screen" viewBox="0 0 24 24"><path d="M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3"/><path d="M8 21h8"/><path d="M12 17v4"/><path d="m17 8 5-5"/><path d="M17 3h5v5"/></symbol>
+    <symbol id="i-rec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24"><path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/></symbol>
+    <symbol id="i-smile" viewBox="0 0 24 24"><path d="M15 10V9"/><path d="M16.472 15a6 6 0 01-8.943 0"/><path d="M9 10V9"/><circle cx="12" cy="12" r="10"/></symbol>
+    <symbol id="i-smile-plus" viewBox="0 0 24 24"><path d="M13.267 2.08a10 10 0 108.653 8.653"/><path d="M15 10V9"/><path d="M16 5h6"/><path d="M16.472 15a6 6 0 01-8.943 0"/><path d="M19 2v6"/><path d="M9 10V9"/></symbol>
     <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
-  </svg>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+    <symbol id="i-like" viewBox="0 0 24 24"><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/><path d="M7 10v12"/></symbol>
+    <symbol id="i-dislike" viewBox="0 0 24 24"><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/><path d="M17 14V2"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><polygon points="3 11 22 2 13 21 11 13 3 11"/></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h1.973a4 4 0 0 0 3.3-1.7l5.454-8.6a4 4 0 0 1 3.3-1.7H22"/><path d="M2 6h1.972a4 4 0 0 1 3.6 2.2"/><path d="M22 18h-6.041a4 4 0 0 1-3.3-1.8l-.359-.45"/></symbol>
+    <symbol id="i-radio" viewBox="0 0 24 24"><path d="M16.247 7.761a6 6 0 0 1 0 8.478"/><path d="M19.075 4.933a10 10 0 0 1 0 14.134"/><path d="M4.925 19.067a10 10 0 0 1 0-14.134"/><path d="M7.753 16.239a6 6 0 0 1 0-8.478"/><circle cx="12" cy="12" r="2"/></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><path d="M21 16V3a1 1 0 0 0-1.28-.96l-10 2.917a1 1 0 0 0-.72.96V19"/><circle cx="18" cy="16" r="3"/><circle cx="6" cy="19" r="3"/></symbol>
+    <symbol id="i-playlist" viewBox="0 0 24 24"><path d="M16 5H3"/><path d="M11 12H3"/><path d="M11 19H3"/><path d="M21 16V5"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 3v12"/><path d="m17 8-5-5-5 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M10 14.66V17a1 1 0 0 1-1 1 2 2 0 0 0-2 2v2"/><path d="M14 14.66V17a1 1 0 0 0 1 1 2 2 0 0 1 2 2v2"/><path d="M17.916 10H19.5A2.5 2.5 0 0 0 22 7.5V5a1 1 0 0 0-1-1h-3"/><path d="M4 22h16"/><path d="M6 9a6 6 0 0 0 12 0V3a1 1 0 0 0-1-1H7a1 1 0 0 0-1 1z"/><path d="M6.084 10H4.5A2.5 2.5 0 0 1 2 7.5V5a1 1 0 0 1 1-1h3"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+    <symbol id="i-unlock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><path d="M10 21H2"/><path d="M10 3H7a2 2 0 00-2 2v16"/><path d="M14 12h.01"/><path d="M19 21V5a2 2 0 00-1.675-1.974l-6.163-1.013A1 1 0 0010 3v18a1 1 0 001.124.992z"/><path d="M22 21h-3"/></symbol>
+    <symbol id="i-crown" viewBox="0 0 24 24"><path d="M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z"/><path d="M5 21h14"/></symbol>
+    <symbol id="i-merge" viewBox="0 0 24 24"><path d="m8 6 4-4 4 4"/><path d="M12 2v10.3a4 4 0 0 1-1.172 2.872L4 22"/><path d="m20 22-5-5"/></symbol>
+    <symbol id="i-split" viewBox="0 0 24 24"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"/><path d="m15 9 6-6"/></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+    <symbol id="i-gamepad" viewBox="0 0 24 24"><line x1="6" x2="10" y1="11" y2="11"/><line x1="8" x2="8" y1="9" y2="13"/><line x1="15" x2="15.01" y1="12" y2="12"/><line x1="18" x2="18.01" y1="10" y2="10"/><path d="M17.32 5H6.68a4 4 0 0 0-3.978 3.59c-.006.052-.01.101-.017.152C2.604 9.416 2 14.456 2 16a3 3 0 0 0 3 3c1 0 1.5-.5 2-1l1.414-1.414A2 2 0 0 1 9.828 16h4.344a2 2 0 0 1 1.414.586L17 18c.5.5 1 1 2 1a3 3 0 0 0 3-3c0-1.545-.604-6.584-.685-7.258-.007-.05-.011-.1-.017-.151A4 4 0 0 0 17.32 5z"/></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><path d="M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+    <symbol id="i-timer" viewBox="0 0 24 24"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+  </svg><!-- /ui-icons -->
+  <template id="icons-piksel"><svg xmlns="http://www.w3.org/2000/svg">
+    <symbol id="i-play" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M15 11h-2V9h2zm0 4h-2v-2h2zm-2 2h-2v-2h2zm0-8h-2V7h2zm-2-2H9V5h2zM9 21H7V3h2zm6-8h2v-2h-2zm-6 4h2v2H9z"/></g></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M10 20H4V4h6v16Zm8-16v16h-6V4h6Zm-4 2v12h2V6h-2ZM6 18h2V6H6v12Z"/></g></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 2h2v2h-2zM18 2h2v2h-2zM4 4h4v2h-4zM18 4h2v2h-2zM4 6h2v2h-2zM8 6h2v2h-2zM18 6h2v2h-2zM4 8h2v2h-2zM10 8h2v2h-2zM18 8h2v2h-2zM4 10h2v2h-2zM12 10h2v2h-2zM18 10h2v2h-2zM4 12h2v2h-2zM12 12h2v2h-2zM18 12h2v2h-2zM4 14h2v2h-2zM10 14h2v2h-2zM18 14h2v2h-2zM4 16h2v2h-2zM8 16h2v2h-2zM18 16h2v2h-2zM4 18h4v2h-4zM18 18h2v2h-2zM4 20h2v2h-2zM18 20h2v2h-2z"/></g></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 2h2v2h-2zM18 2h2v2h-2zM4 4h2v2h-2zM16 4h4v2h-4zM4 6h2v2h-2zM14 6h2v2h-2zM18 6h2v2h-2zM4 8h2v2h-2zM12 8h2v2h-2zM18 8h2v2h-2zM4 10h2v2h-2zM10 10h2v2h-2zM18 10h2v2h-2zM4 12h2v2h-2zM10 12h2v2h-2zM18 12h2v2h-2zM4 14h2v2h-2zM12 14h2v2h-2zM18 14h2v2h-2zM4 16h2v2h-2zM14 16h2v2h-2zM18 16h2v2h-2zM4 18h2v2h-2zM16 18h4v2h-4zM4 20h2v2h-2zM18 20h2v2h-2z"/></g></symbol>
+    <symbol id="i-back5" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M6 0h12v2h-12zM4 2h2v2h-2zM18 2h2v2h-2zM2 4h2v2h-2zM8 4h6v2h-6zM20 4h2v2h-2zM2 6h2v2h-2zM8 6h2v2h-2zM22 6h2v2h-2zM0 8h6v2h-6zM8 8h6v2h-6zM22 8h2v2h-2zM2 10h2v2h-2zM12 10h2v2h-2zM22 10h2v2h-2zM12 12h2v2h-2zM22 12h2v2h-2zM8 14h6v2h-6zM22 14h2v2h-2zM22 16h2v2h-2zM4 18h2v2h-2zM20 18h2v2h-2zM6 20h14v2h-14z"/></g></symbol>
+    <symbol id="i-fwd5" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M6 0h12v2h-12zM4 2h2v2h-2zM18 2h2v2h-2zM2 4h2v2h-2zM10 4h6v2h-6zM20 4h2v2h-2zM0 6h2v2h-2zM10 6h2v2h-2zM20 6h2v2h-2zM0 8h2v2h-2zM10 8h6v2h-6zM18 8h6v2h-6zM0 10h2v2h-2zM14 10h2v2h-2zM20 10h2v2h-2zM0 12h2v2h-2zM14 12h2v2h-2zM0 14h2v2h-2zM10 14h6v2h-6zM0 16h2v2h-2zM2 18h2v2h-2zM18 18h2v2h-2zM4 20h14v2h-14z"/></g></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M13 22h-2v-2H9v-2h2V6H9V4h2V2h2v20Zm-4-4H7v-2h2v2Zm10 0h-4v-2h4v2ZM7 10H5v4h2v2H3V8h4v2Zm14 6h-2V8h2v8Zm-4-2h-2v-4h2v4ZM9 8H7V6h2v2Zm10 0h-4V6h4v2Z"/></g></symbol>
+    <symbol id="i-volume-x" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M13 22h-2v-2H9v-2h2V6H9V4h2V2h2v20Zm-4-4H7v-2h2v2Zm-2-8H5v4h2v2H3V8h4v2Zm10.001 5.224h-2v-2H17v-2h-1.999v-2h2v2H19v2h-1.999v2Zm3.999 0h-2v-2h2v2Zm0-4h-2v-2h2v2ZM9 8H7V6h2v2Z"/></g></symbol>
+    <symbol id="i-party" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 20H6V22H2V18H4V20ZM20 21H18V19H20V21ZM10 20H6V18H10V20ZM6 18H4V14H6V18ZM14 18H10V16H14V18ZM10 16H8V14H10V16ZM16 16H14V12H16V16ZM22 16H20V14H22V16ZM8 14H6V10H8V14ZM20 14H18V12H20V14ZM14 12H12V10H14V12ZM12 10H8V8H12V10ZM20 9H16V7H20V9ZM5 8H3V6H5V8ZM22 7H20V5H22V7ZM12 6H10V4H12V6ZM10 4H8V2H10V4ZM17 4H15V2H17V4Z"/></g></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M17 18h5v2h-5v2h-2v-6h2v2Zm-4 2H2v-2h11v2Zm-4-5H7v-2H2v-2h5V9h2v6Zm13-2H11v-2h11v2Zm-7-9h7v2h-7v2h-2V2h2v2Zm-4 2H2V4h9v2Z"/></g></symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M10 2h4v2h-4zM8 4h2v10H8zm2 10h4v2h-4zm4-10h2v10h-2zM4 10h2v6H4zm2 6h2v2H6zm2 2h8v2H8zm8-2h2v2h-2zm2-6h2v6h-2zm-7 10h2v2h-2z"/></g></symbol>
+    <symbol id="i-mic-off" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M10 2h4v2h-4zM8 8h2v6H8zm2 6h4v2h-4zm4-10h2v6h-2zM4 10h2v6H4zm2 6h2v2H6zm2 2h8v2H8zm8-2h2v2h-2zm-2-2h2v2h-2zm-2-2h2v2h-2zm-2-2h2v2h-2z"/><path d="M8 8h2v2H8zM6 6h2v2H6zM4 4h2v2H4zM2 2h2v2H2zm16 16h2v2h-2zm2 2h2v2h-2zm-2-10h2v4h-2zm-7 10h2v2h-2z"/></g></symbol>
+    <symbol id="i-gate" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M3 7h2v5H3zm4 0h2v13H7zm4-3h2v16h-2zm4 0h2v13h-2zM5 5h2v2H5zm4 15h2v2H9zm4-18h2v2h-2zm4 15h2v2h-2zm2-5h2v5h-2zm2-2h2v2h-2zM1 12h2v2H1z"/></g></symbol>
+    <symbol id="i-screen" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 3h16v2H4zM2 5h2v12H2zm18 0h2v12h-2zM4 17h2v2H4zm14 0h2v2h-2zm-7-2h2v2h-2zm-2 2h4v2H9zm4 0h2v2h-2zm2 2h2v2h-2zm-8 0h8v2H7z"/></g></symbol>
+    <symbol id="i-rec" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M6 2h12v2h-12zM4 4h2v2h-2zM18 4h2v2h-2zM2 6h2v2h-2zM20 6h2v2h-2zM2 8h2v2h-2zM8 8h8v2h-8zM20 8h2v2h-2zM2 10h2v2h-2zM8 10h8v2h-8zM20 10h2v2h-2zM2 12h2v2h-2zM8 12h8v2h-8zM20 12h2v2h-2zM2 14h2v2h-2zM8 14h8v2h-8zM20 14h2v2h-2zM2 16h2v2h-2zM20 16h2v2h-2zM4 18h2v2h-2zM18 18h2v2h-2zM6 20h12v2h-12z"/></g></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M2 4h2v16H2zm2 16h16v2H4zM20 4h2v16h-2zM4 2h16v2H4z"/></g></symbol>
+    <symbol id="i-clip" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M7 7v10H5V7zm12 0v12h-2V7zm-8 2v10H9V9zm4 0v8h-2V9zm0-6v2H9V3zm-2 4v2h-2V7zm4 12v2h-6v-2zm0-14v2h-2V5zM9 5v2H7V5z"/></g></symbol>
+    <symbol id="i-smile" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M6 20h12v2H6zM6 2h12v2H6zm12 2h2v2h-2zM4 4h2v2H4zm0 14h2v2H4zm14 0h2v2h-2zM2 6h2v12H2zm18 0h2v12h-2zM7 13h2v2H7zm2 2h6v2H9zm6-2h2v2h-2zM8 8h2v2H8zm6 0h2v2h-2z"/></g></symbol>
+    <symbol id="i-smile-plus" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M18 0h2v2h-2zM16 2h6v2h-6zM18 4h2v2h-2zM4 6h8v2h-8zM2 8h2v2h-2zM12 8h2v2h-2zM0 10h2v2h-2zM4 10h2v2h-2zM10 10h2v2h-2zM14 10h2v2h-2zM0 12h2v2h-2zM14 12h2v2h-2zM0 14h2v2h-2zM4 14h2v2h-2zM10 14h2v2h-2zM14 14h2v2h-2zM0 16h2v2h-2zM6 16h4v2h-4zM14 16h2v2h-2zM2 18h2v2h-2zM12 18h2v2h-2zM4 20h8v2h-8z"/></g></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M7 19H5V17H7V19ZM19 19H17V17H19V19ZM9 15V17H7V15H9ZM17 17H15V15H17V17ZM11 15H9V13H11V15ZM15 15H13V13H15V15ZM13 13H11V11H13V13ZM11 11H9V9H11V11ZM15 11H13V9H15V11ZM9 9H7V7H9V9ZM17 9H15V7H17V9ZM7 7H5V5H7V7ZM19 7H17V5H19V7Z"/></g></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M13 11h7v2h-7v7h-2v-7H4v-2h7V4h2v7Z"/></g></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M10 18H8v-2h2v2Zm-2-2H6v-2h2v2Zm4-2v2h-2v-2h2Zm-6 0H4v-2h2v2Zm8 0h-2v-2h2v2Zm2-2h-2v-2h2v2Zm2-2h-2V8h2v2Zm2-2h-2V6h2v2Z"/></g></symbol>
+    <symbol id="i-like" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M2 12h2v8H2zm2 8h14v2H4zm14-4h2v4h-2zm2-4h2v4h-2zm-6-2h6v2h-6zm0-2h2v2h-2zm2-4h2v4h-2zm-2-2h2v2h-2zm-2 2h2v2h-2zm-2 2h2v2h-2zM8 8h2v2H8zm-4 2h4v2H4zm2 2h2v8H6z"/></g></symbol>
+    <symbol id="i-dislike" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M2 12h2V4H2zm2-8h14V2H4zm14 4h2V4h-2zm2 4h2V8h-2zm-6 2h6v-2h-6zm0 2h2v-2h-2zm2 4h2v-4h-2zm-2 2h2v-2h-2zm-2-2h2v-2h-2zm-2-2h2v-2h-2zm-2-2h2v-2H8zm-4-2h4v-2H4zm2-2h2V4H6z"/></g></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 19h4v2H2v-8h2v6Zm8 0H8v-2h4v2Zm4-2h-4v-2h4v2Zm4-2h-4v-2h4v2Zm-10-2H4v-2h6v2Zm12 0h-2v-2h2v2ZM8 5H4v6H2V3h6v2Zm12 6h-4V9h4v2Zm-4-2h-4V7h4v2Zm-4-2H8V5h4v2Z"/></g></symbol>
+    <symbol id="i-link" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 6h7v2H4zm0 10h7v2H4zM2 8h2v8H2zm18-2h-7v2h7zm0 10h-7v2h7zm2-8h-2v8h2zM7 11h10v2H7z"/></g></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M8 11h12v2H8zm8-2h2v2h-2z"/><path d="M14 7h2v10h-2zm2 6h2v2h-2zM6 2h12v2H6zm0 18h12v2H6zM4 4h2v16H4zm14 0h2v3h-2zm0 13h2v3h-2z"/></g></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M2 2h6v2h-6zM16 2h6v2h-6zM2 4h2v2h-2zM20 4h2v2h-2zM2 6h2v2h-2zM20 6h2v2h-2zM2 16h2v2h-2zM20 16h2v2h-2zM2 18h2v2h-2zM20 18h2v2h-2zM2 20h6v2h-6zM16 20h6v2h-6z"/></g></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M13 22h-2v-2h2v2Zm-2-2H9v-2h2v2Zm4 0h-2v-2h2v2Zm-6-2H7v-2h2v2Zm8 0h-2v-2h2v2ZM7 16H5v-2h2v2Zm12 0h-2v-2h2v2ZM5 14H3v-2h2v2Zm16 0h-2v-2h2v2ZM3 12H1V6h2v6Zm20 0h-2V6h2v6ZM13 8h-2V6h2v2ZM5 6H3V4h2v2Zm6 0H9V4h2v2Zm4 0h-2V4h2v2Zm6 0h-2V4h2v2ZM9 4H5V2h4v2Zm10 0h-4V2h4v2Z"/></g></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M22 22h-2v-2h2v2Zm-2-2h-2v-2h2v2Zm-6-2H6v-2h8v2Zm4 0h-2v-2h2v2ZM6 16H4v-2h2v2Zm10 0h-2v-2h2v2ZM4 14H2V6h2v8Zm14 0h-2V6h2v8ZM6 6H4V4h2v2Zm10 0h-2V4h2v2Zm-2-2H6V2h8v2Z"/></g></symbol>
+    <symbol id="i-globe" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M6 2h12v2H6zm0 18h12v2H6zM4 4h2v2H4zm5 0h2v2H9zm0 14h2v2H9zm4 0h2v2h-2zM7 6h2v12H7zm8 0h2v12h-2zm-2-2h2v2h-2zm7 0h-2v2h2zM2 6h2v12H2zm20 0h-2v12h2zM4 18h2v2H4zm16 0h-2v2h2z"/><path d="M3 11h18v2H3z"/></g></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M9 5h6v2H9zM7 7h2v2H7zm0 8h2v2H7zm8 0h2v2h-2zm0-8h2v2h-2zm2 2h2v6h-2zm-8 8h6v2H9zM5 9h2v6H5zm14 2h4v2h-4zM1 11h4v2H1zM11 1h2v4h-2zm0 18h2v4h-2z"/></g></symbol>
+    <symbol id="i-minus" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 11h16v2H4z"/></g></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M10 19H2v-2h8v2Zm12 0h-8v-2h8v2Zm-10-2h-2v-6h2v6Zm6-10h2v2h2v2h-2v2h-2v2h-2v-4h-4V9h4V5h2v2ZM8 11H2V9h6v2Z"/></g></symbol>
+    <symbol id="i-radio" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M11 9h2v2h-2zm0 4h2v2h-2zm-2-2h2v2H9zm4 0h2v2h-2zm6-2h-2v6h2zM5 9h2v6H5zm18-2h-2v10h2zM1 7h2v10H1zm16 0h-2v2h2zM7 7h2v2H7zm14-2h-2v2h2zM3 5h2v2H3zm14 10h-2v2h2zM7 15h2v2H7zm14 2h-2v2h2zM3 17h2v2H3z"/></g></symbol>
+    <symbol id="i-music" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 12h4v2H4zm-2 2h2v4H2zm2 4h4v2H4zM8 6h2v12H8zm10 0h2v12h-2zm-6 8h2v4h-2zm2-2h4v2h-4zm0 6h4v2h-4zM10 4h8v2h-8z"/></g></symbol>
+    <symbol id="i-playlist" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M2 2h14v2h-14zM2 6h14v2h-14zM18 6h2v2h-2zM18 8h4v2h-4zM2 10h10v2h-10zM18 10h2v2h-2zM22 10h2v2h-2zM18 12h2v2h-2zM2 14h10v2h-10zM18 14h2v2h-2zM14 16h6v2h-6zM12 18h8v2h-8zM14 20h4v2h-4z"/></g></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M19 21H5v-2h14v2ZM5 19H3v-4h2v4Zm16 0h-2v-4h2v4ZM13 5h2v2h2v2h-4v8h-2V9H7V7h2V5h2V3h2v2Z"/></g></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M8 2h2v2h-2zM8 4h2v2h-2zM6 6h2v2h-2zM10 6h2v2h-2zM6 8h2v2h-2zM10 8h2v2h-2zM6 10h2v2h-2zM10 10h2v2h-2zM0 12h6v2h-6zM12 12h2v2h-2zM18 12h6v2h-6zM12 14h2v2h-2zM18 14h2v2h-2zM12 16h2v2h-2zM18 16h2v2h-2zM14 18h4v2h-4z"/></g></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M13 16h-2v-2h2v2Zm-2-2H9v-2h2v2Zm4 0h-2v-2h2v2Zm-6-2H7v-2h2v2Zm8 0h-2v-2h2v2ZM7 10H5V8h2v2Zm12 0h-2V8h2v2Z"/></g></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M5 2h6v2H5zm10 0h4v2h-4zM5 10h6v2H5zm10 0h4v2h-4zm4-6h2v6h-2zm-8 0h2v6h-2zM3 4h2v6H3zM0 18h2v4H0zm14 0h2v4h-2zm8 0h2v4h-2zM4 14h8v2H4zm12 0h4v2h-4zM2 16h2v2H2zm10 0h2v2h-2zm8 0h2v2h-2z"/></g></symbol>
+    <symbol id="i-trophy" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M16 17H13V19H15V21H9V19H11V17H8V15H16V17ZM18 5H22V11H20V7H18V11H20V13H18V15H16V5H8V15H6V13H4V11H6V7H4V11H2V5H6V3H18V5Z"/></g></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 2h16v2H4zm0 18h16v2H4zM2 4h2v16H2zm18 0h2v16h-2zm-4 8h2v2h-2zm-2 2h2v2h-2zm4 0h2v2h-2zm-8 0h2v2h-2zm2 2h2v2h-2zm2 2h2v2h-2z"/><path d="M20 16h2v2h-2zM8 16h2v2H8zm-2 2h2v2H6zM8 6h2v2H8zM6 8h2v2H6zm2 2h2v2H8zm2-2h2v2h-2z"/></g></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M13 8h-2v2h2V8Zm-2 2H9v2h2v-2Zm4 0h-2v2h2v-2Zm-6 2H7v2h2v-2Zm8 0h-2v2h2v-2ZM7 14H5v2h2v-2Zm12 0h-2v2h2v-2Z"/></g></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M8 13v-2h2v2H8Zm2-2V9h2v2h-2Zm0 4v-2h2v2h-2Zm2-6V7h2v2h-2Zm0 8v-2h2v2h-2Zm2-10V5h2v2h-2Zm0 12v-2h2v2h-2Z"/></g></symbol>
+    <symbol id="i-loader" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M13 22h-2v-6h2v6Zm-6-3H5v-2h2v2Zm12 0h-2v-2h2v2ZM9 17H7v-2h2v2Zm8 0h-2v-2h2v2Zm-9-4H2v-2h6v2Zm14 0h-6v-2h6v2ZM9 9H7V7h2v2Zm8 0h-2V7h2v2Zm-4-1h-2V2h2v6ZM7 7H5V5h2v2Zm12 0h-2V5h2v2Z"/></g></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M5 8h14v2H5zm0 12h14v2H5zM3 10h2v10H3zm16 0h2v10h-2zM7 4h2v4H7zm2-2h6v2H9zm6 2h2v4h-2z"/></g></symbol>
+    <symbol id="i-unlock" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M5 8h14v2H5zm0 12h14v2H5zM3 10h2v10H3zm16 0h2v10h-2zM7 4h2v4H7zm2-2h6v2H9zm6 2h2v2h-2z"/></g></symbol>
+    <symbol id="i-door" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M3 19h18v2H3zM5 5h2v14H5zm2-2h10v2H7zm10 2h2v14h-2zm-8 6h2v2H9z"/></g></symbol>
+    <symbol id="i-crown" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M3 3h2v12H3zm16 0h2v12h-2zm-8 0h2v2h-2zM9 5h2v2H9zM5 5h2v2H5z"/><path d="M3 3h2v2H3zm4 4h2v2H7zm6-2h2v2h-2zm2 2h2v2h-2zm2-2h2v2h-2zM5 15h14v2H5zm-2 4h18v2H3z"/></g></symbol>
+    <symbol id="i-merge" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 2h4v2H4zm0 6h4v2H4zM2 4h2v4H2zm6 0h2v4H8zm8 10h4v2h-4zm0 6h4v2h-4zm-2-4h2v4h-2zm6 0h2v4h-2zM5 12h2v10H5zm7 0h2v2h-2zm-2-2h2v2h-2z"/></g></symbol>
+    <symbol id="i-split" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 14h4v2H4zm0 6h4v2H4zm-2-4h2v4H2zm6 0h2v4H8zm8-14h4v2h-4zm0 6h4v2h-4zm-2-4h2v4h-2zm6 0h2v4h-2zm-8 13h5v2h-5zm5-5h2v5h-2zM5 2h2v10H5z"/></g></symbol>
+    <symbol id="i-palette" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M14 2h6v2h-6zm0 18h6v2h-6zM4 20h10v2H4zm8-16h2v16h-2zm8 0h2v16h-2zM2 16h2v4H2zm2-2h8v2H4zm12 2h2v2h-2zM6 12h2v2H6zM4 8h2v4H4zm2-2h4v2H6zm4 2h2v2h-2z"/></g></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M11 18H3V16H11V18ZM23 15H21V18H17V16H19V13H21V11H11V8H13V9H23V15ZM3 16H1V8H3V16ZM17 16H15V15H13V16H11V13H17V16ZM9 14H5V10H9V14ZM11 8H3V6H11V8Z"/></g></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M9 2h6v2H9zM7 4h2v2H7zm8 0h2v2h-2zM5 6h2v7H5zm12 0h2v7h-2zM3 13h2v4H3zm16 0h2v4h-2z"/><path d="M3 15h18v2H3zm5 3h2v2H8zm6 0h2v2h-2zm-4 2h4v2h-4z"/></g></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M9 2h6v2H9zm0 8h6v2H9zm6-6h2v6h-2zM7 4h2v6H7zM4 18h2v4H4zm14 0h2v4h-2zM8 14h8v2H8zm-2 2h2v2H6zm10 0h2v2h-2z"/></g></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 2h16v2H4zM2 4h2v10H2zm18 0h2v10h-2zM4 14h2v2H4zm2 2h2v2H6zm4 4h4v2h-4zm10-6h-2v2h2zm-2 2h-2v2h2zm-2 2h-2v2h2zm-6 0H8v2h2z"/></g></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 20h16v2H4zm16-10h2v10h-2zM2 10h2v10H2zm2-2h2v2H4zm2-2h2v2H6zm2-2h2v2H8zm2-2h4v2h-4zm4 2h2v2h-2zm2 2h2v2h-2zm2 2h2v2h-2zM8 14h2v6H8zm2-2h4v2h-4zm4 2h2v6h-2z"/></g></symbol>
+    <symbol id="i-gamepad" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 4h16v2H4zm0 14h16v2H4zM2 6h2v12H2zm18 0h2v12h-2zM8 9h2v6H8z"/><path d="M6 11h6v2H6zm8-2h2v2h-2zm2 4h2v2h-2z"/></g></symbol>
+    <symbol id="i-message" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M20 2H4v2h16zm0 14H6v2h14zm2-12h-2v12h2zM4 4H2v18h2zm2 14H4v2h2z"/></g></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M10 5h12v2H10zm0 4h8v2h-8zm0 4h12v2H10zm0 4h8v2h-8zm-4-6H4V9h2v2ZM4 9H2V7h2v2Zm4 0H6V7h2v2ZM6 7H4V5h2v2Zm-2 6h2v2H4zm0 4h2v2H4zm-2 0v-2h2v2zm4 0v-2h2v2z"/></g></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M6 2h12v2H6zM2 6h2v12H2zm18 0h2v12h-2zm-2-2h2v2h-2zM4 4h2v2H4zm2 18h12v-2H6zm12-2h2v-2h-2zM4 20h2v-2H4zm7-14h2v7h-2zm2 7h2v2h-2zm2 2h2v2h-2z"/></g></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M18 22H6V20H18V22ZM9 6H15V4H17V6H22V8H20V20H18V8H6V20H4V8H2V6H7V4H9V6ZM15 4H9V2H15V4Z"/></g></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 16H6V18H8V20H10V22H2V14H4V16ZM12 20H10V18H12V20ZM14 18H12V16H14V18ZM10 16H8V14H10V16ZM16 16H14V14H16V16ZM6 14H4V12H6V14ZM12 14H10V12H12V14ZM18 14H16V12H18V14ZM8 12H6V10H8V12ZM14 12H12V10H14V12ZM20 12H18V10H20V12ZM10 10H8V8H10V10ZM18 10H16V8H18V10ZM22 10H20V8H22V10ZM12 8H10V6H12V8ZM16 8H14V6H16V8ZM20 8H18V6H20V8ZM14 6H12V4H14V6ZM18 6H16V4H18V6ZM16 4H14V2H16V4Z"/></g></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M8 6h12v2H8zM4 2h12v2H4zm2 6h2v12H6zM2 4h2v12H2zm6 16h12v2H8zM20 8h2v12h-2zm-4-4h2v2h-2zM4 16h2v2H4z"/></g></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 2h16v2H4zm0 18h16v2H4zM2 4h2v16H2zm18 0h2v16h-2zm-9 5h2V7h-2zm0 8h2v-6h-2z"/></g></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M10 0h4v2h-4zM8 2h2v2h-2zM14 2h2v2h-2zM8 4h2v2h-2zM14 4h2v2h-2zM6 6h2v2h-2zM16 6h2v2h-2zM6 8h2v2h-2zM10 8h4v2h-4zM16 8h2v2h-2zM4 10h2v2h-2zM10 10h4v2h-4zM18 10h2v2h-2zM4 12h2v2h-2zM10 12h4v2h-4zM18 12h2v2h-2zM2 14h2v2h-2zM20 14h2v2h-2zM2 16h2v2h-2zM10 16h4v2h-4zM20 16h2v2h-2zM0 18h2v2h-2zM22 18h2v2h-2zM0 20h24v2h-24z"/></g></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M5 7h14v2H5zm0 12h14v2H5zM3 9h2v10H3zm16 0h2v10h-2zM1 13h2v2H1zm20 0h2v2h-2zM11 5h2v2h-2zM7 3h4v2H7zm1 9h2v4H8zm6 0h2v4h-2z"/></g></symbol>
+    <symbol id="i-timer" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M16 22H8v-2h8v2Zm-8-2H6v-4h2v4Zm10 0h-2v-4h2v4Zm-8-4H8v-2h2v2Zm6 0h-2v-2h2v2Zm-6-6h4v4h-4v-4Zm0 0H8V8h2v2Zm6 0h-2V8h2v2ZM8 8H6V4h2v4Zm10 0h-2V4h2v4Zm-2-4H8V2h8v2Z"/></g></symbol>
+    <symbol id="i-undo" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M18 20h-6v-2h6v2Zm2-2h-2v-8h2v8Zm-10-4H8v-2H6v-2H4V8h2V6h2V4h2v4h8v2h-8v4Z"/></g></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M11 1h2v4h-2zm0 22h2v-4h-2zM9 5h2v4H9zm0 14h2v-4H9zm4-14h2v4h-2zm0 14h2v-4h-2zM5 9h4v2H5zm14 0h-4v2h4zM1 11h4v2H1zm22 0h-4v2h4zM5 13h4v2H5zm14 0h-4v2h4zm0-12h2v6h-2z"/><path d="M17 3h6v2h-6zM3 17h2v2H3zm-2 2h2v2H1zm2 2h2v2H3zm2-2h2v2H5z"/></g></symbol>
+    <symbol id="i-more" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M3 9h2v2H3zm8 0h2v2h-2zm8 0h2v2h-2zM1 11h2v2H1zm8 0h2v2H9zm8 0h2v2h-2zM3 13h2v2H3zm8 0h2v2h-2zm8 0h2v2h-2zM5 11h2v2H5zm8 0h2v2h-2zm8 0h2v2h-2z"/></g></symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges"><path d="M4 20h3v-2h4v4h2v-4h4v2h-2v4H9v-4H7v2H2v-5h2v3Zm18 2h-5v-2h3v-3h2v5ZM6 11H2v2h4v4H4v-2H0V9h4V7h2v4Zm14-2h4v6h-4v2h-2v-4h4v-2h-4V7h2v2Zm-6 7h-4v-2h4v2Zm-4-2H8v-4h2v4Zm6 0h-2v-4h2v4Zm-2-4h-4V8h4v2ZM7 4H4v3H2V2h5v2Zm8 0h2V2h5v5h-2V4h-3v2h-4V2h-2v4H7V4h2V0h6v4Z"/></g></symbol>
+  </svg></template><!-- /icons-piksel -->
 
   <main class="sc">
     <header class="sc-head">
@@ -300,6 +446,23 @@
         <div class="toast toast-danger"><svg class="ic"><use href="#i-info"></use></svg>Sunucu bağlantısı koptu, yeniden bağlanılıyor…</div>
       </div>
     </section>
+    <section>
+      <h2>İkonlar (temanın seti, 32 / 18 / 14 px)</h2>
+      <div class="sc-icons" id="sc-icons"></div>
+    </section>
   </main>
+  <script>
+    // ?tema=<id>: tema dosyasını değiştirir; piksel temada ikon seti de "icons-piksel" şablonu olur.
+    const tema = new URLSearchParams(location.search).get('tema');
+    if (/^[a-z]+$/.test(tema || '')) {
+      document.getElementById('theme-css').href = `../../public/themes/${tema}.css`;
+      document.documentElement.dataset.theme = tema;
+      const set = document.getElementById(`icons-${tema}`);
+      if (set) document.getElementById('ui-icons').replaceChildren(...set.content.cloneNode(true).firstElementChild.children);
+    }
+    const use = (id, cls = '') => `<svg class="ic ${cls}"><use href="#${id}"></use></svg>`;
+    document.getElementById('sc-icons').innerHTML = [...document.querySelectorAll('#ui-icons symbol')]
+      .map((s) => `<figure>${use(s.id, 'big')}<span>${use(s.id)} ${use(s.id, 'tiny')}</span><figcaption>${s.id.slice(2)}</figcaption></figure>`).join('');
+  </script>
 </body>
 </html>

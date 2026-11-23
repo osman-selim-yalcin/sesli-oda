@@ -1,0 +1,94 @@
+/* Tema: Piksel Oda. Sıcak bir retro oyun konsolu: derin lacivert-çivit gece zemini, kalın 2 px çerçeveli köşeli
+   paneller, bulanıklığı olmayan blok gölgeler, 16 renk paletinden sınırlı renkler: tek parlak vurgu (elektrik camgöbeği),
+   jeton sarısı (--accent-2: yalnız skor, taç, "senin sıran"), 1-up yeşili (--live), hasar kırmızısı (--danger).
+   Geniş alanlar sakin; gövde yazısı neon değil, saatlerce sohbet için kırık beyaz.
+   Kendi yazı tipleri (Pixelify Sans başlık ve düğmede, VT323 gövdede) ve kendi piksel ikon seti (icons/ui/piksel.svg).
+   Bir tema dosyası değişken sözleşmesinin hepsini tanımlar (sözleşme ve yedek değerler: css/base.css).
+   Kontrast (WCAG): --muted, --accent, --live, --danger, --accent-2 her yüzeyde (--surface-3 dahil) en az 4,5:1;
+   --accent-contrast / --danger-contrast dolu zeminlerinde en az 4,5:1. */
+
+/* Yazı tipleri yalnız bu tema yüklenince iner (SIL OFL 1.1, lisanslar dosyaların yanında).
+   Kaynak: github.com/google/fonts (ofl/pixelifysans, ofl/vt323), TTF'ten woff2'ye çevrildi, alt küme yok.
+   size-adjust: kurallar 12–15 px ister; iki piksel yüzü de bu boyda Geist/Nunito'dan küçük görünür, aynı boyda
+   okunacak kadar büyütülür (sabit px kurallarına dokunmadan). Dosya inmezse yedek yazı tipiyle açılır (swap). */
+@font-face {
+  font-family: 'Pixelify Sans';
+  src: url('/vendor/fonts/pixelify-sans/PixelifySans-wght.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 104%;
+}
+@font-face {
+  font-family: 'VT323';
+  src: url('/vendor/fonts/vt323/VT323-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+  size-adjust: 120%;
+}
+
+:root {
+  color-scheme: dark;
+
+  --bg: #13152F;
+  --surface: #1B1E42;
+  --surface-2: #232753;
+  --surface-3: #2D3266;
+  --surface-raised: #2D3266;  /* bildirim, tier kartı, kaydırmaca parçası: en açık kat */
+  --emphasis: #EEEAF8;        /* hedef sayı, "Senin sayın": ters blok */
+  --emphasis-text: #13152F;
+  --border: #353A78;
+  --border-strong: #5058A6;
+  --text: #EEEAF8;
+  --muted: #A4A8D4;           /* --surface-3 üstünde 5,19:1 */
+  --accent: #5AD8F0;          /* elektrik camgöbeği; pembe de denendi, tehlike kırmızısına fazla yakındı */
+  --accent-contrast: #13152F;
+  --accent-soft: rgba(90, 216, 240, .15);
+  --accent-2: #FFD23F;        /* jeton sarısı */
+  --live: #5BE37A;            /* 1-up yeşili */
+  --live-soft: rgba(91, 227, 122, .14);
+  --danger: #FF7C7C;          /* hasar kırmızısı */
+  --danger-soft: rgba(255, 124, 124, .13);
+  --danger-contrast: #13152F;
+  --overlay: rgba(8, 9, 26, .78);
+  --avatar-text: #FFFFFF;
+  --on-media: #EEEAF8;
+  --on-media-accent: #5AD8F0;
+  --ink-mix: 50%;             /* oyuncu renkleri yazıyken %50 --text'e karışır: kendi renkli kelime satırında da 4,5:1 */
+
+  --font-display: 'Pixelify Sans', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-body: 'VT323', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-mono: 'VT323', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-control: 'Pixelify Sans', ui-monospace, 'SF Mono', Menlo, monospace; /* düğme, sekme, rozet */
+  /* VT323'ün tek ağırlığı var: tarayıcının yapay kalını (bulanık leke) yerine kalın yazı aynı kalır; vurgu renk ve
+     başlık yüzüyle verilir. Pixelify Sans'ın gerçek 400–700 ağırlıkları etkilenmez. */
+  font-synthesis: none;
+
+  --radius-s: 0;
+  --radius-m: 0;
+  --radius-l: 0;
+  --radius-pill: 0;
+  --radius-round: 0;          /* avatar, canlı nokta, kaydırıcı topu: kare piksel */
+  --border-w: 2px;
+
+  /* Bulanıklıksız blok gölgeler */
+  --shadow-1: 2px 2px 0 #090A1C;
+  --shadow-2: 4px 4px 0 #090A1C;
+  --btn-shadow: 3px 3px 0 #090A1C;
+  --press: translate(3px, 3px); /* basılı düğme gölgesinin içine kayar */
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --ease: steps(3, end);      /* geçişler basamaklı, yumuşak kayma değil */
+
+  /* Basamaklı sert odak halkası: zemin renginde 2 px boşluk + 2 px vurgu, bulanıklık yok */
+  --focus-ring: 0 0 0 2px #13152F, 0 0 0 4px #5AD8F0;
+}

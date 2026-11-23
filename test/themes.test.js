@@ -44,14 +44,14 @@ const listed = async (id) => (await http(srv.url, 'GET', '/rooms', { token: ADMI
 // Belirtilen süre içinde olay gelmemeli.
 const silent = (s, event, ms = 400) => next(s, event, ms).then((d) => assert.fail(`${event} gelmemeliydi: ${JSON.stringify(d)}`), () => {});
 
-test('test önyüklemesiyle tema listesinde Gece Odası, Aydınlık Oda ve denemelik tema var; dosyaları sunulur', async () => {
+test('test önyüklemesiyle tema listesinde Gece Odası, Aydınlık Oda, Piksel Oda ve denemelik tema var; dosyaları sunulur', async () => {
   const r = await http(srv.url, 'GET', '/theme-list');
   assert.equal(r.status, 200);
-  assert.deepEqual(r.json.themes.map((t) => t.id), ['gece', 'aydinlik', 'deneme']);
+  assert.deepEqual(r.json.themes.map((t) => t.id), ['gece', 'aydinlik', 'piksel', 'deneme']);
   const aydinlik = await fetch(`${srv.url}/themes/aydinlik.css`);
   assert.equal(aydinlik.status, 200);
   assert.match(await aydinlik.text(), /color-scheme: light/);
-  const deneme = r.json.themes[2];
+  const deneme = r.json.themes[3];
   assert.equal(deneme.icons, 'deneme');
   for (const k of ['bg', 'surface', 'text', 'accent']) assert.match(deneme.preview[k], /^#[0-9A-F]{6}$/i);
   const css = await fetch(`${srv.url}/themes/deneme.css`);
@@ -68,11 +68,11 @@ test('denemelik tema önyükleme olmadan yok: rooms.js listesi, public/ ve istem
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/SUPABASE|TURN|CF_/.test(k)));
   const out = spawnSync(process.execPath, ['-e', "const r = require('./rooms'); process.stdout.write(JSON.stringify({ themes: r.THEMES, info: r.THEME_INFO }))"], { cwd: ROOT, env, encoding: 'utf8' });
   assert.equal(out.status, 0, out.stderr);
-  assert.deepEqual(JSON.parse(out.stdout), { themes: ['gece', 'aydinlik'], info: {} });
+  assert.deepEqual(JSON.parse(out.stdout), { themes: ['gece', 'aydinlik', 'piksel'], info: {} });
   assert.ok(!fs.existsSync(path.join(ROOT, 'public/themes/deneme.css')), 'deneme.css public/ altında olmamalı');
   assert.ok(!fs.existsSync(path.join(ROOT, 'public/icons/ui/deneme.svg')));
   const themeJs = fs.readFileSync(path.join(ROOT, 'public/theme.js'), 'utf8');
-  assert.deepEqual(JSON.parse(themeJs.match(/const LIST = (\[[^\]]*\])/)[1].replace(/'/g, '"')), ['gece', 'aydinlik']);
+  assert.deepEqual(JSON.parse(themeJs.match(/const LIST = (\[[^\]]*\])/)[1].replace(/'/g, '"')), ['gece', 'aydinlik', 'piksel']);
   for (const f of ['server.js', 'rooms.js', 'public/theme.js', 'public/lobby.js', 'public/app.js']) {
     assert.ok(!/['"`/]deneme(\.css|\.svg|['"`])/.test(fs.readFileSync(path.join(ROOT, f), 'utf8')), `${f} denemelik temayı tanımamalı`);
   }
@@ -89,6 +89,29 @@ test('Aydınlık Oda: istemci tablolarında (ad, ikon seti, önizleme) ve sunucu
   assert.equal((await patch('tema-oda', OWNER, { theme: 'gece' })).status, 200);
 });
 
+test('Piksel Oda: kayıt, kendi yazı tipleri ve piksel ikon seti sunulur; sahip seçebilir', async () => {
+  const themeJs = fs.readFileSync(path.join(ROOT, 'public/theme.js'), 'utf8');
+  assert.match(themeJs, /NAMES = \{[^}]*piksel: 'Piksel Oda'/);
+  assert.match(themeJs, /ICON_SETS = \{[^}]*piksel: 'piksel'/);
+  assert.match(themeJs, /\n\s+piksel: \{ bg: '#[0-9A-F]{6}', surface: '#[0-9A-F]{6}', text: '#[0-9A-F]{6}', accent: '#[0-9A-F]{6}' \}/i);
+  const css = await (await fetch(`${srv.url}/themes/piksel.css`)).text();
+  assert.match(css, /color-scheme: dark/);
+  // Yazı tipleri yalnız tema dosyasında, woff2, swap; dosyaları ve lisansları sunuluyor
+  const fonts = [...css.matchAll(/@font-face \{[\s\S]*?\}/g)].map((m) => m[0]);
+  assert.equal(fonts.length, 2);
+  for (const f of fonts) {
+    assert.match(f, /font-display: swap/);
+    const url = f.match(/url\('([^']+\.woff2)'\) format\('woff2'\)/)[1];
+    const res = await fetch(srv.url + url);
+    assert.equal(res.status, 200, url);
+    assert.ok(fs.existsSync(path.join(ROOT, 'public', path.dirname(url), 'OFL.txt')), `${url} lisansı yok`);
+  }
+  const icons = await fetch(`${srv.url}/icons/ui/piksel.svg`);
+  assert.equal(icons.status, 200);
+  assert.equal((await patch('tema-oda', OWNER, { theme: 'piksel' })).status, 200);
+  assert.equal((await listed('tema-oda')).theme, 'piksel');
+  assert.equal((await patch('tema-oda', OWNER, { theme: 'gece' })).status, 200);
+});
 test('tema yetkisi: üye ve başka odanın sahibi 403; sahip ve site yöneticisi 200', async () => {
   const uye = await user('Temauye');
   assert.equal((await join(uye, 'tema-oda')).error, undefined);

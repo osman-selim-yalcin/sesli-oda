@@ -36,7 +36,7 @@
   width: 720px;
   height: 480px;
   translate: -50% -50%;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 9%, transparent), transparent);
   animation: drift 22s ease-in-out infinite alternate;
 }
@@ -90,11 +90,11 @@
   font-size: 13px;
 }
 .join-status:has(#room-status:empty) { visibility: hidden; }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
+.status-dot { width: 7px; height: 7px; border-radius: var(--radius-round); background: var(--border-strong); flex-shrink: 0; }
 .join-status.is-live .status-dot { background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
 
 /* Profil satırı (odadaki ayarlar penceresi) ve hesap penceresi ortak parçaları */
-.account-avatar { padding: 0; border: none; background: none; border-radius: 50%; }
+.account-avatar { padding: 0; border: none; background: none; border-radius: var(--radius-round); }
 .account-avatar:hover { background: none; opacity: .85; }
 .account-text { min-width: 0; }
 .account-text strong { display: block; font-size: 17px; overflow: hidden; text-overflow: ellipsis; }
@@ -375,7 +375,7 @@ button.topbar-settings:active:not(:disabled) { transform: none; background: var(
   height: 56px;
   padding: 14px;
   margin-bottom: var(--space-3);
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--accent-soft);
   color: var(--accent);
   stroke-width: 1.75;
@@ -473,7 +473,7 @@ input.range::-webkit-slider-thumb {
   height: 14px;
   margin-top: -5px;
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--text);
   box-shadow: var(--shadow-1);
   transition: box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
@@ -484,7 +484,7 @@ input.range:focus-visible::-webkit-slider-thumb { box-shadow: var(--focus-ring);
 input.range:focus-visible::-moz-range-thumb { box-shadow: var(--focus-ring); }
 input.range::-moz-range-track { height: 4px; border-radius: var(--radius-pill); background: var(--border-strong); }
 input.range::-moz-range-progress { height: 4px; border-radius: var(--radius-pill); background: var(--accent); }
-input.range::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: 50%; background: var(--text); }
+input.range::-moz-range-thumb { width: 14px; height: 14px; border: none; border-radius: var(--radius-round); background: var(--text); }
 input.range:disabled { opacity: .35; cursor: not-allowed; }
 
 /* Araç satırı: solda tepkiler, sağda ses efektleri, ekran, kayıt, Enver (telefonda son üçü "daha fazla"da) */
@@ -607,7 +607,7 @@ button.people-btn:hover:where(:not(:disabled)) { background: var(--surface-2); b
   font-size: 12px;
   font-weight: 700;
 }
-.rec-banner::before { content: ''; display: inline-block; width: 8px; height: 8px; margin: 0 var(--space-2) 1px 0; border-radius: 50%; background: currentColor; animation: blink 1.2s infinite; }
+.rec-banner::before { content: ''; display: inline-block; width: 8px; height: 8px; margin: 0 var(--space-2) 1px 0; border-radius: var(--radius-round); background: currentColor; animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .25; } }
 .mic-note { padding: 6px var(--space-2); font-size: 12px; }
 .people-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-1); min-width: 0; }
@@ -645,7 +645,7 @@ button.person:active:not(:disabled) { transform: none; }
   height: 20px;
   display: none;
   place-items: center;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--danger);
   color: var(--danger-contrast);
   box-shadow: 0 0 0 2px var(--avatar-gap);
@@ -659,7 +659,7 @@ button.person:active:not(:disabled) { transform: none; }
   width: 11px;
   height: 11px;
   display: none;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--danger);
   box-shadow: 0 0 0 2px var(--avatar-gap);
   animation: blink 1.2s infinite;
@@ -702,7 +702,7 @@ button.person:active:not(:disabled) { transform: none; }
 .panel-tabs .tab { flex: 1; min-height: 48px; gap: 6px; padding: 0 var(--space-2); }
 .panel-tabs .tab .ic { width: 16px; height: 16px; }
 .panel-tabs .tab .count { margin-left: 2px; }
-.unread-dot { display: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+.unread-dot { display: none; width: 7px; height: 7px; border-radius: var(--radius-round); background: var(--accent); flex-shrink: 0; }
 .has-unread .unread-dot { display: inline-block; }
 .room:not([data-pane=list]) .side .list-panel, .room[data-pane=list] .side .chat { display: none; }
 
@@ -746,7 +746,7 @@ button.send {
   padding: 0;
   flex-shrink: 0;
   border: none;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--accent);
   color: var(--accent-contrast);
 }
@@ -843,7 +843,7 @@ button.send .ic { width: 18px; height: 18px; margin-left: -2px; }
   right: -6px;
   width: 18px;
   height: 18px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--surface-3);
   border: var(--border-w) solid var(--border-strong);
   display: none;
@@ -885,7 +885,7 @@ button.send .ic { width: 18px; height: 18px; margin-left: -2px; }
   font-weight: 600;
 }
 #screen-label { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#screen-label::before { content: ''; display: inline-block; width: 8px; height: 8px; margin: 0 var(--space-2) 1px 2px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
+#screen-label::before { content: ''; display: inline-block; width: 8px; height: 8px; margin: 0 var(--space-2) 1px 2px; border-radius: var(--radius-round); background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
 .screen-actions { display: flex; gap: 6px; flex-shrink: 0; }
 #screen-video { display: block; width: 100%; max-height: min(70vh, calc(100dvh - var(--topbar-h) - 160px)); background: var(--bg); }
 
@@ -923,7 +923,9 @@ dialog.room-settings[open] { display: flex; flex-direction: column; }
   position: relative;
   display: flex;
   flex-direction: column;
-  flex: 0 1 156px;
+  /* telefonda iki sütun kalsın: kalın çerçeveli temada da (156 px iki kutu + aralık sığmayabilir) */
+  flex: 0 1 calc((100% - var(--space-3)) / 2);
+  max-width: 156px;
   min-width: 0;
   border: var(--border-w) solid var(--border);
   border-radius: var(--radius-m);
@@ -1080,7 +1082,7 @@ dialog.merge-dialog[open] { display: grid; gap: var(--space-3); }
   button.screen-strip[hidden] { display: none; }
   button.screen-strip:hover:where(:not(:disabled)) { background: var(--live-soft); border-color: var(--border); }
   button.screen-strip:active:not(:disabled) { transform: none; }
-  .screen-strip-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; background: var(--live); animation: blink 1.2s infinite; }
+  .screen-strip-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: var(--radius-round); background: var(--live); animation: blink 1.2s infinite; }
   .screen-strip-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
   .screen-strip-go { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--live); }
   .screen-strip-go .ic { width: 15px; height: 15px; }
@@ -1499,7 +1501,7 @@ button.room-card.is-full { cursor: not-allowed; }
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--surface-3);
   color: var(--text);
   font-weight: 700;
@@ -1507,7 +1509,7 @@ button.room-card.is-full { cursor: not-allowed; }
 }
 .room-faces-none { color: var(--muted); font-size: 13px; line-height: 28px; }
 .room-occ { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; color: var(--muted); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.room-occ::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--border-strong); }
+.room-occ::before { content: ''; width: 7px; height: 7px; border-radius: var(--radius-round); background: var(--border-strong); }
 .room-occ.is-live { color: var(--text); }
 .room-occ.is-live::before { background: var(--live); box-shadow: 0 0 0 3px var(--live-soft); }
 /* Eylem: kartın içinde düğme görünümlü yazı (kartın kendisi düğmedir); üzerine gelince birincil */
@@ -1548,7 +1550,7 @@ button.room-card.is-busy .room-go {
   border-radius: var(--radius-l);
   background: var(--surface);
 }
-.room-empty-icon { width: 52px; height: 52px; padding: 14px; border-radius: 50%; background: var(--surface-2); color: var(--muted); }
+.room-empty-icon { width: 52px; height: 52px; padding: 14px; border-radius: var(--radius-round); background: var(--surface-2); color: var(--muted); }
 .room-empty-title { margin: var(--space-2) 0 0; font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
 .room-empty-text { margin: 0; max-width: 420px; color: var(--muted); }
 .room-empty .btn { margin-top: var(--space-2); }
@@ -1596,7 +1598,7 @@ button.room-card.is-busy .room-go {
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 12px;
@@ -1671,7 +1673,7 @@ button.room-card.is-busy .room-go {
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   border: var(--border-w) solid var(--border);
   background: var(--surface-2);
   color: var(--text);
@@ -1684,7 +1686,7 @@ button.room-card.is-busy .room-go {
 .account-dialog > .dialog-head { align-items: center; margin-bottom: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-4); border-bottom: var(--border-w) solid var(--border); }
 .account-dialog .dialog-close { margin: 0; align-self: flex-start; }
 .account { display: flex; align-items: center; gap: var(--space-3); flex: 1; min-width: 0; }
-.account-dialog .account-avatar { border-radius: 50%; }
+.account-dialog .account-avatar { border-radius: var(--radius-round); }
 .account-dialog .account-avatar .avatar { width: 52px; height: 52px; font-size: 22px; }
 .account-dialog .account-text { display: grid; gap: 2px; }
 .account-dialog .account-text strong { font-family: var(--font-display); font-size: 17px; font-weight: 600; white-space: nowrap; }

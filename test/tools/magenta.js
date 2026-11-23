@@ -43,7 +43,7 @@ const CONTRACT = {
   '#00FF00': ['--text', '--muted', '--accent-contrast', '--danger-contrast', '--avatar-text', '--on-media', '--emphasis-text'],
   '#FFFF00': ['--border', '--border-strong'],
 };
-const EXTRA = { '--ink-mix': '0%', '--shadow-1': '0 0 0 1px #FF00FF', '--shadow-2': '0 0 0 1px #FF00FF', '--focus-ring': '0 0 0 3px #FF00FF' };
+const EXTRA = { '--ink-mix': '0%', '--shadow-1': '0 0 0 1px #FF00FF', '--shadow-2': '0 0 0 1px #FF00FF', '--btn-shadow': '0 0 0 1px #FF00FF', '--focus-ring': '0 0 0 3px #FF00FF' };
 
 function parseArgs(argv) {
   const opts = { wait: 800, magenta: true, full: false };

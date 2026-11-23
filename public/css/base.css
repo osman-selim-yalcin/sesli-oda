@@ -18,8 +18,14 @@
                çizilen halka ve noktalar, her temada açık renk;
                --ink-mix: içerik renkleri (oyuncu rengi, kelime oyununun sıcak rengi) yazı olarak kullanılınca
                --text'e bu oranda karışır ki temanın yüzeyinde okunsun; koyu temada 0%)
-     Yazı:    --font-display (başlık) --font-body (gövde) --font-mono
-     Biçim:   --radius-s --radius-m --radius-l --radius-pill --border-w --shadow-1 --shadow-2 --focus-ring
+     Yazı:    --font-display (başlık) --font-body (gövde) --font-mono --font-control
+              (--font-control: düğme, sekme ve rozetin yazı tipi; "initial" ise (Gece, Aydınlık)
+               denetim bulunduğu yerin yazı tipini alır, yani bugünkü gibi; piksel temada başlık yüzü)
+     Biçim:   --radius-s --radius-m --radius-l --radius-pill --radius-round --border-w --shadow-1 --shadow-2 --focus-ring
+              --btn-shadow --press
+              (--radius-round: yuvarlak şeyler: avatar, canlı nokta, dönen halka, kaydırıcı topu; köşeli temada 0;
+               --btn-shadow: dolu düğmelerin (.btn, birincil, tehlike) gölgesi, yoksa none;
+               --press: basılı düğmenin dönüşümü; köşeli temada düğme gölgesinin içine kayar)
      Aralık:  --space-1 … --space-6 (4, 8, 12, 16, 24, 32 px)
      Hareket: --dur-fast (120ms) --dur (200ms) --ease
    --accent-2 yalnız skor, taç ve "senin sıran" içindir.
@@ -62,15 +68,19 @@
   --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-control: initial;
 
   --radius-s: 8px;
   --radius-m: 12px;
   --radius-l: 16px;
   --radius-pill: 999px;
+  --radius-round: 50%;
   --border-w: 1px;
 
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .4);
   --shadow-2: 0 16px 40px rgba(0, 0, 0, .5), 0 0 0 1px rgba(255, 255, 255, .03);
+  --btn-shadow: none;
+  --press: scale(.97);
 
   --space-1: 4px;
   --space-2: 8px;
@@ -227,6 +237,7 @@ select option { background: var(--surface-2); color: var(--text); }
    .btn ailesi hap biçimlidir. */
 button {
   font: inherit;
+  font-family: var(--font-control, inherit);
   cursor: pointer;
   border-radius: var(--radius-s);
   border: var(--border-w) solid var(--border);
@@ -241,7 +252,7 @@ button {
     color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 button:hover:where(:not(:disabled)) { background: var(--surface-3); border-color: var(--border-strong); }
-button:active:not(:disabled) { transform: scale(.97); }
+button:active:not(:disabled) { transform: var(--press); }
 button:disabled { opacity: .45; cursor: not-allowed; }
 button:focus-visible, .btn:focus-visible, .attach:focus-within, summary:focus-visible, a:focus-visible {
   outline: 2px solid var(--accent);
@@ -263,7 +274,7 @@ button:focus-visible, .btn:focus-visible, .attach:focus-within, summary:focus-vi
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  font-family: inherit;
+  font-family: var(--font-control, inherit);
   cursor: pointer;
   border: var(--border-w) solid var(--border);
   background: var(--surface-2);
@@ -273,7 +284,12 @@ button:focus-visible, .btn:focus-visible, .attach:focus-within, summary:focus-vi
     color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
 }
 .btn:hover:where(:not(:disabled)) { background: var(--surface-3); border-color: var(--border-strong); }
-.btn:active:not(:disabled) { transform: scale(.97); }
+.btn:active:not(:disabled) { transform: var(--press); }
+/* Dolu düğmelerin gölgesi (--btn-shadow; Gece ve Aydınlık'ta yok). Basılınca gölge kalkar, düğme --press ile
+   gölgenin yerine kayar. Hayalet, bağlantı ve sekme düğmeleri gölgesizdir. Sıfır özgüllük: özel kurallar kazanır. */
+:where(.btn:not(.btn-ghost, .btn-link), button.primary, button.danger:not(.ghost), button.off) { box-shadow: var(--btn-shadow); }
+:where(.btn:not(.btn-ghost, .btn-link), button.primary, button.danger:not(.ghost), button.off):where(:active:not(:disabled)) { box-shadow: none; }
+:where(.btn, button.primary, button.danger, button.off):where(:disabled) { box-shadow: none; }
 /* Basılı: yüzey bir kat daha koyulaşır (yalnız ölçek değişimi fark edilmiyordu) */
 .btn:active:where(:not(:disabled)) { background: var(--border-strong); border-color: var(--border-strong); }
 .btn:disabled, .btn[aria-disabled=true] { opacity: .45; cursor: not-allowed; }
@@ -456,6 +472,7 @@ button.round { border-radius: var(--radius-pill); }
   border-radius: var(--radius-pill);
   background: var(--surface-3);
   color: var(--muted);
+  font-family: var(--font-control, inherit);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -465,7 +482,7 @@ button.round { border-radius: var(--radius-pill); }
 }
 .badge .ic { width: 12px; height: 12px; }
 .badge-live { background: var(--live-soft); color: var(--live); }
-.badge-live::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge-live::before { content: ''; width: 6px; height: 6px; border-radius: var(--radius-round); background: currentColor; }
 .badge-lock { background: transparent; border: var(--border-w) solid var(--border); }
 .badge-accent { background: var(--accent-soft); color: var(--accent); }
 .count { height: 18px; min-width: 18px; padding: 0 6px; justify-content: center; font-size: 11px; }
@@ -475,7 +492,7 @@ button.round { border-radius: var(--radius-pill); }
 .avatar {
   width: 32px;
   height: 32px;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   display: grid;
   place-items: center;
   background: var(--surface-3);
@@ -489,7 +506,7 @@ button.round { border-radius: var(--radius-pill); }
   transition: box-shadow var(--dur-fast) var(--ease);
   user-select: none;
 }
-.avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: var(--radius-round); display: block; }
 .avatar-sm { width: 24px; height: 24px; font-size: 11px; }
 .avatar-md { width: 32px; height: 32px; font-size: 14px; }
 .avatar-lg { width: 48px; height: 48px; font-size: 20px; }
@@ -533,7 +550,7 @@ button.round { border-radius: var(--radius-pill); }
   color: var(--muted);
   font-size: 13px;
 }
-.empty > .ic { width: 40px; height: 40px; padding: 10px; margin-bottom: var(--space-2); border-radius: 50%; background: var(--surface-2); color: var(--muted); }
+.empty > .ic { width: 40px; height: 40px; padding: 10px; margin-bottom: var(--space-2); border-radius: var(--radius-round); background: var(--surface-2); color: var(--muted); }
 .empty-title { margin: 0; color: var(--text); font-size: 14px; font-weight: 600; }
 .empty p { margin: 0; }
 .empty .btn { margin-top: var(--space-3); }
@@ -546,7 +563,7 @@ button.round { border-radius: var(--radius-pill); }
   height: 14px;
   border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
   border-top-color: currentColor;
-  border-radius: 50%;
+  border-radius: var(--radius-round);
   animation: spin .8s linear infinite;
 }
 

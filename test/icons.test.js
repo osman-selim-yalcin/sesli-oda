@@ -64,7 +64,7 @@ test('gömülü ikon kopyası public/icons/ui/lucide.svg ile aynı', () => {
   const block = html.match(/<svg id="ui-icons"[^>]*data-set="lucide"[^>]*>([\s\S]*?)<\/svg><!-- \/ui-icons -->/);
   assert.ok(block, 'index.html içinde <svg id="ui-icons" data-set="lucide"> yok');
   assert.deepStrictEqual(symbolsOf(block[1]), symbolsOf(read('icons/ui/lucide.svg')));
-  assert.ok(fs.existsSync(path.join(PUB, 'icons/ui/LICENSE')), 'Lucide lisans dosyası yok');
+  assert.ok(fs.existsSync(path.join(PUB, 'icons/ui/LICENSE-lucide')), 'Lucide lisans dosyası yok');
 });
 
 test('kullanılan her ikon adı sette var; set renk/kalınlık taşımaz', () => {
@@ -81,6 +81,32 @@ test('kullanılan her ikon adı sette var; set renk/kalınlık taşımaz', () =>
   }
   assert.deepStrictEqual(missing, []);
   assert.ok(!/stroke-width|stroke="(?!none)|fill="(?!currentColor|none)/.test(svg), 'sette sabit renk/kalınlık var');
+});
+
+test('public/icons/ui altındaki her set aynı ikon adlarını taşır; lisansı yanında', () => {
+  const sets = fs.readdirSync(path.join(PUB, 'icons/ui')).filter((f) => f.endsWith('.svg'));
+  assert.ok(sets.includes('lucide.svg') && sets.includes('piksel.svg'), sets.join(' '));
+  const want = symbolIds(read('icons/ui/lucide.svg')).sort();
+  for (const f of sets) {
+    const svg = read(`icons/ui/${f}`);
+    assert.deepStrictEqual(symbolIds(svg).sort(), want, f);
+    // XML olarak ayrıştırılır (theme.js DOMParser): yorumun içinde "--" olamaz
+    for (const c of svg.matchAll(/<!--([\s\S]*?)-->/g)) assert.ok(!c[1].includes('--'), `${f}: yorumda "--"`);
+    const lic = f === 'lucide.svg' ? 'LICENSE-lucide' : `LICENSE-${svg.match(/<!-- (\w+)/)[1].toLowerCase()}`;
+    assert.ok(fs.existsSync(path.join(PUB, 'icons/ui', lic)), `${f}: ${lic} yok`);
+  }
+});
+
+test('piksel set dolu ve keskin: her sembol kendi dolgusunu taşır, başka renk yok', () => {
+  const svg = read('icons/ui/piksel.svg');
+  for (const s of symbolsOf(svg)) {
+    assert.match(s, /^<symbol id="i-[a-z0-9-]+" viewBox="0 0 24 24"><g fill="currentColor" stroke="none" shape-rendering="crispEdges">/, s.slice(0, 80));
+    const body = s.replace(/^<symbol[^>]*><g[^>]*>/, '');
+    assert.ok(!/fill=|stroke|opacity|<text/.test(body), s.slice(0, 80));
+  }
+  // Üretici yeniden çalıştırılınca aynı dosya (elle çizilenler ızgaradan; Pixelarticons kaynağı depoda değil)
+  const { PIXEL_MAP, PIXEL_DRAWN, MAP } = require('./tools/icons');
+  assert.deepStrictEqual(Object.keys(MAP).filter((n) => !PIXEL_MAP[n] && !PIXEL_DRAWN[n]), [], 'piksel karşılığı olmayan ikon');
 });
 
 test('her temanın bir ikon seti var ve dosyası duruyor', () => {

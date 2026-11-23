@@ -6,7 +6,7 @@ const express = require('express');
 const store = require('./store');
 const accounts = require('./accounts');
 
-const THEMES = ['gece', 'aydinlik']; // Gece Odası (varsayılan), Aydınlık Oda; yeni temalar buraya ve public/theme.js listesine
+const THEMES = ['gece', 'aydinlik', 'piksel']; // Gece Odası (varsayılan), Aydınlık Oda, Piksel Oda; yeni temalar buraya ve public/theme.js listesine
 // İstemcinin kendi tablosunda olmayan temaların adı, önizleme renkleri ve ikon seti (GET /theme-list ile gider).
 // Gerçek temalar public/theme.js'te tanımlıdır, burası boş kalır; yalnız test önyüklemesi (test/preload.js)
 // denemelik temasını buraya ve THEMES'e ekler.

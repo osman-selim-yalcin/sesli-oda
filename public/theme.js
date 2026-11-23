@@ -7,18 +7,19 @@
 // çıkmaz; test sunucusu (test/preload.js) yalnız denemelik bir temayı adı ve önizleme renkleriyle buradan ekler.
 // Liste değişince document'a 'themelist' olayı gelir (seçiciler ve oda kartları yeniden çizilir).
 window.Theme = (() => {
-  const LIST = ['gece', 'aydinlik'];
+  const LIST = ['gece', 'aydinlik', 'piksel'];
   const DEFAULT = 'gece';
-  const NAMES = { gece: 'Gece Odası', aydinlik: 'Aydınlık Oda' };
+  const NAMES = { gece: 'Gece Odası', aydinlik: 'Aydınlık Oda', piksel: 'Piksel Oda' };
   // Temanın ikon seti: public/icons/ui/<set>.svg, hepsi aynı adları (i-play, i-mic…) taşır.
   // Varsayılan set index.html'de <svg id="ui-icons" data-set="lucide"> olarak gömülüdür (ilk boyamada ikon olsun diye).
-  const ICON_SETS = { gece: 'lucide', aydinlik: 'lucide' };
+  const ICON_SETS = { gece: 'lucide', aydinlik: 'lucide', piksel: 'piksel' };
   // Oda kartındaki önizleme şeridinin ve tema seçici kutucuğunun renkleri (zemin, panel, metin, vurgu). Kart ve
   // seçici başka temaları da gösterdiği için bu renkler o anki temanın değişkenlerinden değil, bu tablodan gelir
   // (tema CSS'i yüklenmeden); sabit renkler yalnız burada durur, kurallar onları yerel değişkenlerle kullanır.
   const PREVIEW = {
     gece: { bg: '#0E0F13', surface: '#1E2129', text: '#E8E9ED', accent: '#8B9CFF' },
     aydinlik: { bg: '#F6F4EF', surface: '#FFFFFF', text: '#171A22', accent: '#4553C4' },
+    piksel: { bg: '#13152F', surface: '#232753', text: '#EEEAF8', accent: '#5AD8F0' },
   };
   const root = document.documentElement;
   let current = root.dataset.theme || DEFAULT;
@@ -80,6 +81,42 @@ window.Theme = (() => {
       if (old) old.after(link);
       else document.head.prepend(link);
     });
+  }
+
+  // Temanın kendi yazı tipleri (tema dosyasındaki @font-face): tema açılmadan önce indirilir ki yeni renklerle birlikte
+  // bir an yedek yazı tipi görünmesin. Bağlantı media="not all" iken kuralları okunabilir ama yazı tipleri yüklenmez;
+  // aynı tanımla FontFace oluşturulup document.fonts'a eklenir. En çok FONT_WAIT beklenir; inmeyen ya da hata veren
+  // dosya temayı durdurmaz (font-display: swap, yedek yazı tipiyle açılır).
+  const FONT_WAIT = 1500;
+  const fontFaces = new Map(); // src → Promise
+  function loadFonts(link) {
+    let rules = [];
+    try {
+      rules = [...link.sheet.cssRules].filter((r) => r instanceof CSSFontFaceRule);
+    } catch {
+      return Promise.resolve();
+    }
+    const jobs = rules.map((r) => {
+      const st = r.style;
+      const family = st.getPropertyValue('font-family').trim().replace(/^['"]|['"]$/g, '');
+      const src = st.getPropertyValue('src');
+      const key = `${family}|${src}`;
+      if (!fontFaces.has(key)) {
+        const desc = { weight: st.getPropertyValue('font-weight') || 'normal', style: st.getPropertyValue('font-style') || 'normal', display: 'swap' };
+        const size = st.getPropertyValue('size-adjust');
+        if (size) desc.sizeAdjust = size;
+        let face;
+        try {
+          face = new FontFace(family, src, desc);
+        } catch {
+          return Promise.resolve();
+        }
+        fontFaces.set(key, face.load().then((f) => document.fonts.add(f)).catch(() => fontFaces.delete(key)));
+      }
+      return fontFaces.get(key);
+    });
+    if (!jobs.length) return Promise.resolve();
+    return Promise.race([Promise.allSettled(jobs), new Promise((r) => setTimeout(r, FONT_WAIT))]);
   }
 
   // JS'te çizilen arayüz renkleri (tuval, harita, 3B sahne) değişkenden okunur: Theme.color('--accent').
@@ -169,7 +206,7 @@ window.Theme = (() => {
     if (job?.id === id) return job.promise;
     const css = loadCss(id);
     // apply hiçbir zaman reddetmez: ikon ya da yükleme hatasında uyarı yazılır, önceki tema kalır.
-    const promise = Promise.all([css, prepareIcons(id)])
+    const promise = Promise.all([css.then(async (link) => (link && (await loadFonts(link)), link)), prepareIcons(id)])
       .then(([link, commitIcons]) => {
         if (!link) {
           console.warn(`Tema dosyası yüklenemedi (${id}), önceki tema kalıyor.`);
