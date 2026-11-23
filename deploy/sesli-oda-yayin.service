@@ -9,8 +9,9 @@
 [Unit]
 Description=Sesli Oda yayini (origin/main -> konteyner)
 Wants=network-online.target
-After=network-online.target docker.service
-Requires=docker.service
+After=network-online.target docker.service sesli-oda-ag.service
+# Güvenlik duvarı kuralları olmadan yayın yapılmaz.
+Requires=docker.service sesli-oda-ag.service
 
 [Service]
 Type=oneshot
@@ -19,6 +20,13 @@ TimeoutStartSec=15min
 Nice=10
 IOSchedulingClass=idle
 SyslogIdentifier=sesli-oda-yayin
+# Kilit dosyası /run/sesli-oda-yayin/lock: root 700 dizin (herkese açık /run/lock'ta başka bir kullanıcı kilidi
+# önceden açıp tutabilirdi). Elle çağrıda betik dizini kendisi açar; korunur ki iki çağrı aynı kilidi görsün.
+RuntimeDirectory=sesli-oda-yayin
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+# Derleme bağlamı git archive (.git yok); buildx'in git bilgisi toplamasına yine de gerek yok.
+Environment=BUILDX_GIT_INFO=0
 
 # Sertleştirme. docker CLI yalnız /run/docker.sock'a konuşur; git sesli-oda kullanıcısıyla çalışır.
 NoNewPrivileges=yes

@@ -8,9 +8,13 @@
 #                             main'in geçmişinde olmalı.
 #
 # root olarak çalışır (docker için); git adımları ayrıcalıksız $GIT_USER kullanıcısıyla yapılır.
-# Compose dosyası depodan değil, root'a ait onaylı kopyadan ($COMPOSE_FILE) okunur: main'e push yalnız imajı
-# değiştirir, konteynerin sunucudaki yetkilerini (kullanıcı, bağlamalar, ağ) değiştiremez. Depodaki
-# deploy/compose.yml kurulu kopyadan farklıysa yine kurulu kopya kullanılır ve commit başına bir uyarı yazılır.
+# Compose dosyası ve Dockerfile depodan değil, root'a ait onaylı kopyalardan ($COMPOSE_FILE, $DOCKERFILE)
+# okunur: main'e push yalnız imaja giren dosyaları ve package-lock.json'un sabitlediği paketleri değiştirir;
+# konteynerin yetkilerini (kullanıcı, bağlamalar, ağ) ya da kurulum adımlarını değiştiremez. Depodaki
+# deploy/compose.yml ya da deploy/Dockerfile kurulu kopyadan farklıysa yine kurulu kopya kullanılır ve commit
+# başına bir uyarı yazılır. Derleme bağlamı çalışma ağacı değil, commit'in `git archive` çıktısıdır (.git yok,
+# ayrıcalıksız kullanıcı denetimle derleme arasında dosyaları değiştiremez, bağlamdaki sembolik bağlar dışarı
+# çıkamaz); kurulu Dockerfile bu arşive eklenir.
 #
 # Yeni imaj sha etiketiyle başlatılır; $HEALTH_WAIT saniyede sağlıklı açılırsa "current" etiketini alır.
 # Kurulamaz, başlatılamaz ya da sağlıklı açılmazsa "current" (önceki sağlıklı sürüm) yeniden başlatılır ve betik
@@ -21,9 +25,10 @@ set -euo pipefail
 BASE_DIR=${BASE_DIR:-/srv/sesli-oda}
 APP_DIR=${APP_DIR:-$BASE_DIR/app}                 # deponun git kopyası ($GIT_USER'a ait)
 COMPOSE_FILE=${COMPOSE_FILE:-$BASE_DIR/compose.yml} # onaylı compose kopyası (root, 644)
+DOCKERFILE=${DOCKERFILE:-$BASE_DIR/Dockerfile}    # onaylı Dockerfile kopyası (root, 644)
 ENV_FILE=${ENV_FILE:-$BASE_DIR/.env}              # sırlar (root, 600)
 STATE_DIR=${STATE_DIR:-$BASE_DIR/state}           # başarısız / sabitlenmiş commit kayıtları (root)
-LOCK_FILE=${LOCK_FILE:-/run/lock/sesli-oda-yayin.lock}
+LOCK_FILE=${LOCK_FILE:-/run/sesli-oda-yayin/lock} # dizin root 700 (birimde RuntimeDirectory)
 GIT_USER=${GIT_USER-sesli-oda}                    # boşsa git çalıştıranın kendisiyle çalışır (yalnız deneme)
 PROJECT=sesli-oda                                 # compose proje adı
 IMAGE=sesli-oda-app                               # imaj adı; etiketler: <kısa sha> ve current (son sağlıklı)
@@ -32,6 +37,7 @@ HEALTH_WAIT=${HEALTH_WAIT:-60}                    # sn; yeni konteynerin sağlı
 HEALTH_POLL=${HEALTH_POLL:-2}                     # sn
 KEEP_IMAGES=3                                     # tutulan son imaj sayısı (sha etiketli)
 REV_LABEL=org.opencontainers.image.revision
+CTX_DOCKERFILE=Dockerfile.sesli-oda-kurulu        # kurulu Dockerfile'ın derleme arşivindeki adı
 
 log() { echo "sesli-oda-yayin: $*"; }
 
@@ -58,12 +64,14 @@ app_container() {
   compose ps -a -q app 2>/dev/null | head -n 1 || true
 }
 
-# healthy | starting | unhealthy | exited | restarting | ... | none
+# Çalışmıyorsa konteyner durumu (restarting, exited, created...), çalışıyorsa sağlık durumu
+# (healthy, starting, unhealthy); konteyner yoksa none. Sürekli çöken konteyner "starting" görünmez.
 app_health() {
   local id
   id=$(app_container)
   if [[ -z $id ]]; then echo none; return; fi
-  docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$id" 2>/dev/null || echo none
+  docker inspect -f '{{if ne .State.Status "running"}}{{.State.Status}}{{else if .State.Health}}{{.State.Health.Status}}{{else}}running{{end}}' \
+    "$id" 2>/dev/null || echo none
 }
 
 # Çalışan app konteynerinin commit'i; yoksa boş.
@@ -121,13 +129,38 @@ site_down() {
   exit 1
 }
 
-# Depodaki compose hedef commit'te kurulu kopyadan farklıysa commit başına bir kez uyarır.
-compose_note() {
-  if git_app show "$target:deploy/compose.yml" 2>/dev/null | cmp -s - "$COMPOSE_FILE"; then return 0; fi
-  if marked compose-uyarildi "$target"; then return 0; fi
-  mark compose-uyarildi "$target"
-  log "UYARI: compose değişti, kurulu kopya kullanılıyor: elle güncelle (depodaki deploy/compose.yml @ $short ->" \
-    "$COMPOSE_FILE, gözden geçirip kopyala)."
+# Depodaki kopya (deploy/<ad>) hedef commit'te kurulu kopyadan farklıysa commit başına bir kez uyarır.
+# installed_note <depodaki yol> <kurulu dosya> <görünen ad> <durum anahtarı>
+installed_note() {
+  if git_app show "$target:$1" 2>/dev/null | cmp -s - "$2"; then return 0; fi
+  if marked "$4" "$target"; then return 0; fi
+  mark "$4" "$target"
+  log "UYARI: $3 değişti, kurulu kopya kullanılıyor: elle güncelle (depodaki $1 @ $short -> $2," \
+    "gözden geçirip kopyala)."
+}
+
+# İmajı commit'in temiz arşivinden ve kurulu Dockerfile'dan kurar. (Koşul içinde çağrılır: set -e burada
+# işlemez, her adım elle denetlenir.)
+build_image() {
+  local work rc=0
+  mkdir -p -m 700 "$STATE_DIR/build"
+  work=$(mktemp -d "$STATE_DIR/build/yayin.XXXXXX") || return 1
+  if ! git_app archive --format=tar "$target" > "$work/ctx.tar"; then
+    log "HATA: git archive başarısız."
+    rc=1
+  elif tar -tf "$work/ctx.tar" | grep -qxF "$CTX_DOCKERFILE"; then
+    log "HATA: depoda $CTX_DOCKERFILE adlı bir dosya var; kurulu Dockerfile ile çakışır."
+    rc=1
+  # Kurulu Dockerfile arşive sabit bir adla eklenir (tar -r yeniden adlandıramaz: önce kopyası).
+  elif ! cp "$DOCKERFILE" "$work/$CTX_DOCKERFILE" || ! tar -rf "$work/ctx.tar" -C "$work" "$CTX_DOCKERFILE"; then
+    log "HATA: derleme arşivi hazırlanamadı."
+    rc=1
+  elif ! docker build --pull --quiet --label "$REV_LABEL=$target" -t "$IMAGE:$short" \
+      -f "$CTX_DOCKERFILE" - < "$work/ctx.tar" >/dev/null; then
+    rc=1
+  fi
+  rm -rf "$work"
+  return "$rc"
 }
 
 # ---------- Ana akış ----------
@@ -138,6 +171,8 @@ if [[ -n $manual && ! $manual =~ ^[0-9a-f]{7,40}$ ]]; then
   exit 2
 fi
 
+lock_dir=$(dirname "$LOCK_FILE")
+if [[ ! -d $lock_dir ]]; then mkdir -p -m 700 "$lock_dir"; fi # elle çağrı (zamanlayıcıda systemd açar)
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
   if [[ -n $manual ]]; then
@@ -147,10 +182,12 @@ if ! flock -n 9; then
   exit 0 # zamanlayıcı: bir sonraki turda denenir
 fi
 
-if [[ ! -f $COMPOSE_FILE ]]; then
-  log "HATA: kurulu compose kopyası yok: $COMPOSE_FILE (README: ilk kurulum)."
-  exit 1
-fi
+for f in "$COMPOSE_FILE" "$DOCKERFILE"; do
+  if [[ ! -f $f ]]; then
+    log "HATA: kurulu kopya yok: $f (README: ilk kurulum)."
+    exit 1
+  fi
+done
 
 git_app fetch --quiet origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
 main_head=$(git_app rev-parse "origin/$BRANCH^{commit}")
@@ -175,12 +212,13 @@ if [[ -z $manual ]]; then
   # Zamanlayıcı turu: yeni bir şey yoksa, konteyner açılıyorsa ya da commit daha önce başarısız olduysa
   # (ya da elle eski bir sürüme dönüldüyse) hiçbir şey yeniden başlatılmaz.
   case $health in
-    starting) exit 0 ;;
+    starting) exit 0 ;; # açılıyor (sağlık denetimi sürüyor); bir sonraki turda bakılır
     healthy)
       if [[ $running == "$target" ]] || marked failed "$target" || marked pinned "$target"; then exit 0; fi ;;
     *)
+      # unhealthy, restarting (çöküp duruyor), exited, none...
       if [[ $running == "$target" ]]; then
-        site_down "yayındaki ${short} sağlıksız (durum: $health); otomatik olarak yeniden yaratılmıyor."
+        site_down "yayındaki ${short} sağlıksız (durum: $health); aynı sürüm otomatik olarak yeniden yaratılmıyor."
       fi
       if marked failed "$target" || marked pinned "$target"; then
         site_down "app konteyneri çalışmıyor ya da sağlıksız (durum: $health, yayındaki: ${running:0:12}," \
@@ -205,18 +243,20 @@ git_app checkout --quiet --force --detach "$target"
 
 if [[ $(revision_of "$IMAGE:$short") == "$target" ]]; then
   log "$IMAGE:$short zaten var; yeniden kurulmadı." # geri almada hızlı dönüş
-elif ! docker build --pull --quiet --label "$REV_LABEL=$target" -t "$IMAGE:$short" \
-    -f "$APP_DIR/deploy/Dockerfile" "$APP_DIR" >/dev/null; then
+elif ! build_image; then
   mark failed "$target"
   restore_checkout
   log "HATA: $short imajı kurulamadı; yayındaki sürüm aynen çalışıyor."
   exit 1
 fi
-compose_note
+installed_note deploy/compose.yml "$COMPOSE_FILE" compose compose-uyarildi
+installed_note deploy/Dockerfile "$DOCKERFILE" Dockerfile dockerfile-uyarildi
 
 if start_app "$short" && wait_healthy; then
   docker tag "$IMAGE:$short" "$IMAGE:current"
-  if ! compose up -d tunnel; then # ilk kurulumda tüneli açar; çalışıyorsa dokunmaz
+  # İlk kurulumda tüneli açar; çalışıyorsa dokunmaz. APP_TAG ve --no-deps: compose app'i (bağımlılık) farklı
+  # imaj etiketi görüp ikinci kez yeniden yaratmasın.
+  if ! APP_TAG=$short compose up -d --no-deps tunnel; then
     log "HATA: tunnel konteyneri başlatılamadı (uygulama $short çalışıyor)."
   fi
   rm -f "$STATE_DIR/failed" "$STATE_DIR/pinned"

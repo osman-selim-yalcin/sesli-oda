@@ -1,6 +1,7 @@
 # Sesli Oda: uygulama + Cloudflare tüneli.
 # Depodaki bu dosya yalnız kaynaktır: sunucuda root'a ait onaylı kopyası /srv/sesli-oda/compose.yml kullanılır
-# (yönetici gözden geçirip elle kopyalar; main'e push compose'u değiştiremez). Çağrı (deploy/yayin.sh böyle yapar):
+# (yönetici gözden geçirip elle kopyalar; main'e push compose'u değiştiremez). Çağrı (deploy/yayin.sh böyle yapar;
+# yayin.sh imajı build: bölümüyle değil, kendisi kurar):
 #   docker compose -f /srv/sesli-oda/compose.yml --project-directory /srv/sesli-oda/app \
 #     --env-file /srv/sesli-oda/.env ...
 # Göreli yollar (build bağlamı) --project-directory'ye, yani depo kopyasına göre çözülür.
@@ -17,6 +18,10 @@ x-hardening: &hardening
   init: true
   restart: unless-stopped
   networks: [sesli-oda]
+  # Sunucunun üst DNS'i özel bir adreste (10.x); Docker'ın gömülü DNS'i onu konteynerin ad alanından sorar ve
+  # güvenlik duvarı (deploy/sesli-oda-ag.sh) özel ağlara gideni düşürür. Herkese açık çözümleyiciler verilir;
+  # app/tunnel adlarını gömülü DNS yine kendisi çözer.
+  dns: [1.1.1.1, 9.9.9.9]
   logging:
     driver: journald
     options:

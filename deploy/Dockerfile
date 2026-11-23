@@ -1,12 +1,16 @@
-# Sesli Oda sunucusu. Kurulum deponun kökünden: docker build -f deploy/Dockerfile .
-# Yalnız sunucunun ihtiyacı kopyalanır (testler, .git, db/, deploy/ girmez; ayrıca kökteki .dockerignore).
+# Sesli Oda sunucusu. Depodaki bu dosya yalnız kaynaktır: sunucuda root'a ait onaylı kopyası
+# /srv/sesli-oda/Dockerfile kullanılır (deploy/yayin.sh commit'in git archive çıktısını bağlam yapar ve bu kopyayı
+# ekler). Elle: docker build -f deploy/Dockerfile .  (deponun kökünden)
+# Yalnız sunucunun ihtiyacı kopyalanır (testler, db/, deploy/ girmez; kökteki .dockerignore boyut içindir).
 FROM node:22-alpine
 
 ENV NODE_ENV=production PORT=3030
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+# --ignore-scripts: bağımlılıkların kurulum betikleri kurulum sırasında çalışmaz (express ve socket.io ağacında
+# kurulum betiği olan paket yok: package-lock.json'da hasInstallScript yok).
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund && npm cache clean --force
 
 # Kökteki sunucu modülleri (server.js, accounts.js, rooms.js, ...), oyunlar ve istemci dosyaları.
 # Köke yeni bir klasör eklenirse buraya da eklenmeli; eklenmezse yeni sürüm sağlık denetiminden geçemez.
