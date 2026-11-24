@@ -1271,3 +1271,97 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .catan-target:focus-visible, .catan-target:hover { stroke: var(--accent); stroke-width: 3; }
 .kutu-encounter { border: 1px solid var(--border-strong); border-radius: var(--radius-m); background: radial-gradient(ellipse at top, var(--accent-soft), var(--surface-2)); padding: 24px; text-align: center; }
 .kutu-encounter h3 { margin-block: 10px; }
+
+/* Oyun kutularının kapak çizimleri ve masadaki bileşenleri */
+.game-card[data-game="catan"] .game-card-art,
+.game-card[data-game="munchkin"] .game-card-art { background-size: cover; background-position: center 55%; }
+.game-card[data-game="catan"] .game-card-art { background-image: url('/art/catan.webp'); }
+.game-card[data-game="munchkin"] .game-card-art { background-image: url('/art/munchkin.webp'); }
+.game-card:is([data-game="catan"],[data-game="munchkin"]) .game-card-icon { visibility: hidden; }
+.kutu-game { min-width: 0; container-type: inline-size; }
+.kutu-icon { width: 28px; height: 28px; flex: none; vertical-align: middle; }
+.kutu-game button:has(> .kutu-icon) { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+.kutu-game button > .kutu-icon { width: 21px; height: 21px; }
+.kutu-start { display: block; padding: 0; overflow: hidden; background: var(--surface); }
+.kutu-banner { box-sizing: border-box; padding: clamp(18px, 4%, 36px); min-height: 160px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 7px; color: #fff3d7; text-align: left; background-size: cover; background-position: center 53%; }
+.kutu-banner-catan { background-image: linear-gradient(90deg,#083c47f2, #083c4770 54%,transparent 85%),url('/art/catan.webp'); }
+.kutu-banner-munchkin { background-image: linear-gradient(90deg,#20141cee,#20141c80 53%,transparent 90%),url('/art/munchkin.webp'); }
+.kutu-banner h2 { color: inherit; font: 700 clamp(29px,5vw,49px)/1.05 Georgia,serif; margin: 0; letter-spacing: -.035em; text-shadow: 0 1px 6px #17131070; }
+.kutu-banner p { color: #f6ead1; font-size: 14px; line-height: 1.5; max-width: min(400px,76%); margin: 0; text-shadow: 0 1px 4px #170f0c; }
+.kutu-start-options,.kutu-choice { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.kutu-start-options { padding: 16px; justify-content: space-between; }
+.kutu-head h3 { font-size: 17px; }
+.kutu-scores { gap: 6px; }
+.kutu-scores span { border-radius: 3px var(--radius-s) var(--radius-s) 3px; color: var(--muted); font-size: 13px; }
+.kutu-scores span.active { font-weight: 700; color: var(--text); background: var(--accent-soft); }
+.kutu-encounter { border-radius: var(--radius-m); border-color: #78583e; min-height: 155px; }
+.dungeon-stats { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.dungeon-stats span { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 5px; border-radius: 5px; border: 1px solid #e7ba754f; background: #21151bf0; color: #efdab6; font-size: 12px; }
+.dungeon-stats .kutu-icon { width: 21px; height: 21px; }
+.dungeon-stats b { color: #fff2d2; font-size: 16px; }
+.kutu-section-title { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 16px; }
+.dungeon-bag,.loot-display,.catan-tableau { padding: clamp(11px,2.4%,20px); border: 1px solid var(--border-strong); border-radius: var(--radius-m); background: var(--surface); display: grid; gap: 12px; min-width: 0; }
+.bag-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bag-note { font-size: 13px; line-height: 1.5; color: var(--muted); }
+.equipment-rack { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+.equipment-slot { padding: 9px; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); background: var(--surface-2); display: grid; justify-items: center; align-content: start; gap: 2px; text-align: center; min-width: 0; }
+.equipment-slot:not(.worn) .kutu-icon { filter: grayscale(1); opacity: .6; }
+.equipment-slot small,.loot-body small { font-size: 11px; color: var(--muted); }
+.equipment-slot b { font-size: 12px; overflow-wrap: anywhere; }
+.equipment-slot.worn,.loot-card.worn { border: 1px solid #b48e56; }
+.loot-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(145px,100%),1fr)); gap: 8px; }
+.loot-card { display: grid; grid-template-rows: 64px auto 1fr; min-width: 0; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--surface-2); }
+.loot-art { position: relative; display: grid; place-items: center; color: #f1cb84; background: repeating-linear-gradient(135deg,transparent 0 6px,#f4d49e09 6px 7px),radial-gradient(ellipse at center,#674435,#292027); }
+.loot-art .kutu-icon { width: 45px; height: 45px; filter: drop-shadow(0 3px 2px #1e101ba8); }
+.loot-art b { position: absolute; top: 5px; right: 7px; font-size: 13px; }
+.loot-body { display: grid; gap: 2px; padding: 8px 9px 4px; }
+.loot-body strong { font-size: 14px; }
+.loot-controls { display: flex; flex-wrap: wrap; align-content: end; gap: 4px; padding: 5px 8px 9px; }
+.loot-controls button { font-size: 12px; min-height: 30px; height: auto; padding: 4px 8px; }
+.loot-controls button[aria-pressed="true"] { border-color: var(--accent); }
+.loot-controls .loot-exchange { font-size: 11px; background: transparent; border-color: transparent; color: var(--muted); }
+.loot-display { display: flex; flex-wrap: wrap; align-items: center; }
+.loot-display h4 { width: 100%; }
+.displayed-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.catan-layout { display: grid; gap: 12px; align-items: start; min-width: 0; }
+.catan-atlas { overflow: hidden; min-width: 0; border: 1px solid #537f81; border-radius: var(--radius-m); background: repeating-radial-gradient(ellipse at 35% 58%,transparent 0 14px,#c4edda0e 15px 16px,transparent 17px 22px),linear-gradient(145deg,#184f59,#136e76 48%,#205763); }
+.catan-atlas .kutu-banner { min-height: 98px; border-bottom: 1px solid #d0cc9c65; padding: 12px 16px; }
+.catan-atlas .kutu-banner h2 { font-size: 31px; }
+.catan-atlas .kutu-banner p { font-size: 13px; }
+.catan-map { width: min(100%,520px); }
+.catan-map .catan-token { fill: #fff2cf; stroke: #775f3f; stroke-width: .7px; pointer-events: none; }
+.catan-map text { font: bold 7px Georgia,serif; stroke: none; fill: #423426; }
+.catan-map text.frequent { fill: #a53e31; }
+.catan-stamp,.catan-building { pointer-events: none; }
+.catan-roll { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: #f2e9d2; background: #10363bd9; font-size: 13px; }
+.catan-roll strong { font-size: 24px; white-space: nowrap; color: #ffe1a2; }
+.catan-resources { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 4px; }
+.catan-resource { border-radius: var(--radius-s); border: 1px solid var(--border); background: var(--surface-2); display: grid; justify-items: center; align-content: center; gap: 1px; padding: 6px 1px; }
+.catan-resource b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.catan-resource small { font-size: 10px; color: var(--muted); }
+.catan-builds { display: grid; gap: 5px; }
+.kutu-game .catan-blueprint { display: flex; align-items: center; justify-content: flex-start; gap: 6px; padding: 6px 8px; width: 100%; min-height: 37px; height: auto; text-align: left; }
+.catan-blueprint:disabled { opacity: .72; }
+.catan-blueprint[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.catan-cost { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; font-size: 11px; }
+.catan-cost .kutu-icon { width: 16px; height: 16px; }
+.kutu-actions:empty { display: none; }
+.kutu-actions select { min-width: 0; max-width: 100%; }
+@container (min-width: 650px) {
+  .catan-layout { grid-template-columns: minmax(0,1.55fr) minmax(240px,1fr); }
+  .loot-grid { grid-template-columns: repeat(auto-fill,minmax(165px,1fr)); }
+}
+@container (max-width: 370px) {
+  .kutu-banner { min-height: 134px; }
+  .kutu-banner p { max-width: 88%; }
+  .kutu-start-options { justify-content: flex-start; }
+  .loot-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .loot-controls button { min-height: 36px; }
+}
+#game-munchkin .lobby.hero, #game-catan .lobby.hero { background-size: cover; background-position: center; border-color: var(--border-strong); }
+#game-munchkin .lobby.hero { background-image: linear-gradient(#21141ba8,#21141bf0),url('/art/munchkin.webp'); }
+#game-catan .lobby.hero { background-image: linear-gradient(#0d3c469e,#0d3c46eb),url('/art/catan.webp'); }
+.kutu-game .lobby.hero .lobby-title, .kutu-game .lobby.hero .lobby-desc { color: #fff2d6; }
+#game-munchkin button.primary { background: #dbb278; color: #2d1d1b; border-color: #e9c997; }
+#game-catan button.primary { background: #91d7c7; color: #123d3a; border-color: #afe3d6; }
+.kutu-game .loot-controls button > .kutu-icon { width: 14px; height: 14px; }

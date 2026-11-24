@@ -5,10 +5,64 @@
   const gear = [['Çaydanlık Miğfer',0,1],['Pusula Tacı',0,3],['Yamalı Zırh',1,2],['Ayna Pelerini',1,4],['Tahta Kaşık',2,2],['Çınlayan Topuz',2,4]];
   const pick = list => list[Math.floor(Math.random()*list.length)];
   const die = () => 1+Math.floor(Math.random()*6);
-  const power = h => h.level+h.gear.reduce((n,i)=>n+(gear[i]?.[2]||0),0);
+  function makeHero() {
+    return {
+      level: 1, gear: [-1, -1, -1], potions: 1,
+      items: [0, 4].map(type => ({ type, shown: false })),
+    };
+  }
+  function power(hero) {
+    if (hero.combatPower !== undefined) return hero.combatPower;
+    return hero.gear.reduce((total, index) => total + (gear[hero.items[index]?.type]?.[2] || 0), hero.level);
+  }
   function create(players) {
-    return {players, turn:0, phase:'door', heroes:players.map(()=>({ level:1, gear:[-1,-1,-1], potions:1 })),
-      monster:null, boost:0, done:false, log:'Zindanın ilk kapısı önündesin.'};
+    return { players, turn: 0, phase: 'door', heroes: players.map(makeHero),
+      monster: null, boost: 0, done: false, log: 'Zindanın ilk kapısı önündesin.' };
+  }
+  function inventoryActions(g, player) {
+    if (g.done || !g.heroes[player]) return [];
+    const hero = g.heroes[player];
+    const canDress = g.turn === player && ['door', 'camp'].includes(g.phase);
+    return hero.items.flatMap((item, index) => {
+      const equipped = hero.gear.includes(index);
+      const actions = [(item.shown ? 'hide:' : 'show:') + index];
+      if (canDress) {
+        actions.push((equipped ? 'remove:' : 'equip:') + index);
+        if (!equipped) actions.push('exchange:' + index);
+      }
+      return actions;
+    });
+  }
+  function manage(g, player, action) {
+    if (!inventoryActions(g, player).includes(action)) return false;
+    const [command, num] = action.split(':');
+    const index = Number(num);
+    const hero = g.heroes[player];
+    const item = hero.items[index], slot = gear[item.type][1];
+    if (command === 'equip') hero.gear[slot] = index;
+    if (command === 'remove') hero.gear[slot] = -1;
+    if (command === 'show' || command === 'hide') item.shown = command === 'show';
+    if (command === 'exchange') {
+      hero.items.splice(index, 1);
+      hero.gear = hero.gear.map(i => i > index ? i - 1 : i);
+      hero.potions++;
+    }
+    return true;
+  }
+  // Her alıcı kendi çantasını, diğer kahramanların yalnız sergilediği eşyaları alır.
+  function view(g, name) {
+    if (!g) return null;
+    return { ...g, heroes: g.heroes.map((hero, player) => {
+      if (g.players[player] === name) return hero;
+      const items = [], slots = [-1, -1, -1];
+      hero.items.forEach((item, index) => {
+        if (!item.shown) return;
+        const slot = hero.gear.indexOf(index);
+        if (slot >= 0) slots[slot] = items.length;
+        items.push(item);
+      });
+      return { level: hero.level, potions: hero.potions, combatPower: power(hero), gear: slots, items };
+    }) };
   }
   function available(g) {
     if (g.done) return [];
@@ -21,10 +75,8 @@
     return acts;
   }
   function treasure(h) {
-    const id=pick(gear.map((_,i)=>i)), [name,slot,value]=gear[id];
-    if ((gear[h.gear[slot]]?.[2]||0)<value) { h.gear[slot]=id; return name+' kuşanıldı.'; }
-    h.potions++;
-    return name+' bir iksirle takas edildi.';
+    h.items.push({ type: Math.floor(Math.random() * gear.length), shown: false });
+    return 'Çantaya bir eşya eklendi.';
   }
   function play(g,action) {
     const h=g.heroes[g.turn], name=g.players[g.turn];
@@ -65,12 +117,22 @@
       g.turn=(g.turn+1)%g.players.length; g.phase='door'; g.log='Sıradaki kapıyı aç.';
     }
   }
+  function dressBot(g) {
+    if (!['door', 'camp'].includes(g.phase)) return;
+    const hero = g.heroes[g.turn];
+    hero.items.forEach(({type}, index) => {
+      const [, slot, bonus] = gear[type];
+      const worn = hero.items[hero.gear[slot]];
+      if (!worn || gear[worn.type][2] < bonus) manage(g, g.turn, 'equip:' + index);
+    });
+  }
   function bot(g,acts) {
+    dressBot(g);
     if (g.phase!=='combat') return acts[0];
     if (power(g.heroes[g.turn])+g.boost>g.monster.strength) return 'fight';
     return acts.find(a=>a.startsWith('help:')) || (acts.includes('potion')?'potion':'flee');
   }
-  const rules={create,available,play,bot,power,gear};
+  const rules={create,available,play,bot,power,gear,inventoryActions,manage,view};
   if (typeof module==='object' && module.exports) module.exports=rules;
   else window.MunchkinRules=rules;
 })();

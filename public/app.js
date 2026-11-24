@@ -6887,7 +6887,8 @@ function applyJoin(res) {
   setSayi(res.sayi);
   setHedef(res.hedef); // public/hedef.js
   setHedefRecords(res.hedefBoard);
-  for (const key of ['catan', 'munchkin']) LOBBY[key]?.sync(res[key], Object.hasOwn(res, key));
+  LOBBY.catan?.sync(res.catan, Object.hasOwn(res, 'catan'));
+  LOBBY.munchkin?.sync(res.munchkinInventory ? res.munchkin : null, res.munchkinInventory === true);
   window.setYorunge?.(res.yorunge, Object.hasOwn(res, 'yorunge'));
   window.setKural?.(res.kural); // public/kural.js
   setMantik(res.mantik); // public/mantik.js
@@ -7658,6 +7659,7 @@ function renderGameHome() {
       const info = gameInfo(t.key);
       const running = t.btn.classList.contains('game-running');
       const b = gameEntry(t, 'game-card' + (info.soon ? ' soon' : '') + (running ? ' running' : ''));
+      b.dataset.game = t.key;
       b.style.setProperty('--hue', info.hue);
       const art = el('span', 'game-card-art');
       art.append(gameIcon(t.key, 'game-card-icon'));
