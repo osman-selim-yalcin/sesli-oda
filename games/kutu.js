@@ -1,11 +1,11 @@
 const { randomUUID } = require('node:crypto');
-const engines = { catan: require('../public/catan-kurallar'), munchkin: require('../public/munchkin-kurallar') };
+const engines = { takimada: require('../public/takimada-kurallar'), yedikapi: require('../public/yedikapi-kurallar') };
 
 module.exports = function setup({ io, getRoom, rooms, BOT, postSystem }) {
   function send(room, key) {
-    if (key === 'munchkin') {
+    if (key === 'yedikapi') {
       for (const [id, user] of room.users) {
-        io.to(id).emit('kutu:state', { key, game: engines.munchkin.view(room[key], user.name) });
+        io.to(id).emit('kutu:state', { key, game: engines.yedikapi.view(room[key], user.name) });
       }
     } else io.to(room.code).emit('kutu:state', { key, game: room[key] });
   }
@@ -30,11 +30,11 @@ module.exports = function setup({ io, getRoom, rooms, BOT, postSystem }) {
     postSystem(room, game.log);
   }
   return {
-    munchkinView: engines.munchkin.view,
+    yedikapiView: engines.yedikapi.view,
     start(room, key, players) {
       room[key] = { ...engines[key].create(players), id: randomUUID(), revision: 0 };
       send(room, key);
-      postSystem(room, (key === 'catan' ? 'Catan' : 'Munchkin')+' maçı başladı.');
+      postSystem(room, (key === 'takimada' ? 'Takımada' : 'Yedi Kapı')+' maçı başladı.');
     },
     left(room, name) { for (const key of Object.keys(engines)) finish(room, key, name); },
     bind(socket, code) {
@@ -43,7 +43,7 @@ module.exports = function setup({ io, getRoom, rooms, BOT, postSystem }) {
         const room = getRoom(code()), game = room[input.key], name = room.users.get(socket.id)?.name;
         if (!game || game.done || game.id !== input.id || game.revision !== input.revision) return;
         if (input.action === 'leave') return finish(room, input.key, name);
-        if (input.key === 'munchkin' && engines.munchkin.manage(game, game.players.indexOf(name), input.action)) {
+        if (input.key === 'yedikapi' && engines.yedikapi.manage(game, game.players.indexOf(name), input.action)) {
           game.revision++;
           send(room, input.key);
           return;

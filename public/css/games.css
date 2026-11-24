@@ -1402,110 +1402,276 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .yorunge-demo h1 { margin: 0 0 18px; }
 #lobby-yorunge > button { margin: 4px; }
 
-/* Kutu oyunları */
-.kutu-match { display: grid; gap: 12px; min-width: 0; padding-block: 12px; }
-.kutu-match h3, .kutu-match p { margin: 0; }
-.kutu-head, .kutu-scores, .kutu-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.kutu-head { justify-content: space-between; }
-.kutu-log { color: var(--muted); }
-.kutu-scores span { padding: 4px 8px; border-inline-start: 3px solid; background: var(--surface-2); }
-.catan-map { display: block; width: min(100%, 540px); margin: auto; }
-.catan-map text { font: 6px sans-serif; font-weight: 600; fill: white; stroke: #282a25; stroke-width: 1px; paint-order: stroke; pointer-events: none; }
-.catan-target { cursor: pointer; }
-.catan-target:focus-visible, .catan-target:hover { stroke: var(--accent); stroke-width: 3; }
-.kutu-encounter { border: 1px solid var(--border-strong); border-radius: var(--radius-m); background: radial-gradient(ellipse at top, var(--accent-soft), var(--surface-2)); padding: 24px; text-align: center; }
-.kutu-encounter h3 { margin-block: 10px; }
-
-/* Oyun kutularının kapak çizimleri ve masadaki bileşenleri */
-.game-card[data-game="catan"] .game-card-art,
-.game-card[data-game="munchkin"] .game-card-art { background-size: cover; background-position: center 55%; }
-.game-card[data-game="catan"] .game-card-art { background-image: url('/art/catan.webp'); }
-.game-card[data-game="munchkin"] .game-card-art { background-image: url('/art/munchkin.webp'); }
-.game-card:is([data-game="catan"],[data-game="munchkin"]) .game-card-icon { visibility: hidden; }
-.kutu-game { min-width: 0; container-type: inline-size; }
+/* Kutu oyunları (Takımada, Yedi Kapı): ortak kabuk public/kutu.js, sahneler public/takimada.js ve public/yedikapi.js.
+   Sahneler CSS 3D'dir ve kendi sabit renklerini kullanır (ada denizi, zindan); çevredeki paneller temadan gelir. */
+.game-card[data-game="takimada"] .game-card-art,
+.game-card[data-game="yedikapi"] .game-card-art { background-size: cover; background-position: center 55%; }
+.game-card[data-game="takimada"] .game-card-art { background-image: url('/art/takimada.webp'); }
+.game-card[data-game="yedikapi"] .game-card-art { background-image: url('/art/yedikapi.webp'); }
+.game-card:is([data-game="takimada"],[data-game="yedikapi"]) .game-card-icon { visibility: hidden; }
+.kutu-game { display: grid; gap: 12px; min-width: 0; container-type: inline-size; }
+.kutu-match { display: grid; gap: 10px; min-width: 0; }
+.kutu-match[hidden] { display: none; }
+.kutu-match h4, .kutu-match p { margin: 0; }
+.kutu-match h4 { font-size: 13px; color: var(--muted); font-weight: 600; }
 .kutu-icon { width: 28px; height: 28px; flex: none; vertical-align: middle; }
 .kutu-game button:has(> .kutu-icon) { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
-.kutu-game button > .kutu-icon { width: 21px; height: 21px; }
+.kutu-game button > .kutu-icon { width: 20px; height: 20px; }
 .kutu-start { display: block; padding: 0; overflow: hidden; background: var(--surface); }
-.kutu-banner { box-sizing: border-box; padding: clamp(18px, 4%, 36px); min-height: 160px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 7px; color: #fff3d7; text-align: left; background-size: cover; background-position: center 53%; }
-.kutu-banner-catan { background-image: linear-gradient(90deg,#083c47f2, #083c4770 54%,transparent 85%),url('/art/catan.webp'); }
-.kutu-banner-munchkin { background-image: linear-gradient(90deg,#20141cee,#20141c80 53%,transparent 90%),url('/art/munchkin.webp'); }
+.kutu-banner { box-sizing: border-box; padding: clamp(18px, 4%, 36px); min-height: 180px; display: flex; flex-direction: column; justify-content: flex-end; align-items: flex-start; gap: 7px; color: #fff3d7; text-align: left; background-size: cover; background-position: center 53%; }
+.kutu-banner-takimada { background-image: linear-gradient(90deg,#083c47f2, #083c4770 54%,transparent 85%),url('/art/takimada.webp'); }
+.kutu-banner-yedikapi { background-image: linear-gradient(90deg,#20141cee,#20141c80 53%,transparent 90%),url('/art/yedikapi.webp'); }
 .kutu-banner h2 { color: inherit; font: 700 clamp(29px,5vw,49px)/1.05 Georgia,serif; margin: 0; letter-spacing: -.035em; text-shadow: 0 1px 6px #17131070; }
 .kutu-banner p { color: #f6ead1; font-size: 14px; line-height: 1.5; max-width: min(400px,76%); margin: 0; text-shadow: 0 1px 4px #170f0c; }
 .kutu-start-options,.kutu-choice { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .kutu-start-options { padding: 16px; justify-content: space-between; }
-.kutu-head h3 { font-size: 17px; }
-.kutu-scores { gap: 6px; }
-.kutu-scores span { border-radius: 3px var(--radius-s) var(--radius-s) 3px; color: var(--muted); font-size: 13px; }
-.kutu-scores span.active { font-weight: 700; color: var(--text); background: var(--accent-soft); }
-.kutu-encounter { border-radius: var(--radius-m); border-color: #78583e; min-height: 155px; }
-.dungeon-stats { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
-.dungeon-stats span { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 5px; border-radius: 5px; border: 1px solid #e7ba754f; background: #21151bf0; color: #efdab6; font-size: 12px; }
-.dungeon-stats .kutu-icon { width: 21px; height: 21px; }
-.dungeon-stats b { color: #fff2d2; font-size: 16px; }
-.kutu-section-title { display: flex; align-items: center; gap: 7px; margin: 0; font-size: 16px; }
-.dungeon-bag,.loot-display,.catan-tableau { padding: clamp(11px,2.4%,20px); border: 1px solid var(--border-strong); border-radius: var(--radius-m); background: var(--surface); display: grid; gap: 12px; min-width: 0; }
-.bag-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.bag-note { font-size: 13px; line-height: 1.5; color: var(--muted); }
-.equipment-rack { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
-.equipment-slot { padding: 9px; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); background: var(--surface-2); display: grid; justify-items: center; align-content: start; gap: 2px; text-align: center; min-width: 0; }
-.equipment-slot:not(.worn) .kutu-icon { filter: grayscale(1); opacity: .6; }
-.equipment-slot small,.loot-body small { font-size: 11px; color: var(--muted); }
-.equipment-slot b { font-size: 12px; overflow-wrap: anywhere; }
-.equipment-slot.worn,.loot-card.worn { border: 1px solid #b48e56; }
-.loot-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(145px,100%),1fr)); gap: 8px; }
-.loot-card { display: grid; grid-template-rows: 64px auto 1fr; min-width: 0; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--surface-2); }
-.loot-art { position: relative; display: grid; place-items: center; color: #f1cb84; background: repeating-linear-gradient(135deg,transparent 0 6px,#f4d49e09 6px 7px),radial-gradient(ellipse at center,#674435,#292027); }
-.loot-art .kutu-icon { width: 45px; height: 45px; filter: drop-shadow(0 3px 2px #1e101ba8); }
-.loot-art b { position: absolute; top: 5px; right: 7px; font-size: 13px; }
-.loot-body { display: grid; gap: 2px; padding: 8px 9px 4px; }
-.loot-body strong { font-size: 14px; }
-.loot-controls { display: flex; flex-wrap: wrap; align-content: end; gap: 4px; padding: 5px 8px 9px; }
-.loot-controls button { font-size: 12px; min-height: 30px; height: auto; padding: 4px 8px; }
-.loot-controls button[aria-pressed="true"] { border-color: var(--accent); }
-.loot-controls .loot-exchange { font-size: 11px; background: transparent; border-color: transparent; color: var(--muted); }
-.loot-display { display: flex; flex-wrap: wrap; align-items: center; }
-.loot-display h4 { width: 100%; }
-.displayed-item { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
-.catan-layout { display: grid; gap: 12px; align-items: start; min-width: 0; }
-.catan-atlas { overflow: hidden; min-width: 0; border: 1px solid #537f81; border-radius: var(--radius-m); background: repeating-radial-gradient(ellipse at 35% 58%,transparent 0 14px,#c4edda0e 15px 16px,transparent 17px 22px),linear-gradient(145deg,#184f59,#136e76 48%,#205763); }
-.catan-atlas .kutu-banner { min-height: 98px; border-bottom: 1px solid #d0cc9c65; padding: 12px 16px; }
-.catan-atlas .kutu-banner h2 { font-size: 31px; }
-.catan-atlas .kutu-banner p { font-size: 13px; }
-.catan-map { width: min(100%,520px); }
-.catan-map .catan-token { fill: #fff2cf; stroke: #775f3f; stroke-width: .7px; pointer-events: none; }
-.catan-map text { font: bold 7px Georgia,serif; stroke: none; fill: #423426; }
-.catan-map text.frequent { fill: #a53e31; }
-.catan-stamp,.catan-building { pointer-events: none; }
-.catan-roll { display: flex; align-items: center; gap: 8px; padding: 8px 12px; color: #f2e9d2; background: #10363bd9; font-size: 13px; }
-.catan-roll strong { font-size: 24px; white-space: nowrap; color: #ffe1a2; }
-.catan-resources { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 4px; }
-.catan-resource { border-radius: var(--radius-s); border: 1px solid var(--border); background: var(--surface-2); display: grid; justify-items: center; align-content: center; gap: 1px; padding: 6px 1px; }
-.catan-resource b { font-size: 18px; font-variant-numeric: tabular-nums; }
-.catan-resource small { font-size: 10px; color: var(--muted); }
-.catan-builds { display: grid; gap: 5px; }
-.kutu-game .catan-blueprint { display: flex; align-items: center; justify-content: flex-start; gap: 6px; padding: 6px 8px; width: 100%; min-height: 37px; height: auto; text-align: left; }
-.catan-blueprint:disabled { opacity: .72; }
-.catan-blueprint[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
-.catan-cost { display: inline-flex; align-items: center; gap: 2px; margin-left: auto; font-size: 11px; }
-.catan-cost .kutu-icon { width: 16px; height: 16px; }
-.kutu-actions:empty { display: none; }
-.kutu-actions select { min-width: 0; max-width: 100%; }
-@container (min-width: 650px) {
-  .catan-layout { grid-template-columns: minmax(0,1.55fr) minmax(240px,1fr); }
-  .loot-grid { grid-template-columns: repeat(auto-fill,minmax(165px,1fr)); }
+#game-yedikapi .lobby.hero, #game-takimada .lobby.hero { background-size: cover; background-position: center; border-color: var(--border-strong); }
+#game-yedikapi .lobby.hero { background-image: linear-gradient(#21141ba8,#21141bf0),url('/art/yedikapi.webp'); }
+#game-takimada .lobby.hero { background-image: linear-gradient(#0d3c469e,#0d3c46eb),url('/art/takimada.webp'); }
+.kutu-game .lobby.hero .lobby-title, .kutu-game .lobby.hero .lobby-desc { color: #fff2d6; }
+#game-yedikapi button.primary { background: #dbb278; color: #2d1d1b; border-color: #e9c997; }
+#game-takimada button.primary { background: #91d7c7; color: #123d3a; border-color: #afe3d6; }
+
+.kutu-bar { display: flex; align-items: center; gap: 10px; }
+.kutu-seats { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+.kutu-seat { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface-2); transition: box-shadow .35s, border-color .35s; }
+.kutu-seat.active { border-color: var(--c); box-shadow: 0 0 0 1px var(--c), 0 0 22px -6px var(--c); }
+.kutu-pawn { flex: none; width: 24px; height: 24px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff9, transparent 45%), var(--c); box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 55%, #000); }
+.kutu-seat.active .kutu-pawn { animation: yor-beat 1.6s ease-in-out infinite; }
+.kutu-seat-text { display: grid; gap: 2px; min-width: 0; }
+.kutu-seat-text strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.kutu-seat.me .kutu-seat-text strong::after { content: ' (sen)'; font-weight: 400; color: var(--muted); }
+.kutu-seat-text small { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.kutu-pips { display: flex; gap: 3px; }
+.kutu-pips i { flex: 0 1 10px; height: 5px; border-radius: 3px; background: var(--border-strong); }
+.kutu-pips i.on { background: var(--c); }
+.kutu-tools { display: flex; align-items: center; gap: 6px; }
+.kutu-body { display: grid; gap: 10px; min-width: 0; }
+
+/* 3D zar */
+.kutu-die-wrap { flex: none; width: 48px; height: 48px; perspective: 320px; }
+.kutu-die { position: relative; width: 48px; height: 48px; transform-style: preserve-3d; transform: rotateX(-18deg) rotateY(-22deg); }
+.kutu-die[data-face="2"] { transform: rotateX(-18deg) rotateY(-22deg) rotateY(-90deg); }
+.kutu-die[data-face="3"] { transform: rotateX(-18deg) rotateY(-22deg) rotateX(-90deg); }
+.kutu-die[data-face="4"] { transform: rotateX(-18deg) rotateY(-22deg) rotateX(90deg); }
+.kutu-die[data-face="5"] { transform: rotateX(-18deg) rotateY(-22deg) rotateY(90deg); }
+.kutu-die[data-face="6"] { transform: rotateX(-18deg) rotateY(-22deg) rotateY(180deg); }
+.kutu-die.rolling { animation: kutu-roll .7s cubic-bezier(.2, .7, .3, 1); }
+.kutu-die i { position: absolute; inset: 0; box-sizing: border-box; display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 7px; border: 1px solid #b9a37c; border-radius: 9px; background: linear-gradient(145deg, #fffaf0, #e6d6b6); }
+.kutu-die .f1 { transform: translateZ(24px); }
+.kutu-die .f2 { transform: rotateY(90deg) translateZ(24px); }
+.kutu-die .f3 { transform: rotateX(90deg) translateZ(24px); }
+.kutu-die .f4 { transform: rotateX(-90deg) translateZ(24px); }
+.kutu-die .f5 { transform: rotateY(-90deg) translateZ(24px); }
+.kutu-die .f6 { transform: rotateY(180deg) translateZ(24px); }
+.kutu-die b { place-self: center; width: 7px; height: 7px; border-radius: 50%; background: #3a2c22; }
+.kutu-die .p1 { grid-area: 1 / 1; } .kutu-die .p3 { grid-area: 1 / 3; } .kutu-die .p4 { grid-area: 2 / 1; } .kutu-die .p5 { grid-area: 2 / 2; }
+.kutu-die .p6 { grid-area: 2 / 3; } .kutu-die .p7 { grid-area: 3 / 1; } .kutu-die .p9 { grid-area: 3 / 3; }
+@keyframes kutu-roll { from { rotate: 1 1 0 720deg; scale: .6; } }
+/* Kutu prizma: üst + ön + iki yan yüz (--w genişlik, --d derinlik, --h yükseklik, --face renk) */
+.kutu-box { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-style: preserve-3d; }
+.kutu-box i { position: absolute; left: 0; top: 0; transform-origin: 0 0; background: var(--face, #ccc); }
+.kutu-box .top { width: var(--w); height: var(--d); transform: translate3d(calc(var(--w) / -2), calc(var(--d) / -2), var(--h)); filter: brightness(1.18); }
+.kutu-box .front { width: var(--w); height: var(--h); transform: translate3d(calc(var(--w) / -2), calc(var(--d) / 2), var(--h)) rotateX(-90deg); }
+.kutu-box .left { width: var(--d); height: var(--h); transform: translate3d(calc(var(--w) / -2), calc(var(--d) / -2), var(--h)) rotateZ(90deg) rotateX(-90deg); filter: brightness(.72); }
+.kutu-box .right { width: var(--d); height: var(--h); transform: translate3d(calc(var(--w) / 2), calc(var(--d) / 2), var(--h)) rotateZ(-90deg) rotateX(-90deg); filter: brightness(.86); }
+
+/* ---------- Takımada ---------- */
+.tk-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 10px; align-items: start; }
+.tk-stage { position: relative; overflow: hidden; height: clamp(440px, calc(100dvh - 330px), 800px); border: 1px solid #2d7f96; border-radius: var(--radius-m);
+  background: radial-gradient(ellipse 60% 50% at 50% 55%, #2aa3b6 0%, transparent 75%), linear-gradient(160deg, #0d4f63, #0a6d7c 50%, #0c4257);
+  perspective: 1300px; perspective-origin: 50% 6%; }
+.tk-sea { position: absolute; inset: -140px; pointer-events: none; opacity: .9; animation: tk-wave 16s ease-in-out infinite alternate;
+  background: repeating-radial-gradient(ellipse 120% 70% at 40% 60%, transparent 0 26px, #ffffff14 27px 29px, transparent 30px 46px); }
+.tk-plane { --s: 1; --cx: 0px; --cy: 0px; position: absolute; left: 50%; top: 47%; width: 0; height: 0; transform-style: preserve-3d;
+  transform: rotateX(48deg) scale3d(var(--s), var(--s), var(--s)) translate(calc(-1 * var(--cx)), calc(-1 * var(--cy))); }
+.tk-plane > * { position: absolute; left: 0; top: 0; }
+.tk-tile, .tk-route, .tk-build, .tk-storm { width: 0; height: 0; transform-style: preserve-3d; }
+.tk-tile[data-kind="orman"] { --top: linear-gradient(150deg, #5fbf74, #2f8a51); --rim: #23693d; --side: #1d5632; --side2: #2a7445; }
+.tk-tile[data-kind="tas"] { --top: linear-gradient(150deg, #b6bfd0, #7e889c); --rim: #5f687a; --side: #4c5466; --side2: #677186; }
+.tk-tile[data-kind="koy"] { --top: linear-gradient(150deg, #7fe0df, #2fa6b4); --rim: #1f7f8c; --side: #186673; --side2: #23889a; }
+.tk-tile[data-kind="tuzla"] { --top: linear-gradient(150deg, #fbeee4, #dcc4b4); --rim: #b89c8a; --side: #96796a; --side2: #b89886; }
+.tk-tile[data-kind="lagun"] { --top: linear-gradient(150deg, #3f9fe0, #1c62b0); --rim: #7fd0ff; --side: #174f8f; --side2: #1f66b3; }
+.tk-top { position: absolute; left: -40px; top: -46px; width: 80px; height: 92px; display: grid; place-items: center; background: var(--rim); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+.tk-top::before { content: ''; position: absolute; inset: 2.5px; clip-path: inherit; background: var(--top); }
+.tk-side { position: absolute; left: 0; top: 0; width: 46px; height: 16px; transform-origin: 0 0; background: var(--side); }
+.tk-side.r { transform: translate3d(40px, -23px, 0) rotateZ(90deg) rotateX(-90deg); background: var(--side2); }
+.tk-side.br { transform: translate3d(40px, 23px, 0) rotateZ(150deg) rotateX(-90deg); background: linear-gradient(var(--side2), var(--side)); }
+.tk-side.bl { transform: translate3d(0, 46px, 0) rotateZ(210deg) rotateX(-90deg); }
+.tk-side.l { transform: translate3d(-40px, 23px, 0) rotateZ(270deg) rotateX(-90deg); }
+.tk-deco { position: relative; width: 36px; height: 36px; margin-top: -24px; filter: drop-shadow(0 3px 2px #0006); }
+.tk-mark { position: absolute; bottom: 15px; display: grid; place-items: center; width: 25px; height: 25px; border-radius: 7px; background: #fff8e6; color: #3a2c22; font: 700 15px/1 var(--font-display, sans-serif); box-shadow: 0 2px 0 #9c8763; }
+.tk-tile.hit .tk-top::before { filter: brightness(1.22); }
+.tk-tile.hit .tk-mark { background: #ffd84a; animation: tk-hit .9s ease-in-out 3; }
+.tk-tile.blocked .tk-mark { background: #ff6b5a; color: #fff; }
+.tk-tile.stormy .tk-top::before { filter: brightness(.62) saturate(.6); }
+.tk-route .kutu-box { --face: var(--c); }
+.tk-route.fresh .kutu-box { animation: tk-grow .5s cubic-bezier(.3, 1.3, .5, 1); }
+.tk-lane { width: 36px; height: 14px; margin: -7px 0 0 -18px; border: 2px dashed #fff; border-radius: 7px; background: #ffffff59; cursor: pointer; outline: none; animation: tk-pulse 1.2s ease-in-out infinite; }
+.tk-lane:hover, .tk-lane:focus-visible { background: #fff; }
+.tk-spot { display: grid; place-items: center; width: 32px; height: 32px; margin: -16px 0 0 -16px; border: 3px solid #fff; border-radius: 50%; background: #ffffff4d; box-shadow: 0 0 14px 3px #ffffffb0; cursor: pointer; outline: none; }
+.tk-spot i { width: 10px; height: 10px; border-radius: 50%; background: #fff; animation: yor-ping 1.2s ease-in-out infinite; }
+.tk-spot:hover, .tk-spot:focus-visible { background: #ffffffb0; }
+.tk-spot.up { border-color: #ffd84a; box-shadow: 0 0 14px 3px #ffd84a; }
+.tk-spot.up i { background: #ffd84a; }
+.tk-build .hut, .tk-build .base { --face: var(--c); }
+.tk-build .roof { --face: color-mix(in srgb, var(--c) 62%, #2a1608); translate: 0 0 14px; }
+.tk-build .tower { --face: repeating-linear-gradient(#f6f1e8 0 9px, #d1483c 9px 15px); translate: 0 0 8px; }
+.tk-build .lamp { --face: #ffd84a; translate: 0 0 54px; filter: drop-shadow(0 0 10px #ffd84a); }
+.tk-beam { position: absolute; left: -55px; top: -55px; width: 110px; height: 110px; border-radius: 50%; pointer-events: none; transform: translateZ(58px); animation: tk-spin 5s linear infinite;
+  background: conic-gradient(#ffe98a99 0 26deg, transparent 30deg 180deg, #ffe98a66 180deg 206deg, transparent 210deg); }
+.tk-build.fresh > .kutu-box { animation: tk-drop .6s cubic-bezier(.3, 1.3, .5, 1); }
+.tk-storm { pointer-events: none; }
+.tk-storm-shade { position: absolute; left: -38px; top: -34px; width: 76px; height: 68px; border-radius: 50%; background: #0b1a2c; opacity: .5; filter: blur(8px); }
+.tk-cloud { position: absolute; left: -36px; top: -72px; width: 72px; height: 72px; transform-origin: 50% 100%; transform: translateZ(30px) rotateX(-48deg); animation: tk-bob 2.6s ease-in-out infinite; }
+.tk-cloud .kutu-icon { width: 100%; height: 100%; filter: drop-shadow(0 6px 4px #0007); }
+.tk-hint { position: absolute; inset: auto 10px 10px; margin: 0 auto; width: fit-content; max-width: calc(100% - 20px); padding: 7px 14px; border: 1px solid transparent; border-radius: 999px; background: #06242ee6; color: #d5ebe8; font-size: 13px; text-align: center; }
+.tk-hint.mine { border-color: #91d7c7; color: #fff; font-weight: 600; }
+.tk-rail { display: grid; gap: 8px; min-width: 0; }
+.tk-card { display: grid; gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface-2); }
+.tk-tide { grid-template-columns: auto minmax(0, 1fr); align-items: center; column-gap: 12px; }
+.tk-tide > button { grid-column: 1 / -1; }
+.tk-tide-text { display: grid; gap: 2px; min-width: 0; }
+.tk-tide-text small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.tk-hold { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.tk-res { position: relative; display: grid; justify-items: center; gap: 1px; padding: 8px 2px 6px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface); }
+.tk-res b { font-size: 20px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.tk-res small { font-size: 11px; color: var(--muted); }
+.tk-gain { position: absolute; top: -7px; right: -4px; padding: 1px 6px; border-radius: 999px; background: #2fbf72; color: #fff; font-size: 12px; font-weight: 700; }
+.tk-gain.fresh { animation: tk-gain .9s cubic-bezier(.2, 1.4, .4, 1); }
+.kutu-game button.tk-plan:has(> .kutu-icon) { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; justify-content: stretch; gap: 9px; width: 100%; height: auto; min-height: 46px; padding: 6px 10px; text-align: left; }
+.kutu-game .tk-plan > .kutu-icon { width: 26px; height: 26px; }
+.tk-plan:disabled { opacity: .6; }
+.tk-plan[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.tk-plan-text { display: grid; min-width: 0; }
+.tk-plan-text small { font-size: 11px; font-weight: 400; color: var(--muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.tk-cost { display: inline-flex; align-items: center; gap: 1px; font-size: 11px; color: var(--muted); }
+.tk-cost .kutu-icon { width: 18px; height: 18px; }
+.tk-desk select, .tk-desk button { width: 100%; min-width: 0; }
+.tk-offer { font-size: 13px; }
+@keyframes tk-wave { to { transform: translate(60px, 30px); } }
+@keyframes tk-hit { 50% { scale: 1.35; } }
+@keyframes tk-pulse { 50% { opacity: .55; } }
+@keyframes tk-grow { from { scale: 0 1 1; } }
+@keyframes tk-drop { from { translate: 0 0 170px; } }
+@keyframes tk-spin { to { rotate: 360deg; } }
+@keyframes tk-bob { 50% { translate: 0 0 9px; } }
+@keyframes tk-gain { from { scale: 0; translate: 0 14px; } }
+
+/* ---------- Yedi Kapı ---------- */
+.yk-layout { display: grid; grid-template-columns: 232px minmax(0, 1fr) 212px; gap: 10px; align-items: stretch; }
+.yk-panel { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-m); background: var(--surface-2); }
+.yk-note { font-size: 12px; line-height: 1.45; color: var(--muted); }
+.yk-stage { position: relative; overflow: clip; display: grid; justify-items: center; align-content: start; gap: 12px; min-width: 0; min-height: clamp(520px, calc(100dvh - 400px), 720px); padding: 20px 14px 16px; border: 1px solid #6b4a34; border-radius: var(--radius-m); color: #f3e3c4;
+  background: linear-gradient(#1b1116c4, #1b1116f5 70%), url('/art/yedikapi.webp') center / cover; }
+.yk-scene { width: min(100%, 300px); perspective: 900px; perspective-origin: 50% 40%; }
+.yk-arch { position: relative; height: 320px; border-radius: 150px 150px 8px 8px / 132px 132px 8px 8px; transform-style: preserve-3d; box-shadow: inset 0 0 0 3px #2c2026, 0 22px 30px -14px #000;
+  background: repeating-linear-gradient(0deg, #0000 0 38px, #2c202699 38px 40px), repeating-linear-gradient(90deg, #6f6168 0 58px, #5c4f56 58px 60px), #6f6168; }
+.yk-behind, .yk-door { position: absolute; inset: 16px 16px 0; }
+.yk-behind { display: grid; place-items: center; border-radius: 134px 134px 0 0 / 116px 116px 0 0; background: radial-gradient(ellipse at 50% 42%, #6a2f47, #150b12 74%); box-shadow: inset 0 0 30px #000; }
+.yk-door { transform-origin: 0 50%; transform-style: preserve-3d; }
+.yk-door.open { transform: rotateY(-100deg); }
+.yk-door.opening { animation: yk-open .9s cubic-bezier(.5, 0, .2, 1) both; }
+.yk-door.closing { animation: yk-close .8s cubic-bezier(.5, 0, .2, 1) both; }
+.yk-leaf { position: absolute; inset: 0; border-radius: 134px 134px 0 0 / 116px 116px 0 0; box-shadow: inset 0 0 0 5px #3b2418, inset 0 0 46px #000a;
+  background: repeating-linear-gradient(90deg, #84522f 0 32px, #5f3a22 32px 34px), #84522f; }
+.yk-hinge { position: absolute; left: 0; width: 64%; height: 13px; border-radius: 0 8px 8px 0; background: linear-gradient(#4a4650, #25232a); }
+.yk-hinge.a { top: 30%; } .yk-hinge.b { top: 72%; }
+.yk-knocker { position: absolute; right: 14%; top: 49%; width: 24px; height: 24px; border: 5px solid #d9a441; border-radius: 50%; box-shadow: 0 3px 4px #0008; }
+.yk-plaque { position: absolute; left: 50%; top: 13%; translate: -50%; padding: 2px 10px; border-radius: 6px; background: #d9a441; color: #2d1d1b; font-size: 13px; box-shadow: 0 2px 0 #7d5a1c; white-space: nowrap; }
+.yk-torch { position: absolute; top: 34%; width: 14px; height: 34px; border-radius: 50% 50% 30% 30%; background: linear-gradient(#ffd27a, #e0621f); filter: drop-shadow(0 0 14px #ff9a2e); transform-origin: 50% 100%; animation: yk-flick .28s ease-in-out infinite alternate; }
+.yk-torch.l { left: -30px; } .yk-torch.r { right: -30px; }
+.yk-card { position: relative; display: grid; justify-items: center; gap: 4px; width: 158px; padding: 14px 10px 12px; border-radius: 12px; text-align: center; color: #2d1d1b; background: linear-gradient(#f8ecd0, #e3cb9c); box-shadow: 0 12px 26px #000b, inset 0 0 0 3px #a8834e; }
+.yk-card.monster { background: linear-gradient(#f6ddd0, #dba08a); box-shadow: 0 12px 26px #000b, inset 0 0 0 3px #8e3b2c; }
+.yk-card.curse { background: linear-gradient(#e6dcf3, #b59ad1); box-shadow: 0 12px 26px #000b, inset 0 0 0 3px #5b3f7e; }
+.yk-card.gold { background: linear-gradient(#fff3c4, #f0c75a); }
+.yk-card.flip { animation: yk-flip .7s .45s cubic-bezier(.2, 1.2, .4, 1) both; }
+.yk-card-art { width: 76px; height: 76px; filter: drop-shadow(0 4px 3px #0005); }
+.yk-card strong { font: 700 17px/1.15 Georgia, serif; }
+.yk-card small { font-size: 12px; line-height: 1.3; }
+.yk-strength { position: absolute; top: -12px; right: -12px; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: #b3261e; color: #fff; font-size: 19px; box-shadow: 0 0 0 3px #f8ecd0, 0 4px 8px #0008; }
+.yk-meter { display: grid; grid-template-columns: auto minmax(70px, 1fr) auto; align-items: center; gap: 6px 12px; width: min(100%, 470px); padding: 10px 14px; border: 1px solid #e7ba754f; border-radius: 12px; background: #21151bf2; }
+.yk-meter, .yk-log, .yk-actions { position: relative; z-index: 1; }
+.yk-door.open:not(.opening) .yk-plaque, .yk-door.open:not(.opening) .yk-knocker { visibility: hidden; }
+.yk-meter.boost { animation: yk-boost .7s ease; }
+.yk-side { display: grid; justify-items: center; gap: 1px; }
+.yk-side b { font-size: 26px; line-height: 1; color: #fff2d2; }
+.yk-side small { font-size: 11px; color: #d9c6a2; max-width: 130px; text-align: center; }
+.yk-bar { height: 12px; border-radius: 6px; overflow: hidden; background: #b3261e; }
+.yk-bar i { display: block; height: 100%; background: #4fbf7a; transition: width .4s; }
+.yk-verdict { grid-column: 1 / -1; font-size: 13px; text-align: center; color: #ffb9a8; }
+.yk-meter.win .yk-verdict { color: #8ff0b0; font-weight: 600; }
+.yk-log { max-width: 48ch; font-size: 14px; line-height: 1.45; text-align: center; color: #e6d5b6; }
+.yk-log.mine { color: #fff6e2; font-weight: 600; }
+.yk-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.yk-actions button { min-height: 44px; padding-inline: 18px; font-size: 15px; }
+.yk-wait { font-size: 13px; color: #d9c6a2; }
+.yk-hero { border-top: 3px solid var(--c); }
+.yk-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.yk-stat { display: grid; justify-items: center; gap: 1px; padding: 8px 2px 6px; border: 1px solid var(--border); border-radius: var(--radius-s); background: var(--surface); }
+.yk-stat b { font-size: 22px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.yk-stat small, .yk-slot small { font-size: 11px; color: var(--muted); }
+.yk-rack { display: grid; gap: 6px; }
+.yk-slot { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; column-gap: 9px; padding: 7px 9px; border: 1px dashed var(--border-strong); border-radius: var(--radius-s); background: var(--surface); }
+.yk-slot .kutu-icon { grid-row: span 2; width: 34px; height: 34px; }
+.yk-slot:not(.worn) .kutu-icon { filter: grayscale(1); opacity: .5; }
+.yk-slot b { font-size: 13px; overflow-wrap: anywhere; }
+.yk-slot.worn { border: 1px solid #b48e56; box-shadow: 0 3px 0 #b48e5655; }
+.yk-rungs { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.yk-rung { display: flex; align-items: center; gap: 5px; min-height: 27px; padding: 2px 8px; border-left: 3px solid var(--border-strong); border-radius: 4px 8px 8px 4px; background: var(--surface); }
+.yk-rung.goal { border-left-color: #d9a441; background: color-mix(in srgb, #d9a441 16%, var(--surface)); }
+.yk-rung-no { width: 34px; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.yk-pawn { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--c); color: #1b1116; font-size: 12px; font-weight: 700; box-shadow: 0 3px 0 color-mix(in srgb, var(--c) 55%, #000); }
+.yk-pawn.turn { outline: 2px solid var(--text); outline-offset: 1px; }
+.yk-pawn.hop { animation: yk-hop .8s cubic-bezier(.3, 1.5, .5, 1); }
+.yk-table { display: flex; flex-wrap: wrap; gap: 6px; }
+.yk-shown { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px 2px 3px; border-bottom: 2px solid var(--c); border-radius: 6px; background: var(--surface); }
+.yk-shown .kutu-icon { width: 22px; height: 22px; }
+.yk-shown small { font-size: 11px; }
+.yk-bag-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.yk-loot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 8px; }
+.yk-loot { display: grid; grid-template-rows: 70px auto 1fr; min-width: 0; overflow: hidden; border: 1px solid var(--border-strong); border-radius: var(--radius-s); background: var(--surface); transition: transform .2s, box-shadow .2s; }
+.yk-loot:hover { transform: perspective(600px) rotateX(7deg) translateY(-3px); box-shadow: 0 10px 18px -8px #000a; }
+.yk-loot.worn { border-color: #b48e56; box-shadow: 0 0 0 1px #b48e56; }
+.yk-loot-art { position: relative; display: grid; place-items: center; color: #f1cb84; background: repeating-linear-gradient(135deg, transparent 0 6px, #f4d49e09 6px 7px), radial-gradient(ellipse at center, #674435, #292027); }
+.yk-loot-art .kutu-icon { width: 48px; height: 48px; filter: drop-shadow(0 3px 2px #1e101ba8); }
+.yk-loot-art b { position: absolute; top: 5px; right: 8px; font-size: 14px; }
+.yk-loot-text { display: grid; gap: 2px; padding: 8px 9px 4px; }
+.yk-loot-text small { font-size: 11px; color: var(--muted); }
+.yk-loot-text strong { font-size: 14px; }
+.yk-loot-controls { display: flex; flex-wrap: wrap; align-content: end; gap: 4px; padding: 5px 8px 9px; }
+.yk-loot-controls button { height: auto; min-height: 30px; padding: 4px 8px; font-size: 12px; }
+.kutu-game .yk-loot-controls button > .kutu-icon { width: 14px; height: 14px; }
+.yk-loot-controls button[aria-pressed="true"] { border-color: var(--accent); }
+.yk-loot-controls .yk-exchange { border-color: transparent; background: transparent; color: var(--muted); }
+@keyframes yk-open { from { transform: rotateY(0deg); } to { transform: rotateY(-100deg); } }
+@keyframes yk-close { from { transform: rotateY(-100deg); } to { transform: rotateY(0deg); } }
+@keyframes yk-flip { from { transform: rotateY(160deg) scale(.5); opacity: 0; } }
+@keyframes yk-flick { to { transform: scale(1.08, 1.18) rotate(3deg); } }
+@keyframes yk-boost { 40% { box-shadow: 0 0 0 3px #b94375, 0 0 30px #b94375; } }
+@keyframes yk-hop { 0% { translate: 0 18px; scale: .6; } 60% { translate: 0 -8px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .kutu-game *, .kutu-game *::before { animation: none !important; transition: none !important; }
 }
-@container (max-width: 370px) {
+@container (max-width: 860px) {
+  .kutu-bar { flex-wrap: wrap; gap: 6px 10px; }
+  .kutu-seats { flex-basis: 100%; }
+  .kutu-tools { margin-left: auto; }
+  .kutu-seats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kutu-seat { padding: 6px 8px; gap: 7px; }
+  .tk-layout { grid-template-columns: minmax(0, 1fr); }
+  .tk-stage { height: clamp(300px, 46dvh, 520px); }
+  .yk-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .yk-stage { grid-column: 1 / -1; order: -1; min-height: 0; }
+}
+@container (max-width: 520px) {
   .kutu-banner { min-height: 134px; }
   .kutu-banner p { max-width: 88%; }
   .kutu-start-options { justify-content: flex-start; }
-  .loot-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
-  .loot-controls button { min-height: 36px; }
+  .yk-layout { grid-template-columns: minmax(0, 1fr); }
+  .yk-arch { height: 270px; }
+  .yk-scene { width: min(100%, 250px); }
+  .yk-loot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .yk-loot-controls button { min-height: 36px; }
 }
-#game-munchkin .lobby.hero, #game-catan .lobby.hero { background-size: cover; background-position: center; border-color: var(--border-strong); }
-#game-munchkin .lobby.hero { background-image: linear-gradient(#21141ba8,#21141bf0),url('/art/munchkin.webp'); }
-#game-catan .lobby.hero { background-image: linear-gradient(#0d3c469e,#0d3c46eb),url('/art/catan.webp'); }
-.kutu-game .lobby.hero .lobby-title, .kutu-game .lobby.hero .lobby-desc { color: #fff2d6; }
-#game-munchkin button.primary { background: #dbb278; color: #2d1d1b; border-color: #e9c997; }
-#game-catan button.primary { background: #91d7c7; color: #123d3a; border-color: #afe3d6; }
-.kutu-game .loot-controls button > .kutu-icon { width: 14px; height: 14px; }

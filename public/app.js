@@ -1408,8 +1408,8 @@ $('now-pop-room').onclick = () => {
 // / oda listesi, /uyeler (listede, yönetici); odanın içinde /oda/<id> sıra, /oda/<id>/gecmis, /oda/<id>/radyo,
 // /oda/<id>/oyunlar (oyun kartları), /oda/<id>/oyunlar/tier/<liste no>, /oda/<id>/oyunlar/kelime ...
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'catan', 'munchkin', 'yorunge', 'kural', 'hedef', 'mantik', 'daktilo', 'okuma', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', catan: 'catan', munchkin: 'munchkin', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'daktilo', 'okuma', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   const base = `/oda/${view.room}`;
@@ -4061,7 +4061,7 @@ function renderLobby(game) {
   // "Oyuncu bekleniyor".
   const n = lobby.players.length;
   const ready = n > 1;
-  const canStart = n >= (['kelime', 'yorunge', 'catan', 'munchkin'].includes(game) ? 2 : 1);
+  const canStart = n >= (['kelime', 'yorunge', 'takimada', 'yedikapi'].includes(game) ? 2 : 1);
   const headText = document.createElement('div');
   headText.className = 'lobby-head-text';
   headText.append(Object.assign(document.createElement('strong'), { className: 'lobby-name', textContent: `${def.title} lobisi` }),
@@ -4126,7 +4126,7 @@ function renderLobby(game) {
   actions.className = 'lobby-actions';
   if (host) {
     const start = withIcon(lobbyButton(`Başlat (${lobby.players.length} kişi)`, 'primary', () => lobbyEmit('lobby:start', game)), 'play');
-    if (['yorunge', 'catan', 'munchkin'].includes(game)) start.disabled = !canStart;
+    if (['yorunge', 'takimada', 'yedikapi'].includes(game)) start.disabled = !canStart;
     actions.append(start);
     actions.append(withIcon(lobbyButton('Lobiden çık', 'ghost', () => lobbyEmit('lobby:leave', game)), 'logout'));
     actions.append(lobbyButton('Lobiyi kapat', 'ghost danger', () => lobbyEmit('lobby:cancel', game)));
@@ -6887,8 +6887,8 @@ function applyJoin(res) {
   setSayi(res.sayi);
   setHedef(res.hedef); // public/hedef.js
   setHedefRecords(res.hedefBoard);
-  LOBBY.catan?.sync(res.catan, Object.hasOwn(res, 'catan'));
-  LOBBY.munchkin?.sync(res.munchkinInventory ? res.munchkin : null, res.munchkinInventory === true);
+  LOBBY.takimada?.sync(res.takimada, Object.hasOwn(res, 'takimada'));
+  LOBBY.yedikapi?.sync(res.yedikapiInventory ? res.yedikapi : null, res.yedikapiInventory === true);
   window.setYorunge?.(res.yorunge, Object.hasOwn(res, 'yorunge'));
   window.setKural?.(res.kural); // public/kural.js
   setMantik(res.mantik); // public/mantik.js
@@ -7042,7 +7042,7 @@ function resetRoomState() {
   setMemory(null);
   setSayi(null);
   setHedef(null);
-  for (const key of ['catan', 'munchkin']) LOBBY[key]?.sync(null, true);
+  for (const key of ['takimada', 'yedikapi']) LOBBY[key]?.sync(null, true);
   window.setYorunge?.(null);
   window.setKural?.(null);
   setMantik(null);
@@ -7563,8 +7563,8 @@ addEventListener('DOMContentLoaded', async () => {
 // hue: oyunun tonu, oklch ton açısı (simgenin rengi, kartın ve lobinin simge zemini; açıklığı temadan gelir)
 const GAME_INFO = {
   sayi: { hue: 245, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
-  catan: { hue: 80, group: 'Kutu Oyunları', desc: 'Yollar kur, kaynakları takas et ve adaya yerleş', players: '2–4 kişi' },
-  munchkin: { hue: 320, group: 'Kutu Oyunları', desc: 'Kapıyı aç, canavarları yen ve hazine topla', players: '2–4 kişi' },
+  takimada: { hue: 80, group: 'Kutu Oyunları', desc: 'Yollar kur, kaynakları takas et ve adaya yerleş', players: '2–4 kişi' },
+  yedikapi: { hue: 320, group: 'Kutu Oyunları', desc: 'Kapıyı aç, canavarları yen ve hazine topla', players: '2–4 kişi' },
   yorunge: { hue: 205, group: 'Kutu Oyunları', desc: 'Filonu konuşlandır, rakip komuta gemisini kuşat', players: '2 kişilik' },
   kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
   hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–10 kişi' },

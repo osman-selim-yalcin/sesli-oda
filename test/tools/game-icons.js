@@ -22,10 +22,10 @@ const ICONS = {
     <rect p="if" x="6" y="8" width="21" height="32" rx="6"/>
     <path d="M12 17h9.5l-6 14"/>
     <path p="t" d="M37 10.5v10M32 15.5h10M32 32.5h10"/>`,
-  catan: `
+  takimada: `
     <path p="tf" d="m24 4 17 10v20L24 44 7 34V14Z"/>
     <path d="m13 23 11-10 11 10M17 21v12h14V21m-9 12v-8h5v8"/>`,
-  munchkin: `
+  yedikapi: `
     <path p="tf" d="M10 40V21a14 14 0 0 1 28 0v19Z"/>
     <path d="m17 34 13-16 1-6-6 3-12 16m0-6 8 7"/>`,
   yorunge: `

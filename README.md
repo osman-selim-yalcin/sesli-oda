@@ -22,11 +22,12 @@ iki oda birleşince 20 kişi (her odadan 10). Site yöneticisi bu sayıya girmez
   hedef sayı, gizli kural, mantık tablosu, daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
   "Oda kur" lobisinden başlar (lobide odadaki herkes ve bot; kelime 6, dinozor 7, sayı bulmaca 2 kişiyle
   sınırlı). Skor tabloları bütün odalarda ortaktır.
-- **Kutu Oyunları** bölümünde Yörünge Kuşatması, Catan ve Munchkin bulunur. Yörünge’de her filoda
+- **Kutu Oyunları** bölümünde Yörünge Kuşatması, Takımada ve Yedi Kapı bulunur. Yörünge’de her filoda
   birer Yankı, Dalış ve Çekici vardır. Bunlar Hive’ın Mosquito, Ladybug ve Pillbug genişletmelerinin
   uzay temalı karşılıklarıdır. [Hive kural kitapçığı](https://hivegame.com/download/rules.pdf)
-- Catan, 19 arazili adada üretim, yol, köy, şehir, haydut ve takasla 10 puana oynanan kısa uyarlamadır.
-  Munchkin, özgün zindan karşılaşmaları, ekipman, iksir ve yardım teklifleriyle 10. seviyeye oynanır.
+- Takımada, 24 arazili uzun bir adada iskele, fener ve rota kurma oyunudur: dört mal (kereste, taş, balık, tuz),
+  tek gelgit zarı, her sıra sonunda kendiliğinden sürüklenen fırtına, bankayla 3:1 takas; ilk 8 puan kazanır.
+  Yedi Kapı, özgün zindan karşılaşmaları, ekipman, iksir ve yardım teklifleriyle 10. seviyeye oynanır.
   İkisi de 2–4 oyunculudur. Dev’in bağlı olduğu sunucu oyunu henüz desteklemiyorsa, oyun kartından
   bota karşı veya aynı cihazda oynanabilir.
 - Ses kaydı: müzik dahil ya da sadece konuşmalar, MP3 veya WebM olarak iner. Kayıt sadece kaydedenin

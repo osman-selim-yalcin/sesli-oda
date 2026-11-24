@@ -80,16 +80,17 @@
   }
   function play(g,action) {
     const h=g.heroes[g.turn], name=g.players[g.turn];
+    g.event=null; // son olay: arayüz animasyonları için (kurala etkisi yok)
     if (action==='door') {
       g.boost=0; g.helper=null; g.asked=[];
       const roll=die();
       if (roll===1) {
-        h.level=Math.max(1,h.level-1); g.log='Lanetli ayna! '+name+' bir seviye kaybetti (en az 1).'; g.phase='camp';
+        h.level=Math.max(1,h.level-1); g.log='Lanetli ayna! '+name+' bir seviye kaybetti (en az 1).'; g.phase='camp'; g.event={type:'curse',roll};
       } else if (roll===2) {
-        g.log='Hazine odası! '+treasure(h); g.phase='camp';
+        g.log='Hazine odası! '+treasure(h); g.phase='camp'; g.event={type:'treasure',roll};
       } else {
         g.monster={name:pick(monsters),strength:Math.max(1,h.level+die()+die()-5)};
-        g.log=g.monster.name+' kapıyı tutuyor.'; g.phase='combat';
+        g.log=g.monster.name+' kapıyı tutuyor.'; g.phase='combat'; g.event={type:'monster',roll};
       }
     } else if (action.startsWith('help:')) {
       const helper=Number(action.slice(5));
@@ -100,15 +101,16 @@
       g.log=name+(action==='accept'?' savaşa katıldı.':' yardımı reddetti.');
       g.turn=g.leader; g.phase='combat';
     } else if (action==='potion') {
-      h.potions--; g.boost+=3; g.log=name+' iksir içti. Bu savaşta +3 güç.';
+      h.potions--; g.boost+=3; g.log=name+' iksir içti. Bu savaşta +3 güç.'; g.event={type:'potion'};
     } else if (action==='fight' || action==='flee') {
       if (action==='fight' && power(h)+g.boost>g.monster.strength) {
-        h.level++;
+        h.level++; g.event={type:'win'};
         g.log=name+' savaşı kazandı. Seviye '+h.level+' · '+treasure(h);
         if (g.helper!==null) g.log+=' '+g.players[g.helper]+' · '+treasure(g.heroes[g.helper]);
         if (h.level===10) { g.done=true; g.log=name+' 10. seviyeye ulaştı ve kazandı!'; }
       } else {
         const roll=die();
+        g.event={type:roll>=5?'flee':'caught',roll};
         if (roll>=5) g.log=name+' kaçtı. Zar '+roll+'.';
         else { h.level=Math.max(1,h.level-1); g.log=name+' yakalandı. Zar '+roll+' · Seviye '+h.level+'.'; }
       }
@@ -134,5 +136,5 @@
   }
   const rules={create,available,play,bot,power,gear,inventoryActions,manage,view};
   if (typeof module==='object' && module.exports) module.exports=rules;
-  else window.MunchkinRules=rules;
+  else window.YediKapiRules=rules;
 })();
