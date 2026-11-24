@@ -130,7 +130,8 @@ Görünümün bütün renkleri, yazı tipleri, köşeleri ve gölgeleri değişk
 `public/css/base.css`'in başında yazılıdır. Kurallarda sabit renk yazılmaz. Oda sahibi temayı oda
 ayarlarından seçip "Uygula"ya basar; odadaki herkeste sayfa yenilenmeden değişir. Oda listesi ve giriş ekranı
 her zaman varsayılan temadadır (Gece Odası). Temalar: Gece Odası (`gece`, koyu, varsayılan), Aydınlık Oda
-(`aydinlik`, açık) ve Piksel Oda (`piksel`, retro oyun: kendi piksel yazı tipleri ve piksel ikon seti).
+(`aydinlik`, açık), Piksel Oda (`piksel`, retro oyun: kendi piksel yazı tipleri ve piksel ikon seti) ve Kış Odası
+(`kis`, soğuk mavi gece; içeriğin arkasında kar yağışı, tema dosyasının sonundaki kurallarla).
 
 Yeni tema eklemek (örnek kimlik `yeni`):
 
