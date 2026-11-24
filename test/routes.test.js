@@ -41,3 +41,16 @@ test('bilinmeyen yollar sayfa almaz', async () => {
     assert.notEqual(res.status, 200, p);
   }
 });
+
+test('Cloudflare önbelleğe almasın: sayfa, betik, ses ve 404 no-cache; ETag ile 304', async () => {
+  for (const p of ['/', '/oda/genel/oyunlar', '/app.js', '/xox.js', '/css/games.css', '/yok-boyle-dosya.js']) {
+    const res = await get(p);
+    assert.equal(res.headers.get('cache-control'), 'no-cache', p);
+  }
+  const first = await get('/app.js');
+  // fetch koşullu istekte kendisi no-cache ekler; düz http ile sorulur
+  const status = await new Promise((resolve, reject) => require('http')
+    .get(srv.url + '/app.js', { headers: { 'If-None-Match': first.headers.get('etag') } }, (res) => { res.resume(); resolve(res.statusCode); })
+    .on('error', reject));
+  assert.equal(status, 304);
+});
