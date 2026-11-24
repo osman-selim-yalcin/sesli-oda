@@ -67,7 +67,7 @@ async function fillLobby(game, n) {
   return { ps, lobby, notices };
 }
 
-for (const [game, max] of [['kelime', 6], ['dino', 7], ['hedef', 11], ['kural', 11], ['mantik', 11], ['daktilo', 11], ['race', 11], ['memory', 11], ['sayi', 2]]) {
+for (const [game, max] of [['kelime', 6], ['dino', 7], ['hedef', 11], ['kural', 11], ['mantik', 11], ['daktilo', 11], ['race', 11], ['memory', 11], ['sayi', 2], ['xox', 2]]) {
   test(`${game}: lobi en fazla ${max} kişi; dolu lobiye giren nedenini duyar`, async () => {
     const n = Math.min(max + 1, 10);
     const { lobby, notices } = await fillLobby(game, n);

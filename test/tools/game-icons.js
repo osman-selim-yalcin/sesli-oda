@@ -77,6 +77,19 @@ const ICONS = {
     <path p="t" d="M24 27v-8.5"/>
     <circle p="T" cx="24" cy="27" r="2.75"/>`,
   // Daktilo: klavye
+  // İttirmeli XOX: 3×3 yuva, çaprazda üç taş (biri X) ve üçlü çizgisi
+  xox: `
+    <circle p="F" cx="24" cy="12" r="5.5"/>
+    <circle p="F" cx="36" cy="12" r="5.5"/>
+    <circle p="F" cx="12" cy="24" r="5.5"/>
+    <circle p="F" cx="36" cy="24" r="5.5"/>
+    <circle p="F" cx="12" cy="36" r="5.5"/>
+    <circle p="F" cx="24" cy="36" r="5.5"/>
+    <circle p="if" cx="12" cy="12" r="5.5"/>
+    <circle p="if" cx="24" cy="24" r="5.5"/>
+    <circle p="if" cx="36" cy="36" r="5.5"/>
+    <path d="M10 10l4 4m0-4l-4 4M22 22l4 4m0-4l-4 4M34 34l4 4m0-4l-4 4"/>
+    <path p="t" d="M5 5l3 3M40 40l3 3"/>`,
   daktilo: `
     <rect p="if" x="5" y="12" width="38" height="25" rx="5"/>
     <path d="M11.5 19h.01M18 19h.01M24 19h.01M30 19h.01M36.5 19h.01M14.5 25h.01M21 25h.01M27 25h.01M33.5 25h.01"/>
