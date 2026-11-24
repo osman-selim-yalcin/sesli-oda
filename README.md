@@ -131,7 +131,8 @@ Görünümün bütün renkleri, yazı tipleri, köşeleri ve gölgeleri değişk
 ayarlarından seçip "Uygula"ya basar; odadaki herkeste sayfa yenilenmeden değişir. Oda listesi ve giriş ekranı
 her zaman varsayılan temadadır (Gece Odası). Temalar: Gece Odası (`gece`, koyu, varsayılan), Aydınlık Oda
 (`aydinlik`, açık), Piksel Oda (`piksel`, retro oyun: kendi piksel yazı tipleri ve piksel ikon seti) ve Kış Odası
-(`kis`, soğuk mavi gece; içeriğin arkasında kar yağışı, tema dosyasının sonundaki kurallarla).
+(`kis`, soğuk mavi gece; kar yağışı ve kış süsleri: kardan adam, buz sarkıtları, kar yığınları, hepsi tema
+dosyasının sonundaki kurallar ve gömülü SVG ile; hızlı emoji satırı da kışa göre, `app.js` `THEME_QUICK_EMOJIS`).
 
 Yeni tema eklemek (örnek kimlik `yeni`):
 
