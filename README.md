@@ -144,6 +144,8 @@ Yeni tema eklemek (örnek kimlik `yeni`):
 3. `public/theme.js`: `LIST`'e `'yeni'`, `NAMES`'e görünen ad, `ICON_SETS`'e ikon seti, `PREVIEW`'e oda
    kartı önizleme renkleri (bg, surface, text, accent).
 4. `rooms.js`: `THEMES` dizisine `'yeni'` (sunucu tanımadığı temayı kabul etmez).
+5. Önbellek: `public/theme.js`'teki `CSS_VERSION` ve `public/index.html`'deki `theme.js?v=…` etiketi değiştirilir
+   (bir tema dosyası her değiştiğinde de; yoksa tarayıcılar saatlerce eski dosyayı kullanır).
 
 ## Testler ve test sunucusu
 

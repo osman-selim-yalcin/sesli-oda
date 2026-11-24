@@ -27,7 +27,10 @@ window.Theme = (() => {
   let wanted = current;
   let job = null; // { id, promise } süren yükleme
 
-  const href = (id) => `/themes/${id}.css`;
+  // Tema dosyaları tarayıcıda ve CDN'de saatlerce önbellekte kalır: bir tema dosyası değişince bu sürüm (ve index.html'deki
+  // theme.js?v=…) değiştirilir, yoksa eski görünüm kalır. Varsayılan temanın index.html'deki bağlantısı sürümsüzdür.
+  const CSS_VERSION = 'kis3';
+  const href = (id) => `/themes/${id}.css?v=${CSS_VERSION}`;
 
   // İkon seti: temanın seti gömülü olandan farklıysa dosyayı alır ve bir "uygula" işlevi döndürür.
   // Uygulama tema değiştiği anda yapılır (yeni renk + eski ikon görünmez). Hata verirse apply eski temada kalır.
