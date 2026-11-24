@@ -5349,13 +5349,20 @@ for (const emoji of EMOJIS) {
 
 // Hızlı emojiler: tek tıkla doğrudan mesaj olarak gider.
 const QUICK_EMOJIS = ['😂', '🔥', '❤️', '👍', '👏', '😮', '😭', '💀'];
-for (const emoji of QUICK_EMOJIS) {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.textContent = emoji;
-  btn.onclick = () => socket.emit('chat', emoji);
-  $('quick-emojis').append(btn);
+// Temaya özel hızlı emoji satırı (yoksa yukarıdaki); tema değişince satır yeniden yazılır.
+const THEME_QUICK_EMOJIS = { kis: ['❄️', '⛄', '🥶', '☕', '🔥', '❤️', '😂', '💀'] };
+function renderQuickEmojis() {
+  const list = THEME_QUICK_EMOJIS[Theme.current()] || QUICK_EMOJIS;
+  $('quick-emojis').replaceChildren(...list.map((emoji) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = emoji;
+    btn.onclick = () => socket.emit('chat', emoji);
+    return btn;
+  }));
 }
+renderQuickEmojis();
+document.addEventListener('themechange', renderQuickEmojis);
 
 $('chat-form').onsubmit = (e) => {
   e.preventDefault();

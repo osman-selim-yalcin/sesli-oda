@@ -137,6 +137,12 @@ test('Kış Odası: kayıt, koyu tema, Lucide ikonları; kar yağışı içeriğ
   assert.match(snow, /z-index: -1;/);
   assert.match(snow, /pointer-events: none;/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*body::before,\s*body::after \{ animation: none; \}/);
+  // Kış süsleri gömülü SVG (ek dosya yok); hızlı emoji satırı temaya göre
+  assert.match(css, /\.side \.chat-list,\s*\.side \.chat-empty \{\s*background:[^}]*data:image\/svg\+xml/);
+  assert.ok(!/url\((?!"data:|%23)/.test(css), 'kis.css dış dosya istememeli');
+  const appJs = fs.readFileSync(path.join(ROOT, 'public/app.js'), 'utf8');
+  assert.match(appJs, /THEME_QUICK_EMOJIS = \{ kis: \[[^\]]*'⛄'/);
+  assert.match(appJs, /addEventListener\('themechange', renderQuickEmojis\)/);
   assert.equal((await patch('tema-oda', OWNER, { theme: 'kis' })).status, 200);
   assert.equal((await listed('tema-oda')).theme, 'kis');
   assert.equal((await patch('tema-oda', OWNER, { theme: 'gece' })).status, 200);
