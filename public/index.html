@@ -11,7 +11,7 @@
   <link id="theme-css" rel="stylesheet" href="/themes/gece.css" data-theme="gece">
   <link rel="stylesheet" href="/css/base.css">
   <link rel="stylesheet" href="/css/shell.css">
-  <link rel="stylesheet" href="/css/games.css">
+  <link rel="stylesheet" href="/css/games.css?v=kutu1">
   <link rel="preload" href="/vendor/fonts/nunito/Nunito-wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/vendor/fonts/geist/Geist-wght.woff2" as="font" type="font/woff2" crossorigin>
 </head>
@@ -100,6 +100,8 @@
        iki kopyanın aynı olduğunu denetler). Kullanım: <svg class="gi"><use href="#g-sayi"></use></svg> -->
   <svg id="game-icons" xmlns="http://www.w3.org/2000/svg" hidden>
     <symbol id="g-sayi" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><rect x="6" y="8" width="21" height="32" rx="6" style="fill:var(--gi-soft,none);rx:calc(6px*var(--game-corner,1))"/><path d="M12 17h9.5l-6 14"/><path d="M37 10.5v10M32 15.5h10M32 32.5h10" style="stroke:var(--gi-tint,currentColor)"/></g></symbol>
+    <symbol id="g-catan" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><path d="m24 4 17 10v20L24 44 7 34V14Z" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><path d="m13 23 11-10 11 10M17 21v12h14V21m-9 12v-8h5v8"/></g></symbol>
+    <symbol id="g-munchkin" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><path d="M10 40V21a14 14 0 0 1 28 0v19Z" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><path d="m17 34 13-16 1-6-6 3-12 16m0-6 8 7"/></g></symbol>
     <symbol id="g-yorunge" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><path d="m24 4 16 10v19L24 44 8 33V14Z" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><ellipse cx="24" cy="24" rx="17" ry="6" transform="rotate(-30 24 24)"/><circle cx="24" cy="24" r="5" style="fill:var(--gi-tint,currentColor);stroke:none"/></g></symbol>
     <symbol id="g-kural" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><circle cx="8.5" cy="39" r="3.5" style="fill:var(--gi-ink,currentColor);stroke:none"/><circle cx="17.5" cy="32" r="4.5" style="fill:var(--gi-ink,currentColor);stroke:none"/><circle cx="31" cy="17.5" r="12" style="stroke:var(--gi-tint,currentColor);fill:var(--gi-soft,none)"/><path d="M27.3 13.3A4 4 0 1 1 33.2 16.8C32 17.4 31.2 18.4 31.2 19.9V20.6" style="stroke:var(--gi-tint,currentColor)"/><path d="M31.2 25.4v.01" style="stroke:var(--gi-tint,currentColor)"/></g></symbol>
     <symbol id="g-hedef" viewBox="0 0 48 48"><g style="fill:none;stroke:var(--gi-ink,currentColor);stroke-width:var(--gi-sw,3);stroke-linecap:var(--game-cap,round);stroke-linejoin:var(--game-join,round);stroke-miterlimit:2"><circle cx="21" cy="21" r="14.5" style="fill:var(--gi-soft,none)"/><circle cx="21" cy="21" r="7" style="stroke:var(--gi-tint,currentColor)"/><circle cx="21" cy="21" r="2.5" style="fill:var(--gi-tint,currentColor);stroke:none"/><rect x="27.5" y="27.5" width="15" height="15" rx="4.5" style="fill:var(--gi-soft,none);rx:calc(4.5px*var(--game-corner,1))"/><path d="M35 31v8M31 35h8"/></g></symbol>
@@ -592,6 +594,8 @@
             <button id="game-tab-memory" class="tab" role="tab">Eşini bul</button>
             <button id="game-tab-klotski" class="tab" role="tab">Kaydırmaca</button>
             <button id="game-tab-sayi" class="tab" role="tab">Sayı bulmaca</button>
+            <button id="game-tab-catan" class="tab" role="tab">Catan</button>
+            <button id="game-tab-munchkin" class="tab" role="tab">Munchkin</button>
             <button id="game-tab-yorunge" class="tab" role="tab">Yörünge Kuşatması</button>
             <button id="game-tab-kural" class="tab" role="tab">Gizli kural</button>
             <button id="game-tab-hedef" class="tab" role="tab">Hedef sayı</button>
@@ -934,6 +938,8 @@
             </div>
           </div>
 
+          <section id="game-catan" hidden></section>
+          <section id="game-munchkin" hidden></section>
           <section id="game-yorunge" hidden>
           </section>
           <!-- Gizli kural: 3 sayılık dizilerle bilgisayarın gizli kuralını bul (public/kural.js) -->
@@ -1387,10 +1393,13 @@
   <script src="/theme.js"></script>
   <script src="/dev.js"></script>
   <script src="/sfx.js"></script>
-  <script src="/app.js"></script>
+  <script src="/app.js?v=kutu1"></script>
   <script src="/hedef.js"></script>
-  <script src="/yorunge-kurallar.js?v=1"></script>
-  <script src="/yorunge.js?v=2"></script>
+  <script src="/catan-kurallar.js?v=1"></script>
+  <script src="/munchkin-kurallar.js?v=1"></script>
+  <script src="/kutu.js?v=1"></script>
+  <script src="/yorunge-kurallar.js?v=dlc1"></script>
+  <script src="/yorunge.js?v=dlc1"></script>
   <script src="/kural.js"></script>
   <script src="/mantik.js"></script>
   <script src="/tr-words.js"></script>

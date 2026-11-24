@@ -6,7 +6,7 @@ const stack = (kind = 'kesif', side = 0) => [{ kind, side }];
 
 test('ilk temas, filoya yerleştirme ve dördüncü tur komuta zorunluluğu', () => {
   const g = create(['Ay', 'Güneş']);
-  assert.equal(g.moves.length, 5);
+  assert.equal(g.moves.length, 8);
   for (const to of ['0,0', '1,0', '-1,0', '2,0', '-2,0', '3,0']) {
     const m = g.moves.find(m => m.to === to && m.kind === 'kesif');
     assert.ok(m);
@@ -102,4 +102,38 @@ test('lobi, iki oyuncunun sırası, seyirci, geç katılım ve çekilme', async 
   const ended = next(a, 'yorunge');
   a.emit('yorunge:resign', g.id);
   assert.match((await ended).result, /UzayB kazandı/);
+});
+
+test('DLC · Yankı kopyalar, yığın üstünde kenetçi olur; Dalış iki dolu hücreyi aşar', () => {
+  const b = {'0,0':stack('yanki'), '1,0':stack('sicrama',1), '2,0':stack()};
+  assert.deepEqual(destinations(b,'0,0'),['3,0']);
+  b['1,0']=stack('yanki',1);
+  assert.deepEqual(destinations(b,'0,0'),[]);
+  b['0,0'].unshift(...stack());
+  assert.ok(destinations(b,'0,0').includes('1,0'));
+  b['0,0']=stack('dalis');
+  assert.ok(destinations(b,'0,0').includes('3,0'));
+  delete b['2,0'];
+  assert.deepEqual(destinations(b,'0,0'),[]);
+});
+
+test('DLC · Çekici ve Yankı ışını, son hamle kilidi ve yığın kuralı', () => {
+  const { legalMoves } = require('../games/yorunge');
+  const g=create(['Ay','Güneş']);
+  g.stock[0].komuta=0;
+  g.board={'0,0':stack('cekici'),'-1,0':stack('yanki'),'0,1':stack('kesif',1),'-1,1':stack('komuta')};
+  const moves=legalMoves(g);
+  assert.ok(moves.some(m=>m.via==='-1,0' && m.from==='-1,1'));
+  const tow=moves.find(m=>m.via==='0,0' && m.from==='0,1');
+  assert.ok(tow);
+  g.locked='0,1';
+  assert.ok(!legalMoves(g).some(m=>m.via && m.from===g.locked));
+  g.locked=null;
+  g.board['0,1'].push(...stack('kenet'));
+  assert.ok(!legalMoves(g).some(m=>m.via && m.from==='0,1'));
+  g.board['0,1'].pop();
+  g.stock[1].komuta=0;
+  play(g,tow);
+  assert.equal(g.board[tow.to][0].side,1);
+  assert.ok(!g.moves.some(m=>m.from===tow.to || m.via===tow.to));
 });

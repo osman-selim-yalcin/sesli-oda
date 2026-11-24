@@ -427,6 +427,7 @@ function getRoom(code) {
       memory: null, // eşini bul (aşağıda)
       sayi: null, // sayı bulmaca (aşağıda); gizli sayılar sadece sahibine gider
       hedef: null, // hedef sayı (games/hedef.js)
+      catan: null, munchkin: null,
       yorunge: null,
       kural: null, // gizli kural (games/kural.js); kural oyun bitene kadar istemciye gitmez
       mantik: null, // mantık tablosu (games/mantik.js); çözüm bitene kadar gönderilmez
@@ -781,7 +782,7 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
   if (pendingHome && pendingHome !== home && !rooms.get(pendingHome) && !merge.partnerOf(pendingHome)) sweepMutes(pendingHome);
   roomsChanged();
   const homeReg = (home !== roomCode && roomStore.get(home)) || reg;
-  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, color, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), yorunge: room.yorunge, kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, color, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), catan: room.catan, munchkin: room.munchkin, yorunge: room.yorunge, kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
 // Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
@@ -821,6 +822,7 @@ function leaveRoom(socket, { grace, quiet = false }) {
     memoryLeft(current, user.name);
     sayiLeft(current, user.name);
     hedef.left(current, user.name);
+    kutu.left(current, user.name);
     yorunge.left(current, user.name);
     kural.left(current, user.name);
     mantik.left(current, user.name);
@@ -1852,6 +1854,7 @@ io.on('connection', (socket) => {
     sendSayi(room);
   });
 
+  kutu.bind(socket, () => code);
   yorunge.bind(socket, () => code);
   kural.bind(socket, () => code); // Gizli kural olayları (games/kural.js)
   // ---------- Mantık tablosu ----------
@@ -2000,6 +2003,7 @@ io.on('connection', (socket) => {
     if (!room.bot) kelimeLeft(room, BOT);
     if (!room.bot) sayiLeft(room, BOT);
     if (!room.bot) hedef.left(room, BOT);
+    if (!room.bot) kutu.left(room, BOT);
     if (!room.bot) yorunge.left(room, BOT);
     if (!room.bot) kural.left(room, BOT);
     if (!room.bot) mantik.left(room, BOT);
@@ -2184,7 +2188,7 @@ function gameRunning(room, game) {
   if (game === 'memory') return Boolean(room.memory && !room.memory.done);
   if (game === 'sayi') return Boolean(room.sayi && !room.sayi.done);
   if (game === 'hedef') return hedef.running(room);
-  if (game === 'yorunge') return Boolean(room.yorunge && !room.yorunge.done);
+  if (['yorunge', 'catan', 'munchkin'].includes(game)) return Boolean(room[game] && !room[game].done);
   if (game === 'kural') return kural.running(room);
   if (game === 'mantik') return mantik.running(room);
   if (game === 'daktilo') return daktilo.running(room);
@@ -2198,7 +2202,7 @@ function lastPlayers(room, game) {
       : game === 'memory' ? room.memory?.players
       : game === 'sayi' ? room.sayi?.players
       : game === 'hedef' ? room.hedef?.players
-      : game === 'yorunge' ? room.yorunge?.players
+      : ['yorunge', 'catan', 'munchkin'].includes(game) ? room[game]?.players
       : game === 'kural' ? room.kural?.players
       : game === 'mantik' ? room.mantik?.players
       : game === 'daktilo' ? room.daktilo?.players
@@ -2231,6 +2235,8 @@ const LOBBY_GAMES = {
   memory: { label: 'Eşini Bul', min: 1, max: MAX_USERS + 1, opts: { numbers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], colors: ['yesil', 'turuncu', 'mavi', 'kirmizi'] }, start: (room, by, players, opts) => startMemory(room, by, players, opts) },
   hedef: { label: 'Hedef sayı', min: 1, max: MAX_USERS + 1, opts: { rounds: 5 }, start: (room, by, players, opts) => hedef.start(room, by, players, opts) },
   sayi: { label: 'Sayı bulmaca', min: 1, max: 2, opts: { digits: 4 }, start: (room, by, players, opts) => startSayi(room, by, players, opts) },
+  catan: { label: 'Catan', min: 2, max: 4, opts: {}, start: (room, by, players) => kutu.start(room, 'catan', players) },
+  munchkin: { label: 'Munchkin', min: 2, max: 4, opts: {}, start: (room, by, players) => kutu.start(room, 'munchkin', players) },
   yorunge: { label: 'Yörünge Kuşatması', min: 2, max: 2, opts: {}, start: (room, by, players) => yorunge.start(room, by, players) },
   kural: { label: 'Gizli kural', min: 1, max: MAX_USERS + 1, opts: {}, start: (room, by, players) => kural.start(room, by, players) },
   mantik: { label: 'Mantık tablosu', min: 1, max: MAX_USERS + 1, opts: { level: 'kolay' }, start: (room, by, players, opts) => mantik.start(room, by, players, opts) },
@@ -3167,6 +3173,7 @@ function finishSayi(room, winners, reason) {
 
 // ---------- Gizli kural ----------
 // Oyunun kodu games/kural.js içinde.
+const kutu = require('./games/kutu')({ io, getRoom, rooms, BOT, postSystem });
 const yorunge = require('./games/yorunge').setup({ io, getRoom, postSystem, BOT });
 const kural = require('./games/kural')({ io, rooms, getRoom, postSystem, rand, pick, BOT });
 

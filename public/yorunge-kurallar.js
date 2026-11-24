@@ -3,7 +3,7 @@
 (() => {
   // Altıgenler eksen koordinatlarıyla tutulur. Her hücrede en üstteki gemi hareket eder.
   const DIRECTIONS = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]];
-  const FLEET = { komuta: 1, kesif: 3, sicrama: 3, mekik: 2, kenet: 2 };
+  const FLEET = { komuta: 1, kesif: 3, sicrama: 3, mekik: 2, kenet: 2, yanki: 1, dalis: 1, cekici: 1 };
   const step = (cell, [dq, dr]) => {
     const [q, r] = cell.split(',').map(Number);
     return `${q + dq},${r + dr}`;
@@ -28,11 +28,29 @@
     return rest;
   }
 
+  function gateOpen(board, from, to) {
+    const ring = around(from);
+    const i = ring.indexOf(to);
+    const flank = offset => board[ring[(i + offset) % 6]]?.length || 0;
+    const height = Math.max(board[from]?.length || 0, board[to]?.length || 0);
+    return Math.min(flank(5), flank(1)) <= height;
+  }
+
+  function kindsAt(board, cell) {
+    const kind = top(board[cell]).kind;
+    if (kind !== 'yanki') return [kind];
+    if (board[cell].length > 1) return ['kenet'];
+    return [...new Set(around(cell).map(n => top(board[n])?.kind).filter(k => k && k !== 'yanki'))];
+  }
+
   function destinations(board, from) {
-    const ship = top(board[from]);
+    return [...new Set(kindsAt(board, from).flatMap(kind => movesAs(board, from, kind)))];
+  }
+
+  function movesAs(board, from, kind) {
     const rest = lift(board, from);
     if (!connected(rest)) return [];
-    if (ship.kind === 'sicrama') {
+    if (kind === 'sicrama') {
       const jumps = [];
       for (const dir of DIRECTIONS) {
         let cell = step(from, dir);
@@ -42,23 +60,36 @@
       }
       return jumps;
     }
+    if (kind === 'dalis') {
+      const ends = new Set();
+      for (const first of around(from)) {
+        if (!rest[first] || !gateOpen(rest, from, first)) continue;
+        for (const second of around(first)) {
+          if (!rest[second] || !gateOpen(rest, first, second)) continue;
+          for (const end of around(second)) {
+            if (end !== from && !rest[end] && gateOpen(rest, second, end)) ends.add(end);
+          }
+        }
+      }
+      return [...ends];
+    }
     function slides(cell) {
       const ring = around(cell);
       return ring.filter((to, i) => {
         const left = rest[ring[(i + 5) % 6]]?.length || 0;
         const right = rest[ring[(i + 1) % 6]]?.length || 0;
-        const height = ship.kind === 'kenet' ? Math.max(rest[cell]?.length || 0, rest[to]?.length || 0) : 0;
-        if (rest[to] && ship.kind !== 'kenet') return false;
+        const height = kind === 'kenet' ? Math.max(rest[cell]?.length || 0, rest[to]?.length || 0) : 0;
+        if (rest[to] && kind !== 'kenet') return false;
         return (height > 0 || left + right > 0) && Math.min(left, right) <= height;
       });
     }
-    if (ship.kind === 'kesif') {
+    if (kind === 'kesif') {
       const seen = new Set([from]);
       for (const cell of seen) for (const next of slides(cell)) seen.add(next);
       seen.delete(from);
       return [...seen];
     }
-    if (ship.kind === 'mekik') {
+    if (kind === 'mekik') {
       const ends = new Set();
       function walk(path) {
         if (path.length === 4) return ends.add(path.at(-1));
@@ -84,7 +115,18 @@
     }
     if (!stock[turn].komuta) {
       for (const from of cells) {
-        if (top(board[from]).side !== turn) continue;
+        if (top(board[from]).side !== turn || from === game.locked) continue;
+        if (kindsAt(board, from).includes('cekici')) {
+          const ring = around(from);
+          for (const cargo of ring) {
+            if (board[cargo]?.length !== 1 || cargo === game.locked) continue;
+            const rest = lift(board, cargo);
+            if (!connected(rest) || !gateOpen(rest, cargo, from)) continue;
+            for (const to of ring) {
+              if (!board[to] && gateOpen(rest, from, to)) moves.push({ via: from, from: cargo, to });
+            }
+          }
+        }
         for (const to of destinations(board, from)) moves.push({ from, to });
       }
     }
@@ -120,6 +162,7 @@
     }
     (board[move.to] ||= []).push(ship);
     game.last = move;
+    game.locked = move.to;
     game.turns[turn]++;
     game.revision++;
     game.turn = 1 - turn;
@@ -132,6 +175,7 @@
       game.passed = game.players[game.turn];
       game.turns[game.turn]++;
       game.turn = turn;
+      game.locked = null;
       game.moves = legalMoves(game);
       if (!game.moves.length) game.result = 'İki filonun da hamlesi kalmadı. Berabere!';
     }

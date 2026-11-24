@@ -36,7 +36,7 @@ function setup({ io, getRoom, postSystem, BOT }) {
         const room = getRoom(code());
         const g = room.yorunge;
         if (!g || g.done || input.id !== g.id || input.revision !== g.revision || room.users.get(socket.id)?.name !== g.players[g.turn]) return;
-        const move = g.moves.find(m => m.from === input.from && m.kind === input.kind && m.to === input.to);
+        const move = g.moves.find(m => m.via === input.via && m.from === input.from && m.kind === input.kind && m.to === input.to);
         if (move) advance(room, move);
       });
       socket.on('yorunge:resign', id => {

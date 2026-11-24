@@ -10,6 +10,7 @@
         <button class="sm ghost" id="yorunge-resign">Çekil</button></div>
       <div class="yorunge-space" tabindex="0" aria-label="Kaydırılabilir yıldız haritası"><div id="yorunge-board"></div></div>
       <p id="yorunge-hint" class="small" aria-live="polite"></p>
+      <label id="yorunge-tow" hidden>Çekici ışın <select id="yorunge-cargo"></select></label>
       <div id="yorunge-stock" aria-label="Hangar"></div>
     </div>
     <details class="yorunge-guide"><summary>Nasıl oynanır?</summary>
@@ -27,6 +28,9 @@
     kesif: ['Keşif', 'Filonun çevresinde istediği kadar kayar.', 'm3 16 9-12 9 12-9-4Z M8 18l-2 3m10-3 2 3'],
     sicrama: ['Sıçrayıcı', 'Düz bir hatta bitişik gemilerin üzerinden ilk boş hücreye atlar.', 'm4 18 7-5-3-3 12-7-7 12-3-3Z M2 21l4-2'],
     mekik: ['Mekik', 'Aynı hücreye dönmeden tam üç adım kayar.', 'm12 3 4 8 5 5v4l-9-5-9 5v-4l5-5Z'],
+    yanki: ['Yankı', 'Komşu üst gemilerden birinin hareketini veya çekici ışınını kopyalar. Üst kattayken Kenetçi gibi hareket eder.', 'M3 15q4-12 8 0t8 0 M5 9q4-8 8 0t8 0'],
+    dalis: ['Dalış', 'İki dolu hücrenin üzerinden geçip üçüncü adımda boş hücreye iner.', 'M3 6h8l6 9 4-3-2 8-8-2 3-2-5-7H3Z'],
+    cekici: ['Çekici', 'Bir hücre kayar veya komşu bir gemiyi yanındaki boş hücreye taşır. Son hamlede yer değiştiren gemi bir tur kilitlidir. Yığınlar taşınamaz.', 'M3 4v9l5 6h8l5-6V4h-4v8l-3 3h-4l-3-3V4Z'],
     kenet: ['Kenetçi', 'Bir adım ilerler. Bir geminin üstüne çıkıp onu kilitleyebilir.', 'M4 5v10l5 5h6l5-5V5l-5 6H9Z M9 15h6'],
   };
   let game = null;
@@ -77,8 +81,11 @@
     dd.textContent = rule;
     $('yorunge-manual').append(dt, dd);
   }
-  const source = move => move.kind || move.from;
+  const source = move => move.via || move.kind || move.from;
+  let cargo = '';
+  $('yorunge-cargo').onchange = e => { cargo = e.target.value; render(); };
   function choose(key) {
+    cargo = '';
     selected = selected === key ? null : key;
     render();
   }
@@ -115,7 +122,18 @@
     }
     const board = $('yorunge-board');
     board.replaceChildren();
-    const targets = new Map(moves.filter(m => source(m) === selected).map(m => [m.to, m]));
+    const options = moves.filter(m => source(m) === selected);
+    const loads = [...new Set(options.filter(m => m.via).map(m => m.from))];
+    if (!loads.includes(cargo)) cargo = '';
+    $('yorunge-tow').hidden = !loads.length;
+    const select = $('yorunge-cargo');
+    select.replaceChildren(new Option('Taşınacak gemiyi seç', ''));
+    for (const cell of loads) {
+      const ship = game.board[cell][0];
+      select.add(new Option(`${game.players[ship.side]} · ${ships[ship.kind][0]} (${cell})`, cell));
+    }
+    select.value = cargo;
+    const targets = new Map(options.filter(m => cargo ? m.via && m.from === cargo : !m.via).map(m => [m.to, m]));
     const cells = new Set([...Object.keys(game.board), ...game.moves.map(m => m.to), '0,0']);
     const positions = [...cells].map(cell => {
       const [q, r] = cell.split(',').map(Number);
@@ -138,7 +156,7 @@
       b.className = 'yorunge-cell';
       b.style.left = (x - minX + 10) + 'px';
       b.style.top = (y - minY + 10) + 'px';
-      b.disabled = !move && !moves.some(m => m.from === cell);
+      b.disabled = !move && !moves.some(m => source(m) === cell);
       b.classList.toggle('target', Boolean(move));
       b.classList.toggle('selected', selected === cell);
       b.classList.toggle('last', game.last?.to === cell);

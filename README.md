@@ -19,9 +19,16 @@ iki oda birleşince 20 kişi (her odadan 10). Site yöneticisi bu sayıya girmez
 - Ekran paylaşımı (Chrome/Edge'de sekme sesiyle birlikte)
 - Oyunlar (üst çubuktaki sekme; oyundayken müzik ve sesli sohbet sürer): tier list (ortak tahtada
   yazılı/resimli kartlar), süre tahmini ve süre yarışı, dinozor koşusu, kelime, eşini bul, sayı bulmaca,
-  Yörünge Kuşatması (iki filo, altıgen harita, arkadaşla veya oda botuyla), hedef sayı, gizli kural, mantık tablosu, daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
+  hedef sayı, gizli kural, mantık tablosu, daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
   "Oda kur" lobisinden başlar (lobide odadaki herkes ve bot; kelime 6, dinozor 7, sayı bulmaca 2 kişiyle
   sınırlı). Skor tabloları bütün odalarda ortaktır.
+- **Kutu Oyunları** bölümünde Yörünge Kuşatması, Catan ve Munchkin bulunur. Yörünge’de her filoda
+  birer Yankı, Dalış ve Çekici vardır. Bunlar Hive’ın Mosquito, Ladybug ve Pillbug genişletmelerinin
+  uzay temalı karşılıklarıdır. [Hive kural kitapçığı](https://hivegame.com/download/rules.pdf)
+- Catan, 19 arazili adada üretim, yol, köy, şehir, haydut ve takasla 10 puana oynanan kısa uyarlamadır.
+  Munchkin, özgün zindan karşılaşmaları, ekipman, iksir ve yardım teklifleriyle 10. seviyeye oynanır.
+  İkisi de 2–4 oyunculudur. Dev’in bağlı olduğu sunucu oyunu henüz desteklemiyorsa, oyun kartından
+  bota karşı veya aynı cihazda oynanabilir.
 - Ses kaydı: müzik dahil ya da sadece konuşmalar, MP3 veya WebM olarak iner. Kayıt sadece kaydedenin
   bilgisayarına iner, sunucuya gitmez.
 

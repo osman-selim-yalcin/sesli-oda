@@ -1257,3 +1257,17 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .yorunge-demo main { max-width: 760px; margin: 0 auto; padding: 18px; }
 .yorunge-demo h1 { margin: 0 0 18px; }
 #lobby-yorunge > button { margin: 4px; }
+
+/* Kutu oyunları */
+.kutu-match { display: grid; gap: 12px; min-width: 0; padding-block: 12px; }
+.kutu-match h3, .kutu-match p { margin: 0; }
+.kutu-head, .kutu-scores, .kutu-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.kutu-head { justify-content: space-between; }
+.kutu-log { color: var(--muted); }
+.kutu-scores span { padding: 4px 8px; border-inline-start: 3px solid; background: var(--surface-2); }
+.catan-map { display: block; width: min(100%, 540px); margin: auto; }
+.catan-map text { font: 6px sans-serif; font-weight: 600; fill: white; stroke: #282a25; stroke-width: 1px; paint-order: stroke; pointer-events: none; }
+.catan-target { cursor: pointer; }
+.catan-target:focus-visible, .catan-target:hover { stroke: var(--accent); stroke-width: 3; }
+.kutu-encounter { border: 1px solid var(--border-strong); border-radius: var(--radius-m); background: radial-gradient(ellipse at top, var(--accent-soft), var(--surface-2)); padding: 24px; text-align: center; }
+.kutu-encounter h3 { margin-block: 10px; }
