@@ -444,6 +444,7 @@ function getRoom(code) {
       chat: [],     // geçici: sadece hafızada, herkes çıkınca oda ile birlikte silinir
       queue: [],
       playing: false,
+      loop: false, // tek video döngüsü: çalan video bitince baştan başlar
       position: 0,
       updatedAt: Date.now(),
     });
@@ -452,6 +453,8 @@ function getRoom(code) {
 }
 
 // Oynatma konumunu "şu an" itibarıyla dondurur.
+const LOOP_GRACE = 5000; // ms; döngüde baştan başlattıktan sonra gelen geç "bitti" bildirimleri yok sayılır
+
 function currentPosition(room) {
   if (!room.playing) return room.position;
   return room.position + (Date.now() - room.updatedAt) / 1000;
@@ -495,6 +498,7 @@ function mediaState(room) {
     current: itemView(room.current),
     queue: room.queue.map(itemView),
     playing: room.playing,
+    loop: room.loop,
     position: room.position,
     updatedAt: room.updatedAt,
   };
@@ -572,8 +576,10 @@ function stopSharing(room, code, id) {
 }
 
 // Çalan şarkıyı değiştirir ve önceden çalanlar listesine ekler.
+// Döngü videoya bağlıdır: başka bir video başlayınca kapanır.
 function setCurrent(room, item) {
   room.current = item || null;
+  room.loop = false;
   setPlayback(room, Boolean(room.current), 0);
   if (!item) return;
   const entry = { videoId: item.videoId, title: item.title, thumb: item.thumb, by: item.by, playedAt: Date.now() };
@@ -1521,12 +1527,30 @@ io.on('connection', (socket) => {
     broadcastMedia(code);
   });
 
+  socket.on('media:loop', (on) => {
+    if (!code || typeof on !== 'boolean') return;
+    const room = getRoom(code);
+    if (!room.current || room.loop === on) return;
+    room.loop = on;
+    const by = room.users.get(socket.id).name;
+    io.to(code).emit('notice', on ? `${by} döngüyü açtı: ${room.current.title}` : `${by} döngüyü kapattı`);
+    broadcastMedia(code);
+  });
+
   // Video bittiğinde her istemci bildirir; yalnızca hâlâ çalan video için ilerlenir.
+  // Döngü açıksa video baştan başlar. Geç kalan istemcinin "bitti"si yeni turu bozmasın diye
+  // baştan başlatmadan sonraki birkaç saniye gelen bildirim yok sayılır.
   socket.on('media:ended', (videoId) => {
     if (!code) return;
     const room = getRoom(code);
     if (room.current?.videoId !== videoId || currentPosition(room) < 1) return;
-    playNext(room);
+    if (room.loop) {
+      if (Date.now() - (room.loopedAt || 0) < LOOP_GRACE) return;
+      room.loopedAt = Date.now();
+      setPlayback(room, true, 0);
+    } else {
+      playNext(room);
+    }
     broadcastMedia(code);
   });
 

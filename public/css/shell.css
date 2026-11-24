@@ -431,6 +431,8 @@ button.ctl {
 button.ctl:hover:where(:not(:disabled)) { background: var(--surface-2); color: var(--text); border: none; }
 button.ctl:active:where(:not(:disabled)) { background: var(--surface-3); color: var(--text); }
 button.ctl .ic { width: 20px; height: 20px; }
+/* Döngü açıkken vurgu renginde, yumuşak zeminli */
+button.ctl[aria-pressed="true"], button.ctl[aria-pressed="true"]:hover:where(:not(:disabled)) { background: var(--accent-soft); color: var(--accent); }
 /* 5 sn düğmeleri 22 px: içindeki "5" 11 px okunur (ikon tablosu test/tools/icons.js) */
 #back5 .ic, #fwd5 .ic { width: 22px; height: 22px; }
 /* Oynat / duraklat: dolu vurgu daire; Lucide'in çizgi ikonu bu düğmede içi dolu çizilir */
