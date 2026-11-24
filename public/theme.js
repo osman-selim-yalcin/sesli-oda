@@ -7,12 +7,12 @@
 // çıkmaz; test sunucusu (test/preload.js) yalnız denemelik bir temayı adı ve önizleme renkleriyle buradan ekler.
 // Liste değişince document'a 'themelist' olayı gelir (seçiciler ve oda kartları yeniden çizilir).
 window.Theme = (() => {
-  const LIST = ['gece', 'aydinlik', 'piksel'];
+  const LIST = ['gece', 'aydinlik', 'piksel', 'kis'];
   const DEFAULT = 'gece';
-  const NAMES = { gece: 'Gece Odası', aydinlik: 'Aydınlık Oda', piksel: 'Piksel Oda' };
+  const NAMES = { gece: 'Gece Odası', aydinlik: 'Aydınlık Oda', piksel: 'Piksel Oda', kis: 'Kış Odası' };
   // Temanın ikon seti: public/icons/ui/<set>.svg, hepsi aynı adları (i-play, i-mic…) taşır.
   // Varsayılan set index.html'de <svg id="ui-icons" data-set="lucide"> olarak gömülüdür (ilk boyamada ikon olsun diye).
-  const ICON_SETS = { gece: 'lucide', aydinlik: 'lucide', piksel: 'piksel' };
+  const ICON_SETS = { gece: 'lucide', aydinlik: 'lucide', piksel: 'piksel', kis: 'lucide' };
   // Oda kartındaki önizleme şeridinin ve tema seçici kutucuğunun renkleri (zemin, panel, metin, vurgu). Kart ve
   // seçici başka temaları da gösterdiği için bu renkler o anki temanın değişkenlerinden değil, bu tablodan gelir
   // (tema CSS'i yüklenmeden); sabit renkler yalnız burada durur, kurallar onları yerel değişkenlerle kullanır.
@@ -20,6 +20,7 @@ window.Theme = (() => {
     gece: { bg: '#0E0F13', surface: '#1E2129', text: '#E8E9ED', accent: '#8B9CFF' },
     aydinlik: { bg: '#F6F4EF', surface: '#FFFFFF', text: '#171A22', accent: '#4553C4' },
     piksel: { bg: '#13152F', surface: '#232753', text: '#EEEAF8', accent: '#5AD8F0' },
+    kis: { bg: '#0B1622', surface: '#19293B', text: '#EAF3FA', accent: '#8FD6F5' },
   };
   const root = document.documentElement;
   let current = root.dataset.theme || DEFAULT;

@@ -1,0 +1,130 @@
+/* Tema: Kış Odası. Karlı bir gecenin soğuk mavisi: derin gece mavisi zemin, buzlu mavi-gri yüzeyler, tek buz mavisi
+   vurgu; pencere ışığı kehribarı (--accent-2: yalnız skor, taç, "senin sıran"), çam yeşili (--live), kızılcık (--danger).
+   Köşeler biraz daha yumuşak (kar yığını), gölgeler soğuk. Yavaş bir kar yağışı var (dosyanın sonunda):
+   oda sayfasında içeriğin üstünden soluk geçer, videonun ve oyunların üstünden geçmez.
+   Bir tema dosyası değişken sözleşmesinin hepsini tanımlar (sözleşme ve yedek değerler: css/base.css).
+   Kontrast (WCAG): --muted, --accent, --live, --danger, --accent-2 her yüzeyde (--surface-3 dahil) en az 4,5:1;
+   --accent-contrast / --danger-contrast dolu zeminlerinde en az 4,5:1. */
+:root {
+  color-scheme: dark;
+
+  --bg: #0B1622;
+  --surface: #111F2E;
+  --surface-2: #19293B;
+  --surface-3: #22384F;
+  --surface-raised: #22384F; /* bildirim, sürüklenen kart: en açık kat */
+  --surface-dock: #19293B; /* telefondaki şimdi çalıyor şeridi */
+  --emphasis: #EAF3FA;      /* hedef sayı, "Senin sayın": ters blok (kar beyazı zemin) */
+  --emphasis-text: #0B1622;
+  --border: #263E57;
+  --border-strong: #3B5A7A;
+  --text: #EAF3FA;
+  --muted: #9FB6CB; /* --surface-3 üstünde 5,74:1 */
+  --accent: #8FD6F5;          /* buz mavisi */
+  --accent-contrast: #0B1622;
+  --accent-soft: rgba(143, 214, 245, .15);
+  --accent-2: #FFC96B;        /* pencere ışığı kehribarı */
+  --live: #6EE7A8;            /* çam yeşili */
+  --live-soft: rgba(110, 231, 168, .14);
+  --danger: #FF8A93;          /* kızılcık */
+  --danger-soft: rgba(255, 138, 147, .14);
+  --danger-contrast: #0B1622;
+  --overlay: rgba(4, 10, 18, .74);
+  --avatar-text: #FFFFFF;
+  --on-media: #EAF3FA;        /* uydu küresinin üstünde: halka, seçili yer */
+  --on-media-accent: #8FD6F5; /* uydu küresinin üstünde: radyo noktaları */
+  --ink-mix: 0%;              /* içerik renkleri koyu zeminde olduğu gibi okunur */
+  --selection: rgba(143, 214, 245, .34);
+  --game-tint: 82% .12;   /* oyun simgesi: tonun açıklığı ve doygunluğu (oklch L C; ton açısı oyunun --hue değeri) */
+  --game-soft: 39% .075;  /* simgenin içindeki yumuşak dolgu */
+  --game-tile: 27% .045; /* simgenin arkasındaki kutu ve oyun kartının çizim alanı */
+  --game-cap: round;
+  --game-join: round;
+  --game-corner: 1;
+
+  --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-control: initial; /* denetimler bulundukları yerin yazı tipiyle */
+  --font-label: initial;   /* küçük büyük harfli etiketler --font-display ile */
+  --font-name: initial;    /* kişi adları bulundukları yerin yazı tipiyle */
+
+  --radius-s: 10px;
+  --radius-m: 14px;
+  --radius-l: 20px;
+  --radius-pill: 999px;
+  --radius-round: 50%;
+  --border-w: 1px;
+
+  --shadow-1: 0 1px 2px rgba(2, 8, 16, .45);
+  --shadow-2: 0 16px 40px rgba(2, 8, 16, .55), 0 0 0 1px rgba(190, 225, 255, .05);
+  --btn-shadow: none;
+  --press: scale(.97);
+  --press-flat: scale(.97);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+
+  --focus-ring: 0 0 0 3px rgba(143, 214, 245, .45);
+}
+
+/* Kar yağışı: iki katman (yakın: iri ve hızlı, uzak: küçük ve yavaş). Her katman kendini tekrarlayan kar tanesi
+   karolarıdır (genişlikleri farklı: taneler ızgara gibi dizilmez; yükseklikleri kayma boyunun bölenleri); katman
+   ekrandan bir kayma boyu uzun tutulur ve tam o kadar aşağı kaydırılır, yani döngü eksiz olur. Yalnız
+   transform canlanır (her karede yeniden boyama yok). Tıklamayı tutmaz. Hareketi azalt ayarında kar yerinde durur.
+   Uzak katman her zaman içeriğin arkasındadır (yalnız sayfa zemininde görünür). Yakın katman yalnız odanın "Oda"
+   sayfasında içeriğin üstünden, soluk geçer; oynatıcı onun da üstündedir (videoya kar yağmaz). Oyunlar ve Radyo
+   sayfalarında, oda listesinde iki katman da arkada kalır; pencereler (dialog, popover) her zaman karın üstündedir. */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-repeat: repeat;
+  will-change: transform;
+}
+body::before {
+  top: -480px;
+  background-image:
+    radial-gradient(circle, rgba(234, 243, 250, .9) 0 2px, transparent 3.5px),
+    radial-gradient(circle, rgba(234, 243, 250, .7) 0 1.5px, transparent 3px),
+    radial-gradient(circle, rgba(234, 243, 250, .6) 0 3px, transparent 5px),
+    radial-gradient(circle, rgba(234, 243, 250, .8) 0 1.5px, transparent 3px),
+    radial-gradient(circle, rgba(234, 243, 250, .55) 0 2.5px, transparent 4.5px);
+  background-size: 330px 480px, 410px 240px, 530px 480px, 290px 480px, 470px 240px;
+  background-position: 40px 60px, 250px 150px, 140px 290px, 190px 400px, 310px 30px;
+  animation: kis-kar 26s linear infinite;
+}
+body:has(#room-screen[data-page=room]:not([hidden]))::before { z-index: 3; opacity: .5; }
+.player-wrap { z-index: 4; }
+body::after {
+  top: -360px;
+  opacity: .6;
+  background-image:
+    radial-gradient(circle, rgba(200, 225, 245, .7) 0 1px, transparent 2px),
+    radial-gradient(circle, rgba(200, 225, 245, .55) 0 1px, transparent 2px),
+    radial-gradient(circle, rgba(200, 225, 245, .6) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle, rgba(200, 225, 245, .5) 0 1px, transparent 2px),
+    radial-gradient(circle, rgba(200, 225, 245, .6) 0 1px, transparent 2px);
+  background-size: 170px 360px, 230px 180px, 310px 360px, 130px 360px, 190px 120px;
+  background-position: 20px 30px, 150px 80px, 90px 170px, 60px 250px, 110px 100px;
+  animation: kis-kar-uzak 42s linear infinite;
+}
+@keyframes kis-kar { to { transform: translate3d(0, 480px, 0); } }
+@keyframes kis-kar-uzak { to { transform: translate3d(0, 360px, 0); } }
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after { animation: none; }
+}
