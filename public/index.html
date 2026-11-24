@@ -935,20 +935,6 @@
           </div>
 
           <section id="game-yorunge" hidden>
-            <div id="lobby-yorunge" class="lobby"></div>
-            <div id="yorunge-match" hidden>
-              <div class="yorunge-head"><div><small id="yorunge-crews"></small><h3 id="yorunge-status" aria-live="polite"></h3></div>
-                <button class="sm ghost" id="yorunge-resign">Çekil</button></div>
-              <div class="yorunge-space" tabindex="0" aria-label="Kaydırılabilir yıldız haritası"><div id="yorunge-board"></div></div>
-              <p id="yorunge-hint" class="small" aria-live="polite"></p>
-              <div id="yorunge-stock" aria-label="Hangar"></div>
-            </div>
-            <details class="yorunge-guide"><summary>Nasıl oynanır?</summary>
-              <p>Rakibin komuta gemisinin altı yanını doldur. Kuşatmada iki filonun gemileri de sayılır. İki komutan aynı anda çevrilirse maç berabere biter.</p>
-              <p>Her sırada hangardan bir gemi yerleştir veya haritadaki bir gemini hareket ettir. İlk gemiler birbirine temas eder. Sonraki yerleştirmeler yalnız kendi rengindeki gemilere komşu olabilir. Komuta gemini en geç dördüncü sıranda yerleştir. Ancak ondan sonra hareket edebilirsin.</p>
-              <p>Filo tek parça kalmalı. Kayan gemiler kenar temasını korur ve iki gemi arasındaki dar geçitten geçemez. Kenetçi üstteyken alttaki gemi kilitlenir ve hücre üsttekinin rengini alır. Hamle kalmazsa sıra otomatik geçer.</p>
-              <dl id="yorunge-manual"></dl>
-            </details>
           </section>
           <!-- Gizli kural: 3 sayılık dizilerle bilgisayarın gizli kuralını bul (public/kural.js) -->
           <div id="game-kural" class="kural" hidden>
@@ -1403,7 +1389,8 @@
   <script src="/sfx.js"></script>
   <script src="/app.js"></script>
   <script src="/hedef.js"></script>
-  <script src="/yorunge.js?v=d0ece37"></script>
+  <script src="/yorunge-kurallar.js?v=1"></script>
+  <script src="/yorunge.js?v=2"></script>
   <script src="/kural.js"></script>
   <script src="/mantik.js"></script>
   <script src="/tr-words.js"></script>

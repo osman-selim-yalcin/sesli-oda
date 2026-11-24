@@ -1,6 +1,27 @@
 'use strict';
 
 (() => {
+  const standalone = document.body.classList.contains('yorunge-demo');
+  const $ = id => document.getElementById(id);
+  $('game-yorunge').innerHTML = `
+    <div id="lobby-yorunge" class="lobby"></div>
+    <div id="yorunge-match" hidden>
+      <div class="yorunge-head"><div><small id="yorunge-crews"></small><h3 id="yorunge-status" aria-live="polite"></h3></div>
+        <button class="sm ghost" id="yorunge-resign">Çekil</button></div>
+      <div class="yorunge-space" tabindex="0" aria-label="Kaydırılabilir yıldız haritası"><div id="yorunge-board"></div></div>
+      <p id="yorunge-hint" class="small" aria-live="polite"></p>
+      <div id="yorunge-stock" aria-label="Hangar"></div>
+    </div>
+    <details class="yorunge-guide"><summary>Nasıl oynanır?</summary>
+      <p>Rakibin komuta gemisinin altı yanını doldur. Kuşatmada iki filonun gemileri de sayılır. İki komutan aynı anda çevrilirse maç berabere biter.</p>
+      <p>Her sırada hangardan bir gemi yerleştir veya haritadaki bir gemini hareket ettir. İlk gemiler birbirine temas eder. Sonraki yerleştirmeler yalnız kendi rengindeki gemilere komşu olabilir. Komuta gemini en geç dördüncü sıranda yerleştir. Ancak ondan sonra hareket edebilirsin.</p>
+      <p>Filo tek parça kalmalı. Kayan gemiler kenar temasını korur ve iki gemi arasındaki dar geçitten geçemez. Kenetçi üstteyken alttaki gemi kilitlenir ve hücre üsttekinin rengini alır. Hamle kalmazsa sıra otomatik geçer.</p>
+      <dl id="yorunge-manual"></dl>
+    </details>
+  `;
+  let local = standalone;
+  let mode = 'bot';
+  let timer;
   const ships = {
     komuta: ['Komuta', 'Bir hücre kayar. Altı yanı dolarsa kuşatılır.', 'M12 2 21 19 12 15 3 19Z M12 7v8'],
     kesif: ['Keşif', 'Filonun çevresinde istediği kadar kayar.', 'm3 16 9-12 9 12-9-4Z M8 18l-2 3m10-3 2 3'],
@@ -20,8 +41,33 @@
     svg.append(path);
     return svg;
   }
-  LOBBY.yorunge = {
-    title: 'Yörünge Kuşatması', tab: 'yorunge', running: () => game && !game.done, last: () => game,
+  function localLobby() {
+    if (!local) return false;
+    const lobby = $('lobby-yorunge');
+    lobby.hidden = Boolean(game && !game.done);
+    if (!lobby.hidden) {
+      lobby.replaceChildren(button('Bota karşı oyna', () => start('bot')),
+        button('Aynı cihazda iki kişi', () => start('duel')));
+    }
+    return true;
+  }
+  function start(nextMode) {
+    clearTimeout(timer);
+    mode = nextMode;
+    game = window.YorungeKurallari.create(['Güneş Filosu', mode === 'bot' ? 'Ay Botu' : 'Ay Filosu']);
+    selected = null;
+    render();
+  }
+  function localMove(move) {
+    window.YorungeKurallari.play(game, move);
+    selected = null;
+    render();
+    if (!game.done && game.turn === 1 && mode === 'bot') {
+      timer = setTimeout(() => localMove(window.YorungeKurallari.botMove(game)), 350);
+    }
+  }
+  if (!standalone) LOBBY.yorunge = {
+    title: 'Yörünge Kuşatması', tab: 'yorunge', running: () => game && !game.done, last: () => game, localLobby,
     hint: 'Rakip komuta gemisinin altı yanını kuşat. Bir arkadaşını lobiye çağır veya oda botunu ekle.',
   };
   for (const [name, rule] of Object.values(ships)) {
@@ -37,15 +83,15 @@
     render();
   }
   function render() {
-    renderLobby('yorunge');
+    if (!localLobby()) renderLobby('yorunge');
     $('yorunge-match').hidden = !game;
     if (!game) return;
-    const side = game.players.indexOf(myName);
+    const side = local ? (mode === 'duel' ? game.turn : 0) : game.players.indexOf(myName);
     const mine = side === game.turn && !game.done;
     const moves = mine ? game.moves : [];
     const displaySide = side < 0 ? game.turn : side;
     $('yorunge-crews').textContent = `☀ ${game.players[0]}   ·   ☾ ${game.players[1]}`;
-    $('yorunge-status').textContent = game.result || (mine ? 'Hamle sırası sende' : `Hamle bekleniyor · ${game.players[game.turn]}`);
+    $('yorunge-status').textContent = game.result || (mine ? (local ? `Sıra ${game.players[side]} tarafında` : 'Hamle sırası sende') : `Hamle bekleniyor · ${game.players[game.turn]}`);
     $('yorunge-resign').hidden = side < 0 || game.done;
     const forced = game.stock[game.turn].komuta && game.turns[game.turn] >= 3;
     let hint = '';
@@ -85,7 +131,8 @@
       const move = targets.get(cell);
       if (!ship && !move && !(game.revision === 0 && cell === '0,0')) continue;
       const b = button('', () => {
-        if (move) socket.emit('yorunge:move', { ...move, id: game.id, revision: game.revision });
+        if (move && local) localMove(move);
+        else if (move) socket.emit('yorunge:move', { ...move, id: game.id, revision: game.revision });
         else choose(cell);
       });
       b.className = 'yorunge-cell';
@@ -108,12 +155,30 @@
       board.append(b);
     }
   }
-  confirmButton($('yorunge-resign'), 'Çekilmeyi onayla', () => socket.emit('yorunge:resign', game?.id));
-  window.setYorunge = state => {
-    game = state || null;
+  function resign() {
+    if (!local) return socket.emit('yorunge:resign', game?.id);
+    if (!game || game.done) return;
+    clearTimeout(timer);
+    game.done = true;
+    game.moves = [];
+    game.result = 'Maç sona erdi.';
     selected = null;
     render();
-  };
-  socket.on('yorunge', window.setYorunge);
+  }
+  if (standalone) {
+    $('yorunge-resign').textContent = 'Maçı bitir';
+    $('yorunge-resign').onclick = () => { if (window.confirm('Maç bitsin mi?')) resign(); };
+  } else {
+    confirmButton($('yorunge-resign'), 'Çekilmeyi onayla', resign);
+    window.setYorunge = (state, supported = true) => {
+      if (!supported && local) return; // Aynı odaya bağlantı yenilenirken yerel maçı koru.
+      clearTimeout(timer);
+      local = !supported;
+      game = state || null;
+      selected = null;
+      render();
+    };
+    socket.on('yorunge', state => window.setYorunge(state));
+  }
   render();
 })();

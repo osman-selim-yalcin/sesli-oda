@@ -4017,6 +4017,7 @@ const lobbyEmit = (event, game, extra) => socket.emit(event, { game, ...extra })
 function renderLobby(game) {
   const box = $(`lobby-${game}`);
   const def = LOBBY[game];
+  if (def.localLobby?.()) return;
   const lobby = lobbies[game];
   box.replaceChildren();
   box.hidden = def.running();
@@ -6886,7 +6887,7 @@ function applyJoin(res) {
   setSayi(res.sayi);
   setHedef(res.hedef); // public/hedef.js
   setHedefRecords(res.hedefBoard);
-  window.setYorunge?.(res.yorunge);
+  window.setYorunge?.(res.yorunge, Object.hasOwn(res, 'yorunge'));
   window.setKural?.(res.kural); // public/kural.js
   setMantik(res.mantik); // public/mantik.js
   setDaktilo(res.daktilo); // public/daktilo.js
@@ -7522,6 +7523,9 @@ addEventListener('DOMContentLoaded', async () => {
   Lobby.onManage((room) => openRoomSettings(room));
   Lobby.onRetry(helloLobby);
   if (!authToken) {
+    if (document.documentElement.dataset.env === 'dev' && /^\/oda\/[^/]+\/oyunlar\/yorunge-kusatmasi\/?$/.test(location.pathname)) {
+      return location.replace('/yorunge.html');
+    }
     $('join-screen').hidden = false;
     // Oturumu kapatılıp buraya dönüldüyse nedeni giriş ekranında yazar.
     try {

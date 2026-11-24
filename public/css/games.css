@@ -1253,3 +1253,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .yorunge-guide dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
 .yorunge-guide dt { font-weight: 600; }
 .yorunge-guide dd { margin: 0; }
+.yorunge-demo { display: block; overflow: auto; }
+.yorunge-demo main { max-width: 760px; margin: 0 auto; padding: 18px; }
+.yorunge-demo h1 { margin: 0 0 18px; }
+#lobby-yorunge > button { margin: 4px; }
