@@ -94,6 +94,7 @@
     <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></symbol>
     <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
     <symbol id="i-cog" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/><path d="M11 10h1v4"/></symbol>
   </svg><!-- /ui-icons -->
   <!-- Oyun simgeleri (app.js gameIcon): gömülü, ilk boyamada oyun kartları simgesiz görünmesin; temadan bağımsız tek set,
        renkleri CSS değişkenlerinden. Kaynak public/icons/games.svg (test/tools/game-icons.js üretir, test/icons.test.js
@@ -539,6 +540,7 @@
             <button id="play-toggle" class="ctl ctl-play" title="Oynat / Duraklat" aria-label="Oynat / Duraklat"><svg class="ic"><use href="#i-play"></use></svg></button>
             <button id="fwd5" class="ctl" title="5 sn ileri (→)" aria-label="5 saniye ileri"><svg class="ic"><use href="#i-fwd5"></use></svg></button>
             <button id="next" class="ctl" title="Sonraki" aria-label="Sonraki"><svg class="ic"><use href="#i-skip"></use></svg></button>
+            <button id="loop" class="ctl" title="Bu videoyu tekrarla" aria-label="Bu videoyu tekrarla" aria-pressed="false"><svg class="ic"><use href="#i-repeat"></use></svg></button>
             <div class="seek-row">
               <span id="time-cur" class="time">0:00</span>
               <input id="seek" class="range" type="range" min="0" max="0" step="0.1" value="0" aria-label="Konum">

@@ -43,6 +43,8 @@ const MAP = {
   undo: 'undo-2', sparkles: 'sparkles',
   // Oda çerçevesi (Task 5)
   more: 'ellipsis', cog: 'settings',
+  // Oynatıcı: tek video döngüsü
+  repeat: 'repeat-1',
 };
 
 // 5 sn geri/ileri: ok çizgisinin ortasına "5" (yazı tipi düğmeden miras kalır). Düğmede 22 px çizilir:
@@ -69,6 +71,21 @@ const PIXEL_MAP = {
 
 // Elle çizilen piksel ikonlar: 12×12 ızgara, "#" = dolu 2×2 birimlik piksel (24×24 görünümde).
 const PIXEL_DRAWN = {
+  // Tek video döngüsü: üstte sağa, altta sola giden ok, ortada "1"
+  repeat: [
+    '............',
+    '.......##...',
+    '.#########..',
+    '.#.....##...',
+    '.#...##.....',
+    '.#....#...#.',
+    '......#...#.',
+    '.....###..#.',
+    '...##.....#.',
+    '..#########.',
+    '...##.......',
+    '............',
+  ],
   // Sonraki / önceki: çerçeve üçgen + çubuk (prev = skip'in aynası)
   skip: [
     '............',

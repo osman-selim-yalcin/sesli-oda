@@ -5987,6 +5987,9 @@ function applyMedia() {
   $('now-title').classList.toggle('muted', !cur);
   $('now-by').textContent = cur ? `${cur.by} ekledi` : '';
   setIcon($('play-toggle'), media.playing ? 'pause' : 'play');
+  $('loop').setAttribute('aria-pressed', String(Boolean(cur && media.loop)));
+  $('loop').disabled = !cur;
+  $('loop').title = media.loop ? 'Döngüyü kapat' : 'Bu videoyu tekrarla';
 
   if (!cur) {
     if (loadedId) P().stopVideo();
@@ -6190,6 +6193,7 @@ $('play-toggle').onclick = () => {
 };
 
 $('next').onclick = () => socket.emit('media:next');
+$('loop').onclick = () => media?.current && socket.emit('media:loop', !media.loop);
 
 // ---------- 5 sn ileri/geri ----------
 // YouTube'daki gibi: her basış 5 sn ekler, basılı tutunca birikir. Bırakınca toplam
