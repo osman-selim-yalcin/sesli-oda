@@ -1944,7 +1944,7 @@ function openGame(name) {
   if (name === 'kural') window.renderKural?.(); // public/kural.js
   if (name === 'mantik') renderMantik(); // public/mantik.js
   if (name === 'daktilo') renderDaktilo(); // public/daktilo.js
-  if (name === 'xox') renderXox(); // public/xox.js
+  if (name === 'xox') window.renderXox?.(); // public/xox.js
   if (name === 'okuma') renderOkuma(); // public/okuma.js
   else if (typeof okumaStop === 'function') okumaStop(); // açık alıştırmanın sayacı dursun; geri gelince alıştırma baştan çizilir
   if (name === 'dino') dinoKick();
@@ -6906,7 +6906,7 @@ function applyJoin(res) {
   setMantik(res.mantik); // public/mantik.js
   setDaktilo(res.daktilo); // public/daktilo.js
   setDaktiloBoard(res.daktiloBoard);
-  setXox(res.xox); // public/xox.js
+  window.setXox?.(res.xox); // public/xox.js (yüklenemediyse giriş bozulmasın)
   setRadio(res.radio);
   lobbies = res.lobbies || {};
   renderLobbies();
