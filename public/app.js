@@ -1408,8 +1408,8 @@ $('now-pop-room').onclick = () => {
 // / oda listesi, /uyeler (listede, yönetici); odanın içinde /oda/<id> sıra, /oda/<id>/gecmis, /oda/<id>/radyo,
 // /oda/<id>/oyunlar (oyun kartları), /oda/<id>/oyunlar/tier/<liste no>, /oda/<id>/oyunlar/kelime ...
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'daktilo', 'okuma', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'xox', 'daktilo', 'okuma', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', xox: 'ittirmeli-xox', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   const base = `/oda/${view.room}`;
@@ -1944,6 +1944,7 @@ function openGame(name) {
   if (name === 'kural') window.renderKural?.(); // public/kural.js
   if (name === 'mantik') renderMantik(); // public/mantik.js
   if (name === 'daktilo') renderDaktilo(); // public/daktilo.js
+  if (name === 'xox') renderXox(); // public/xox.js
   if (name === 'okuma') renderOkuma(); // public/okuma.js
   else if (typeof okumaStop === 'function') okumaStop(); // açık alıştırmanın sayacı dursun; geri gelince alıştırma baştan çizilir
   if (name === 'dino') dinoKick();
@@ -6905,6 +6906,7 @@ function applyJoin(res) {
   setMantik(res.mantik); // public/mantik.js
   setDaktilo(res.daktilo); // public/daktilo.js
   setDaktiloBoard(res.daktiloBoard);
+  setXox(res.xox); // public/xox.js
   setRadio(res.radio);
   lobbies = res.lobbies || {};
   renderLobbies();
@@ -7570,7 +7572,7 @@ addEventListener('DOMContentLoaded', async () => {
 // Yeni bir oyunun sekmesi eklenince kartlarda kendiliğinden görünür (bilgisi yoksa "Diğer" altında).
 
 // players: kartta görünen kişi sayısı aralığı (sunucudaki LOBBY_GAMES sınırları: odada 10 kişi, bot ayrıca katılabilir;
-// dinozor 7 (bot dahil), kelime 6, sayı bulmaca 2)
+// dinozor 7 (bot dahil), kelime 6, sayı bulmaca ve İttirmeli XOX 2)
 // hue: oyunun tonu, oklch ton açısı (simgenin rengi, kartın ve lobinin simge zemini; açıklığı temadan gelir)
 const GAME_INFO = {
   sayi: { hue: 245, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
@@ -7580,6 +7582,7 @@ const GAME_INFO = {
   kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
   hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–10 kişi' },
   mantik: { hue: 345, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–10 kişi' },
+  xox: { hue: 170, group: 'Zeka', desc: 'Taş koy ya da kenardan it, üçünü yan yana getir', players: '2 kişilik' },
   klotski: { hue: 150, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
   memory: { hue: 65, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–10 kişi' },
   timing: { hue: 215, group: 'Hız ve refleks', desc: 'Süreyi görmeden tam zamanında dur', players: '1–10 kişi' },

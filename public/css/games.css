@@ -1675,3 +1675,122 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
   .yk-loot-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .yk-loot-controls button { min-height: 36px; }
 }
+
+/* ---------- İttirmeli XOX (public/xox.js) ----------
+   Tahta yuvarlak oyuklardan oluşur; taşlar ışığı sol üstten alan kürelerdir. X sıcak, O soğuk renkte.
+   Kayma: kayan taş --dx/--dy yuva eski yerinden (--pitch = bir yuvadan ötekine) gelir. */
+.xox { display: grid; gap: 12px; }
+.xox #xox-status { flex: 1; min-width: 0; }
+.xox-play { display: grid; gap: 14px; justify-items: center; }
+.xox { --xox-x: oklch(66% .19 25); --xox-x-dark: oklch(42% .15 25); --xox-o: oklch(68% .14 245); --xox-o-dark: oklch(40% .12 250); }
+
+.xox-players { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; width: 100%; }
+.xox-player { display: flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border: var(--border-w) solid var(--border); border-radius: var(--radius-pill); background: var(--surface); min-width: 0; transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+.xox-player .xox-ball { position: static; width: 28px; height: 28px; font-size: 15px; flex: none; }
+.xox-player .avatar { width: 24px; height: 24px; font-size: 11px; flex: none; }
+.xox-player-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.xox-player-tag { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.xox-player-tag:empty { display: none; }
+.xox-player.turn { border-color: var(--live); box-shadow: 0 0 0 2px var(--live-soft); }
+.xox-player.turn.me { border-color: var(--accent-2); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-2) 30%, transparent); }
+.xox-player.turn.me .xox-player-tag { color: var(--accent-2); font-weight: 700; }
+.xox-player.won { border-color: var(--accent-2); }
+
+.xox-stage { position: relative; width: min(440px, 100%); }
+.xox-board {
+  --gap: clamp(6px, 2vw, 12px);
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--gap); padding: clamp(10px, 3vw, 18px);
+  border-radius: calc(var(--radius-l) * 1.5 * var(--game-corner, 1));
+  background:
+    radial-gradient(120% 90% at 30% 0%, color-mix(in srgb, var(--text) 7%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--surface-3), var(--surface-2));
+  border: var(--border-w) solid var(--border-strong);
+  box-shadow: var(--shadow-2), inset 0 1px 0 color-mix(in srgb, var(--text) 10%, transparent), inset 0 -3px 0 color-mix(in srgb, #000 25%, transparent);
+}
+/* Dış halka: hafif bir şeritle itilebilir kenar belli olur */
+.xox-hole {
+  position: relative; aspect-ratio: 1; border-radius: var(--radius-round);
+  background: radial-gradient(circle at 50% 60%, color-mix(in srgb, var(--bg) 85%, transparent), color-mix(in srgb, var(--bg) 55%, var(--surface-2)) 70%);
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, .55), inset 0 -1px 0 color-mix(in srgb, var(--text) 10%, transparent), 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent);
+  display: grid; place-items: center;
+}
+.xox-hole.edge { box-shadow: inset 0 3px 6px rgba(0, 0, 0, .55), inset 0 -1px 0 color-mix(in srgb, var(--text) 10%, transparent), 0 0 0 2px color-mix(in srgb, var(--text) 5%, transparent); }
+
+.xox-ball {
+  position: absolute; inset: 7%; border-radius: var(--radius-round);
+  display: grid; place-items: center; font: 800 clamp(16px, 5.5vw, 30px)/1 var(--font-display); color: #fff;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, .45), inset -4px -6px 10px rgba(0, 0, 0, .3);
+  z-index: 1;
+}
+.xox-ball.x { background: radial-gradient(circle at 32% 28%, #fff 0 6%, color-mix(in oklch, var(--xox-x) 70%, #fff) 14%, var(--xox-x) 45%, var(--xox-x-dark) 100%); }
+.xox-ball.o { background: radial-gradient(circle at 32% 28%, #fff 0 6%, color-mix(in oklch, var(--xox-o) 70%, #fff) 14%, var(--xox-o) 45%, var(--xox-o-dark) 100%); }
+.xox-sym { text-shadow: 0 1px 0 rgba(0, 0, 0, .35), 0 2px 6px rgba(0, 0, 0, .3); transform: translateY(.03em); pointer-events: none; }
+.xox-ball.last { outline: 2px solid color-mix(in srgb, var(--text) 45%, transparent); outline-offset: 2px; }
+
+/* Sıran: konabilen yuvada soluk taş hayaleti, itilebilen taşın üstünde vurgu */
+.xox-board.my-turn .can-place, .xox-board.my-turn .can-push { cursor: pointer; }
+.xox-board.my-turn .can-place::after {
+  content: attr(data-ghost); position: absolute; inset: 7%; border-radius: var(--radius-round); display: grid; place-items: center;
+  font: 800 clamp(16px, 5.5vw, 30px)/1 var(--font-display); color: var(--muted); border: 2px dashed color-mix(in srgb, var(--muted) 60%, transparent);
+  opacity: 0; transition: opacity var(--dur-fast) var(--ease);
+}
+.xox-board.my-turn .can-place:focus-visible::after { opacity: .7; }
+.xox-board.my-turn .can-push .xox-ball { box-shadow: 0 4px 8px rgba(0, 0, 0, .45), inset -4px -6px 10px rgba(0, 0, 0, .3), 0 0 0 2px color-mix(in srgb, var(--accent-2) 35%, transparent); }
+.xox-board.my-turn .can-push.picked .xox-ball { box-shadow: 0 6px 14px rgba(0, 0, 0, .5), inset -4px -6px 10px rgba(0, 0, 0, .3), 0 0 0 3px var(--accent-2); transform: scale(1.05); }
+.xox-board.my-turn .xox-ball { transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+
+/* İtme okları: taşın içeri bakan kenarında; seçilince (ya da fareyle üstüne gelince) görünür */
+.xox-arrow {
+  position: absolute; z-index: 3; width: 58%; height: 58%; min-height: 0; padding: 0; border-radius: var(--radius-round);
+  display: grid; place-items: center; font: 800 clamp(14px, 4.4vw, 22px)/1 var(--font-display);
+  background: var(--accent-2); color: #1a1400; border: 2px solid color-mix(in srgb, #000 20%, var(--accent-2));
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .45);
+  opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.xox-arrow.down { left: 21%; top: 72%; }
+.xox-arrow.up { left: 21%; bottom: 72%; }
+.xox-arrow.right { top: 21%; left: 72%; }
+.xox-arrow.left { top: 21%; right: 72%; }
+.xox-hole.picked .xox-arrow { opacity: 1; pointer-events: auto; animation: xox-nudge 1s var(--ease) infinite; }
+.xox-hole.picked .xox-arrow:hover, .xox-hole.picked .xox-arrow:focus-visible { animation: none; transform: scale(1.12); }
+@media (hover: hover) {
+  .xox-board.my-turn .can-place:hover::after { opacity: .7; }
+  .xox-board.my-turn:not(.picking) .can-push:hover .xox-arrow { opacity: .55; }
+}
+@keyframes xox-nudge { 50% { translate: calc(var(--nx, 0) * 3px) calc(var(--ny, 0) * 3px); } }
+.xox-arrow.down { --ny: 1; } .xox-arrow.up { --ny: -1; } .xox-arrow.right { --nx: 1; } .xox-arrow.left { --nx: -1; }
+/* Okun üstündeyken: kayacak taşlar ve dolacak yuva */
+.xox-hole.will-move .xox-ball { filter: brightness(1.15); }
+.xox-hole.will-fill { box-shadow: inset 0 3px 6px rgba(0, 0, 0, .55), 0 0 0 2px var(--accent-2); }
+.xox-board.picking .xox-hole:not(.picked):not(.will-move):not(.will-fill) .xox-ball { filter: saturate(.7) brightness(.85); }
+
+/* Hamle animasyonları */
+.xox-ball.slide { animation: xox-slide 360ms cubic-bezier(.3, .9, .3, 1.05); }
+.xox-ball.slide.enter { animation: xox-slide 360ms cubic-bezier(.3, .9, .3, 1.05), xox-fade 240ms ease-out; }
+.xox-ball.drop { animation: xox-drop 300ms cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes xox-slide { from { translate: calc(var(--dx, 0) * var(--pitch, 60px)) calc(var(--dy, 0) * var(--pitch, 60px)); } }
+@keyframes xox-fade { from { opacity: 0; } }
+@keyframes xox-drop { from { transform: scale(.3) translateY(-30%); opacity: 0; } }
+
+/* Kazanan üçlü */
+.xox-ball.win { animation: xox-win 1.2s ease-in-out infinite; z-index: 2; }
+.xox-ball.win.slide { animation: xox-slide 360ms cubic-bezier(.3, .9, .3, 1.05), xox-win 1.2s ease-in-out 360ms infinite; }
+.xox-ball.win.drop { animation: xox-drop 300ms cubic-bezier(.3, 1.4, .5, 1), xox-win 1.2s ease-in-out 300ms infinite; }
+@keyframes xox-win {
+  0%, 100% { box-shadow: 0 4px 8px rgba(0, 0, 0, .45), inset -4px -6px 10px rgba(0, 0, 0, .3), 0 0 0 3px var(--accent-2), 0 0 14px 2px color-mix(in srgb, var(--accent-2) 50%, transparent); }
+  50% { box-shadow: 0 4px 8px rgba(0, 0, 0, .45), inset -4px -6px 10px rgba(0, 0, 0, .3), 0 0 0 4px var(--accent-2), 0 0 26px 8px color-mix(in srgb, var(--accent-2) 55%, transparent); transform: scale(1.06); }
+}
+.xox-board.done .xox-ball:not(.win) { filter: saturate(.55) brightness(.75); }
+
+/* Sonuç: tahtanın üstünde (telefonda ekranın altında kalmasın) */
+.xox-result { display: grid; justify-items: center; gap: 4px; margin-bottom: 14px; text-align: center; }
+.xox-result[hidden] { display: none; }
+.xox-result-title { font: 800 clamp(22px, 6vw, 30px)/1.1 var(--font-display); }
+.xox-result-title.x { color: var(--xox-x); }
+.xox-result-title.o { color: var(--xox-o); }
+.xox-result .primary { margin-top: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .xox-ball.slide, .xox-ball.slide.enter, .xox-ball.drop, .xox-hole.picked .xox-arrow { animation: none; }
+  .xox-ball.win, .xox-ball.win.slide, .xox-ball.win.drop { animation: none; box-shadow: 0 0 0 3px var(--accent-2), 0 0 14px 2px color-mix(in srgb, var(--accent-2) 50%, transparent); }
+}
