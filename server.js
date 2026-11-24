@@ -117,10 +117,16 @@ const IMAGE_TYPES = {
 };
 
 const app = express();
-// Efekt kayıtları değişmez; tarayıcı bir kez indirip saklasın.
-app.use('/sfx', express.static(path.join(__dirname, 'public/sfx'), { maxAge: '30d' }));
-app.use(express.static(path.join(__dirname, 'public')));
-// Radyo haritasının istasyon listesi (bir kez indirilir, tarayıcı saklar)
+// Cloudflare hiçbir yanıtı önbelleğe almasın: dağıtım anında gelen bir 404'ü saatlerce saklayıp yeni dosyayı
+// göstermemişti. "no-cache" ile Cloudflare geçirir (BYPASS); tarayıcı her seferinde ETag ile sorar, değişmediyse 304.
+// Kendi Cache-Control'ünü koyan yollar (resimler, ses kayıtları: private) bunu ezer; onlar da Cloudflare'de tutulmaz.
+app.use((req, res, next) => {
+  res.set('Cache-Control', 'no-cache');
+  next();
+});
+app.use('/sfx', express.static(path.join(__dirname, 'public/sfx'), { cacheControl: false }));
+app.use(express.static(path.join(__dirname, 'public'), { cacheControl: false }));
+// Radyo haritasının istasyon listesi (bir kez indirilir, tarayıcı saklar; Cloudflare saklamaz)
 app.get('/radio/stations', async (req, res) => {
   try {
     await (radioPayload ? null : loadRadio());
@@ -128,7 +134,7 @@ app.get('/radio/stations', async (req, res) => {
     return res.status(503).json({ error: 'Radyo listesi şu an alınamıyor.' });
   }
   const { json, gzip, etag } = radioPayload;
-  res.set({ 'Cache-Control': 'public, max-age=3600', ETag: etag, 'Content-Type': 'application/json; charset=utf-8', Vary: 'Accept-Encoding' });
+  res.set({ 'Cache-Control': 'private, max-age=3600', ETag: etag, 'Content-Type': 'application/json; charset=utf-8', Vary: 'Accept-Encoding' });
   if (req.get('if-none-match') === etag) return res.status(304).end();
   if (/\bgzip\b/.test(req.get('accept-encoding') || '')) return res.set('Content-Encoding', 'gzip').send(gzip);
   res.send(json);
