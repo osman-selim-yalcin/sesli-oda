@@ -156,7 +156,7 @@ function analyze(src) {
 
 function scriptsInIndex() {
   const html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8');
-  return [...html.matchAll(/<script[^>]*src="\/([^"/]+\.js)"/g)].map((m) => m[1]).filter((f) => fs.existsSync(path.join(PUBLIC, f)));
+  return [...html.matchAll(/<script[^>]*src="\/([^"/?#]+\.js)(?:\?[^"]*)?"/g)].map((m) => m[1]).filter((f) => fs.existsSync(path.join(PUBLIC, f)));
 }
 
 function undefinedCalls(file, src, shared) {

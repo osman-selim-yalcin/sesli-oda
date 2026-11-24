@@ -1408,8 +1408,8 @@ $('now-pop-room').onclick = () => {
 // / oda listesi, /uyeler (listede, yönetici); odanın içinde /oda/<id> sıra, /oda/<id>/gecmis, /oda/<id>/radyo,
 // /oda/<id>/oyunlar (oyun kartları), /oda/<id>/oyunlar/tier/<liste no>, /oda/<id>/oyunlar/kelime ...
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'kural', 'hedef', 'mantik', 'daktilo', 'okuma', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'daktilo', 'okuma', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   const base = `/oda/${view.room}`;
@@ -4017,6 +4017,7 @@ const lobbyEmit = (event, game, extra) => socket.emit(event, { game, ...extra })
 function renderLobby(game) {
   const box = $(`lobby-${game}`);
   const def = LOBBY[game];
+  if (def.localLobby?.()) return;
   const lobby = lobbies[game];
   box.replaceChildren();
   box.hidden = def.running();
@@ -4060,7 +4061,7 @@ function renderLobby(game) {
   // "Oyuncu bekleniyor".
   const n = lobby.players.length;
   const ready = n > 1;
-  const canStart = n >= (game === 'kelime' ? 2 : 1);
+  const canStart = n >= (['kelime', 'yorunge', 'takimada', 'yedikapi'].includes(game) ? 2 : 1);
   const headText = document.createElement('div');
   headText.className = 'lobby-head-text';
   headText.append(Object.assign(document.createElement('strong'), { className: 'lobby-name', textContent: `${def.title} lobisi` }),
@@ -4124,7 +4125,9 @@ function renderLobby(game) {
   const actions = document.createElement('div');
   actions.className = 'lobby-actions';
   if (host) {
-    actions.append(withIcon(lobbyButton(`Başlat (${lobby.players.length} kişi)`, 'primary', () => lobbyEmit('lobby:start', game)), 'play'));
+    const start = withIcon(lobbyButton(`Başlat (${lobby.players.length} kişi)`, 'primary', () => lobbyEmit('lobby:start', game)), 'play');
+    if (['yorunge', 'takimada', 'yedikapi'].includes(game)) start.disabled = !canStart;
+    actions.append(start);
     actions.append(withIcon(lobbyButton('Lobiden çık', 'ghost', () => lobbyEmit('lobby:leave', game)), 'logout'));
     actions.append(lobbyButton('Lobiyi kapat', 'ghost danger', () => lobbyEmit('lobby:cancel', game)));
   } else if (mine) {
@@ -6888,6 +6891,9 @@ function applyJoin(res) {
   setSayi(res.sayi);
   setHedef(res.hedef); // public/hedef.js
   setHedefRecords(res.hedefBoard);
+  LOBBY.takimada?.sync(res.takimada, Object.hasOwn(res, 'takimada'));
+  LOBBY.yedikapi?.sync(res.yedikapiInventory ? res.yedikapi : null, res.yedikapiInventory === true);
+  window.setYorunge?.(res.yorunge, Object.hasOwn(res, 'yorunge'));
   window.setKural?.(res.kural); // public/kural.js
   setMantik(res.mantik); // public/mantik.js
   setDaktilo(res.daktilo); // public/daktilo.js
@@ -7040,6 +7046,8 @@ function resetRoomState() {
   setMemory(null);
   setSayi(null);
   setHedef(null);
+  for (const key of ['takimada', 'yedikapi']) LOBBY[key]?.sync(null, true);
+  window.setYorunge?.(null);
   window.setKural?.(null);
   setMantik(null);
   setDaktilo(null);
@@ -7522,6 +7530,9 @@ addEventListener('DOMContentLoaded', async () => {
   Lobby.onManage((room) => openRoomSettings(room));
   Lobby.onRetry(helloLobby);
   if (!authToken) {
+    if (document.documentElement.dataset.env === 'dev' && /^\/oda\/[^/]+\/oyunlar\/yorunge-kusatmasi\/?$/.test(location.pathname)) {
+      return location.replace('/yorunge.html');
+    }
     $('join-screen').hidden = false;
     // Oturumu kapatılıp buraya dönüldüyse nedeni giriş ekranında yazar.
     try {
@@ -7556,6 +7567,9 @@ addEventListener('DOMContentLoaded', async () => {
 // hue: oyunun tonu, oklch ton açısı (simgenin rengi, kartın ve lobinin simge zemini; açıklığı temadan gelir)
 const GAME_INFO = {
   sayi: { hue: 245, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
+  takimada: { hue: 80, group: 'Kutu Oyunları', desc: 'Yollar kur, kaynakları takas et ve adaya yerleş', players: '2–4 kişi' },
+  yedikapi: { hue: 320, group: 'Kutu Oyunları', desc: 'Kapıyı aç, canavarları yen ve hazine topla', players: '2–4 kişi' },
+  yorunge: { hue: 205, group: 'Kutu Oyunları', desc: 'Filonu konuşlandır, rakip komuta gemisini kuşat', players: '2 kişilik' },
   kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
   hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–10 kişi' },
   mantik: { hue: 345, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–10 kişi' },
@@ -7570,7 +7584,7 @@ const GAME_INFO = {
   tier: { hue: 35, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },
   oner: { hue: 90, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
 };
-const GAME_GROUPS = ['Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
+const GAME_GROUPS = ['Kutu Oyunları', 'Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
 // Oyun simgeleri: index.html'deki gömülü <svg id="game-icons"> (kaynağı icons/games.svg, test/tools/game-icons.js).
 // Sembolü olmayan (yeni eklenmiş) oyunda arayüz setinin oyun kolu ikonu görünür.
 function gameIcon(key, cls) {
@@ -7649,6 +7663,7 @@ function renderGameHome() {
       const info = gameInfo(t.key);
       const running = t.btn.classList.contains('game-running');
       const b = gameEntry(t, 'game-card' + (info.soon ? ' soon' : '') + (running ? ' running' : ''));
+      b.dataset.game = t.key;
       b.style.setProperty('--hue', info.hue);
       const art = el('span', 'game-card-art');
       art.append(gameIcon(t.key, 'game-card-icon'));
