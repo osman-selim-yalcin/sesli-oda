@@ -19,7 +19,7 @@ iki oda birleşince 20 kişi (her odadan 10). Site yöneticisi bu sayıya girmez
 - Ekran paylaşımı (Chrome/Edge'de sekme sesiyle birlikte)
 - Oyunlar (üst çubuktaki sekme; oyundayken müzik ve sesli sohbet sürer): tier list (ortak tahtada
   yazılı/resimli kartlar), süre tahmini ve süre yarışı, dinozor koşusu, kelime, eşini bul, sayı bulmaca,
-  hedef sayı, gizli kural, mantık tablosu, daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
+  Yörünge Kuşatması (iki filo, altıgen harita, arkadaşla veya oda botuyla), hedef sayı, gizli kural, mantık tablosu, daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
   "Oda kur" lobisinden başlar (lobide odadaki herkes ve bot; kelime 6, dinozor 7, sayı bulmaca 2 kişiyle
   sınırlı). Skor tabloları bütün odalarda ortaktır.
 - Ses kaydı: müzik dahil ya da sadece konuşmalar, MP3 veya WebM olarak iner. Kayıt sadece kaydedenin

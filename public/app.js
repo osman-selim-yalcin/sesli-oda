@@ -1408,8 +1408,8 @@ $('now-pop-room').onclick = () => {
 // / oda listesi, /uyeler (listede, yönetici); odanın içinde /oda/<id> sıra, /oda/<id>/gecmis, /oda/<id>/radyo,
 // /oda/<id>/oyunlar (oyun kartları), /oda/<id>/oyunlar/tier/<liste no>, /oda/<id>/oyunlar/kelime ...
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'kural', 'hedef', 'mantik', 'daktilo', 'okuma', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'yorunge', 'kural', 'hedef', 'mantik', 'daktilo', 'okuma', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   const base = `/oda/${view.room}`;
@@ -4060,7 +4060,7 @@ function renderLobby(game) {
   // "Oyuncu bekleniyor".
   const n = lobby.players.length;
   const ready = n > 1;
-  const canStart = n >= (game === 'kelime' ? 2 : 1);
+  const canStart = n >= (game === 'kelime' || game === 'yorunge' ? 2 : 1);
   const headText = document.createElement('div');
   headText.className = 'lobby-head-text';
   headText.append(Object.assign(document.createElement('strong'), { className: 'lobby-name', textContent: `${def.title} lobisi` }),
@@ -4124,7 +4124,9 @@ function renderLobby(game) {
   const actions = document.createElement('div');
   actions.className = 'lobby-actions';
   if (host) {
-    actions.append(withIcon(lobbyButton(`Başlat (${lobby.players.length} kişi)`, 'primary', () => lobbyEmit('lobby:start', game)), 'play'));
+    const start = withIcon(lobbyButton(`Başlat (${lobby.players.length} kişi)`, 'primary', () => lobbyEmit('lobby:start', game)), 'play');
+    if (game === 'yorunge') start.disabled = !canStart;
+    actions.append(start);
     actions.append(withIcon(lobbyButton('Lobiden çık', 'ghost', () => lobbyEmit('lobby:leave', game)), 'logout'));
     actions.append(lobbyButton('Lobiyi kapat', 'ghost danger', () => lobbyEmit('lobby:cancel', game)));
   } else if (mine) {
@@ -6884,6 +6886,7 @@ function applyJoin(res) {
   setSayi(res.sayi);
   setHedef(res.hedef); // public/hedef.js
   setHedefRecords(res.hedefBoard);
+  window.setYorunge?.(res.yorunge);
   window.setKural?.(res.kural); // public/kural.js
   setMantik(res.mantik); // public/mantik.js
   setDaktilo(res.daktilo); // public/daktilo.js
@@ -7036,6 +7039,7 @@ function resetRoomState() {
   setMemory(null);
   setSayi(null);
   setHedef(null);
+  window.setYorunge?.(null);
   window.setKural?.(null);
   setMantik(null);
   setDaktilo(null);
@@ -7552,6 +7556,7 @@ addEventListener('DOMContentLoaded', async () => {
 // hue: oyunun tonu, oklch ton açısı (simgenin rengi, kartın ve lobinin simge zemini; açıklığı temadan gelir)
 const GAME_INFO = {
   sayi: { hue: 245, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
+  yorunge: { hue: 205, group: 'Zeka', desc: 'Filonu konuşlandır, rakip komuta gemisini kuşat', players: '2 kişilik' },
   kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
   hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–10 kişi' },
   mantik: { hue: 345, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–10 kişi' },

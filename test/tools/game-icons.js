@@ -22,6 +22,10 @@ const ICONS = {
     <rect p="if" x="6" y="8" width="21" height="32" rx="6"/>
     <path d="M12 17h9.5l-6 14"/>
     <path p="t" d="M37 10.5v10M32 15.5h10M32 32.5h10"/>`,
+  yorunge: `
+    <path p="tf" d="m24 4 16 10v19L24 44 8 33V14Z"/>
+    <ellipse cx="24" cy="24" rx="17" ry="6" transform="rotate(-30 24 24)"/>
+    <circle p="T" cx="24" cy="24" r="5"/>`,
   // Gizli kural: büyüyen dizi ve sıradaki "?"
   kural: `
     <circle p="I" cx="8.5" cy="39" r="3.5"/>

@@ -94,6 +94,9 @@
   .game-card-name { font-size: 14px; }
   .game-card-desc { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 12px; }
   .game-chip { padding: 0 10px 0 6px; }
+  .game-home-btn { min-width: 0; flex-shrink: 1; }
+  .game-home-btn strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .game-recent:empty { display: none; }
   .game-switch .bot-toggle { padding: 0 10px; }
 }
 .game-head { display: flex; gap: 8px; align-items: center; margin-bottom: 14px; }
@@ -1219,3 +1222,34 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
   .tier-row-actions { justify-content: stretch; }
   .tier-row-actions button { flex: 1; min-width: 32px; } /* satırın üçte biri yükseklik, alan yanlara genişler */
 }
+
+/* Yörünge Kuşatması */
+#game-yorunge, #yorunge-match { display: grid; gap: 12px; min-width: 0; }
+.yorunge-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.yorunge-head h3 { margin: 3px 0 0; }
+.yorunge-head small, .yorunge-guide dd { color: var(--muted); }
+.yorunge-space { max-width: 100%; min-height: 210px; max-height: min(58vh, 570px); overflow: auto; align-content: safe center;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-m); background-color: var(--surface-2);
+  background-image: radial-gradient(circle, var(--border-strong) 1px, transparent 1.3px), radial-gradient(ellipse at center, var(--accent-soft), transparent 72%);
+  background-size: 23px 29px, 100% 100%; }
+#yorunge-board { position: relative; margin: 0 auto; }
+.yorunge-cell { position: absolute; width: 59px; height: 66px; padding: 6px; min-height: 0; border: 0; border-radius: 0;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  display: grid; align-content: center; justify-items: center; gap: 0; font-size: 22px; background: var(--border-strong); color: var(--text); }
+.yorunge-cell:disabled { opacity: 1; }
+.yorunge-cell[data-side="0"] { background: var(--accent); color: var(--accent-contrast); }
+.yorunge-cell[data-side="1"] { background: var(--text); color: var(--bg); }
+.yorunge-cell.last::before { content: ''; position: absolute; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.yorunge-cell small { font-size: 11px; font-weight: 700; line-height: 1; }
+.yorunge-cell.target { background: var(--live-soft); color: var(--text); }
+.yorunge-cell.target::after, .yorunge-cell.selected::after, .yorunge-cell:focus-visible::after { content: ''; position: absolute; inset: 7px; border: 2px dashed currentColor; border-radius: 50%; }
+.yorunge-cell svg, #yorunge-stock svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linejoin: round; stroke-linecap: round; }
+#yorunge-hint { margin: 0; }
+#yorunge-stock { display: flex; flex-wrap: wrap; gap: 6px; }
+#yorunge-stock button { display: inline-flex; align-items: center; gap: 6px; }
+#yorunge-stock button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.yorunge-guide { border-top: 1px solid var(--border); padding-top: 10px; }
+.yorunge-guide summary { cursor: pointer; font-weight: 600; }
+.yorunge-guide dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; }
+.yorunge-guide dt { font-weight: 600; }
+.yorunge-guide dd { margin: 0; }
