@@ -59,6 +59,60 @@ const ATTRS = {
     either: (b, c) => `ya ${b.pred} ya da ${c.pred}`,
   },
 };
+// İngilizce biçimler (dil seçimi İngilizce olan oyuncular için; değerlerin sırası Türkçeyle aynı kalır).
+// pred: "drinks tea", neg: "does not drink tea", obj: "the tea drinker" (kişi), home: "the tea drinker's house" (ev).
+const EN = {
+  renk: {
+    title: 'House color', head: 'House',
+    values: { kırmızı: 'red', mavi: 'blue', yeşil: 'green', sarı: 'yellow', beyaz: 'white', mor: 'purple', turuncu: 'orange', pembe: 'pink' },
+    form: (w) => ({ label: w, pred: `lives in the ${w} house`, neg: `does not live in the ${w} house`, obj: `the person in the ${w} house`, home: `the ${w} house` }),
+    either: (b, c) => `lives in either the ${b.label} or the ${c.label} house`,
+  },
+  hayvan: {
+    title: 'Pet', head: 'Pet',
+    values: { kedi: 'cat', köpek: 'dog', kuş: 'bird', balık: 'fish', tavşan: 'rabbit', kaplumbağa: 'turtle', hamster: 'hamster', papağan: 'parrot' },
+    form: (w) => ({ label: w, pred: `owns a ${w}`, neg: `does not own a ${w}`, obj: `the ${w} owner`, home: `the ${w} owner's house` }),
+    either: (b, c) => `owns either a ${b.label} or a ${c.label}`,
+  },
+  icecek: {
+    title: 'Drink', head: 'Drink',
+    values: { çay: 'tea', kahve: 'coffee', ayran: 'ayran', limonata: 'lemonade', süt: 'milk', şalgam: 'turnip juice', 'meyve suyu': 'fruit juice', soda: 'soda' },
+    form: (w) => ({ label: w, pred: `drinks ${w}`, neg: `does not drink ${w}`, obj: `the ${w} drinker`, home: `the ${w} drinker's house` }),
+    either: (b, c) => `drinks either ${b.label} or ${c.label}`,
+  },
+  meslek: {
+    title: 'Job', head: 'Job',
+    values: { doktor: 'doctor', öğretmen: 'teacher', aşçı: 'cook', mühendis: 'engineer', avukat: 'lawyer', pilot: 'pilot', hemşire: 'nurse', mimar: 'architect' },
+    form: (w) => ({ label: w, pred: `is ${an(w)}`, neg: `is not ${an(w)}`, obj: `the ${w}`, home: `the ${w}'s house` }),
+    either: (b, c) => `is either ${an(b.label)} or ${an(c.label)}`,
+  },
+  hobi: {
+    title: 'Hobby', head: 'Hobby',
+    values: { satranç: 'chess', resim: 'painting', gitar: 'guitar', kitap: 'reading', yüzme: 'swimming', bahçe: 'gardening', dans: 'dancing', fotoğraf: 'photography' },
+    form: (w) => {
+      const [pred, neg, obj] = {
+        chess: ['plays chess', 'does not play chess', 'the chess player'],
+        painting: ['paints', 'does not paint', 'the painter'],
+        guitar: ['plays guitar', 'does not play guitar', 'the guitarist'],
+        reading: ['reads books', 'does not read books', 'the reader'],
+        swimming: ['goes swimming', 'does not go swimming', 'the swimmer'],
+        gardening: ['does gardening', 'does not do gardening', 'the gardener'],
+        dancing: ['dances', 'does not dance', 'the dancer'],
+        photography: ['takes photos', 'does not take photos', 'the photographer'],
+      }[w];
+      return { label: w, pred, neg, obj, home: `${obj}'s house` };
+    },
+    either: (b, c) => `either ${b.pred} or ${c.pred}`,
+  },
+};
+const an = (w) => (/^[aeiou]/.test(w) ? `an ${w}` : `a ${w}`);
+const EN_KONUM = {
+  title: 'Position', head: 'House no.',
+  values: [1, 2, 3, 4].map((n) => ({ n, label: `House ${n}`, pred: `lives in house ${n}`, neg: `does not live in house ${n}`, obj: `the person in house ${n}`, home: `house ${n}` })),
+  either: (b, c) => `lives in either house ${b.n} or house ${c.n}`,
+};
+const EN_NAME = (n) => ({ label: n, pred: `is ${n}`, neg: `is not ${n}`, obj: n, home: `${n}'s house` });
+
 const KONUM = {
   key: 'konum', title: 'Konum', head: 'Ev no',
   values: [1, 2, 3, 4].map((n) => ({ n, label: `${n}. ev`, pred: `${n}. evde oturuyor`, neg: `${n}. evde oturmuyor`, subj: `${n}. evdeki kişi`, gen: `${n}. evdeki kişinin` })),
@@ -197,9 +251,13 @@ function generate(level = 'kolay') {
     const names = shuffled(Object.keys(NAMES)).slice(0, SIZE);
     const attrs = shuffled(Object.keys(ATTRS)).slice(0, cfg.attrs);
     const cats = [
-      { key: 'isim', title: 'İsim', head: 'İsim', values: names.map((n) => ({ label: n, pred: n, neg: `${n} değil`, subj: n, gen: NAMES[n] })), either: (b, c) => `ya ${b.label} ya da ${c.label}` },
-      ...(cfg.konum ? [KONUM] : []),
-      ...attrs.map((key) => { const a = ATTRS[key]; return { key, title: a.title, head: a.head, values: shuffled(a.values).slice(0, SIZE), either: a.either }; }),
+      { key: 'isim', title: 'İsim', head: 'İsim', values: names.map((n) => ({ label: n, pred: n, neg: `${n} değil`, subj: n, gen: NAMES[n], en: EN_NAME(n) })), either: (b, c) => `ya ${b.label} ya da ${c.label}` },
+      ...(cfg.konum ? [{ ...KONUM, values: KONUM.values.map((v, i) => ({ ...v, en: EN_KONUM.values[i] })) }] : []),
+      ...attrs.map((key) => {
+        const a = ATTRS[key];
+        const values = shuffled(a.values).slice(0, SIZE).map((v) => ({ ...v, en: EN[key].form(EN[key].values[v.label]) }));
+        return { key, title: a.title, head: a.head, values, either: a.either };
+      }),
     ];
     // Değerleri alfabetik sırala (tablo düzgün dursun); konum zaten 1-4.
     for (const c of cats) if (c.key !== 'konum') c.values = [...c.values].sort((x, y) => x.label.localeCompare(y.label, 'tr'));
@@ -273,10 +331,48 @@ function clueText(clue, cats) {
   return '';
 }
 
+// İpucunu İngilizce cümleye çevirir. flip: "solunda" ipucu "sağında" olarak yazılır (Türkçesiyle aynı seçim).
+const enCat = (cat) => (cat.key === 'isim' ? { title: 'Name', head: 'Name', either: (b, c) => `is either ${b.label} or ${c.label}` }
+  : cat.key === 'konum' ? EN_KONUM : EN[cat.key]);
+function clueTextEn(clue, cats, flip) {
+  const V = ([c, v]) => cats[c].values[v].en;
+  const key = ([c]) => cats[c].key;
+  const isRenk = (x) => key(x) === 'renk';
+  const isKonum = (x) => key(x) === 'konum';
+  const sentence = (s) => `${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
+  const { t, a, b, c } = clue;
+  if (t === 'same' || t === 'diff') {
+    if ((isRenk(a) && isKonum(b)) || (isKonum(a) && isRenk(b))) {
+      const [k, r] = isKonum(a) ? [a, b] : [b, a];
+      return sentence(`${V(k).home} is ${t === 'diff' ? 'not ' : ''}${V(r).label}`);
+    }
+    const rank = (x) => ({ isim: 0, meslek: 1, renk: 3, konum: 4 }[key(x)] ?? 2);
+    const [s, p] = rank(a) <= rank(b) ? [a, b] : [b, a];
+    return sentence(`${V(s).obj} ${t === 'same' ? V(p).pred : V(p).neg}`);
+  }
+  if (t === 'either') return sentence(`${V(a).obj} ${enCat(cats[b[0]]).either(V(b), V(c))}`);
+  const who = (x) => (isRenk(x) ? V(x).home : V(x).obj);
+  const where = (x) => (isRenk(x) ? 'is' : 'lives');
+  const target = (x, from) => (isRenk(from) ? V(x).home : V(x).obj);
+  if (t === 'left') {
+    if (flip) return sentence(`${who(b)} ${where(b)} directly to the right of ${target(a, b)}`);
+    return sentence(`${who(a)} ${where(a)} directly to the left of ${target(b, a)}`);
+  }
+  const houses = b && isRenk(a) && isRenk(b);
+  const pair = !b ? '' : houses ? `${who(a)} and ${who(b)}` : `${V(a).obj} and ${V(b).obj}`;
+  if (t === 'next') return sentence(houses ? `${pair} are next to each other` : `${pair} live next to each other`);
+  if (t === 'apart') return sentence(houses ? `${pair} are not next to each other` : `${pair} do not live next to each other`);
+  if (t === 'gap') return sentence(`there is exactly one house between ${pair}`);
+  if (t === 'edge') return sentence(isRenk(a) ? `${who(a)} is one of the two end houses` : `${who(a)} lives in one of the two end houses`);
+  if (t === 'middle') return sentence(isRenk(a) ? `${who(a)} is one of the two middle houses` : `${who(a)} lives in one of the two middle houses`);
+  return '';
+}
+
 // "solunda" ipuçlarının yarısı "sağında" olarak yazılır (aynı anlam, ters çevrilmiş).
 function finalize({ level, cats, sol, clues, kc }) {
-  const texts = clues.map((clue) => {
-    if (clue.t === 'left' && Math.random() < 0.5) {
+  const flips = clues.map((clue) => clue.t === 'left' && Math.random() < 0.5);
+  const texts = clues.map((clue, i) => {
+    if (flips[i]) {
       const V = ([c, v]) => cats[c].values[v];
       const isRenk = ([c]) => cats[c].key === 'renk';
       const who = (x) => (isRenk(x) ? V(x).house : V(x).subj);
@@ -290,6 +386,10 @@ function finalize({ level, cats, sol, clues, kc }) {
     // answer[c - 1][kişi] = değer (isim kategorisi kişinin kendisi, onu saymayız)
     answer: sol.val.slice(1).map((perm) => [...perm]),
     clues: texts,
+    en: {
+      cats: cats.map((c) => { const e = enCat(c); return { key: c.key, title: e.title, head: e.head, values: c.values.map((v) => v.en.label) }; }),
+      clues: clues.map((clue, i) => clueTextEn(clue, cats, flips[i])),
+    },
     raw: clues,
     kc,
   };
@@ -321,6 +421,7 @@ function create({ io, postSystem, getRoom, rooms, BOT }) {
       ...rest,
       cats: puzzle.cats,
       clues: puzzle.clues,
+      en: puzzle.en,
       myWrong: wrong[name] || 0,
       now: Date.now(),
       answer: game.done ? puzzle.answer : null,

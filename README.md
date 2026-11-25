@@ -147,6 +147,26 @@ Yeni tema eklemek (örnek kimlik `yeni`):
 5. Önbellek: `public/theme.js`'teki `CSS_VERSION` ve `public/index.html`'deki `theme.js?v=…` etiketi değiştirilir
    (bir tema dosyası her değiştiğinde de; yoksa tarayıcılar saatlerce eski dosyayı kullanır).
 
+## Dil (Türkçe / English)
+
+Site Türkçe yazılır; İngilizce bir çeviri katmanıdır. Dil giriş kartından, hesap penceresinden ya da oda
+ayarlarından seçilir (`localStorage.lang`); seçilmemişse tarayıcı dili `tr` değilse İngilizce açılır. Sayfa
+yenilenmeden değişir.
+
+- `public/i18n.js` (`<head>`'de, her şeyden önce): İngilizce seçiliyse ekrana çıkan her metni, `placeholder`,
+  `title`, `aria-label` niteliklerini ve `alert/confirm/prompt` metnini sözlükten çevirir (MutationObserver).
+  Kodda çağrılabilir: `I18N.t('Türkçe metin')`, `I18N.lang`, `I18N.locale` (tarih ve sayı biçimi), `langchange` olayı.
+- Sözlük: `public/lang/en-ui.js` (site kabuğu), `en-games.js` (oyunlar), `en-server.js` (sunucunun gönderdiği
+  sistem mesajları ve hatalar). Anahtar ekrandaki Türkçe metnin kendisidir; değişken parçalar `{0}`, `{1}`… ile
+  yazılır ve çeviride yeniden sıralanabilir: `"{0} odaya katıldı": "{0} joined the room"`.
+- Çevrilmeyenler: `translate="no"` taşıyan kutular ve `i18n.js`'teki `KEEP` seçicileri (sohbet mesajları,
+  şarkı ve liste başlıkları, Daktilo/Kelime/Hızlı okuma kelimeleri; bu oyunların içeriği Türkçe kalır).
+- Mantık tablosu bulmacayı sunucuda iki dilde üretir (`games/mantik.js` `clueTextEn`, oyuncuya `game.en`).
+- CSS içindeki metinler (`content:`) `:lang(en)` kuralıyla değiştirilir (`public/css/games.css` sonu).
+
+Yeni metin eklerken İngilizcesini ilgili sözlük dosyasına da yaz. Eksikleri bulmak için: siteyi İngilizce açıp
+sayfada Türkçe karakter taşıyan metin düğümü aramak yeterli.
+
 ## Testler ve test sunucusu
 
 ```bash

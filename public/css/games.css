@@ -1794,3 +1794,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
   .xox-ball.slide, .xox-ball.slide.enter, .xox-ball.drop, .xox-hole.picked .xox-arrow { animation: none; }
   .xox-ball.win, .xox-ball.win.slide, .xox-ball.win.drop { animation: none; box-shadow: 0 0 0 3px var(--accent-2), 0 0 14px 2px color-mix(in srgb, var(--accent-2) 50%, transparent); }
 }
+
+/* İngilizce: CSS içindeki metinler (public/i18n.js sadece sayfadaki metni çevirir) */
+:lang(en) .tier-pool.empty-pool::before { content: "All cards are placed. New cards you add show up here."; }
+:lang(en) .kutu-seat.me .kutu-seat-text strong::after { content: ' (you)'; }

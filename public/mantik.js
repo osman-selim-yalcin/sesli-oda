@@ -615,9 +615,14 @@ for (const b of document.querySelectorAll('#mantik-view [data-view]')) {
 confirmButton($('mantik-end'), 'Emin misin? Tekrar bas', () => socket.emit('mantik:end'));
 $('mantik-close').onclick = () => socket.emit('mantik:close');
 
+// Sunucu bulmacayı iki dilde gönderir (game.en: İngilizce kategoriler ve ipuçları; değerlerin sırası aynı).
+let mantikRaw = null;
+const mantikLocal = (game) => (game && game.en && window.I18N?.lang === 'en' ? { ...game, cats: game.en.cats, clues: game.en.clues } : game);
+
 function setMantik(game) {
   const fresh = game && mantik?.id !== game.id;
-  mantik = game || null;
+  mantikRaw = game || null;
+  mantik = mantikLocal(game) || null;
   if (game?.now) mantikClock = game.now - Date.now();
   if (fresh) {
     mantikUndo = [];
@@ -626,6 +631,7 @@ function setMantik(game) {
   renderMantik();
 }
 socket.on('mantik', setMantik);
+addEventListener('langchange', () => { if (mantikRaw) { mantik = mantikLocal(mantikRaw); renderMantik(); } });
 
 // Lobi: kurucu zorluğu seçer.
 LOBBY.mantik = {
