@@ -233,13 +233,13 @@ window.Lobby = (() => {
 
     // Erişilebilir ad görünen eylemi de içerir (ör. "Şifreyle gir").
     const label = [
-      `${r.name}: ${action}`,
+      `${r.name}: ${I18N.t(action)}`,
       r.role === 'owner' && 'Senin odan',
       `sahibi ${r.owner}`,
       r.locked && 'şifreli',
       `${countOf(r)}/${r.max} kişi`,
       partner && `${partner.name} ile birleşik`,
-    ].filter(Boolean).join(', ');
+    ].filter(Boolean).map((x, i) => (i ? I18N.t(x) : x)).join(', ');
     card.setAttribute('aria-label', label);
     card.onclick = () => (full ? toast(`${r.name} dolu.`) : tryEnter(r));
     return card;
@@ -656,9 +656,11 @@ window.Lobby = (() => {
   // ---------- Üyeler (/uyeler) ----------
   // Açılmış bütün hesaplar; sadece yöneticide listenin üst çubuğunda görünür.
 
-  const DAY_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
-  const TIME_FMT = new Intl.DateTimeFormat('tr-TR', { hour: '2-digit', minute: '2-digit' });
-  const FULL_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  // Dil değişirse biçimler de değişsin diye her çağrıda kurulur.
+  const fmtOf = (opts) => ({ format: (ms) => new Intl.DateTimeFormat(I18N.locale, opts).format(ms) });
+  const DAY_FMT = fmtOf({ day: 'numeric', month: 'short', year: 'numeric' });
+  const TIME_FMT = fmtOf({ hour: '2-digit', minute: '2-digit' });
+  const FULL_FMT = fmtOf({ day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const fmtDay = (ms) => (ms ? DAY_FMT.format(ms) : '—');
   // Oda isteği satırı: tam tarih ve saat
   const fmtDate = (ms) => (ms ? FULL_FMT.format(ms) : '—');

@@ -1197,7 +1197,7 @@ function renderHistory() {
       <button class="icon sm ghost" title="Tekrar ekle" aria-label="Tekrar ekle">${icon('plus')}</button>`;
     li.prepend(thumb(h.videoId, h.thumb));
     li.querySelector('.q-title').textContent = h.title;
-    const when = new Date(h.playedAt).toLocaleString('tr-TR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const when = new Date(h.playedAt).toLocaleString(I18N.locale, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     li.querySelector('.small').textContent = `${h.by} ekledi · ${when}`;
     li.querySelector('button').onclick = (e) => {
       socket.emit('media:add', h.videoId);
@@ -1970,7 +1970,7 @@ const racePhase = (race) => (race.revealUntil ? 'reveal' : serverNow() < race.ro
 const raceDiff = (race, ms, i) => (ms == null ? RACE_MISS : Math.abs(ms - race.targets[i] * 1000));
 const raceTotal = (race, name) => race.scores[name].slice(0, race.ended).reduce((sum, ms, i) => sum + raceDiff(race, ms, i), 0);
 
-const fmtSeconds = (ms) => (ms / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtSeconds = (ms) => (ms / 1000).toLocaleString(I18N.locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtDiff = (ms) => `${ms >= 0 ? '+' : '−'}${fmtSeconds(Math.abs(ms))} sn`;
 
 // Farka göre yorum ve renk sınıfı
@@ -2554,6 +2554,7 @@ function renderKelimePool() {
     const chip = document.createElement('span');
     chip.title = `${w.by} ekledi`;
     chip.textContent = w.text;
+    chip.translate = false; // havuzdaki Türkçe kelime çevrilmez
     const x = document.createElement('button');
     x.type = 'button';
     x.title = 'Havuzdan çıkar';
@@ -2907,7 +2908,7 @@ function renderMemoryRanks() {
   }));
   const best = $('memory-best');
   best.replaceChildren(...(memoryRanks.solo[memorySize] || []).map((r, i) => {
-    const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    const date = new Date(r.at).toLocaleDateString(I18N.locale, { day: 'numeric', month: 'short' });
     return memoryRankRow(r.name, `${r.moves} hamle`, `${fmtClock(Math.round(r.ms / 1000) * 1000)} · ${sizes.length === 1 ? `${memorySize} çift · ` : ''}${date}`, i);
   }));
   if (!best.children.length) best.append(memoryEmpty('Tek başına bitirilen oyun yok.'));
@@ -3517,7 +3518,7 @@ function renderKlotski() {
   $('klotski-level-name').textContent = klotski.level.name;
   const best = $('klotski-best');
   best.replaceChildren(...(klotskiRanks[klotski.level.id] || []).map((r, i) => {
-    const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    const date = new Date(r.at).toLocaleDateString(I18N.locale, { day: 'numeric', month: 'short' });
     return memoryRankRow(r.name, `${r.moves} hamle`, `${fmtClock(Math.round(r.ms / 1000) * 1000)} · ${date}`, i);
   }));
   if (!best.children.length) best.append(memoryEmpty('Bu bölümü bitiren yok.'));
@@ -3577,7 +3578,8 @@ try {
 
 const radioPage = () => !$('radio').hidden;
 const radioFlag = (cc) => (/^[A-Z]{2}$/.test(cc || '') ? String.fromCodePoint(...[...cc].map((c) => 127397 + c.charCodeAt(0))) : '🌐');
-const radioRegions = new Intl.DisplayNames(['tr'], { type: 'region' });
+const radioRegionNames = {};
+const radioRegions = { of: (cc) => (radioRegionNames[I18N.lang] ||= new Intl.DisplayNames([I18N.lang], { type: 'region' })).of(cc) };
 const radioCountry = (cc) => {
   try {
     return cc ? radioRegions.of(cc) : '';
@@ -4316,11 +4318,12 @@ function onerField(f) {
       const b = document.createElement('button');
       b.type = 'button';
       b.textContent = opt;
+      b.dataset.value = opt;
       b.className = onerDraft[f.key] === opt ? 'active' : '';
       b.onclick = () => {
         onerDraft[f.key] = onerDraft[f.key] === opt ? '' : opt; // seçiliye tekrar basınca kalkar
         saveOnerDraft();
-        for (const x of chips.children) x.classList.toggle('active', onerDraft[f.key] === x.textContent);
+        for (const x of chips.children) x.classList.toggle('active', onerDraft[f.key] === x.dataset.value);
       };
       chips.append(b);
     }
@@ -4492,7 +4495,7 @@ function renderOneriler() {
     const text = document.createElement('div');
     text.className = 'q-text';
     text.append(Object.assign(document.createElement('div'), { className: 'q-title', textContent: o.fields.ad }));
-    const date = new Date(o.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    const date = new Date(o.at).toLocaleDateString(I18N.locale, { day: 'numeric', month: 'short' });
     text.append(Object.assign(document.createElement('div'), { className: 'muted small', textContent: `${o.by} · ${date} · ${o.fields.ozet}` }));
     sum.append(text, Object.assign(document.createElement('span'), { className: `oner-status ${o.status}`, textContent: ONER_STATUS[o.status] || o.status }));
     det.append(sum);
@@ -4696,9 +4699,9 @@ function renderDinoUi() {
   const game = dinoGame;
   const running = game && !game.done;
   renderLobby('dino');
-  $('dino-help').innerHTML = '<b>W</b> / <b>↑</b> / boşluk: zıpla · <b>S</b> / <b>↓</b>: eğil (havadayken hızlı iner). '
+  $('dino-help').innerHTML = I18N.t('<b>W</b> / <b>↑</b> / boşluk: zıpla · <b>S</b> / <b>↓</b>: eğil (havadayken hızlı iner). '
     + 'Hız otomatik ve gitgide artar; herkes kusursuz koşan Jef\'in arkasında koşar. Engele çarpan ölür, en uzağa giden kazanır. '
-    + 'Gökten inen <b class="dino-bird-word">turuncu kuş sürüsü</b>nün altından koşarak geç; zıplarsan çarparsın.';
+    + 'Gökten inen <b class="dino-bird-word">turuncu kuş sürüsü</b>nün altından koşarak geç; zıplarsan çarparsın.');
   let status = 'Lobi kurulup başlatılınca lobidekiler Jef\'in peşinden koşar.';
   if (running) {
     const alive = Object.values(game.players).filter((p) => !p.dead).length;
@@ -4732,7 +4735,7 @@ function renderDinoBoard(board) {
   const list = $('dino-board');
   list.replaceChildren();
   (board?.auto || []).forEach((r, i) => {
-    const date = new Date(r.at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+    const date = new Date(r.at).toLocaleDateString(I18N.locale, { day: 'numeric', month: 'short' });
     const row = timingRow(r.name, `${Math.round(r.dist / 10)} m`, date, i === 0 ? 'great' : '');
     row.prepend(rankCell(i));
     list.append(row);
@@ -4861,7 +4864,7 @@ function drawDino(started) {
     ctx.fillStyle = dinoUi('--muted');
     ctx.font = dinoFont(600, 16);
     ctx.textAlign = 'center';
-    ctx.fillText('Lobi kur, birlikte Jef\'in peşinden koşun', DINO.viewW / 2, 100);
+    ctx.fillText(I18N.t('Lobi kur, birlikte Jef\'in peşinden koşun'), DINO.viewW / 2, 100);
     drawOneDino(ctx, 'Jef 🤖', { x: 80, y: 0, duck: false }, false, sx, sy, 0, DINO_JEF_COLOR);
     if (myName) drawOneDino(ctx, myName, { x: -40, y: 0, duck: false }, false, sx, sy);
     return;
@@ -4941,7 +4944,7 @@ function drawDinoHud(ctx, started) {
   ctx.font = dinoFont(600, 14);
   ctx.textAlign = 'right';
   if (dinoMe) {
-    const live = dinoMe.dead || dinoGame.done ? '' : ` · hız ${Math.round(dinoMe.vx / 10)}`;
+    const live = dinoMe.dead || dinoGame.done ? "" : I18N.t(` · hız ${Math.round(dinoMe.vx / 10)}`);
     ctx.fillText(`${Math.round(dinoJefX(dinoMe.t) / 10)} m${live}`, DINO.viewW - 14, 24);
   }
   ctx.textAlign = 'center';
@@ -4951,10 +4954,10 @@ function drawDinoHud(ctx, started) {
     ctx.fillText(Math.ceil((dinoGame.startAt - serverNow()) / 1000), DINO.viewW / 2, 120);
   } else if (dinoGame.done) {
     ctx.font = dinoFont(800, 32);
-    ctx.fillText('Oyun bitti', DINO.viewW / 2, 110);
+    ctx.fillText(I18N.t('Oyun bitti'), DINO.viewW / 2, 110);
   } else if (dinoMe?.dead) {
     ctx.font = dinoFont(700, 24);
-    ctx.fillText('Öldün, diğerlerini izliyorsun', DINO.viewW / 2, 110);
+    ctx.fillText(I18N.t('Öldün, diğerlerini izliyorsun'), DINO.viewW / 2, 110);
   }
 }
 
@@ -5177,8 +5180,8 @@ function renderChatMessage({ from, name, text, image, ts, system }) {
   if (system) {
     const li = document.createElement('li');
     li.className = 'chat-system';
-    const time = new Date(ts).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-    li.textContent = `${text} · ${time}`;
+    const time = new Date(ts).toLocaleTimeString(I18N.locale, { hour: '2-digit', minute: '2-digit' });
+    li.append(text, ` · ${time}`); // saat ayrı düğüm: sistem mesajı dil sözlüğünden çevrilebilsin
     list.append(li);
     $('chat-empty').hidden = true;
     if (nearBottom) list.scrollTop = list.scrollHeight;
@@ -5191,11 +5194,13 @@ function renderChatMessage({ from, name, text, image, ts, system }) {
   const who = document.createElement('span');
   who.className = 'who';
   who.textContent = name;
+  who.translate = false;
   const when = document.createElement('span');
   when.className = 'when';
-  when.textContent = new Date(ts).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  when.textContent = new Date(ts).toLocaleTimeString(I18N.locale, { hour: '2-digit', minute: '2-digit' });
   const body = document.createElement('div');
   body.className = 'text';
+  body.translate = false; // kullanıcının yazdığı mesaj çevrilmez
   // Sadece 1-3 emojiden oluşan mesaj büyük gösterilir.
   if (/^(\p{Extended_Pictographic}(\uFE0F|\u200D\p{Extended_Pictographic}|\p{Emoji_Modifier})*\s*){1,3}$/u.test(text)) {
     body.classList.add('big');
@@ -5571,7 +5576,7 @@ $('rec-format').onchange = () => {
     localStorage.setItem('rec-format', $('rec-format').value);
   } catch {}
 };
-$('rec-format').querySelector('[value=native]').textContent = REC_EXT.toUpperCase() + ' (daha küçük dosya)';
+$('rec-format').querySelector('[value=native]').textContent = `${REC_EXT.toUpperCase()} (daha küçük dosya)`;
 if (!TAB_AUDIO) {
   $('rec-all').hidden = true;
   $('rec-all').nextElementSibling.textContent =
@@ -7102,7 +7107,7 @@ let rsThemeSaving = false;
 // Tema dosyası yüklenemezse önceki tema kalır (Theme.apply); kullanıcıya söylenir.
 // Aynı yükleme için birden çok çağrı (ayar kaydı + room:theme) tek bildirim gösterir: ekranda bir tema hatası
 // bildirimi varken yenisi eklenmez. quiet: bildirimi çağıran gösterir.
-const isThemeFail = (t) => /yüklenemedi[;,] (bu cihazda )?önceki görünüm|bu cihazda yüklenemedi/.test(t.textContent);
+const isThemeFail = (t) => /yüklenemedi[;,] (bu cihazda )?önceki görünüm|bu cihazda yüklenemedi|could not load|previous look/i.test(t.textContent);
 const themeFailShown = () => [...$('toasts').children].some(isThemeFail);
 function applyTheme(id, { quiet = false } = {}) {
   return Theme.apply(id).then((ok) => {

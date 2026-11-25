@@ -139,7 +139,7 @@ function okumaBestText(key) {
   }
   if (key === 'tablo') {
     const b = okumaGet('tablo:5');
-    return b?.ms ? `En iyi 5×5: ${(b.ms / 1000).toLocaleString('tr-TR', { maximumFractionDigits: 1 })} sn` : '';
+    return b?.ms ? `En iyi 5×5: ${(b.ms / 1000).toLocaleString(I18N.locale, { maximumFractionDigits: 1 })} sn` : '';
   }
   return '';
 }
@@ -402,7 +402,7 @@ function tabloView(body) {
       opts.append(b);
     }
   }
-  const fmt = (ms) => (ms / 1000).toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const fmt = (ms) => (ms / 1000).toLocaleString(I18N.locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   function idleInfo() {
     const best = okumaGet(`tablo:${st.size}`);
     info.textContent = `1'den ${st.size * st.size}'e kadar sırayla bas. Gözünü tablonun ortasında tutmaya çalış.${best ? ` Rekorun: ${fmt(best.ms)} sn.` : ''}`;

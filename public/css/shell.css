@@ -1833,3 +1833,7 @@ button.room-card.is-busy .room-go {
   .roomlist-topbar .top-tab { padding: 0 8px; }
   .roomlist-topbar .top-tab .ic { display: none; }
 }
+
+/* Dil seçimi (giriş kartı, hesap penceresi, oda ayarları) */
+.lang-field { margin-top: var(--space-3); }
+.account-lang { padding: 0 var(--space-4) var(--space-3); color: var(--text); }

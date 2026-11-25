@@ -4,14 +4,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sesli Oda</title>
+  <!-- Dil: İngilizce seçiliyse sözlüğü sayfa çizilmeden yükler (public/i18n.js) -->
+  <script src="/i18n.js?v=1"></script>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="theme-color" content="#0E0F13">
   <!-- Tema: varsayılan tema baştan bağlıdır (ilk boyama temalı); Theme.apply (theme.js) bu bağlantıyı değiştirir. -->
   <link id="theme-css" rel="stylesheet" href="/themes/gece.css" data-theme="gece">
   <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/shell.css">
-  <link rel="stylesheet" href="/css/games.css?v=kutu3d">
+  <link rel="stylesheet" href="/css/shell.css?v=i18n">
+  <link rel="stylesheet" href="/css/games.css?v=i18n">
   <link rel="preload" href="/vendor/fonts/nunito/Nunito-wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/vendor/fonts/geist/Geist-wght.woff2" as="font" type="font/woff2" crossorigin>
 </head>
@@ -147,6 +149,9 @@
       <p id="join-error" class="join-error" role="alert" hidden></p>
       <button type="submit" id="join-btn" class="btn btn-primary btn-block">Giriş yap</button>
       <p class="join-status"><span class="status-dot" aria-hidden="true"></span><span id="room-status"></span></p>
+      <label class="field-inline lang-field">Dil
+        <select class="lang-select" translate="no" aria-label="Dil / Language"><option value="tr">Türkçe</option><option value="en">English</option></select>
+      </label>
     </form>
   </main>
   <input id="avatar-file" type="file" accept="image/*" hidden>
@@ -263,6 +268,9 @@
           <button type="submit" class="btn btn-primary">Şifreyi değiştir</button>
         </div>
       </form>
+      <label class="field-inline lang-field account-lang">Dil
+        <select class="lang-select" translate="no" aria-label="Dil / Language"><option value="tr">Türkçe</option><option value="en">English</option></select>
+      </label>
       <div class="account-foot">
         <button type="button" id="logout" class="list-row account-logout"><svg class="ic"><use href="#i-logout"></use></svg><span class="label">Çıkış yap</span></button>
       </div>
@@ -430,6 +438,9 @@
         </label>
         <label class="field-inline">Efekt sesi
           <input id="sfx-vol" class="range" type="range" min="0" max="100" value="60">
+        </label>
+        <label class="field-inline">Dil
+          <select class="lang-select" translate="no" aria-label="Dil / Language"><option value="tr">Türkçe</option><option value="en">English</option></select>
         </label>
       </div>
       <div class="settings-actions">
@@ -1085,14 +1096,14 @@
               <div class="mantik-main">
                 <section class="mantik-clues-box">
                   <strong class="mantik-sub">İpuçları</strong>
-                  <ol id="mantik-clues" class="mantik-clues"></ol>
+                  <ol id="mantik-clues" class="mantik-clues" translate="no"></ol>
                 </section>
                 <section id="mantik-grid-box" class="mantik-grid-box">
                   <div id="mantik-view" class="mantik-view" role="group" aria-label="Tablo görünümü">
                     <button type="button" class="sm" data-view="harf">Baş harf</button>
                     <button type="button" class="sm" data-view="klasik">Klasik</button>
                   </div>
-                  <div class="mantik-scroll"><div id="mantik-grid"></div></div>
+                  <div class="mantik-scroll"><div id="mantik-grid" translate="no"></div></div>
                   <div class="mantik-tools">
                     <label class="mantik-auto" title="Koyduğun işaretlerden kesin çıkanları tabloya kendisi yazar"><input id="mantik-auto" type="checkbox"> Otomatik doldur</label>
                     <button id="mantik-undo" type="button" class="sm ghost"><svg class="ic"><use href="#i-undo"></use></svg>Geri al</button>
@@ -1108,7 +1119,7 @@
                   </div>
                   <div class="mantik-sheet-box">
                     <strong class="mantik-sub">Cevabın</strong>
-                    <div id="mantik-sheet" class="mantik-scroll"></div>
+                    <div id="mantik-sheet" class="mantik-scroll" translate="no"></div>
                   </div>
                   <div id="mantik-check-row" class="mantik-check-row">
                     <button id="mantik-check" type="button" class="primary">Kontrol et</button>
@@ -1425,8 +1436,8 @@
   <script src="/theme.js?v=kis3"></script>
   <script src="/dev.js"></script>
   <script src="/sfx.js"></script>
-  <script src="/app.js?v=kis"></script>
-  <script src="/hedef.js"></script>
+  <script src="/app.js?v=i18n"></script>
+  <script src="/hedef.js?v=i18n"></script>
   <script src="/takimada-kurallar.js?v=3d"></script>
   <script src="/yedikapi-kurallar.js?v=3d"></script>
   <script src="/kutu.js?v=3d"></script>
@@ -1435,11 +1446,11 @@
   <script src="/yorunge-kurallar.js?v=dlc1"></script>
   <script src="/yorunge.js?v=masa3d"></script>
   <script src="/kural.js"></script>
-  <script src="/mantik.js"></script>
+  <script src="/mantik.js?v=i18n"></script>
   <script src="/tr-words.js"></script>
   <script src="/daktilo.js"></script>
   <script src="/xox.js?v=2"></script>
-  <script src="/okuma.js"></script>
-  <script src="/lobby.js"></script>
+  <script src="/okuma.js?v=i18n"></script>
+  <script src="/lobby.js?v=i18n"></script>
 </body>
 </html>
