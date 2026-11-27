@@ -981,6 +981,8 @@ function micErrorText(err) {
 function showMicNote(err) {
   micLost = err?.name || 'Error';
   $('mic-note-text').textContent = micErrorText(err);
+  // Tarayıcının kendi hata adı ve iletisi: izin sitede mi sistemde mi kapalı, buradan ayırt edilir.
+  $('mic-note-code').textContent = `(${[micLost, err?.message].filter(Boolean).join(': ')})`;
   $('mic-note').hidden = false;
 }
 function hideMicNote() {
@@ -1101,6 +1103,8 @@ $('mic-retry').onclick = async () => {
   try {
     await audioCtx?.resume().catch(() => {});
     await refreshMic();
+    // Deneme yine başarısızsa not aynı kalır; düğmenin çalıştığı anlaşılsın.
+    if (micLost) toast('Mikrofon hâlâ açılamıyor.', 'danger');
   } finally {
     btn.disabled = false;
   }

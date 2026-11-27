@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Sesli Oda</title>
   <!-- Dil: İngilizce seçiliyse sözlüğü sayfa çizilmeden yükler (public/i18n.js) -->
-  <script src="/i18n.js?v=1"></script>
+  <script src="/i18n.js?v=2"></script>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <meta name="theme-color" content="#0E0F13">
   <!-- Tema: varsayılan tema baştan bağlıdır (ilk boyama temalı); Theme.apply (theme.js) bu bağlantıyı değiştirir. -->
   <link id="theme-css" rel="stylesheet" href="/themes/gece.css" data-theme="gece">
   <link rel="stylesheet" href="/css/base.css">
-  <link rel="stylesheet" href="/css/shell.css?v=i18n">
+  <link rel="stylesheet" href="/css/shell.css?v=mic">
   <link rel="stylesheet" href="/css/games.css?v=i18n">
   <link rel="preload" href="/vendor/fonts/nunito/Nunito-wght.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/vendor/fonts/geist/Geist-wght.woff2" as="font" type="font/woff2" crossorigin>
@@ -587,7 +587,7 @@
             </button>
             <div id="rec-banner" class="rec-banner" hidden></div>
           </div>
-          <p id="mic-note" class="mic-note notice notice-danger" hidden><svg class="ic"><use href="#i-mic-off"></use></svg><span id="mic-note-text"></span><button type="button" id="mic-retry" class="btn btn-sm">Tekrar dene</button></p>
+          <p id="mic-note" class="mic-note notice notice-danger" hidden><svg class="ic"><use href="#i-mic-off"></use></svg><span><span id="mic-note-text"></span> <small id="mic-note-code"></small></span><button type="button" id="mic-retry" class="btn btn-sm">Tekrar dene</button></p>
           <div id="avatar-strip" class="people-row"></div>
         </section>
       </section>
@@ -1436,7 +1436,7 @@
   <script src="/theme.js?v=kis3"></script>
   <script src="/dev.js"></script>
   <script src="/sfx.js"></script>
-  <script src="/app.js?v=i18n"></script>
+  <script src="/app.js?v=mic"></script>
   <script src="/hedef.js?v=i18n"></script>
   <script src="/takimada-kurallar.js?v=3d"></script>
   <script src="/yedikapi-kurallar.js?v=3d"></script>

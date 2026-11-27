@@ -229,6 +229,7 @@ I18N.add({
   "Mikrofon izni kapalı; yalnız dinleyebilirsin. Tarayıcının site ayarlarından ve bilgisayarın gizlilik ayarlarından mikrofona izin ver.": "Microphone permission is off; you can only listen. Allow the microphone in the browser's site settings and in the computer's privacy settings.",
   "Mikrofon bulunamadı; yalnız dinleyebilirsin. Bilgisayarın ses girişini kontrol et.": "No microphone found; you can only listen. Check the computer's sound input.",
   "Mikrofon açılamadı; başka bir uygulama (ör. bir arama) kullanıyor olabilir. Yalnız dinleyebilirsin.": "Could not open the microphone; another app (for example a call) may be using it. You can only listen.",
+  "Mikrofon hâlâ açılamıyor.": "The microphone still cannot be opened.",
   "Mikrofon açıldı.": "Microphone is on.",
   "Mikrofon hazır; açmak için mikrofon düğmesine bas.": "Microphone is ready; press the microphone button to turn it on.",
   "Mikrofon yeniden bağlandı.": "Microphone reconnected.",
