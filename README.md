@@ -1,5 +1,7 @@
 # Sesli Oda
 
+[English](README.en.md)
+
 Birden çok odalı sesli sohbet + senkronize YouTube izleme/dinleme ve oyunlar. Her oda en fazla 10 kişi;
 iki oda birleşince 20 kişi (her odadan 10). Site yöneticisi bu sayıya girmez, dolu odaya da girer.
 
@@ -12,7 +14,9 @@ iki oda birleşince 20 kişi (her odadan 10). Site yöneticisi bu sayıya girmez
   şifresi hesap penceresinden değiştirilir.
 - Odalar: giriş yapınca oda listesi açılır; adres `/oda/<oda>` (oyunlar `/oda/<oda>/oyunlar/...`, radyo
   `/oda/<oda>/radyo`). Bir hesap aynı anda tek odadadır. Ayrıntı aşağıda "Odalar ve yetkiler".
-- Sesli sohbet (WebRTC, Opus); gürültü kapısı ve ses eşiği ayarı
+- Sesli sohbet (WebRTC, Opus); gürültü kapısı ve ses eşiği ayarı. Mikrofon açılamazsa (izin kapalı, cihaz yok,
+  başka bir uygulama kullanıyor) not nedenini söyler; "Tekrar dene" ile ya da cihaz geri gelince mikrofon odadan
+  çıkmadan yeniden bağlanır.
 - Herkeste aynı anda oynayan YouTube; site içi arama ve oynatma geçmişi
 - Yazılı sohbet, emoji seçici
 - Ses efektleri; herkes kendi efektini de yükleyebilir
