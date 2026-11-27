@@ -960,15 +960,88 @@ const MIC_CONSTRAINTS = {
 
 // Kulaklık (özellikle Bluetooth) takılıp çıkınca mikrofon eski cihazda kalır ya da kopar.
 // Varsayılan mikrofonu yeniden açıp karşıya giden sese bağlar; bağlantılar kopmaz.
+// Mikrofon açılamadıysa (odaya girerken ya da içerideyken koptuysa) hatanın adı; açıkken null.
+// Not, nedeni söyler ve "Tekrar dene" düğmesi taşır: mikrofon odadan çıkmadan geri gelir.
+let micLost = null;
+function micErrorText(err) {
+  switch (err?.name) {
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return 'Mikrofon izni kapalı; yalnız dinleyebilirsin. Tarayıcının site ayarlarından ve bilgisayarın gizlilik ayarlarından mikrofona izin ver.';
+    case 'NotFoundError':
+    case 'OverconstrainedError':
+      return 'Mikrofon bulunamadı; yalnız dinleyebilirsin. Bilgisayarın ses girişini kontrol et.';
+    case 'NotReadableError':
+    case 'AbortError':
+      return 'Mikrofon açılamadı; başka bir uygulama (ör. bir arama) kullanıyor olabilir. Yalnız dinleyebilirsin.';
+    default:
+      return 'Mikrofona erişilemedi; yalnız dinleyebilirsin.';
+  }
+}
+function showMicNote(err) {
+  micLost = err?.name || 'Error';
+  $('mic-note-text').textContent = micErrorText(err);
+  $('mic-note').hidden = false;
+}
+function hideMicNote() {
+  micLost = null;
+  $('mic-note').hidden = true;
+}
+
+// Kendi konuşma göstergemiz mikrofonu dinler; sessizdeyken karşıya ses gitmediği için yanmasın.
+const selfLevel = { silenced: () => !micOn };
+function watchSelfLevel() {
+  try {
+    if (gateNode) watchLevel(gateNode, selfRow, selfLevel);
+    else if (localStream) watchLevel(audioCtx.createMediaStreamSource(localStream), selfRow, selfLevel);
+  } catch (err) {
+    console.warn('konuşma göstergesi kurulamadı', err); // oda yine de açılır
+  }
+}
+
+// Odaya mikrofonsuz girildiyse mikrofonu sonradan açar ve kurulu bağlantılara ekler (yeniden pazarlık kendiliğinden olur).
+async function addMicLate() {
+  let fresh;
+  try {
+    fresh = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+  } catch (err) {
+    console.warn('mikrofon açılamadı', err);
+    showMicNote(err);
+    return;
+  }
+  localStream = fresh;
+  watchMicTrack();
+  $('gate-btn').hidden = false;
+  await setupMic();
+  for (const track of sendStream.getAudioTracks()) {
+    track.enabled = micOn;
+    for (const peer of peers.values()) peer.pc?.addTrack(track, sendStream);
+  }
+  hideMicNote();
+  $('mic-toggle').disabled = false;
+  if (selfRow) setStatus(selfRow, modMuted ? MOD_BY[modMuted] : 'Sen');
+  watchSelfLevel();
+  renderMic();
+  socket.emit('mute', !micOn);
+  toast(micOn ? 'Mikrofon açıldı.' : 'Mikrofon hazır; açmak için mikrofon düğmesine bas.', 'live');
+}
+
 let micSwapping = null;
 async function refreshMic() {
-  if (!localStream || micSwapping) return micSwapping;
+  if (micSwapping) return micSwapping;
+  if (!localStream) {
+    if (!micLost || !selfId) return;
+    micSwapping = addMicLate().finally(() => (micSwapping = null));
+    return micSwapping;
+  }
   micSwapping = (async () => {
     let fresh;
     try {
       fresh = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
     } catch (err) {
       console.warn('mikrofon yeniden açılamadı', err);
+      // Eski mikrofon hâlâ çalışıyorsa sorun yok; koptuysa kişi bilsin ve yeniden deneyebilsin.
+      if (localStream?.getAudioTracks()[0]?.readyState !== 'live') showMicNote(err);
       return;
     }
     const old = localStream;
@@ -977,8 +1050,12 @@ async function refreshMic() {
     if (oldTrack?.readyState === 'live' && oldTrack.getSettings().deviceId === newTrack.getSettings().deviceId
         && oldTrack.label === newTrack.label) {
       fresh.getTracks().forEach((t) => t.stop()); // aynı cihaz, değişen bir şey yok
+      hideMicNote();
       return;
     }
+    const wasLost = Boolean(micLost);
+    hideMicNote();
+    if (wasLost) toast('Mikrofon yeniden bağlandı.', 'live');
     localStream = fresh;
     watchMicTrack();
     let swapped = false;
@@ -1017,6 +1094,22 @@ function watchMicTrack() {
   const track = localStream?.getAudioTracks()[0];
   if (track) track.onended = () => refreshMic();
 }
+
+$('mic-retry').onclick = async () => {
+  const btn = $('mic-retry');
+  btn.disabled = true;
+  try {
+    await audioCtx?.resume().catch(() => {});
+    await refreshMic();
+  } finally {
+    btn.disabled = false;
+  }
+};
+// Arama bitip sekmeye dönülünce mikrofon kendiliğinden yeniden denenir. İzin kapalıysa denenmez:
+// bazı tarayıcılar her denemede izin penceresi açar.
+window.addEventListener('focus', () => {
+  if (micLost && micLost !== 'NotAllowedError' && micLost !== 'SecurityError') refreshMic();
+});
 
 let deviceTimer = null;
 navigator.mediaDevices?.addEventListener?.('devicechange', () => {
@@ -6776,7 +6869,7 @@ function releaseMic() {
     gateNode.disconnect();
   }
   localStream = sendStream = gateNode = micSource = null;
-  $('mic-note').hidden = true;
+  hideMicNote();
   $('mic-toggle').disabled = false;
   $('gate-btn').hidden = false;
 }
@@ -6802,10 +6895,10 @@ async function enterRoom(id, password) {
   try {
     localStream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
     watchMicTrack();
-  } catch {
+  } catch (err) {
+    console.warn('mikrofon açılamadı', err);
     localStream = null;
-    $('mic-note-text').textContent = 'Mikrofona erişilemedi; yalnız dinleyebilirsin.';
-    $('mic-note').hidden = false;
+    showMicNote(err);
     $('mic-toggle').disabled = true;
     $('gate-btn').hidden = true;
   }
@@ -6839,14 +6932,7 @@ async function enterRoom(id, password) {
 
   const selfRow = personRow(name, true);
   setStatus(selfRow, localStream ? 'Sen' : 'Sadece dinleyici');
-  // Kendi göstergemiz mikrofonu dinler; sessizdeyken karşıya ses gitmediği için yanmasın.
-  const self = { silenced: () => !micOn };
-  try {
-    if (gateNode) watchLevel(gateNode, selfRow, self);
-    else if (localStream) watchLevel(audioCtx.createMediaStreamSource(localStream), selfRow, self);
-  } catch (err) {
-    console.warn('konuşma göstergesi kurulamadı', err); // oda yine de açılır
-  }
+  watchSelfLevel();
   renderMic();
   renderPeopleCount();
   startUsageMeter();
