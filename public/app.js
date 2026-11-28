@@ -7059,6 +7059,7 @@ function applyJoin(res) {
   setMantik(res.mantik); // public/mantik.js
   setDaktilo(res.daktilo); // public/daktilo.js
   setDaktiloBoard(res.daktiloBoard);
+  window.setBoards?.(res); // public/boards.js: Mantık, Hızlı okuma, Dört Taş, Duvar tabloları
   window.setXox?.(res.xox); // public/xox.js (yüklenemediyse giriş bozulmasın)
   window.setDorttas?.(res.dorttas); // public/dorttas.js
   window.setDuvar?.(res.duvar); // public/duvar.js
@@ -7739,7 +7740,7 @@ const GAME_INFO = {
   takimada: { hue: 80, hidden: true, group: 'Kutu Oyunları', desc: 'Yollar kur, kaynakları takas et ve adaya yerleş', players: '2–4 kişi' },
   yedikapi: { hue: 320, hidden: true, group: 'Kutu Oyunları', desc: 'Kapıyı aç, canavarları yen ve hazine topla', players: '2–4 kişi' },
   yorunge: { hue: 205, group: 'Kutu Oyunları', desc: 'Filonu konuşlandır, rakip komuta gemisini kuşat', players: '2 kişilik' },
-  kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
+  kural: { hue: 290, hidden: true, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
   hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–10 kişi' },
   mantik: { hue: 345, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–10 kişi' },
   blackjack: { hue: 140, group: 'Kağıt Oyunları', desc: 'Kurpiyere karşı 21\'e en yakın eli yap', players: '1–7 kişi' },

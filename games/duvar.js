@@ -115,7 +115,7 @@ function botMove(game, p, rnd = Math.random) {
   return best?.a || stepAlongPath();
 }
 
-function create({ io, rooms, getRoom, postSystem, rand, BOT }) {
+function create({ io, rooms, getRoom, postSystem, rand, BOT, onDone }) {
   const timers = new Map();
 
   const view = (game) => game && { ...game, now: Date.now() };
@@ -173,6 +173,7 @@ function create({ io, rooms, getRoom, postSystem, rand, BOT }) {
     clearTimeout(timers.get(room.code));
     Object.assign(game, { done: true, winner, reason: reason || null, endedAt: Date.now() });
     send(room);
+    onDone?.(game); // galibiyet tablosu (games/boards.js)
     const prefix = reason ? `${reason} ` : '';
     const loser = game.players.find((p) => p !== winner);
     postSystem(room, `${prefix}Duvar: 🏆 ${shown(winner)} kazandı${loser ? ` (${shown(loser)} karşısında)` : ''}, ${game.moves} hamle.`);

@@ -362,4 +362,6 @@ I18N.add({
   "{0} Beş Harf #{1} kelimesini bulamadı (X/{2}): {3}": "{0} missed Five Letters #{1} (X/{2}): {3}",
   "{0} Beş Harf (EN) #{1} kelimesini {2}/{3} tahminde buldu: {4}": "{0} solved Five Letters (EN) #{1} in {2}/{3}: {4}",
   "{0} Beş Harf (EN) #{1} kelimesini bulamadı (X/{2}): {3}": "{0} missed Five Letters (EN) #{1} (X/{2}): {3}",
+  "Geçersiz sonuç.": "Invalid result.",
+  "Odada değilsin.": "You are not in a room.",
 });

@@ -82,6 +82,24 @@ function create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED }) {
       .sort((a, b) => (b.won - a.won) || (b.done - a.done) || (a.won ? a.n - b.n || a.ms - b.ms : b.n - a.n));
   }
 
+  // Tüm zamanların tablosu (kayıttaki son 400 gün): çok bulan önce; eşitse bulduklarında ortalama az tahmin, sonra az oyun.
+  function allTime(lang = 'tr') {
+    const per = new Map();
+    for (const p of plays.values()) {
+      if (!p.done || !sameLang(p, lang) || p.name === BOT) continue;
+      const s = per.get(p.name) || per.set(p.name, { name: p.name, played: 0, wins: 0, guesses: 0 }).get(p.name);
+      s.played++;
+      if (p.won) {
+        s.wins++;
+        s.guesses += p.guesses.length;
+      }
+    }
+    return [...per.values()].filter((s) => s.wins)
+      .map(({ guesses, ...s }) => ({ ...s, avg: Math.round((guesses / s.wins) * 100) / 100 }))
+      .sort((a, b) => b.wins - a.wins || a.avg - b.avg || a.played - b.played || a.name.localeCompare(b.name, 'tr'))
+      .slice(0, 10);
+  }
+
   function stats(name, lang = 'tr') {
     const mine = [...plays.values()].filter((p) => p.name === name && sameLang(p, lang) && p.done).sort((a, b) => a.day - b.day);
     const dist = Array(MAX).fill(0);
@@ -108,7 +126,7 @@ function create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED }) {
     return {
       lang, no: day - FIRST + 1, day, len: LEN, max: MAX, nextAt: nextAt(), now: Date.now(),
       rows: p ? rows(p) : [], done: Boolean(p?.done), won: Boolean(p?.won), answer: p?.done ? answerOf(day, lang) : null,
-      stats: stats(name, lang), board: board(day, lang),
+      stats: stats(name, lang), board: board(day, lang), allTime: allTime(lang),
     };
   }
 
@@ -139,7 +157,7 @@ function create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED }) {
       const no = day - FIRST + 1;
       postSystem(room, p.won ? `${name} ${L.name} #${no} kelimesini ${p.guesses.length}/${MAX} tahminde buldu: ${grid}` : `${name} ${L.name} #${no} kelimesini bulamadı (X/${MAX}): ${grid}`);
     }
-    io.to(JOINED).emit('besharf:board', { day, lang, board: board(day, lang) });
+    io.to(JOINED).emit('besharf:board', { day, lang, board: board(day, lang), allTime: allTime(lang) });
     return { ok: true };
   }
 
@@ -162,7 +180,7 @@ function create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED }) {
     });
   }
 
-  return { view, guess, board, stats, loadBoard, bind, marks, dayOf, answerOf, LEN, MAX };
+  return { view, guess, board, allTime, stats, loadBoard, bind, marks, dayOf, answerOf, LEN, MAX };
 }
 
 module.exports = { create, marks, dayOf, answerOf, nextAt, FIRST };

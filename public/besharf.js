@@ -7,6 +7,7 @@
 // İki dil: Türkçe (tr) ve İngilizce (en); her gün ikisinde ayrı kelime. Seçim tarayıcıda saklanır (ilk açılışta arayüzün
 // dili). İngilizce tahmin listesi (besharf-words-en.js) İngilizce mod ilk açılınca yüklenir.
 
+let bhBoardTab = 'today'; // yan kutu: 'today' bugün oynayanlar, 'all' tüm zamanlar
 let besharf = null; // sunucudan: { no, rows: [{ w, m }], done, won, answer, nextAt, stats, board, ... }
 let bhTyped = '';
 let bhBusy = false;
@@ -239,10 +240,33 @@ function renderBhSide() {
   head.append(next);
   parts.push(head);
 
-  // Bugün oynayanlar: yalnız renkler
+  // Bugün oynayanlar (yalnız renkler) ya da tüm zamanların tablosu
   const today = document.createElement('div');
   today.className = 'bh-card bh-today';
-  today.append(Object.assign(document.createElement('div'), { className: 'bh-card-title', textContent: `Bugün oynayanlar (${g.board.length})` }));
+  const title = document.createElement('div');
+  title.className = 'bh-card-head';
+  title.append(Object.assign(document.createElement('div'), { className: 'bh-card-title', textContent: bhBoardTab === 'all' ? 'Tüm zamanlar' : `Bugün oynayanlar (${g.board.length})` }));
+  const tabs = document.createElement('div');
+  tabs.className = 'lobby-opts';
+  for (const [k, label] of [['today', 'Bugün'], ['all', 'Tüm zamanlar']]) {
+    tabs.append(lobbyButton(label, 'sm' + (bhBoardTab === k ? ' active' : ''), () => { bhBoardTab = k; renderBhSide(); }));
+  }
+  title.append(tabs);
+  today.append(title);
+  if (bhBoardTab === 'all') {
+    const all = g.allTime || [];
+    const ol = document.createElement('ol');
+    ol.className = 'timing-list bh-all';
+    ol.append(...all.map((r, i) => {
+      const li = timingRow(r.name, `${r.wins} kelime`, `${r.played} oyun · ort. ${r.avg.toLocaleString(I18N.locale)} tahmin`);
+      li.prepend(rankCell(i));
+      return li;
+    }));
+    if (!all.length) ol.append(Object.assign(document.createElement('li'), { className: 'muted small', textContent: 'Henüz kelimeyi bulan yok.' }));
+    today.append(ol);
+    parts.push(today);
+    return side.replaceChildren(...parts);
+  }
   if (!g.board.length) today.append(Object.assign(document.createElement('p'), { className: 'muted small', textContent: 'Bugün henüz kimse oynamadı. İlk sen ol!' }));
   const list = document.createElement('div');
   list.className = 'bh-people';
@@ -419,9 +443,10 @@ function setBesharf(state, keepTyped = false) {
   bhRenderAll();
   bhSchedule();
 }
-socket.on('besharf:board', ({ day, lang = 'tr', board } = {}) => {
+socket.on('besharf:board', ({ day, lang = 'tr', board, allTime } = {}) => {
   if (!besharf || besharf.day !== day || lang !== bhLang) return;
   besharf.board = board || [];
+  if (allTime) besharf.allTime = allTime;
   renderBhSide();
 });
 window.setBesharf = setBesharf;

@@ -83,6 +83,7 @@ function renderDtResult(game) {
 
 function renderDorttas() {
   renderLobby('dorttas');
+  window.renderDuelRecords?.('dorttas'); // public/boards.js
   const game = dorttas;
   $('dorttas-play').hidden = !game;
   $('dorttas-end').hidden = !dtActive() || !game.players.includes(myName);

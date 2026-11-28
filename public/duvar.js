@@ -101,6 +101,7 @@ function renderDvTools(game) {
 
 function renderDuvar() {
   renderLobby('duvar');
+  window.renderDuelRecords?.('duvar'); // public/boards.js
   const game = duvar;
   $('duvar-play').hidden = !game;
   $('duvar-end').hidden = !dvActive() || !game.players.includes(myName);

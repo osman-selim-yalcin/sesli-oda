@@ -1137,6 +1137,8 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .dk-wpm { text-align: right; font-size: 18px; font-variant-numeric: tabular-nums; }
 .dk-sub { white-space: nowrap; }
 .daktilo-records[hidden] { display: none; }
+.game-records { margin-top: var(--space-3); }
+.game-records .lobby-opts { flex-wrap: wrap; }
 .daktilo-records .race-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 @media (max-width: 520px) {
   .daktilo-text { --lh: 34px; font-size: 19px; padding: 0 10px; column-gap: 9px; }
@@ -2346,6 +2348,8 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .bh-bar.now span { background: var(--bh-g); color: #fff; }
 .bh-next strong { font-variant-numeric: tabular-nums; color: var(--text); }
 .bh-today { grid-template-rows: auto minmax(0, 1fr); }
+.bh-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
+.bh-all { overflow-y: auto; align-content: start; min-height: 0; }
 .bh-people { display: grid; gap: 8px; overflow-y: auto; align-content: start; min-height: 0; }
 .bh-person { display: flex; gap: 10px; align-items: center; padding: 6px; border-radius: var(--radius-m); }
 .bh-person.me { background: color-mix(in srgb, var(--accent-2) 12%, transparent); }
