@@ -134,9 +134,14 @@ Görünümün bütün renkleri, yazı tipleri, köşeleri ve gölgeleri değişk
 `public/css/base.css`'in başında yazılıdır. Kurallarda sabit renk yazılmaz. Oda sahibi temayı oda
 ayarlarından seçip "Uygula"ya basar; odadaki herkeste sayfa yenilenmeden değişir. Oda listesi ve giriş ekranı
 her zaman varsayılan temadadır (Gece Odası). Temalar: Gece Odası (`gece`, koyu, varsayılan), Aydınlık Oda
-(`aydinlik`, açık), Piksel Oda (`piksel`, retro oyun: kendi piksel yazı tipleri ve piksel ikon seti) ve Kış Odası
+(`aydinlik`, açık), Piksel Oda (`piksel`, retro oyun: kendi piksel yazı tipleri ve piksel ikon seti), Kış Odası
 (`kis`, soğuk mavi gece; kar yağışı ve kış süsleri: kardan adam, buz sarkıtları, kar yığınları, hepsi tema
-dosyasının sonundaki kurallar ve gömülü SVG ile; hızlı emoji satırı da kışa göre, `app.js` `THEME_QUICK_EMOJIS`).
+dosyasının sonundaki kurallar ve gömülü SVG ile; hızlı emoji satırı da kışa göre, `app.js` `THEME_QUICK_EMOJIS`)) ve Neon Oda
+(`neon`, koyu çivit zemin, pembe → mor → camgöbeği neon kenarlar; masaüstünde sahne bir oyun konsolu gibi dizilir:
+solda kişiler sütunu, oynatıcının iki yanında ses kadranı, araçlar, artı biçimli sarma tuşları ve büyük oynat
+düğmesi, altında zaman çubuğu ve yuvarlak sayfa düğmeleri; hepsi tema dosyasının `@media (min-width: 1000px)`
+bloğunda, HTML'e dokunmadan `display: contents` ve ızgara alanlarıyla. Ses kadranının yüzdesi `.vol`
+kabının `data-val` değerinden okunur, `app.js` `paintRange` yazar. Telefonda düzen ortak).
 
 Yeni tema eklemek (örnek kimlik `yeni`):
 

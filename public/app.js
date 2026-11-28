@@ -1471,6 +1471,8 @@ function paintRange(el) {
   const max = Number(el.max) || 0;
   const pct = max > min ? ((Number(el.value) - min) / (max - min)) * 100 : 0;
   el.style.setProperty('--pct', `${Math.max(0, Math.min(100, pct))}%`);
+  // Ses kaydırıcısının yüzdesi kabında da durur: bir tema onu yazı olarak gösterebilir (Neon Oda'nın ses kadranı).
+  if (el.parentElement?.classList.contains('vol')) el.parentElement.dataset.val = Math.round(pct);
 }
 document.addEventListener('input', (e) => e.target.matches?.('input.range') && paintRange(e.target));
 const paintRanges = () => document.querySelectorAll('input.range').forEach(paintRange);
