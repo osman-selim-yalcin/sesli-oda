@@ -7694,7 +7694,7 @@ const GAME_INFO = {
   pisti: { hue: 195, group: 'Kağıt Oyunları', desc: 'Aynı kartı ya da Valeyi at, yığını topla', players: '1–4 kişi' },
   batak: { hue: 230, group: 'Kağıt Oyunları', desc: 'İhaleyi al, kozu seç, sözünü tut', players: '4 kişilik' },
   kemal: { hue: 300, group: 'Kağıt Oyunları', desc: 'Dörtlüyü topla, ortağına gizlice işaret ver', players: '2\'ye 2' },
-  besharf: { hue: 120, group: 'Zeka', desc: 'Günün 5 harfli kelimesini 6 tahminde bul', players: 'Günlük' },
+  besharf: { hue: 120, group: 'Günlük Oyun', desc: 'Günün 5 harfli kelimesini 6 tahminde bul', players: 'Günlük' },
   dorttas: { hue: 55, group: 'Zeka', desc: 'Sütuna taş bırak, dördünü yan yana getir', players: '2 kişilik' },
   xox: { hue: 170, group: 'Zeka', desc: 'Taş koy ya da kenardan it, üçünü yan yana getir', players: '2 kişilik' },
   klotski: { hue: 150, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
@@ -7708,7 +7708,7 @@ const GAME_INFO = {
   tier: { hue: 35, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },
   oner: { hue: 90, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
 };
-const GAME_GROUPS = ['Kağıt Oyunları', 'Kutu Oyunları', 'Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
+const GAME_GROUPS = ['Günlük Oyun', 'Kağıt Oyunları', 'Kutu Oyunları', 'Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
 // Oyun simgeleri: index.html'deki gömülü <svg id="game-icons"> (kaynağı icons/games.svg, test/tools/game-icons.js).
 // Sembolü olmayan (yeni eklenmiş) oyunda arayüz setinin oyun kolu ikonu görünür.
 function gameIcon(key, cls) {
