@@ -249,7 +249,9 @@ test('sunucu: poker lobiden başlar, kendi kartını görür, başkasınınkini 
   assert.ok(gb.hole.Bora.every(Boolean));
   // Sırası gelmeyen oynayamaz; sırası gelen çekilince el ilerler
   const turnSock = { Ayse: a, Bora: b };
-  const g = await until(a, 'kart', (m) => m.key === 'poker' && ['Ayse', 'Bora'].includes(m.game?.turn), 15000).then((m) => m.game);
+  // Sıra başta bir insandaysa başlangıç mesajı yeter; değilse bilgisayarlar oynayınca gelir
+  const g = ['Ayse', 'Bora'].includes(ga.turn) ? ga
+    : await until(a, 'kart', (m) => m.key === 'poker' && ['Ayse', 'Bora'].includes(m.game?.turn), 20000).then((m) => m.game);
   const mover = g.turn;
   const moved = until(a, 'kart', (m) => m.key === 'poker' && m.game.last[mover] === 'Çekildi');
   turnSock[mover].emit('kart:act', { key: 'poker', id: g.id, a: { type: 'fold' } });
