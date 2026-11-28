@@ -138,9 +138,9 @@ body::after {
    - Boş oynatıcı: kartopu sahnesi (aşağıda). */
 .side .chat-list,
 .side .chat-empty {
-  background: url('kis/sarkit.svg') left top / 288px 24px repeat-x;
+  background: url('kis/sarkit.svg') left top / 208px 48px repeat-x;
 }
-.side .chat-list { padding-top: calc(var(--space-4) + 18px); }
+.side .chat-list { padding-top: calc(var(--space-4) + 26px); }
 .quick-emojis,
 .panel.now,
 .people { position: relative; }
@@ -163,9 +163,10 @@ body::after {
   left: 26px;
   right: 26px;
   top: 100%;
-  height: 24px;
+  height: 48px;
   pointer-events: none;
-  background: url('kis/sarkit.svg') left top / 288px 24px repeat-x;
+  background: url('kis/sarkit.svg') left top / 208px 48px repeat-x;
+  mask-image: linear-gradient(to right, transparent, #000 18px, #000 calc(100% - 18px), transparent);
 }
 /* Boş oynatıcı: karlı tepelerde iki chibi çocuk boyalı kardan adamın üstünden birbirine kartopu atar, üstte bulutlar
    yavaşça kayar. Sahne (themes/kis/kartopu.svg, üretici test/tools/kis-scene.js) kendi içinde oynar; hareketi azalt

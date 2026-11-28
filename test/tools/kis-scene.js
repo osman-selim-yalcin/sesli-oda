@@ -175,52 +175,92 @@ ${still ? '' : b1.el + b2.el}
 `;
 }
 
-// Buz sarkıtları: üstte kabarık kar şeridi, altında boyu, kalınlığı ve eğimi farklı yarı saydam sarkıtlar; uzun
-// olanların ucunda damla. Şerit SW genişliğinde kendini tekrarlar (kar şeridinin dalgaları SW'yi tam böler, hiçbir
-// sarkıt kenara taşmaz). Rastgelelik sabit tohumlu: her üretimde aynı çıktı.
+// Buz sarkıtları: üstte kalın, yuvarlak kenarlı kar yastığı (alt kenarı dalgalı, ortasında açık bir dikiş), altında
+// boğum boğum, yarı saydam buz sarkıtları: koyu kenar çizgisi, içinde beyaz parlak lekeler ve gri-mavi gölge
+// lekeleri, ucu damla gibi yuvarlak. Şerit SW genişliğinde kendini tekrarlar (dalgalar SW'yi tam böler, sarkıtlar
+// kenara taşmaz). Rastgelelik sabit tohumlu: her üretimde aynı çıktı.
 function icicles() {
-  const SW = 360;
-  const SH = 30;
-  let seed = 7;
+  const SW = 520;
+  const SH = 120;
+  const CAP = 28; // kar yastığının alt kenarının ortalama yüksekliği
+  let seed = 11;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const cap = [];
-  for (let x = 0; x <= SW; x += 4) {
-    const y = 4.2 + 1.1 * Math.sin((x / SW) * Math.PI * 2 * 9) + 0.7 * Math.sin((x / SW) * Math.PI * 2 * 23 + 1);
-    cap.push(`${x} ${y.toFixed(2)}`);
-  }
-  const capPath = `M0 0 H${SW} V${cap[cap.length - 1].split(' ')[1]} L${cap.slice().reverse().join(' L')} Z`;
-  const parts = [];
-  let x = 4 + rnd() * 6;
-  while (x < SW - 6) {
-    const long = rnd() < 0.22;
-    const len = long ? 15 + rnd() * 11 : 3 + rnd() * 9;
-    const w = Math.min(long ? 4.5 + rnd() * 3.5 : 2.5 + rnd() * 3, 2 * Math.min(x, SW - x) - 1);
-    const lean = (rnd() - 0.5) * (long ? 3 : 1.5);
-    const top = 4;
-    const l = x - w / 2;
-    const r = x + w / 2;
-    const tx = x + lean;
-    const ty = top + len;
-    parts.push(`<path d="M${l.toFixed(1)} ${top} C${(l + w * 0.1).toFixed(1)} ${(top + len * 0.45).toFixed(1)} ${(tx - 0.6).toFixed(1)} ${(ty - len * 0.25).toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)} C${(tx + 0.6).toFixed(1)} ${(ty - len * 0.25).toFixed(1)} ${(r - w * 0.1).toFixed(1)} ${(top + len * 0.45).toFixed(1)} ${r.toFixed(1)} ${top} Z" fill="url(#ice)"/>`);
-    parts.push(`<path d="M${(l + w * 0.28).toFixed(1)} ${top + 1} Q${(l + w * 0.3).toFixed(1)} ${(top + len * 0.5).toFixed(1)} ${(tx - 0.2).toFixed(1)} ${(ty - 1.2).toFixed(1)}" stroke="#FFFFFF" stroke-opacity=".75" stroke-width="${(w * 0.16).toFixed(2)}" stroke-linecap="round" fill="none"/>`);
-    if (long && rnd() < 0.6) parts.push(`<ellipse cx="${tx.toFixed(1)}" cy="${(ty + 1.3).toFixed(1)}" rx=".9" ry="1.2" fill="#D9F0FC" fill-opacity=".8"/>`);
-    x += (long ? 9 : 5) + rnd() * 12;
+  const f = (n) => n.toFixed(1);
+  const wave = (x, a, k, ph) => a * Math.sin((x / SW) * Math.PI * 2 * k + ph);
+  // Kar yastığı: üst kenar düz (çubuğun altına yapışık), alt kenar dalgalı
+  const bottom = [];
+  for (let x = -6; x <= SW + 6; x += 6) bottom.push([x, CAP + wave(x, 2.6, 4, 0.4) + wave(x, 1.4, 11, 2)]); // kenarların 6 birim dışına taşar: karolar dikişsiz birleşir
+  const capPath = `M-6 0 H${SW + 6} V${f(bottom[bottom.length - 1][1])} ${bottom.slice().reverse().map(([x, y]) => `L${x} ${f(y)}`).join(' ')} Z`;
+  const seam = bottom.map(([x, y], k) => `${k ? 'L' : 'M'}${x} ${f(y - 8 + wave(x, 2, 7, 1))}`).join(' ');
+  const shade = bottom.map(([x, y], k) => `${k ? 'L' : 'M'}${x} ${f(y - 1.2)}`).join(' ');
+
+  const ice = [];
+  let x = 14 + rnd() * 10;
+  while (x < SW - 14) {
+    const long = rnd();
+    const len = long > 0.72 ? 70 + rnd() * 22 : long > 0.35 ? 44 + rnd() * 20 : 22 + rnd() * 14;
+    const w0 = Math.min(len > 65 ? 30 + rnd() * 8 : len > 40 ? 22 + rnd() * 7 : 14 + rnd() * 6, 2 * Math.min(x, SW - x) - 2);
+    const lean = (rnd() - 0.5) * 6;
+    const top = CAP - 3;
+    const bulge = 3 + Math.floor(rnd() * 3);
+    const ph = rnd() * 6;
+    const N = 28;
+    const left = [];
+    const right = [];
+    for (let k = 0; k <= N; k++) {
+      const t = k / N;
+      const cx = x + lean * t * t + Math.sin(t * 7 + ph) * 0.8;
+      const half = (w0 / 2) * Math.pow(1 - t, 0.75) * (1 + 0.3 * Math.sin(t * Math.PI * bulge * 1.6 + ph)) * (k < 2 ? 0.9 : 1) + (k === N ? 0 : 0.8);
+      const y = top + len * t;
+      left.push([cx - half, y]);
+      right.push([cx + half, y]);
+    }
+    const tip = left[N];
+    const pts = [...left, ...right.slice(0, N).reverse()];
+    const d = `M${pts.map(([a, b]) => `${f(a)} ${f(b)}`).join(' L')} Z`;
+    ice.push(`<path d="${d}" fill="url(#ice)" stroke="#5E7286" stroke-opacity=".75" stroke-width="1.1" stroke-linejoin="round"/>`);
+    // iç lekeler: beyaz parlak ve gri-mavi gölge, sarkığın içinde kalacak boyda
+    for (let k = 1; k < N - 2; k += 1 + Math.floor(rnd() * 2)) {
+      const cx = (left[k][0] + right[k][0]) / 2;
+      const half = (right[k][0] - left[k][0]) / 2;
+      if (half < 3) continue;
+      // yatay, düzensiz parlak leke (iki üst üste elips) ve altında ince gri-mavi gölge kavsi
+      const rx = half * (0.3 + rnd() * 0.35);
+      const ry = Math.max(1.2, rx * (0.35 + rnd() * 0.25));
+      const ox = (rnd() - 0.5) * (half - rx) * 1.4;
+      const cy = left[k][1] + (rnd() - 0.5) * 2;
+      const op = (0.3 + rnd() * 0.35).toFixed(2);
+      ice.push(`<g fill="#FFFFFF" fill-opacity="${op}" transform="rotate(${f((rnd() - 0.5) * 24)} ${f(cx + ox)} ${f(cy)})"><ellipse cx="${f(cx + ox)}" cy="${f(cy)}" rx="${f(rx)}" ry="${f(ry)}"/><ellipse cx="${f(cx + ox + rx * 0.5)}" cy="${f(cy + ry * 0.4)}" rx="${f(rx * 0.6)}" ry="${f(ry * 0.8)}"/></g>`);
+      if (rnd() < 0.6) ice.push(`<path d="M${f(cx + ox - rx)} ${f(cy + ry + 0.8)} q${f(rx)} ${f(ry * 1.2)} ${f(rx * 2)} 0" stroke="#4C6074" stroke-opacity=".4" stroke-width="1.2" fill="none" stroke-linecap="round"/>`);
+    }
+    // sol kenarın içinde kısa parlama (üst yarıda)
+    const hl = left.slice(1, Math.round(N * 0.45)).map(([a, b], k2) => {
+      const k3 = k2 + 1;
+      return `${k2 ? 'L' : 'M'}${f(a + (right[k3][0] - a) * 0.22)} ${f(b)}`;
+    }).join(' ');
+    ice.push(`<path d="${hl}" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
+    ice.push(`<ellipse cx="${f(tip[0])}" cy="${f(tip[1] - 0.6)}" rx="1.5" ry="2" fill="#E9F2F8" fill-opacity=".85" stroke="#5E7286" stroke-opacity=".6" stroke-width=".7"/>`);
+    x += w0 / 2 + 8 + rnd() * 18;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SW} ${SH}" width="${SW}" height="${SH}">
 <!-- Kış Odası buz sarkıtları. Üretici: test/tools/kis-scene.js (elle değiştirme). -->
 <defs>
-  <linearGradient id="ice" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#EEF7FD" stop-opacity=".95"/>
-    <stop offset=".45" stop-color="#BFE3F7" stop-opacity=".7"/>
-    <stop offset="1" stop-color="#8FD6F5" stop-opacity=".3"/>
+  <linearGradient id="ice" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#9FB3C4" stop-opacity=".55"/>
+    <stop offset=".35" stop-color="#E4EEF5" stop-opacity=".42"/>
+    <stop offset=".7" stop-color="#C8D7E3" stop-opacity=".38"/>
+    <stop offset="1" stop-color="#8296A8" stop-opacity=".55"/>
   </linearGradient>
   <linearGradient id="snow" x1="0" y1="0" x2="0" y2="1">
     <stop offset="0" stop-color="#FFFFFF"/>
-    <stop offset="1" stop-color="#DCEAF5"/>
+    <stop offset=".75" stop-color="#EEF3F7"/>
+    <stop offset="1" stop-color="#C9D5DF"/>
   </linearGradient>
 </defs>
-${parts.join('\n')}
+${ice.join('\n')}
 <path d="${capPath}" fill="url(#snow)"/>
+<path d="${shade}" stroke="#AAB9C6" stroke-width="2" fill="none" stroke-opacity=".8"/>
+<path d="${seam}" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-opacity=".9"/>
 </svg>
 `;
 }
