@@ -329,6 +329,8 @@ button.topbar-settings:active:not(:disabled) { transform: none; background: var(
 /* Sahne görünmezken ekrandan çıkar ama çalmaya devam eder; görünmez denetimler klavye sırasından da çıkar */
 .media.away { position: absolute; left: -10000px; top: 0; width: 800px; visibility: hidden; }
 
+/* Yuvarlak ses kadranının topuzu (app.js setupVolDial): yalnız kaydırıcıyı halka çizen temada görünür */
+.vol-knob { display: none; }
 .player-wrap {
   position: relative;
   aspect-ratio: 16 / 9;

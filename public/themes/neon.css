@@ -480,6 +480,38 @@
   :root .stage .vol input.range::-moz-range-progress { background: transparent; }
   :root .stage .vol input.range::-moz-range-thumb { width: 1px; height: 108px; opacity: 0; }
   :root .stage .vol input.range:focus-visible { outline-offset: 2px; border-radius: var(--radius-round); }
+  /* Kadran çevrilerek ayarlanır: tıklamayı kaydırıcı değil üstündeki topuz alır (app.js setupVolDial). Topuz
+     kadranla aynı boyda dönen bir kutudur; halkanın ucundaki beyaz tutamaç onun ::before'u. */
+  :root .stage .vol input.range { pointer-events: none; }
+  :root .stage .vol .vol-knob {
+    display: block;
+    grid-row: 1;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 108px;
+    height: 108px;
+    margin-left: -54px;
+    border-radius: var(--radius-round);
+    cursor: grab;
+    touch-action: none;
+  }
+  :root .stage .vol .vol-knob:active { cursor: grabbing; }
+  :root .stage .vol .vol-knob::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -3px;
+    width: 15px;
+    height: 15px;
+    margin-left: -7.5px;
+    border-radius: var(--radius-round);
+    background: #FFFFFF;
+    box-shadow: 0 0 0 2.5px #201F2E, 0 0 12px rgba(232, 121, 249, .9);
+    transition: scale var(--dur-fast) var(--ease);
+  }
+  :root .stage .vol .vol-knob:hover::before,
+  :root .stage .vol .vol-knob:active::before { scale: 1.2; }
   :root .stage .vol > .ic {
     grid-row: 1;
     position: absolute;
@@ -617,6 +649,8 @@
   :root .stage .vol { grid-template-rows: 88px auto; margin-top: 24px; }
   :root .stage .vol input.range { width: 88px; height: 88px; background: radial-gradient(circle, #262538 0 36px, transparent 36.5px), conic-gradient(#F472B6, #A855F7 calc(var(--pct) * .5), #22D3EE var(--pct), #34324C var(--pct)); }
   :root .stage .vol > .ic { top: 30px; width: 28px; height: 28px; }
+  :root .stage .vol .vol-knob { width: 88px; height: 88px; margin-left: -44px; }
+  :root .stage .vol .vol-knob::before { top: -3.5px; }
   :root #screen-toggle { margin-bottom: 82px; }
   :root #sfx-open { margin: 0 0 28px 18px; }
   :root #rec-btn { margin: 0 18px 28px 0; }

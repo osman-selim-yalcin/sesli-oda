@@ -1472,8 +1472,60 @@ function paintRange(el) {
   const pct = max > min ? ((Number(el.value) - min) / (max - min)) * 100 : 0;
   el.style.setProperty('--pct', `${Math.max(0, Math.min(100, pct))}%`);
   // Ses kaydırıcısının yüzdesi kabında da durur: bir tema onu yazı olarak gösterebilir (Neon Oda'nın ses kadranı).
-  if (el.parentElement?.classList.contains('vol')) el.parentElement.dataset.val = Math.round(pct);
+  if (el.parentElement?.classList.contains('vol')) {
+    el.parentElement.dataset.val = Math.round(pct);
+    const knob = el.parentElement.querySelector('.vol-knob');
+    if (knob) knob.style.rotate = `${Math.max(0, Math.min(100, pct)) * 3.6}deg`;
+  }
 }
+
+// Yuvarlak ses kadranı: bir tema ses kaydırıcısını halka olarak çizerse (Neon Oda masaüstü) .vol-knob görünür ve
+// kadranın üstünü kaplar. Halkada tutup çevirerek ayarlanır: değer, imlecin kadranın merkezine göre açısıdır (tepe 0,
+// saat yönünde 100). Sürüklerken tepeden geçince 100'den 0'a sıçramaz, uçta kalır. Tekerlek 5'er adım değiştirir;
+// klavye kaydırıcının kendisinde çalışır. Diğer temalarda .vol-knob gizlidir (shell.css), kaydırıcı düz çalışır.
+function setupVolDial(input) {
+  const knob = Object.assign(document.createElement('span'), { className: 'vol-knob' });
+  knob.setAttribute('aria-hidden', 'true');
+  input.after(knob);
+  const min = () => Number(input.min) || 0;
+  const max = () => Number(input.max) || 100;
+  const emit = (type) => input.dispatchEvent(new Event(type, { bubbles: true }));
+  let dragging = false;
+  const setFrom = (e) => {
+    const r = input.getBoundingClientRect();
+    const a = (Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180 / Math.PI + 360) % 360;
+    let v = Math.round(min() + (a / 360) * (max() - min()));
+    const prev = Number(input.value);
+    if (dragging && Math.abs(v - prev) > (max() - min()) / 2) v = prev > (min() + max()) / 2 ? max() : min();
+    if (v !== prev) {
+      input.value = v;
+      emit('input');
+    }
+  };
+  knob.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    knob.setPointerCapture(e.pointerId);
+    dragging = false;
+    setFrom(e);
+    dragging = true;
+  });
+  knob.addEventListener('pointermove', (e) => { if (dragging) setFrom(e); });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    emit('change');
+  };
+  knob.addEventListener('pointerup', end);
+  knob.addEventListener('pointercancel', end);
+  knob.addEventListener('click', (e) => e.preventDefault()); // etiket tıklaması kaydırıcıya geçmesin
+  knob.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    input.value = Math.max(min(), Math.min(max(), Number(input.value) + (e.deltaY < 0 ? 5 : -5)));
+    emit('input');
+    emit('change');
+  }, { passive: false });
+}
+document.querySelectorAll('.vol > input.range').forEach(setupVolDial);
 document.addEventListener('input', (e) => e.target.matches?.('input.range') && paintRange(e.target));
 const paintRanges = () => document.querySelectorAll('input.range').forEach(paintRange);
 // Üst çubuktaki şarkıya basınca kumanda açılır (odaya dönmez); kumanda odadaki düğmeleri kullanır.
