@@ -2176,6 +2176,12 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
    Kutular X ekseninde dönerek açılır; uyarılar ve sonuç kutuların üstünde pop-up. */
 .besharf { container-type: inline-size; display: grid; gap: 12px; --bh-g: oklch(62% .15 150); --bh-y: oklch(76% .15 85); --bh-x: color-mix(in srgb, var(--muted) 45%, var(--surface-3)); }
 .besharf #besharf-status { flex: 1; min-width: 0; }
+/* Dil seçici (TR / EN): küçük iki parçalı hap */
+.bh-lang { display: inline-flex; flex: none; padding: 2px; gap: 2px; border-radius: var(--radius-pill); background: var(--surface-2); border: var(--border-w) solid var(--border); }
+.bh-lang button { min-height: 0; height: 26px; padding: 0 10px; border: none; border-radius: var(--radius-pill); background: transparent; color: var(--muted); font: 700 12px/1 var(--font-display); letter-spacing: .04em; }
+.bh-lang button:hover:where(:not(:disabled)) { background: var(--surface-3); color: var(--text); border: none; }
+.bh-lang button[aria-pressed="true"],
+.bh-lang button[aria-pressed="true"]:hover { background: var(--accent); color: var(--accent-contrast); }
 .bh-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
 /* Sahne ve yan panel aynı sabit yükseklikte (yazarken kaymaz); kısa ekranda ekran yüksekliğine iner, kutular
    küçülür (kutuların payı: yükseklik - klavye ve aralıklar ~190 px, 6 satır × 5 sütun) */

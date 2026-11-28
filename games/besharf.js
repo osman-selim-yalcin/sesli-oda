@@ -3,9 +3,14 @@
 // boyanır: yeşil doğru yerde, sarı kelimede var ama başka yerde, gri yok. Aynı harf iki kez yazılırsa kelimede kaç tane
 // varsa o kadarı boyanır. Herkes günde bir kez oynar; yarım kalan oyun hesaba bağlıdır (başka cihazda devam eder).
 // Günün sonuçları (yalnız renkler, harfler değil) herkese görünür; kayıt room_state 'besharfboard' (SHARED satırı).
+// İki dil: her gün bir Türkçe (tr) bir İngilizce (en) kelime; oyun, istatistik ve günün tablosu dile göre ayrı. Dili
+// yazılmamış eski kayıtlar Türkçedir.
 
-const ANSWERS = require('./besharf-answers');
-const VALID = new Set(require('../public/besharf-words'));
+const LANGS = {
+  tr: { answers: require('./besharf-answers'), valid: new Set(require('../public/besharf-words')), lower: (s) => String(s || '').replace(/I/g, 'ı').replace(/İ/g, 'i').toLocaleLowerCase('tr'), name: 'Beş Harf' },
+  en: { answers: require('./besharf-answers-en'), valid: new Set(require('../public/besharf-words-en')), lower: (s) => String(s || '').toLowerCase(), name: 'Beş Harf (EN)' },
+};
+const langOf = (lang) => (Object.hasOwn(LANGS, lang) ? lang : 'tr');
 
 const LEN = 5;
 const MAX = 6;
@@ -16,8 +21,10 @@ const KEEP_DAYS = 400; // kayıtta tutulan gün
 
 const dayOf = (now = Date.now()) => Math.floor((now + TZ) / DAY);
 const nextAt = (now = Date.now()) => (dayOf(now) + 1) * DAY - TZ;
-const answerOf = (day) => ANSWERS[(((day - FIRST) % ANSWERS.length) + ANSWERS.length) % ANSWERS.length];
-const lower = (s) => String(s || '').replace(/I/g, 'ı').replace(/İ/g, 'i').toLocaleLowerCase('tr');
+const answerOf = (day, lang = 'tr') => {
+  const list = LANGS[langOf(lang)].answers;
+  return list[(((day - FIRST) % list.length) + list.length) % list.length];
+};
 
 // Renkler: 'g' doğru yer, 'y' var ama başka yerde, 'x' yok.
 function marks(guess, answer) {
@@ -38,13 +45,13 @@ function marks(guess, answer) {
 }
 
 function create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED }) {
-  const plays = new Map(); // `${gün}|${ad}` -> { day, name, guesses: [kelime], done, won, startAt, at }
-  const key = (day, name) => `${day}|${name}`;
+  const plays = new Map(); // `${gün}|${dil}|${ad}` -> { day, lang, name, guesses: [kelime], done, won, startAt, at }
+  const key = (day, name, lang) => `${day}|${langOf(lang)}|${name}`;
 
   function merge(list) {
     for (const p of Array.isArray(list) ? list : []) {
       if (!p || !Number.isInteger(p.day) || typeof p.name !== 'string' || !Array.isArray(p.guesses)) continue;
-      const k = key(p.day, p.name);
+      const k = key(p.day, p.name, p.lang);
       const old = plays.get(k);
       if (!old || p.guesses.length > old.guesses.length) plays.set(k, p);
     }
@@ -65,17 +72,18 @@ function create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED }) {
     store?.save(SHARED, 'besharfboard', () => [...plays.values()]);
   }
 
-  const rows = (p) => p.guesses.map((w) => ({ w, m: marks(w, answerOf(p.day)) }));
+  const rows = (p) => p.guesses.map((w) => ({ w, m: marks(w, answerOf(p.day, p.lang)) }));
+  const sameLang = (p, lang) => langOf(p.lang) === langOf(lang);
 
   // Günün tablosu: herkesin renkleri (harfsiz). Bulanlar önce, az tahmin ve kısa süre öne.
-  function board(day = dayOf()) {
-    return [...plays.values()].filter((p) => p.day === day && p.guesses.length)
+  function board(day = dayOf(), lang = 'tr') {
+    return [...plays.values()].filter((p) => p.day === day && sameLang(p, lang) && p.guesses.length)
       .map((p) => ({ name: p.name, n: p.guesses.length, done: p.done, won: p.won, ms: p.done ? p.at - p.startAt : null, m: rows(p).map((r) => r.m) }))
       .sort((a, b) => (b.won - a.won) || (b.done - a.done) || (a.won ? a.n - b.n || a.ms - b.ms : b.n - a.n));
   }
 
-  function stats(name) {
-    const mine = [...plays.values()].filter((p) => p.name === name && p.done).sort((a, b) => a.day - b.day);
+  function stats(name, lang = 'tr') {
+    const mine = [...plays.values()].filter((p) => p.name === name && sameLang(p, lang) && p.done).sort((a, b) => a.day - b.day);
     const dist = Array(MAX).fill(0);
     let max = 0;
     let run = 0;
@@ -93,29 +101,32 @@ function create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED }) {
     return { played: mine.length, wins: mine.filter((p) => p.won).length, streak, max, dist };
   }
 
-  function view(name) {
+  function view(name, lang = 'tr') {
+    lang = langOf(lang);
     const day = dayOf();
-    const p = plays.get(key(day, name));
+    const p = plays.get(key(day, name, lang));
     return {
-      no: day - FIRST + 1, day, len: LEN, max: MAX, nextAt: nextAt(), now: Date.now(),
-      rows: p ? rows(p) : [], done: Boolean(p?.done), won: Boolean(p?.won), answer: p?.done ? answerOf(day) : null,
-      stats: stats(name), board: board(day),
+      lang, no: day - FIRST + 1, day, len: LEN, max: MAX, nextAt: nextAt(), now: Date.now(),
+      rows: p ? rows(p) : [], done: Boolean(p?.done), won: Boolean(p?.won), answer: p?.done ? answerOf(day, lang) : null,
+      stats: stats(name, lang), board: board(day, lang),
     };
   }
 
-  // Tahmin: { word }. Yanıt (ack) { ok } ya da { error }.
-  function guess(room, name, word) {
+  // Tahmin: { word, lang }. Yanıt (ack) { ok } ya da { error }.
+  function guess(room, name, word, lang = 'tr') {
     if (!name || name === BOT) return { error: 'Oynayamazsın.' };
-    word = lower(word).trim();
+    lang = langOf(lang);
+    const L = LANGS[lang];
+    word = L.lower(word).trim();
     if ([...word].length !== LEN) return { error: `${LEN} harfli bir kelime yaz.` };
-    if (!VALID.has(word)) return { error: 'Bu kelime listede yok.' };
+    if (!L.valid.has(word)) return { error: 'Bu kelime listede yok.' };
     const day = dayOf();
-    const k = key(day, name);
-    const p = plays.get(k) || { day, name, guesses: [], done: false, won: false, startAt: Date.now(), at: null };
+    const k = key(day, name, lang);
+    const p = plays.get(k) || { day, lang, name, guesses: [], done: false, won: false, startAt: Date.now(), at: null };
     if (p.done) return { error: 'Bugünkü kelimeyi oynadın; yarın yenisi gelir.' };
     if (p.guesses.includes(word)) return { error: 'Bu kelimeyi zaten denedin.' };
     p.guesses.push(word);
-    const answer = answerOf(day);
+    const answer = answerOf(day, lang);
     if (word === answer || p.guesses.length >= MAX) {
       p.done = true;
       p.won = word === answer;
@@ -126,9 +137,9 @@ function create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED }) {
     if (p.done && room) {
       const grid = rows(p).map((r) => [...r.m].map((c) => (c === 'g' ? '🟩' : c === 'y' ? '🟨' : '⬛')).join('')).join(' ');
       const no = day - FIRST + 1;
-      postSystem(room, p.won ? `${name} Beş Harf #${no} kelimesini ${p.guesses.length}/${MAX} tahminde buldu: ${grid}` : `${name} Beş Harf #${no} kelimesini bulamadı (X/${MAX}): ${grid}`);
+      postSystem(room, p.won ? `${name} ${L.name} #${no} kelimesini ${p.guesses.length}/${MAX} tahminde buldu: ${grid}` : `${name} ${L.name} #${no} kelimesini bulamadı (X/${MAX}): ${grid}`);
     }
-    io.to(JOINED).emit('besharf:board', { day, board: board(day) });
+    io.to(JOINED).emit('besharf:board', { day, lang, board: board(day, lang) });
     return { ok: true };
   }
 
@@ -139,15 +150,15 @@ function create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED }) {
       const room = getRoom(c);
       return { room, user: room?.users.get(socket.id) };
     };
-    socket.on('besharf:get', (_, ack) => {
+    socket.on('besharf:get', (arg, ack) => {
       const { user } = who();
-      if (user && typeof ack === 'function') ack(view(user.name));
+      if (user && typeof ack === 'function') ack(view(user.name, arg?.lang));
     });
     socket.on('besharf:guess', (arg, ack) => {
       const { room, user } = who();
       if (!user || typeof ack !== 'function') return;
-      const res = guess(room, user.name, arg?.word);
-      ack({ ...res, state: view(user.name) });
+      const res = guess(room, user.name, arg?.word, arg?.lang);
+      ack({ ...res, state: view(user.name, arg?.lang) });
     });
   }
 

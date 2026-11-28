@@ -358,4 +358,6 @@ I18N.add({
   "{0}Dört Taş: 🏆 {1} kazandı{2}, {3} hamle.": "{0}Four Stones: 🏆 {1} won{2}, {3} moves.",
   "{0} Beş Harf #{1} kelimesini {2}/{3} tahminde buldu: {4}": "{0} solved Five Letters #{1} in {2}/{3}: {4}",
   "{0} Beş Harf #{1} kelimesini bulamadı (X/{2}): {3}": "{0} missed Five Letters #{1} (X/{2}): {3}",
+  "{0} Beş Harf (EN) #{1} kelimesini {2}/{3} tahminde buldu: {4}": "{0} solved Five Letters (EN) #{1} in {2}/{3}: {4}",
+  "{0} Beş Harf (EN) #{1} kelimesini bulamadı (X/{2}): {3}": "{0} missed Five Letters (EN) #{1} (X/{2}): {3}",
 });

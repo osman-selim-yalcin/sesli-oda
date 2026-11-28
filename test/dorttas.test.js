@@ -194,3 +194,34 @@ test('Beş Harf sunucu: tahminler boyanır, listede olmayan reddedilir, bitince 
   await chat;
   assert.match((await ack(a, 'besharf:guess', { word: wrong })).error, /oynadın/);
 });
+
+test('Beş Harf: Türkçe ve İngilizce iki ayrı günlük oyun; dil yazılmayan istek Türkçedir', () => {
+  const posts = [];
+  const g = bh.create({ io: { to: () => ({ emit() {} }) }, getRoom: () => null, postSystem: (r, t) => posts.push(t), BOT: 'bot', store: null, SHARED: 's', JOINED: 'j' });
+  const day = bh.dayOf();
+  const tr = bh.answerOf(day);
+  const en = bh.answerOf(day, 'en');
+  assert.equal(bh.answerOf(day, 'tr'), tr);
+  assert.ok(require('../games/besharf-answers-en').includes(en) && /^[a-z]{5}$/.test(en));
+  assert.equal(g.view('Ece', 'en').lang, 'en');
+  assert.equal(g.view('Ece').lang, 'tr');
+  assert.equal(g.view('Ece', 'xx').lang, 'tr');
+  // İngilizce kelimeyle kazanınca Türkçe oyun etkilenmez; İngilizce listede olmayan kelime reddedilir
+  assert.match(g.guess({}, 'Ece', 'zzzzz', 'en').error, /listede/);
+  assert.equal(g.guess({}, 'Ece', en.toUpperCase(), 'en').ok, true);
+  const vEn = g.view('Ece', 'en');
+  assert.equal(vEn.won, true);
+  assert.equal(vEn.answer, en);
+  assert.equal(vEn.board.length, 1);
+  const vTr = g.view('Ece', 'tr');
+  assert.equal(vTr.rows.length, 0);
+  assert.equal(vTr.done, false);
+  assert.equal(vTr.board.length, 0);
+  assert.equal(g.stats('Ece', 'tr').played, 0);
+  assert.equal(g.stats('Ece', 'en').played, 1);
+  assert.match(posts.at(-1), /Beş Harf \(EN\) #\d+ kelimesini 1\/6/);
+  // Dili yazılmamış eski kayıt Türkçe sayılır
+  g.loadBoard([{ day, name: 'Eski', guesses: [tr], done: true, won: true, startAt: 1, at: 2 }]);
+  assert.equal(g.view('Eski').won, true);
+  assert.equal(g.view('Eski', 'en').rows.length, 0);
+});
