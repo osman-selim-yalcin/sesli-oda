@@ -23,8 +23,8 @@ When two rooms merge, the limit is 20 people (10 from each room). The site admin
 - Screen sharing (in Chrome/Edge, with tab audio)
 - Games (a tab in the top bar; music and voice chat continue during a game): tier list (text or picture cards
   on a shared board), time guess and time race, dino run, word, memory match, number puzzle,
-  target number, secret rule, logic grid, Push XOX, typing duel, slide puzzle, speed reading. Multiplayer games
-  start from the "Create lobby" lobby (everyone in the room and bots can be in the lobby; word is limited to 6, dino run to 7, and number puzzle and Push XOX to
+  target number, secret rule, logic grid, Push XOX, Four Stones, Five Letters (daily word), typing duel, slide puzzle, speed reading. Multiplayer games
+  start from the "Create lobby" lobby (everyone in the room and bots can be in the lobby; word is limited to 6, dino run to 7, and number puzzle, Push XOX and Four Stones to
   2 players). Score tables are shared across all rooms.
 - The **Board Games** section has Orbit Siege, Archipelago, and Seven Doors. In Orbit Siege, each fleet has
   one Echo, one Dive, and one Tractor. These are the space-themed counterparts of the Hive expansion pieces Mosquito, Ladybug, and Pillbug.

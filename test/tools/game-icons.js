@@ -120,6 +120,25 @@ const ICONS = {
     <circle p="if" cx="36" cy="36" r="5.5"/>
     <path d="M10 10l4 4m0-4l-4 4M22 22l4 4m0-4l-4 4M34 34l4 4m0-4l-4 4"/>
     <path p="t" d="M5 5l3 3M40 40l3 3"/>`,
+  // Dört Taş: dik tahta, düşen taş ve çapraz dörtlü
+  dorttas: `
+    <rect p="if" x="6" y="12" width="36" height="30" rx="5"/>
+    <circle cx="15" cy="34" r="3.5"/>
+    <circle cx="24" cy="34" r="3.5"/>
+    <circle p="T" cx="33" cy="34" r="3.5"/>
+    <circle cx="15" cy="21" r="3.5"/>
+    <circle p="T" cx="24" cy="21" r="3.5"/>
+    <circle p="T" cx="33" cy="21" r="3.5"/>
+    <circle p="tf" cx="24" cy="5.5" r="3.5"/>`,
+  // Beş Harf: harf kutuları, biri doğru biri yerinde değil
+  besharf: `
+    <rect p="F" x="4" y="9" width="12" height="12" rx="2.5"/>
+    <rect p="tf" x="18" y="9" width="12" height="12" rx="2.5"/>
+    <rect p="F" x="32" y="9" width="12" height="12" rx="2.5"/>
+    <rect p="T" x="4" y="27" width="12" height="12" rx="2.5"/>
+    <rect p="if" x="18" y="27" width="12" height="12" rx="2.5"/>
+    <rect p="T" x="32" y="27" width="12" height="12" rx="2.5"/>
+    <path d="M21.5 18l2.5-6 2.5 6M22.5 15.5h3"/>`,
   daktilo: `
     <rect p="if" x="5" y="12" width="38" height="25" rx="5"/>
     <path d="M11.5 19h.01M18 19h.01M24 19h.01M30 19h.01M36.5 19h.01M14.5 25h.01M21 25h.01M27 25h.01M33.5 25h.01"/>
