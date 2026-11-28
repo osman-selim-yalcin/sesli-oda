@@ -7,6 +7,8 @@
 //   public/themes/kis/kartopu.svg         canlı sahne (CSS animasyonu SVG'nin içinde; zemin resmi olarak da oynar)
 //   public/themes/kis/kartopu-durgun.svg  aynı sahne hareketsiz (hareketi azalt ayarı)
 //   public/themes/kis/sarkit.svg          buz sarkıtları şeridi (yatayda kendini tekrarlar; üst çubuk ve sohbet sekmeleri)
+//   public/themes/kis/bere-1.svg, bere-2.svg    odadakilerin avatarına örgü bere (iki renk takımı)
+//   public/themes/kis/hirka-1.svg, hirka-2.svg  avatarın altına V yakalı düğmeli hırka (iki renk takımı)
 // Zemin (karlı tepeler), boyalı kardan adam ve bulutlar kis.css'te ayrı katmandır; bu sahne şeffaf zeminlidir.
 //
 // Kullanım: node test/tools/kis-scene.js
@@ -265,8 +267,59 @@ ${ice.join('\n')}
 `;
 }
 
+// Odadakilerin kış kıyafeti: örgü bere (ponpon, desenli şerit, kıvrık ağız) ve V yakalı düğmeli hırka. İki renk takımı
+// (kartopu sahnesindeki çocuklarla aynı): 1 kırmızı bere + camgöbeği hırka, 2 hardal bere + lila hırka.
+const OUTFITS = [
+  { hat: '#C8404F', hatDark: '#9E2E3C', band: '#F1E3D3', coat: '#4E97A8', coatDark: '#3A7584', trim: '#F1E3D3' },
+  { hat: '#E2A43A', hatDark: '#B9802A', band: '#F7EEDF', coat: '#A68BCB', coatDark: '#8169A6', trim: '#F7EEDF' },
+];
+function hat(o) {
+  const ribs = [26, 38, 50, 60, 70, 82, 94].map((x) => `<path d="M${x} ${x < 60 ? 26 + (60 - x) * 0.35 : 26 + (x - 60) * 0.35} Q${x + (x - 60) * 0.12} 46 ${x + (x - 60) * 0.18} 60" stroke="${o.hatDark}" stroke-opacity=".45" stroke-width="2" fill="none" stroke-linecap="round"/>`).join('');
+  const diamonds = [30, 44, 58, 72, 86].map((x) => `<path d="M${x + 2} 40 l4 -4 l4 4 l-4 4z" fill="${o.hat}"/>`).join('');
+  const cuffRibs = Array.from({ length: 17 }, (_, k) => `<path d="M${14 + k * 6} 60 v15" stroke="${o.hatDark}" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/>`).join('');
+  const fluff = [[60, 13, 12], [51, 16, 7], [69, 16, 7], [55, 7, 7], [65, 7, 7], [60, 20, 7]].map(([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${o.band}"/>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 84" width="120" height="84">
+<!-- Kış Odası avatar beresi. Üretici: test/tools/kis-scene.js (elle değiştirme). -->
+<path d="M14 64 Q12 22 60 21 Q108 22 106 64 Z" fill="${o.hat}"/>
+<path d="M14 64 Q12 22 60 21 Q40 26 30 64 Z" fill="${o.hatDark}" opacity=".35"/>
+${ribs}
+<path d="M17 36 Q60 28 103 36 L105 46 Q60 38 15 46 Z" fill="${o.band}"/>
+${diamonds}
+<rect x="8" y="57" width="104" height="22" rx="11" fill="${o.hatDark}"/>
+<rect x="8" y="57" width="104" height="9" rx="4.5" fill="${o.hat}" opacity=".55"/>
+${cuffRibs}
+<g>${fluff}<circle cx="56" cy="9" r="3.5" fill="#FFFFFF" opacity=".7"/></g>
+</svg>
+`;
+}
+function cardigan(o) {
+  const stitches = [];
+  for (let y = 30; y < 64; y += 7) for (let x = (y / 7) % 2 ? 10 : 14; x < 142; x += 8) {
+    if (Math.abs(x - 75) < 10 + (64 - y) * 0.2 && y < 46) continue;
+    stitches.push(`<path d="M${x} ${y} l3 3 l3 -3" stroke="${o.coatDark}" stroke-opacity=".5" stroke-width="1.2" fill="none" stroke-linecap="round"/>`);
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 64" width="150" height="64">
+<!-- Kış Odası avatar hırkası. Üretici: test/tools/kis-scene.js (elle değiştirme). -->
+<path d="M50 6 Q75 52 100 6 L100 64 L50 64 Z" fill="#2A3E50"/>
+<path d="M0 64 C2 30 20 14 48 6 C56 22 65 36 75 46 C85 36 94 22 102 6 C130 14 148 30 150 64 Z" fill="${o.coat}"/>
+<path d="M0 64 C2 30 20 14 48 6 C38 24 32 44 30 64 Z" fill="${o.coatDark}" opacity=".35"/>
+<path d="M120 64 C118 44 112 24 102 6 C130 14 148 30 150 64 Z" fill="${o.coatDark}" opacity=".25"/>
+${stitches.join('')}
+<path d="M48 6 C56 22 65 36 75 46 C85 36 94 22 102 6" stroke="${o.trim}" stroke-width="7" fill="none" stroke-linejoin="round"/>
+<path d="M48 6 C56 22 65 36 75 46 C85 36 94 22 102 6" stroke="${o.coatDark}" stroke-opacity=".35" stroke-width="7" stroke-dasharray="1.5 2.5" fill="none"/>
+<path d="M75 46 V64" stroke="${o.trim}" stroke-width="6"/>
+<circle cx="75" cy="53" r="3.2" fill="${o.coatDark}"/><circle cx="75" cy="62" r="3.2" fill="${o.coatDark}"/>
+<circle cx="74" cy="52" r="1" fill="#FFFFFF" opacity=".6"/><circle cx="74" cy="61" r="1" fill="#FFFFFF" opacity=".6"/>
+</svg>
+`;
+}
+
 fs.mkdirSync(OUT, { recursive: true });
+OUTFITS.forEach((o, k) => {
+  fs.writeFileSync(path.join(OUT, `bere-${k + 1}.svg`), hat(o));
+  fs.writeFileSync(path.join(OUT, `hirka-${k + 1}.svg`), cardigan(o));
+});
 fs.writeFileSync(path.join(OUT, 'sarkit.svg'), icicles());
 fs.writeFileSync(path.join(OUT, 'kartopu.svg'), build(false));
 fs.writeFileSync(path.join(OUT, 'kartopu-durgun.svg'), build(true));
-console.log('kartopu.svg, kartopu-durgun.svg, sarkit.svg yazıldı');
+console.log('kartopu.svg, kartopu-durgun.svg, sarkit.svg, bere-*.svg, hirka-*.svg yazıldı');

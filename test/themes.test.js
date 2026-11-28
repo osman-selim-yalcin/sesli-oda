@@ -141,7 +141,11 @@ test('Neon Oda: kayıt, koyu tema, Lucide ikonları; konsol düzeni yalnız masa
   }
   assert.match(css, /content: '%' attr\(data-val\)/);
   const app = fs.readFileSync(path.join(ROOT, 'public/app.js'), 'utf8');
-  assert.match(app, /classList\.contains\('vol'\)\) el\.parentElement\.dataset\.val = Math\.round\(pct\)/);
+  assert.match(app, /classList\.contains\('vol'\)\) \{\s*el\.parentElement\.dataset\.val = Math\.round\(pct\)/);
+  // Kadran halkadaki topuzdan çevrilerek ayarlanır: topuz her ses kaydırıcısına eklenir, yalnız Neon'da görünür
+  assert.match(app, /querySelectorAll\('\.vol > input\.range'\)\.forEach\(setupVolDial\)/);
+  assert.match(css, /\.stage \.vol \.vol-knob \{[^}]*display: block;/);
+  assert.match(fs.readFileSync(path.join(ROOT, 'public/css/shell.css'), 'utf8'), /\.vol-knob \{ display: none; \}/);
   assert.equal((await patch('tema-oda', OWNER, { theme: 'neon' })).status, 200);
   assert.equal((await listed('tema-oda')).theme, 'neon');
   assert.equal((await patch('tema-oda', OWNER, { theme: 'gece' })).status, 200);
@@ -164,7 +168,7 @@ test('Kış Odası: kayıt, koyu tema, Lucide ikonları; kar yağışı içeriğ
   const files = [...css.matchAll(/url\((?!"data:|%23)'?([^')]+)'?\)/g)].map((m) => m[1]);
   assert.ok(files.length > 0);
   for (const f of new Set(files)) {
-    assert.match(f, /^kis\/[a-z-]+\.(webp|svg)$/, `kis.css yalnız themes/kis/ altından dosya istemeli: ${f}`);
+    assert.match(f, /^kis\/[a-z0-9-]+\.(webp|svg|woff2)$/, `kis.css yalnız themes/kis/ altından dosya istemeli: ${f}`);
     const res = await fetch(`${srv.url}/themes/${f}`);
     assert.equal(res.status, 200, f);
   }
