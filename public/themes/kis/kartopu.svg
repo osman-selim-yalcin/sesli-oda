@@ -1,0 +1,166 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+<!-- Kış Odası kartopu sahnesi. Üretici: test/tools/kis-scene.js (elle değiştirme). -->
+<style>
+  :root { --t: 5s; }
+  .bob { animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translateY(-1.5px); } }
+  .flake { animation: fall linear infinite; }
+  @keyframes fall { from { transform: translate(0, -20px); } 50% { transform: translate(8px, 180px); } to { transform: translate(0, 380px); } }
+  
+  @keyframes arm-l { 0% { transform: rotate(-15deg); } 0% { transform: rotate(-15deg); } 8% { transform: rotate(100deg); } 10% { transform: rotate(100deg); } 12% { transform: rotate(-120deg); } 16% { transform: rotate(-60deg); } 24% { transform: rotate(-15deg); } 100% { transform: rotate(-15deg); } }
+  @keyframes body-l { 0% { transform: rotate(0deg); } 0% { transform: rotate(0deg); } 8% { transform: rotate(-4deg); } 10% { transform: rotate(-4deg); } 13% { transform: rotate(7deg); } 20% { transform: rotate(0deg); } 80% { transform: rotate(0deg); } 81.5% { transform: rotate(-11deg); } 86% { transform: rotate(-6deg); } 90% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
+  @keyframes squint-l { 0%, 79.99% { opacity: 0; } 80%, 89% { opacity: 1; } 89.01%, 100% { opacity: 0; } }
+  @keyframes eyes-l { 0%, 79.99% { opacity: 1; } 80%, 89% { opacity: 0; } 89.01%, 100% { opacity: 1; } }
+  @keyframes splat-l { 0%, 79.99% { opacity: 0; transform: scale(.6); } 80% { opacity: 1; transform: scale(1); } 94% { opacity: 0; transform: scale(1.15); } 100% { opacity: 0; } }
+  @keyframes held-l { 0%, 11.99% { opacity: 1; } 12%, 91.99% { opacity: 0; } 92%, 100% { opacity: 1; } }
+  .arm-l { animation: arm-l var(--t) ease-in-out infinite; }
+  .body-l { animation: body-l var(--t) ease-in-out infinite; }
+  .squint-l { animation: squint-l var(--t) step-end infinite; }
+  .eyes-l { animation: eyes-l var(--t) step-end infinite; }
+  .splat-l { animation: splat-l var(--t) ease-out infinite; transform-origin: 16px -74px; }
+  .held-l { animation: held-l var(--t) step-end infinite; }
+  
+  @keyframes arm-r { 0% { transform: rotate(-15deg); } 46% { transform: rotate(-15deg); } 54% { transform: rotate(100deg); } 56% { transform: rotate(100deg); } 58% { transform: rotate(-120deg); } 62% { transform: rotate(-60deg); } 70% { transform: rotate(-15deg); } 100% { transform: rotate(-15deg); } }
+  @keyframes body-r { 0% { transform: rotate(0deg); } 34% { transform: rotate(0deg); } 35.5% { transform: rotate(-11deg); } 40% { transform: rotate(-6deg); } 44% { transform: rotate(0deg); } 46% { transform: rotate(0deg); } 54% { transform: rotate(-4deg); } 56% { transform: rotate(-4deg); } 59% { transform: rotate(7deg); } 66% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
+  @keyframes squint-r { 0%, 33.99% { opacity: 0; } 34%, 43% { opacity: 1; } 43.01%, 100% { opacity: 0; } }
+  @keyframes eyes-r { 0%, 33.99% { opacity: 1; } 34%, 43% { opacity: 0; } 43.01%, 100% { opacity: 1; } }
+  @keyframes splat-r { 0%, 33.99% { opacity: 0; transform: scale(.6); } 34% { opacity: 1; transform: scale(1); } 48% { opacity: 0; transform: scale(1.15); } 100% { opacity: 0; } }
+  @keyframes held-r { 0%, 43.99% { opacity: 0; } 44%, 57.99% { opacity: 1; } 58%, 100% { opacity: 0; } }
+  .arm-r { animation: arm-r var(--t) ease-in-out infinite; }
+  .body-r { animation: body-r var(--t) ease-in-out infinite; }
+  .squint-r { animation: squint-r var(--t) step-end infinite; }
+  .eyes-r { animation: eyes-r var(--t) step-end infinite; }
+  .splat-r { animation: splat-r var(--t) ease-out infinite; transform-origin: 16px -74px; }
+  .held-r { animation: held-r var(--t) step-end infinite; }
+  
+  @keyframes fx-a { 0%, 12% { transform: translateX(184.51666049839542px); } 34%, 100% { transform: translateX(478.0px); } }
+  @keyframes fy-a {
+    0%, 12% { transform: translateY(265.0px); animation-timing-function: cubic-bezier(.3, .6, .6, 1); }
+    23% { transform: translateY(140px); animation-timing-function: cubic-bezier(.4, 0, .7, .4); }
+    34%, 100% { transform: translateY(242.0px); }
+  }
+  @keyframes fo-a { 0%, 11.99% { opacity: 0; } 12%, 33.99% { opacity: 1; } 34%, 100% { opacity: 0; } }
+  .fx-a { animation: fx-a var(--t) linear infinite; }
+  .fy-a { animation: fy-a var(--t) infinite; }
+  .fo-a { animation: fo-a var(--t) step-end infinite; }
+  
+  @keyframes fx-b { 0%, 58% { transform: translateX(455.4833395016046px); } 80%, 100% { transform: translateX(162.0px); } }
+  @keyframes fy-b {
+    0%, 58% { transform: translateY(265.0px); animation-timing-function: cubic-bezier(.3, .6, .6, 1); }
+    69% { transform: translateY(140px); animation-timing-function: cubic-bezier(.4, 0, .7, .4); }
+    80%, 100% { transform: translateY(242.0px); }
+  }
+  @keyframes fo-b { 0%, 57.99% { opacity: 0; } 58%, 79.99% { opacity: 1; } 80%, 100% { opacity: 0; } }
+  .fx-b { animation: fx-b var(--t) linear infinite; }
+  .fy-b { animation: fy-b var(--t) infinite; }
+  .fo-b { animation: fo-b var(--t) step-end infinite; }</style>
+<g><circle class="flake" cx="40" cy="0" r="2.2" fill="#EAF3FA" opacity=".75" style="animation-duration:11s;animation-delay:0s"/><circle class="flake" cx="95" cy="0" r="1.6" fill="#EAF3FA" opacity=".75" style="animation-duration:14s;animation-delay:-6s"/><circle class="flake" cx="210" cy="0" r="2.6" fill="#EAF3FA" opacity=".75" style="animation-duration:12s;animation-delay:-3s"/><circle class="flake" cx="265" cy="0" r="1.4" fill="#EAF3FA" opacity=".75" style="animation-duration:16s;animation-delay:-9s"/><circle class="flake" cx="330" cy="0" r="2" fill="#EAF3FA" opacity=".75" style="animation-duration:13s;animation-delay:-1s"/><circle class="flake" cx="385" cy="0" r="1.6" fill="#EAF3FA" opacity=".75" style="animation-duration:15s;animation-delay:-7s"/><circle class="flake" cx="440" cy="0" r="2.4" fill="#EAF3FA" opacity=".75" style="animation-duration:11s;animation-delay:-4s"/><circle class="flake" cx="520" cy="0" r="1.8" fill="#EAF3FA" opacity=".75" style="animation-duration:14s;animation-delay:-10s"/><circle class="flake" cx="575" cy="0" r="2.2" fill="#EAF3FA" opacity=".75" style="animation-duration:12s;animation-delay:-2s"/><circle class="flake" cx="615" cy="0" r="1.5" fill="#EAF3FA" opacity=".75" style="animation-duration:16s;animation-delay:-12s"/><circle class="flake" cx="160" cy="0" r="1.8" fill="#EAF3FA" opacity=".75" style="animation-duration:13s;animation-delay:-8s"/><circle class="flake" cx="470" cy="0" r="1.4" fill="#EAF3FA" opacity=".75" style="animation-duration:17s;animation-delay:-5s"/></g>
+
+  <g transform="translate(150 318)">
+    <ellipse cx="0" cy="2" rx="30" ry="5.5" fill="#040A12" opacity=".32"/>
+    <g class="body-l">
+      <g class="bob">
+        <ellipse cx="-10" cy="-5" rx="10" ry="6.5" fill="#5A3E2E"/>
+        <ellipse cx="11" cy="-5" rx="10" ry="6.5" fill="#6B4A37"/>
+        <path d="M-12 -40 q-9 4 -10 18 q-1 5 4 6" stroke="#447F8F" stroke-width="9" stroke-linecap="round" fill="none"/>
+        <circle cx="-17" cy="-15" r="6.5" fill="#9E2E3C"/>
+        <path d="M-22 -8 Q-25 -44 0 -50 Q25 -44 22 -8 Q0 -1 -22 -8z" fill="#5FA8B8"/>
+        <path d="M-22 -8 Q-25 -44 -4 -49.5 Q-16 -36 -12 -4 Q-18 -5 -22 -8z" fill="#447F8F" opacity=".55"/>
+        <path d="M6 -46 V-6" stroke="#447F8F" stroke-width="1.6" opacity=".7"/>
+        <circle cx="10" cy="-34" r="2" fill="#447F8F"/><circle cx="10" cy="-22" r="2" fill="#447F8F"/>
+        <path d="M-22 -10 Q0 -2 22 -10 L22 -6 Q0 3 -22 -6z" fill="#F4F8FC" opacity=".85"/>
+        <g transform="translate(12 -40)">
+          <g class="arm-l">
+            <path d="M0 0 V20" stroke="#5FA8B8" stroke-width="10" stroke-linecap="round"/>
+            <circle cx="0" cy="26" r="7" fill="#C8404F"/>
+            <circle class="held-l" cx="0" cy="33" r="6.5" fill="#F4F8FC" stroke="#C9DAE8" stroke-width="1.2"/>
+          </g>
+        </g>
+        <path d="M-17 -54 q-8 10 -12 24 l9 2 q3 -12 9 -20z" fill="#C4932B"/>
+        <ellipse cx="0" cy="-50" rx="20" ry="7.5" fill="#E9B949"/>
+        <path d="M-18 -51 q18 7 36 0" stroke="#C4932B" stroke-width="2" fill="none" opacity=".7"/>
+        <circle cx="0" cy="-78" r="30" fill="#F6D9C6"/>
+        <path d="M-30 -78 a30 30 0 0 0 52 20 a32 32 0 0 1 -50 -26z" fill="#E9C1AA" opacity=".6"/>
+        <path d="M-27 -86 q4 14 -2 22 q-6 -12 2 -22z M24 -88 q4 10 6 14 q-8 -2 -6 -14z" fill="#6B4430"/>
+        <path d="M-31 -82 Q-31 -116 2 -116 Q32 -115 31 -82z" fill="#C8404F"/>
+        <path d="M-12 -114 Q-18 -98 -16 -86 M2 -116 V-86 M16 -114 Q21 -98 19 -86" stroke="#9E2E3C" stroke-width="2.2" fill="none" opacity=".55"/>
+        <rect x="-33" y="-89" width="66" height="11" rx="5.5" fill="#F1E3D3"/>
+        <path d="M-30 -83 h60" stroke="#9E2E3C" stroke-width="1.4" stroke-dasharray="2 3" opacity=".5"/>
+        <circle cx="-12" cy="-117" r="9" fill="#F1E3D3"/>
+        <circle cx="-14" cy="-119" r="4" fill="#FFFFFF" opacity=".7"/>
+        <g class="eyes-l">
+          <ellipse cx="5" cy="-72" rx="3.6" ry="4.8" fill="#2A1E1A"/><ellipse cx="22" cy="-72" rx="3.6" ry="4.8" fill="#2A1E1A"/>
+          <circle cx="6.3" cy="-74" r="1.4" fill="#FFF"/><circle cx="23.3" cy="-74" r="1.4" fill="#FFF"/>
+        </g>
+        <g class="squint-l" opacity="0" stroke="#2A1E1A" stroke-width="2.2" stroke-linecap="round" fill="none">
+          <path d="M2 -76 l6 4 l-6 4 M25 -76 l-6 4 l6 4"/>
+        </g>
+        <ellipse cx="-1" cy="-62" rx="5.5" ry="3.4" fill="#F29C9C" opacity=".55"/>
+        <ellipse cx="27" cy="-62" rx="4.5" ry="3.2" fill="#F29C9C" opacity=".55"/>
+        <path d="M11 -63 q3 3 6 0" stroke="#7A3B33" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <g class="splat-l" opacity="0">
+          <circle cx="16" cy="-74" r="8" fill="#F4F8FC"/><circle cx="8" cy="-66" r="4.5" fill="#F4F8FC"/>
+          <circle cx="24" cy="-82" r="4" fill="#F4F8FC"/><circle cx="25" cy="-66" r="3" fill="#DCE8F2"/>
+          <circle cx="13" cy="-86" r="2.6" fill="#DCE8F2"/>
+        </g>
+      </g>
+    </g>
+  </g>
+  <g transform="translate(490 318) scale(-1 1)">
+    <ellipse cx="0" cy="2" rx="30" ry="5.5" fill="#040A12" opacity=".32"/>
+    <g class="body-r">
+      <g class="bob">
+        <ellipse cx="-10" cy="-5" rx="10" ry="6.5" fill="#5A3E2E"/>
+        <ellipse cx="11" cy="-5" rx="10" ry="6.5" fill="#6B4A37"/>
+        <path d="M-12 -40 q-9 4 -10 18 q-1 5 4 6" stroke="#8E77B0" stroke-width="9" stroke-linecap="round" fill="none"/>
+        <circle cx="-17" cy="-15" r="6.5" fill="#B9802A"/>
+        <path d="M-22 -8 Q-25 -44 0 -50 Q25 -44 22 -8 Q0 -1 -22 -8z" fill="#B79FD6"/>
+        <path d="M-22 -8 Q-25 -44 -4 -49.5 Q-16 -36 -12 -4 Q-18 -5 -22 -8z" fill="#8E77B0" opacity=".55"/>
+        <path d="M6 -46 V-6" stroke="#8E77B0" stroke-width="1.6" opacity=".7"/>
+        <circle cx="10" cy="-34" r="2" fill="#8E77B0"/><circle cx="10" cy="-22" r="2" fill="#8E77B0"/>
+        <path d="M-22 -10 Q0 -2 22 -10 L22 -6 Q0 3 -22 -6z" fill="#F4F8FC" opacity=".85"/>
+        <g transform="translate(12 -40)">
+          <g class="arm-r">
+            <path d="M0 0 V20" stroke="#B79FD6" stroke-width="10" stroke-linecap="round"/>
+            <circle cx="0" cy="26" r="7" fill="#E6A93C"/>
+            <circle class="held-r" cx="0" cy="33" r="6.5" fill="#F4F8FC" stroke="#C9DAE8" stroke-width="1.2"/>
+          </g>
+        </g>
+        <path d="M-17 -54 q-8 10 -12 24 l9 2 q3 -12 9 -20z" fill="#AE4252"/>
+        <ellipse cx="0" cy="-50" rx="20" ry="7.5" fill="#D95B6C"/>
+        <path d="M-18 -51 q18 7 36 0" stroke="#AE4252" stroke-width="2" fill="none" opacity=".7"/>
+        <circle cx="0" cy="-78" r="30" fill="#F6D9C6"/>
+        <path d="M-30 -78 a30 30 0 0 0 52 20 a32 32 0 0 1 -50 -26z" fill="#E9C1AA" opacity=".6"/>
+        <path d="M-27 -86 q4 14 -2 22 q-6 -12 2 -22z M24 -88 q4 10 6 14 q-8 -2 -6 -14z" fill="#3E2C24"/>
+        <path d="M-31 -82 Q-31 -116 2 -116 Q32 -115 31 -82z" fill="#E6A93C"/>
+        <path d="M-12 -114 Q-18 -98 -16 -86 M2 -116 V-86 M16 -114 Q21 -98 19 -86" stroke="#B9802A" stroke-width="2.2" fill="none" opacity=".55"/>
+        <rect x="-33" y="-89" width="66" height="11" rx="5.5" fill="#F7EEDF"/>
+        <path d="M-30 -83 h60" stroke="#B9802A" stroke-width="1.4" stroke-dasharray="2 3" opacity=".5"/>
+        <circle cx="-12" cy="-117" r="9" fill="#F7EEDF"/>
+        <circle cx="-14" cy="-119" r="4" fill="#FFFFFF" opacity=".7"/>
+        <g class="eyes-r">
+          <ellipse cx="5" cy="-72" rx="3.6" ry="4.8" fill="#2A1E1A"/><ellipse cx="22" cy="-72" rx="3.6" ry="4.8" fill="#2A1E1A"/>
+          <circle cx="6.3" cy="-74" r="1.4" fill="#FFF"/><circle cx="23.3" cy="-74" r="1.4" fill="#FFF"/>
+        </g>
+        <g class="squint-r" opacity="0" stroke="#2A1E1A" stroke-width="2.2" stroke-linecap="round" fill="none">
+          <path d="M2 -76 l6 4 l-6 4 M25 -76 l-6 4 l6 4"/>
+        </g>
+        <ellipse cx="-1" cy="-62" rx="5.5" ry="3.4" fill="#F29C9C" opacity=".55"/>
+        <ellipse cx="27" cy="-62" rx="4.5" ry="3.2" fill="#F29C9C" opacity=".55"/>
+        <path d="M11 -63 q3 3 6 0" stroke="#7A3B33" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        <g class="splat-r" opacity="0">
+          <circle cx="16" cy="-74" r="8" fill="#F4F8FC"/><circle cx="8" cy="-66" r="4.5" fill="#F4F8FC"/>
+          <circle cx="24" cy="-82" r="4" fill="#F4F8FC"/><circle cx="25" cy="-66" r="3" fill="#DCE8F2"/>
+          <circle cx="13" cy="-86" r="2.6" fill="#DCE8F2"/>
+        </g>
+      </g>
+    </g>
+  </g>
+
+  <g class="fx-a"><g class="fy-a"><g class="fo-a" opacity="0">
+    <circle r="6.5" fill="#F4F8FC"/><path d="M-4 3 a6.5 6.5 0 0 0 9 -4" stroke="#C9DAE8" stroke-width="2" fill="none"/>
+  </g></g></g>
+  <g class="fx-b"><g class="fy-b"><g class="fo-b" opacity="0">
+    <circle r="6.5" fill="#F4F8FC"/><path d="M-4 3 a6.5 6.5 0 0 0 9 -4" stroke="#C9DAE8" stroke-width="2" fill="none"/>
+  </g></g></g>
+</svg>

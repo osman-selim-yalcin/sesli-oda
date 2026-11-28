@@ -2,7 +2,7 @@
    vurgu; pencere ışığı kehribarı (--accent-2: yalnız skor, taç, "senin sıran"), çam yeşili (--live), kızılcık (--danger).
    Köşeler biraz daha yumuşak (kar yığını), gölgeler soğuk. Yavaş bir kar yağışı var:
    oda sayfasında içeriğin üstünden soluk geçer, videonun ve oyunların üstünden geçmez. Dosyanın sonunda kış süsleri:
-   kardan adam, buz sarkıtları, kar yığınları.
+   boyalı kardan adam ve bulutlar, buz sarkıtları, kar yığınları; boş oynatıcıda kartopu atışan iki chibi.
    Bir tema dosyası değişken sözleşmesinin hepsini tanımlar (sözleşme ve yedek değerler: css/base.css).
    Kontrast (WCAG): --muted, --accent, --live, --danger, --accent-2 her yüzeyde (--surface-3 dahil) en az 4,5:1;
    --accent-contrast / --danger-contrast dolu zeminlerinde en az 4,5:1. */
@@ -77,7 +77,7 @@
   --focus-ring: 0 0 0 3px rgba(143, 214, 245, .45);
 }
 
-/* Kar yağışı: iki katman (yakın: iri ve hızlı, uzak: küçük ve yavaş). Her katman kendini tekrarlayan kar tanesi
+/* Kar yağışı: iki katman (yakın: boyalı iri taneler, hızlı; uzak: küçük noktalar, yavaş). Her katman kendini tekrarlayan kar tanesi
    karolarıdır (genişlikleri farklı: taneler ızgara gibi dizilmez; yükseklikleri kayma boyunun bölenleri); katman
    ekrandan bir kayma boyu uzun tutulur ve tam o kadar aşağı kaydırılır, yani döngü eksiz olur. Yalnız
    transform canlanır (her karede yeniden boyama yok). Tıklamayı tutmaz. Hareketi azalt ayarında kar yerinde durur.
@@ -99,13 +99,11 @@ body::after {
 body::before {
   top: -480px;
   background-image:
-    radial-gradient(circle, rgba(234, 243, 250, .9) 0 2px, transparent 3.5px),
-    radial-gradient(circle, rgba(234, 243, 250, .7) 0 1.5px, transparent 3px),
-    radial-gradient(circle, rgba(234, 243, 250, .6) 0 3px, transparent 5px),
+    url('kis/kar.webp'),
     radial-gradient(circle, rgba(234, 243, 250, .8) 0 1.5px, transparent 3px),
     radial-gradient(circle, rgba(234, 243, 250, .55) 0 2.5px, transparent 4.5px);
-  background-size: 330px 480px, 410px 240px, 530px 480px, 290px 480px, 470px 240px;
-  background-position: 40px 60px, 250px 150px, 140px 290px, 190px 400px, 310px 30px;
+  background-size: 520px 480px, 290px 480px, 470px 240px;
+  background-position: 40px 30px, 190px 400px, 310px 30px;
   animation: kis-kar 26s linear infinite;
 }
 body:has(#room-screen[data-page=room]:not([hidden]))::before { z-index: 3; opacity: .5; }
@@ -114,13 +112,14 @@ body::after {
   top: -360px;
   opacity: .6;
   background-image:
+    url('kis/kar-uzak.webp'),
     radial-gradient(circle, rgba(200, 225, 245, .7) 0 1px, transparent 2px),
     radial-gradient(circle, rgba(200, 225, 245, .55) 0 1px, transparent 2px),
     radial-gradient(circle, rgba(200, 225, 245, .6) 0 1.5px, transparent 2.5px),
     radial-gradient(circle, rgba(200, 225, 245, .5) 0 1px, transparent 2px),
     radial-gradient(circle, rgba(200, 225, 245, .6) 0 1px, transparent 2px);
-  background-size: 170px 360px, 230px 180px, 310px 360px, 130px 360px, 190px 120px;
-  background-position: 20px 30px, 150px 80px, 90px 170px, 60px 250px, 110px 100px;
+  background-size: 360px 180px, 170px 360px, 230px 180px, 310px 360px, 130px 360px, 190px 120px;
+  background-position: 100px 0, 20px 30px, 150px 80px, 90px 170px, 60px 250px, 110px 100px;
   animation: kis-kar-uzak 42s linear infinite;
 }
 @keyframes kis-kar { to { transform: translate3d(0, 480px, 0); } }
@@ -130,17 +129,18 @@ body::after {
   body::after { animation: none; }
 }
 
-/* Kış süsleri. Çizimler bu dosyada gömülü SVG'dir (ek istek yok, yalnız tema seçilince iner); hepsi zemin resmi ya da
+/* Kış süsleri. Boyalı çizimler (kardan adam, bulut, kar taneleri) ve kartopu sahnesi themes/kis/ altındadır; buz
+   sarkıtları ile kar yığınları bu dosyada gömülü SVG'dir. Dosyalar yalnız tema seçilince iner. Hepsi zemin resmi ya da
    tıklamayı tutmayan sahte öğedir, yerleşimi değiştirmez.
    - Kardan adam: sohbetin sağ alt köşesinde, mesajların arkasında durur (liste kayınca yerinde kalır).
    - Buz sarkıtları: üst çubuğun altından ve sohbet sekmelerinin altından sarkar.
    - Kar yığını: çalan şarkı ve odadakiler panellerinin, hızlı emoji satırının üstünde birikir.
-   - Boş oynatıcı: karlı tepeler, çamlar ve küçük bir kardan adam (video başlayınca görünmez). */
+   - Boş oynatıcı: kartopu sahnesi (aşağıda). */
 .side .chat-list,
 .side .chat-empty {
   background:
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 22'%3E %3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='rgb(234,243,250)'/%3E%3Cstop offset='1' stop-color='rgb(143,214,245)' stop-opacity='.55'/%3E%3C/linearGradient%3E%3C/defs%3E %3Cpath d='M0 0 H120 V3 Q117 3 115 12 Q113 3 108 3 Q104 3 101 20 Q98 3 93 3 Q89 3 87 9 Q85 3 80 3 Q75 3 72 16 Q69 3 63 3 Q59 3 57 7 Q55 3 50 3 Q45 3 42 21 Q39 3 33 3 Q29 3 27 11 Q25 3 20 3 Q16 3 14 8 Q12 3 8 3 Q5 3 3 14 Q1 3 0 3z' fill='url(%23g)'/%3E %3C/svg%3E") left top / 120px 22px repeat-x,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 150'%3E %3Cellipse cx='60' cy='143' rx='44' ry='6' fill='rgb(4,10,18)' opacity='.35'/%3E %3Cpath d='M30 78 L8 62 M14 66 L10 56 M16 68 L6 70' stroke='rgb(122,90,62)' stroke-width='3' stroke-linecap='round' fill='none'/%3E %3Cpath d='M90 78 L112 60 M106 65 L110 54 M104 66 L115 68' stroke='rgb(122,90,62)' stroke-width='3' stroke-linecap='round' fill='none'/%3E %3Ccircle cx='60' cy='108' r='36' fill='rgb(234,243,250)'/%3E %3Cpath d='M60 144 a36 36 0 0 0 34 -48 a40 40 0 0 1 -62 40 a36 36 0 0 0 28 8z' fill='rgb(190,214,232)'/%3E %3Ccircle cx='60' cy='60' r='25' fill='rgb(240,247,252)'/%3E %3Cpath d='M60 85 a25 25 0 0 0 24 -32 a28 28 0 0 1 -42 27 a25 25 0 0 0 18 5z' fill='rgb(196,219,236)'/%3E %3Cpath d='M37 74 q23 12 46 0 l2 9 q-25 13 -50 0z' fill='rgb(224,86,106)'/%3E %3Cpath d='M72 80 l10 -3 l6 24 l-11 3z' fill='rgb(200,62,84)'/%3E %3Cpath d='M39 77 q21 10 42 1' stroke='rgb(255,138,147)' stroke-width='2' fill='none' opacity='.8'/%3E %3Ccircle cx='51' cy='54' r='3.2' fill='rgb(20,28,38)'/%3E%3Ccircle cx='69' cy='54' r='3.2' fill='rgb(20,28,38)'/%3E %3Cpath d='M60 60 l20 5 l-20 4z' fill='rgb(255,150,60)'/%3E %3Cpath d='M49 68 q11 7 22 0' stroke='rgb(20,28,38)' stroke-width='2.2' stroke-linecap='round' stroke-dasharray='.1 5' fill='none'/%3E %3Ccircle cx='60' cy='98' r='3' fill='rgb(20,28,38)'/%3E%3Ccircle cx='60' cy='112' r='3' fill='rgb(20,28,38)'/%3E%3Ccircle cx='60' cy='126' r='3' fill='rgb(20,28,38)'/%3E %3Crect x='36' y='36' width='48' height='6' rx='3' fill='rgb(28,44,62)'/%3E %3Crect x='43' y='10' width='34' height='28' rx='3' fill='rgb(28,44,62)'/%3E %3Crect x='43' y='28' width='34' height='6' fill='rgb(143,214,245)'/%3E %3Cpath d='M43 13 q17 -9 34 0 v-1 q-17 -10 -34 0z' fill='rgb(234,243,250)'/%3E %3C/svg%3E") right 14px bottom 2px / 104px 130px no-repeat;
+    url('kis/kardan-adam.webp') right 14px bottom 2px / 106px 120px no-repeat;
 }
 .side .chat-list { padding-top: calc(var(--space-4) + 14px); }
 .quick-emojis,
@@ -169,11 +169,42 @@ body::after {
   pointer-events: none;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 22'%3E %3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='rgb(234,243,250)'/%3E%3Cstop offset='1' stop-color='rgb(143,214,245)' stop-opacity='.55'/%3E%3C/linearGradient%3E%3C/defs%3E %3Cpath d='M0 0 H120 V3 Q117 3 115 12 Q113 3 108 3 Q104 3 101 20 Q98 3 93 3 Q89 3 87 9 Q85 3 80 3 Q75 3 72 16 Q69 3 63 3 Q59 3 57 7 Q55 3 50 3 Q45 3 42 21 Q39 3 33 3 Q29 3 27 11 Q25 3 20 3 Q16 3 14 8 Q12 3 8 3 Q5 3 3 14 Q1 3 0 3z' fill='url(%23g)'/%3E %3C/svg%3E") left top / 120px 22px repeat-x;
 }
-/* shell.css bu dosyadan sonra yüklenir: aynı özgüllükteki kural onu ezemez, bu yüzden seçiciler bir basamak özgül */
+/* Boş oynatıcı: karlı tepelerde iki chibi çocuk boyalı kardan adamın üstünden birbirine kartopu atar, üstte bulutlar
+   yavaşça kayar. Sahne (themes/kis/kartopu.svg, üretici test/tools/kis-scene.js) kendi içinde oynar; hareketi azalt
+   ayarında durgun kopyası gelir. Yazı üstte kalır, sahne alt yarıdadır. Video başlayınca hepsi görünmez.
+   shell.css bu dosyadan sonra yüklenir: aynı özgüllükteki kural onu ezemez, bu yüzden seçiciler bir basamak özgül. */
 .player-wrap .player-empty {
+  place-items: start center;
+  padding-top: max(var(--space-4), 6%);
+  overflow: hidden;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 150'%3E %3Cellipse cx='60' cy='143' rx='44' ry='6' fill='rgb(4,10,18)' opacity='.35'/%3E %3Cpath d='M30 78 L8 62 M14 66 L10 56 M16 68 L6 70' stroke='rgb(122,90,62)' stroke-width='3' stroke-linecap='round' fill='none'/%3E %3Cpath d='M90 78 L112 60 M106 65 L110 54 M104 66 L115 68' stroke='rgb(122,90,62)' stroke-width='3' stroke-linecap='round' fill='none'/%3E %3Ccircle cx='60' cy='108' r='36' fill='rgb(234,243,250)'/%3E %3Cpath d='M60 144 a36 36 0 0 0 34 -48 a40 40 0 0 1 -62 40 a36 36 0 0 0 28 8z' fill='rgb(190,214,232)'/%3E %3Ccircle cx='60' cy='60' r='25' fill='rgb(240,247,252)'/%3E %3Cpath d='M60 85 a25 25 0 0 0 24 -32 a28 28 0 0 1 -42 27 a25 25 0 0 0 18 5z' fill='rgb(196,219,236)'/%3E %3Cpath d='M37 74 q23 12 46 0 l2 9 q-25 13 -50 0z' fill='rgb(224,86,106)'/%3E %3Cpath d='M72 80 l10 -3 l6 24 l-11 3z' fill='rgb(200,62,84)'/%3E %3Cpath d='M39 77 q21 10 42 1' stroke='rgb(255,138,147)' stroke-width='2' fill='none' opacity='.8'/%3E %3Ccircle cx='51' cy='54' r='3.2' fill='rgb(20,28,38)'/%3E%3Ccircle cx='69' cy='54' r='3.2' fill='rgb(20,28,38)'/%3E %3Cpath d='M60 60 l20 5 l-20 4z' fill='rgb(255,150,60)'/%3E %3Cpath d='M49 68 q11 7 22 0' stroke='rgb(20,28,38)' stroke-width='2.2' stroke-linecap='round' stroke-dasharray='.1 5' fill='none'/%3E %3Ccircle cx='60' cy='98' r='3' fill='rgb(20,28,38)'/%3E%3Ccircle cx='60' cy='112' r='3' fill='rgb(20,28,38)'/%3E%3Ccircle cx='60' cy='126' r='3' fill='rgb(20,28,38)'/%3E %3Crect x='36' y='36' width='48' height='6' rx='3' fill='rgb(28,44,62)'/%3E %3Crect x='43' y='10' width='34' height='28' rx='3' fill='rgb(28,44,62)'/%3E %3Crect x='43' y='28' width='34' height='6' fill='rgb(143,214,245)'/%3E %3Cpath d='M43 13 q17 -9 34 0 v-1 q-17 -10 -34 0z' fill='rgb(234,243,250)'/%3E %3C/svg%3E") right 9% bottom 14px / 72px 90px no-repeat,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 150 90'%3E%3Cg transform='translate(30 30) scale(1)'%3E%3Crect x='-3' y='44' width='6' height='10' fill='rgb(92,66,46)'/%3E%3Cpath d='M0 0 L14 20 H8 L18 34 H10 L22 48 H-22 L-10 34 H-18 L-8 20 H-14z' fill='rgb(31,92,74)'/%3E%3Cpath d='M0 0 L8 12 Q3 9 0 12 Q-3 9 -8 12z M-12 26 Q-6 30 0 27 Q6 30 12 26 L8 20 H-8z M-16 40 Q-8 44 0 41 Q8 44 16 40 L10 34 H-10z' fill='rgb(234,243,250)'/%3E%3C/g%3E%3Cg transform='translate(72 8) scale(1.45)'%3E%3Crect x='-3' y='44' width='6' height='10' fill='rgb(92,66,46)'/%3E%3Cpath d='M0 0 L14 20 H8 L18 34 H10 L22 48 H-22 L-10 34 H-18 L-8 20 H-14z' fill='rgb(31,92,74)'/%3E%3Cpath d='M0 0 L8 12 Q3 9 0 12 Q-3 9 -8 12z M-12 26 Q-6 30 0 27 Q6 30 12 26 L8 20 H-8z M-16 40 Q-8 44 0 41 Q8 44 16 40 L10 34 H-10z' fill='rgb(234,243,250)'/%3E%3C/g%3E%3Cg transform='translate(118 36) scale(0.9)'%3E%3Crect x='-3' y='44' width='6' height='10' fill='rgb(92,66,46)'/%3E%3Cpath d='M0 0 L14 20 H8 L18 34 H10 L22 48 H-22 L-10 34 H-18 L-8 20 H-14z' fill='rgb(31,92,74)'/%3E%3Cpath d='M0 0 L8 12 Q3 9 0 12 Q-3 9 -8 12z M-12 26 Q-6 30 0 27 Q6 30 12 26 L8 20 H-8z M-16 40 Q-8 44 0 41 Q8 44 16 40 L10 34 H-10z' fill='rgb(234,243,250)'/%3E%3C/g%3E%3C/svg%3E") left 6% bottom 22px / 150px 90px no-repeat,
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 80' preserveAspectRatio='none'%3E %3Cpath d='M0 80 V46 Q90 10 200 40 T420 36 T600 30 V80z' fill='rgb(150,180,205)' opacity='.55'/%3E %3Cpath d='M0 80 V58 Q120 28 260 54 T480 50 T600 56 V80z' fill='rgb(234,243,250)'/%3E %3C/svg%3E") left bottom / 100% 72px no-repeat,
-    radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--accent) 8%, var(--surface)), var(--surface) 68%);
+    url('kis/kardan-adam.webp') center bottom 6% / auto 52% no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 600 80' preserveAspectRatio='none'%3E %3Cpath d='M0 80 V30 Q90 6 200 26 T420 22 T600 18 V80z' fill='rgb(150,180,205)' opacity='.45'/%3E %3Cpath d='M0 80 V44 Q120 30 260 40 T480 38 T600 42 V80z' fill='rgb(222,234,245)'/%3E %3Cpath d='M0 80 V58 Q150 50 300 56 T600 54 V80z' fill='rgb(240,246,251)'/%3E %3C/svg%3E") left bottom / 100% 26% no-repeat,
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface) 70%);
+}
+.player-wrap .player-empty > div { position: relative; z-index: 1; text-shadow: 0 1px 6px var(--bg); }
+.player-wrap .player-empty::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: url('kis/kartopu.svg') center bottom / auto 100% no-repeat;
+}
+.player-wrap .player-empty .ic { display: none; }
+.player-wrap .player-empty::before {
+  content: '';
+  position: absolute;
+  inset: 0 -30% 40% -30%;
+  pointer-events: none;
+  opacity: .8;
+  background:
+    url('kis/bulut.webp') 14% 18% / min(150px, 10%) auto no-repeat,
+    url('kis/bulut.webp') 86% 8% / min(110px, 7.5%) auto no-repeat,
+    url('kis/bulut.webp') 52% 4% / min(80px, 5.5%) auto no-repeat;
+  animation: kis-bulut 60s ease-in-out infinite alternate;
+}
+@keyframes kis-bulut { from { transform: translateX(-12%); } to { transform: translateX(12%); } }
+@media (prefers-reduced-motion: reduce) {
+  .player-wrap .player-empty::after { background-image: url('kis/kartopu-durgun.svg'); }
+  .player-wrap .player-empty::before { animation: none; }
 }
