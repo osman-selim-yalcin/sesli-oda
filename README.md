@@ -139,9 +139,10 @@ her zaman varsayılan temadadır (Gece Odası). Temalar: Gece Odası (`gece`, ko
 `public/themes/kis/` altında, buz sarkıtları ile kar yığınları tema dosyasında gömülü SVG; boş oynatıcıda iki chibi
 kartopu atışır, sahne `test/tools/kis-scene.js` ile üretilir; hızlı emoji satırı da kışa göre, `app.js`
 `THEME_QUICK_EMOJIS`)) ve Neon Oda
-(`neon`, koyu çivit zemin, pembe → mor → camgöbeği neon kenarlar; masaüstünde sahne bir oyun konsolu gibi dizilir:
-solda kişiler sütunu, oynatıcının iki yanında ses kadranı, araçlar, artı biçimli sarma tuşları ve büyük oynat
-düğmesi, altında zaman çubuğu ve yuvarlak sayfa düğmeleri; hepsi tema dosyasının `@media (min-width: 1000px)`
+(`neon`, koyu mor-lacivert zemin, kutularda ve düğmelerde "uzay simi" kenarlar: renkli degrade üstünde sim noktaları;
+masaüstünde sahne üç bölmeli bir oyun konsolu gibi dizilir: solda ince kişiler sütunu, sol kanatta ses kadranı ve
+üçgen dizili araçlar, ortada 16:9 oynatıcı, sağ kanatta artı biçimli tuşlar ve büyük oynat düğmesi; altında zaman
+çubuğu ve hemen altında yuvarlak sayfa düğmeleri (CSS anchor positioning ile çubuğa bağlı); hepsi tema dosyasının `@media (min-width: 1000px)`
 bloğunda, HTML'e dokunmadan `display: contents` ve ızgara alanlarıyla. Ses kadranının yüzdesi `.vol`
 kabının `data-val` değerinden okunur, `app.js` `paintRange` yazar. Telefonda düzen ortak).
 
