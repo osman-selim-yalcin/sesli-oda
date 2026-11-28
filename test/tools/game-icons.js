@@ -78,6 +78,36 @@ const ICONS = {
     <circle p="T" cx="24" cy="27" r="2.75"/>`,
   // Daktilo: klavye
   // İttirmeli XOX: 3×3 yuva, çaprazda üç taş (biri X) ve üçlü çizgisi
+  // Blackjack: iki kart, öndekinde A
+  blackjack: `
+    <rect p="if" x="7" y="9" width="20" height="28" rx="3" transform="rotate(-10 17 23)"/>
+    <rect p="tf" x="21" y="11" width="20" height="28" rx="3" transform="rotate(10 31 25)"/>
+    <path d="m27.5 31 3.5-10 3.5 10m-5.8-3.5h4.6"/>`,
+  // Poker: çip
+  poker: `
+    <circle p="tf" cx="24" cy="24" r="17"/>
+    <circle cx="24" cy="24" r="8"/>
+    <path d="M24 7v6M24 35v6M7 24h6M35 24h6"/>`,
+  // Arasında: iki direk kart, arasına inen üçüncü
+  arasinda: `
+    <rect p="if" x="5" y="13" width="13" height="20" rx="2.5"/>
+    <rect p="if" x="30" y="13" width="13" height="20" rx="2.5"/>
+    <rect p="tf" x="18.5" y="21" width="11" height="17" rx="2.5"/>
+    <path p="t" d="M24 5v9m-3.5-3.5L24 14l3.5-3.5"/>`,
+  // Pişti: yığının üstüne düşen kart
+  pisti: `
+    <rect p="if" x="9" y="17" width="18" height="25" rx="3"/>
+    <rect p="tf" x="21" y="6" width="18" height="25" rx="3" transform="rotate(12 30 18)"/>`,
+  // Batak: maça
+  batak: `
+    <path p="tf" d="M24 6c-6 8-15 13-15 21a7 7 0 0 0 12 5l-3 9h12l-3-9a7 7 0 0 0 12-5c0-8-9-13-15-21Z"/>`,
+  // Kemal: yelpaze dört kart ve göz kırpma
+  kemal: `
+    <rect p="if" x="5" y="13" width="12" height="18" rx="2" transform="rotate(-15 11 22)"/>
+    <rect p="if" x="14" y="10" width="12" height="18" rx="2" transform="rotate(-5 20 19)"/>
+    <rect p="if" x="23" y="10" width="12" height="18" rx="2" transform="rotate(5 29 19)"/>
+    <rect p="tf" x="31" y="13" width="12" height="18" rx="2" transform="rotate(15 37 22)"/>
+    <path p="t" d="M17 38q7 5 14 0"/>`,
   xox: `
     <circle p="F" cx="24" cy="12" r="5.5"/>
     <circle p="F" cx="36" cy="12" r="5.5"/>

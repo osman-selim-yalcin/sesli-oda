@@ -1798,3 +1798,178 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 /* İngilizce: CSS içindeki metinler (public/i18n.js sadece sayfadaki metni çevirir) */
 :lang(en) .tier-pool.empty-pool::before { content: "All cards are placed. New cards you add show up here."; }
 :lang(en) .kutu-seat.me .kutu-seat-text strong::after { content: ' (you)'; }
+
+/* ---------- Kağıt oyunları (public/kart.js) ----------
+   Yeşil çuha masa: üstte/yanlarda diğer koltuklar, ortada oyunun alanı (kurpiyer, pot, ortadaki kartlar, yerdeki el),
+   altta benim koltuğum ve elim; altında eylem düğmeleri ve son olaylar. Kartlar CSS ile çizilir (resim yok). */
+.kart { display: grid; gap: 12px; }
+.kart [id$="-status"] { flex: 1; min-width: 0; }
+.kart-play { display: grid; gap: 12px; }
+.kart-play[hidden] { display: none; }
+.kart {
+  --felt: oklch(38% .08 155); --felt-dark: oklch(28% .06 155); --felt-ink: #f3f1e8;
+  --card-bg: #fbfaf6; --card-red: #c8243a; --card-black: #1d2230;
+}
+.kart-felt {
+  display: grid; gap: 10px; padding: 14px; border-radius: var(--radius-l); color: var(--felt-ink);
+  grid-template: "top top top" auto "left center right" 1fr "me me me" auto / minmax(0, 1fr) minmax(0, 2.2fr) minmax(0, 1fr);
+  background: radial-gradient(ellipse at 50% 40%, var(--felt) 0%, var(--felt-dark) 100%);
+  box-shadow: inset 0 0 0 6px oklch(30% .05 60), inset 0 0 0 8px oklch(45% .07 70), inset 0 10px 40px rgba(0, 0, 0, .35);
+  min-height: 420px;
+}
+.kart-area { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; min-width: 0; }
+.kart-area.top { grid-area: top; align-items: flex-start; }
+.kart-area.left { grid-area: left; }
+.kart-area.right { grid-area: right; }
+.kart-area.center { grid-area: center; flex-direction: column; gap: 10px; text-align: center; }
+.kart-area.me { grid-area: me; }
+.kart-area:empty { display: none; }
+.kart-felt .muted { color: color-mix(in srgb, var(--felt-ink) 70%, transparent); }
+
+.kart-seat {
+  position: relative; display: grid; gap: 6px; justify-items: center; padding: 8px 10px; min-width: 112px; max-width: 100%;
+  border-radius: var(--radius-m); background: rgba(0, 0, 0, .22); border: 2px solid transparent;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.kart-seat.me { background: rgba(0, 0, 0, .3); padding: 10px 14px; }
+.kart-seat.turn { border-color: var(--accent-2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 30%, transparent); }
+.kart-seat.won { border-color: var(--live); }
+.kart-seat.folded, .kart-seat.out { opacity: .5; }
+.kart-seat.away .kart-seat-name::after { content: ' 🤖'; }
+.kart-seat-head { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.kart-seat-head .avatar { width: 26px; height: 26px; font-size: 11px; flex: none; }
+.kart-seat-who { display: grid; text-align: left; min-width: 0; }
+.kart-seat-name { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kart-seat-sub { font-size: 12px; opacity: .8; white-space: nowrap; }
+.kart-tag { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: var(--radius-pill); background: rgba(255, 255, 255, .14); }
+.kart-tag:empty { display: none; }
+.kart-seat.turn .kart-tag { background: var(--accent-2); color: #1a1a1a; }
+.kart-count { font-size: 13px; opacity: .85; }
+.kart-timer { position: absolute; left: 8px; right: 8px; bottom: 3px; height: 3px; border-radius: 2px; background: var(--accent-2); transform-origin: left; animation: kart-timer var(--left) linear forwards; transform: scaleX(var(--from)); }
+@keyframes kart-timer { to { transform: scaleX(0); } }
+
+/* Kart */
+.kc {
+  --w: 58px; position: relative; width: var(--w); aspect-ratio: 5 / 7; flex: none; border-radius: calc(var(--w) * .1);
+  background: var(--card-bg); color: var(--card-black); box-shadow: 0 2px 6px rgba(0, 0, 0, .35), inset 0 0 0 1px rgba(0, 0, 0, .12);
+  display: grid; place-items: center; user-select: none; font-family: var(--font-display);
+}
+.kc.red { color: var(--card-red); }
+.kc-corner { position: absolute; top: 4%; left: 8%; font-size: calc(var(--w) * .24); font-weight: 800; line-height: 1; letter-spacing: -.04em; }
+.kc-corner.br { top: auto; left: auto; bottom: 4%; right: 8%; transform: rotate(180deg); }
+.kc-pip { font-size: calc(var(--w) * .5); line-height: 1; }
+.kc.back { background: repeating-linear-gradient(45deg, oklch(45% .14 25) 0 4px, oklch(38% .13 25) 4px 8px); box-shadow: 0 2px 6px rgba(0, 0, 0, .35), inset 0 0 0 3px var(--card-bg); }
+.kc.slot { background: transparent; box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .22); }
+.kc-row { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+.kc-row.small .kc, .kc.small { --w: 34px; }
+.kc-row.small { gap: 3px; }
+.kc-row.small .kc-pip { display: none; }
+.kc-row.small .kc-corner.br { display: none; }
+.kc-row.small .kc-corner { position: static; font-size: 12px; }
+.kc-row.fan { gap: 0; }
+.kc-row.fan .kc + .kc { margin-left: -18px; }
+.kc-row.hand .kc { --w: 64px; }
+.kc.can { cursor: pointer; transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease); }
+.kc.can:hover, .kc.can:focus-visible { transform: translateY(-8px); box-shadow: 0 8px 16px rgba(0, 0, 0, .4), 0 0 0 3px var(--accent-2); outline: none; }
+.kc.picked { transform: translateY(-10px); box-shadow: 0 8px 16px rgba(0, 0, 0, .4), 0 0 0 3px var(--accent-2); }
+.kc.dim { filter: brightness(.6) saturate(.6); }
+.kc.new { animation: kc-in 260ms var(--ease) backwards; }
+.kc-row.hand.many { flex-wrap: nowrap; gap: 0; }
+.kc-row.hand.many .kc + .kc { margin-left: -14px; }
+.kc-row.hand.many .kc { box-shadow: -2px 2px 6px rgba(0, 0, 0, .3), inset 0 0 0 1px rgba(0, 0, 0, .12); }
+.kc-row.fan.small .kc + .kc { margin-left: -24px; }
+@keyframes kc-in { from { translate: 0 -14px; scale: .9; opacity: 0; } }
+
+.kart-label { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; opacity: .75; }
+.kart-pot { font: 800 18px var(--font-display); padding: 4px 14px; border-radius: var(--radius-pill); background: rgba(0, 0, 0, .3); }
+.kart-tally { display: grid; gap: 2px; font-size: 13px; padding: 8px 12px; border-radius: var(--radius-m); background: rgba(0, 0, 0, .35); }
+.kart-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; min-height: 40px; }
+.kart-actions-label { font-size: 13px; color: var(--muted); }
+.kart-amount { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; }
+.kart-amount input[type="range"] { width: min(220px, 60vw); }
+.kart-quick { display: flex; gap: 4px; flex-wrap: wrap; }
+.kart-log { display: grid; gap: 2px; font-size: 12px; color: var(--muted); text-align: center; }
+.kart-result { display: grid; justify-items: center; gap: 8px; padding: 14px; text-align: center; border-radius: var(--radius-l); background: var(--surface); border: var(--border-w) solid var(--border); }
+.kart-result-title { font: 800 clamp(22px, 6vw, 30px)/1.1 var(--font-display); color: var(--accent-2); }
+.kart-standings { margin: 0; padding: 0 0 0 22px; display: grid; gap: 2px; min-width: min(280px, 100%); text-align: left; }
+.kart-standings li { display: flex; justify-content: space-between; gap: 12px; }
+.kart-standings li.me { font-weight: 700; }
+.kart-result-actions { display: flex; gap: 8px; }
+
+/* Blackjack */
+.bj-dealer { display: grid; gap: 8px; justify-items: center; }
+.bj-hands { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.bj-hand { display: grid; gap: 4px; justify-items: center; padding: 4px; border-radius: var(--radius-s); }
+.bj-hand.active { box-shadow: 0 0 0 2px var(--accent-2); }
+.bj-hand-info { font-size: 12px; font-weight: 700; }
+.bj-hand-info.win, .bj-hand-info.bj { color: var(--live); }
+.bj-hand-info.bust, .bj-hand-info.lose { color: var(--danger); }
+
+/* Arasında */
+.ar-center { display: grid; gap: 10px; justify-items: center; }
+.ar-posts { display: flex; gap: 14px; align-items: center; }
+.ar-posts .kc.post { --w: 70px; }
+.ar-posts .kc.third { --w: 62px; }
+.ar-posts .kc.third.win { box-shadow: 0 0 0 3px var(--live), 0 4px 14px rgba(0, 0, 0, .4); }
+.ar-posts .kc.third.lose, .ar-posts .kc.third.post { box-shadow: 0 0 0 3px var(--danger), 0 4px 14px rgba(0, 0, 0, .4); }
+.ar-outcome { font: 700 15px var(--font-display); }
+.ar-outcome.win { color: var(--live); }
+.ar-outcome.lose, .ar-outcome.post { color: var(--danger); }
+
+/* Poker */
+.pk-center { display: grid; gap: 10px; justify-items: center; }
+.kc-row.board .kc { --w: 54px; }
+
+/* Pişti */
+.ps-center { display: grid; gap: 10px; justify-items: center; position: relative; }
+.ps-pile { position: relative; width: 74px; height: 98px; display: grid; place-items: center; }
+.ps-pile .kc { --w: 64px; position: absolute; }
+.ps-pile .kc.under { transform: rotate(-8deg) translate(-4px, 2px); }
+.ps-count { position: absolute; right: -14px; top: -8px; min-width: 24px; padding: 2px 6px; border-radius: var(--radius-pill); background: var(--accent-2); color: #1a1a1a; font: 800 12px var(--font-display); z-index: 2; }
+.ps-flash { font: 900 28px var(--font-display); color: var(--accent-2); text-shadow: 0 2px 10px rgba(0, 0, 0, .5); animation: ps-flash 900ms var(--ease) both; }
+@keyframes ps-flash { 0% { transform: scale(.4); opacity: 0; } 40% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1); } }
+
+/* Batak */
+.bt-center { display: grid; gap: 8px; justify-items: center; }
+.bt-trick { position: relative; width: 190px; height: 170px; }
+.bt-trick .kc { --w: 52px; position: absolute; left: 50%; top: 50%; }
+.bt-trick .kc.pos-me { transform: translate(-50%, -10%); }
+.bt-trick .kc.pos-top { transform: translate(-50%, -90%); }
+.bt-trick .kc.pos-left { transform: translate(-115%, -50%); }
+.bt-trick .kc.pos-right { transform: translate(15%, -50%); }
+.bt-info { font: 700 14px var(--font-display); padding: 3px 12px; border-radius: var(--radius-pill); background: var(--card-bg); color: var(--card-black); }
+.bt-info.red { color: var(--card-red); }
+.kart-actions button.suit { font-size: 15px; }
+.kart-actions button.suit.red { color: var(--card-red); }
+
+/* Kemal */
+.km-center { display: grid; gap: 8px; justify-items: center; }
+.kc-row.table .kc { --w: 60px; }
+.kart-seat.team-0 { border-left: 4px solid oklch(70% .15 250); }
+.kart-seat.team-1 { border-left: 4px solid oklch(70% .17 30); }
+.kart-seat.turn.team-0, .kart-seat.turn.team-1 { border-left-width: 4px; }
+.km-signal { position: absolute; top: -18px; right: -10px; font-size: 34px; animation: km-signal 2.6s var(--ease) forwards; pointer-events: none; }
+@keyframes km-signal { 0% { transform: scale(.3); opacity: 0; } 12% { transform: scale(1.15); opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; } }
+.km-signals { display: flex; gap: 2px; flex-wrap: wrap; justify-content: center; }
+.km-signals button { font-size: 20px; padding: 2px 6px; min-height: 0; }
+.km-result { font: 800 18px var(--font-display); padding: 6px 14px; border-radius: var(--radius-pill); background: rgba(0, 0, 0, .35); }
+.km-result.ok { color: var(--live); }
+.km-result.bad { color: var(--danger); }
+
+@media (max-width: 640px) {
+  .kart-felt { grid-template: "top top" auto "left right" auto "center center" 1fr "me me" auto / 1fr 1fr; padding: 10px; min-height: 0; }
+  .kart-seat { min-width: 0; padding: 6px; }
+  .kc { --w: 46px; }
+  .kc-row.hand .kc { --w: 52px; }
+  .kc-row.small .kc { --w: 28px; }
+  .kc-row.hand.many .kc { --w: 44px; }
+  .kc-row.hand.many .kc + .kc { margin-left: -20px; }
+  .kc-row.hand.many .kc-pip { display: none; }
+  .ar-posts .kc.post { --w: 58px; }
+  .kc-row.board .kc { --w: 44px; }
+  .bt-trick { width: 160px; height: 150px; }
+  .bt-trick .kc { --w: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kc, .ps-flash, .km-signal, .kart-timer { animation: none !important; }
+}
