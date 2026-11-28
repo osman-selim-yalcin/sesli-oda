@@ -106,7 +106,7 @@ function renderBhGrid() {
         }
       } else if (letters[i]) {
         tile.classList.add('filled');
-        if (typing && i === bhTyped.length - 1) tile.classList.add('pop');
+        if (typing && i === bhTyped.length - 1) tile.classList.add('bh-typed'); // 'pop' değil: o ad açılır pencerelerin genel sınıfı (base.css .pop)
       }
       tile.append(inner);
       row.append(tile);

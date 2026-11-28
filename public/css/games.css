@@ -2180,9 +2180,11 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 /* Sahne ve yan panel aynı sabit yükseklikte (yazarken kaymaz); kısa ekranda ekran yüksekliğine iner, kutular
    küçülür (kutuların payı: yükseklik - klavye ve aralıklar ~190 px, 6 satır × 5 sütun) */
 .bh-stage { position: relative; display: grid; justify-items: center; align-content: start; gap: 14px; height: clamp(400px, 100dvh - 250px, 536px); padding-top: 4px; }
-.bh-grid { display: grid; grid-template-rows: repeat(6, 1fr); gap: 6px; width: min(296px, 100%, (clamp(400px, 100dvh - 250px, 536px) - 190px) * 5 / 6); perspective: 900px; }
-.bh-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.bh-tile { aspect-ratio: 1; position: relative; }
+/* Sütunlar minmax(0, 1fr), satırlar auto: kutuların en-boy oranı ile 1fr satırlar birbirini besleyip ızgarayı şişirmesin
+   (ilk tahminden sonra kutular 320 px'e çıkıyordu) */
+.bh-grid { display: grid; grid-template-rows: repeat(6, auto); gap: 6px; width: min(296px, 100%, (clamp(400px, 100dvh - 250px, 536px) - 190px) * 5 / 6); perspective: 900px; }
+.bh-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.bh-tile { aspect-ratio: 1; position: relative; min-width: 0; }
 .bh-in { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .1s; }
 .bh-face {
   position: absolute; inset: 0; display: grid; place-items: center; backface-visibility: hidden;
@@ -2191,7 +2193,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 }
 .bh-front { border: 2px solid var(--border); background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
 .bh-tile.filled .bh-front { border-color: var(--border-strong); background: var(--surface-2); }
-.bh-tile.pop .bh-in { animation: bh-pop .12s ease-out; }
+.bh-tile.bh-typed .bh-in { animation: bh-pop .12s ease-out; }
 @keyframes bh-pop { 50% { scale: 1.12; } }
 .bh-back { transform: rotateX(180deg); color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .18), 0 3px 8px rgba(0, 0, 0, .3); }
 .bh-back.g { background: linear-gradient(160deg, color-mix(in oklch, var(--bh-g) 80%, #fff), var(--bh-g)); }
@@ -2266,7 +2268,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
   .bh-key { height: 46px; font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .bh-tile.flip .bh-in, .bh-tile.won, .bh-row.shake, .bh-tile.pop .bh-in, .bh-result { animation: none; }
+  .bh-tile.flip .bh-in, .bh-tile.won, .bh-row.shake, .bh-tile.bh-typed .bh-in, .bh-result { animation: none; }
 }
 /* Sabit yükseklik: durum yazısı tek satır, oyuncu rozetleri alt satıra düşmez */
 .dorttas #dorttas-status, .besharf #besharf-status { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
