@@ -351,4 +351,11 @@ I18N.add({
   "{0} Kemal dedi ama ortağında dörtlü yok. +1 {1}": "{0} called Kemal but their partner had no four of a kind. +1 {1}",
   "{0}: Kes! {1} yakalandı. +1 {2}": "{0}: Cut! {1} was caught. +1 {2}",
   "{0} Kes dedi ama rakipte dörtlü yok. +1 {1}": "{0} called Cut but no opponent had four of a kind. +1 {1}",
+  // ---- Dört Taş ve Beş Harf ----
+  "{0} Dört Taş başlattı: {1}. {2} başlıyor.": "{0} started Four Stones: {1}. {2} goes first.",
+  "bilgisayara karşı ({0})": "against the computer ({0})",
+  "{0}Dört Taş berabere bitti.": "{0}Four Stones ended in a draw.",
+  "{0}Dört Taş: 🏆 {1} kazandı{2}, {3} hamle.": "{0}Four Stones: 🏆 {1} won{2}, {3} moves.",
+  "{0} Beş Harf #{1} kelimesini {2}/{3} tahminde buldu: {4}": "{0} solved Five Letters #{1} in {2}/{3}: {4}",
+  "{0} Beş Harf #{1} kelimesini bulamadı (X/{2}): {3}": "{0} missed Five Letters #{1} (X/{2}): {3}",
 });

@@ -439,6 +439,7 @@ function getRoom(code) {
       mantik: null, // mantık tablosu (games/mantik.js); çözüm bitene kadar gönderilmez
       daktilo: null, // daktilo düellosu (games/daktilo.js)
       xox: null, // ittirmeli XOX (games/xox.js)
+      dorttas: null, // Dört Taş (games/dorttas.js)
       kart: {}, // kağıt oyunları (games/kart.js): blackjack, arasinda, poker, pisti, batak, kemal
       memoryLog: shared.memoryLog,
       klotskiLog: shared.klotskiLog,
@@ -796,7 +797,7 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
   if (pendingHome && pendingHome !== home && !rooms.get(pendingHome) && !merge.partnerOf(pendingHome)) sweepMutes(pendingHome);
   roomsChanged();
   const homeReg = (home !== roomCode && roomStore.get(home)) || reg;
-  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, color, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), takimada: room.takimada, yedikapi: kutu.yedikapiView(room.yedikapi, name), yedikapiInventory: true, yorunge: room.yorunge, kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), xox: xox.view(room.xox), kart: kartGames.views(room, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, color, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), takimada: room.takimada, yedikapi: kutu.yedikapiView(room.yedikapi, name), yedikapiInventory: true, yorunge: room.yorunge, kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), xox: xox.view(room.xox), dorttas: dorttas.view(room.dorttas), besharf: besharf.view(name), kart: kartGames.views(room, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
 // Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
@@ -842,6 +843,7 @@ function leaveRoom(socket, { grace, quiet = false }) {
     mantik.left(current, user.name);
     daktilo.left(current, user.name);
     xox.left(current, user.name);
+    dorttas.left(current, user.name);
     kartGames.left(current, user.name);
     for (const game of Object.keys(current.lobbies)) leaveLobby(current, game, user.name);
   };
@@ -888,6 +890,7 @@ function dropRoom(roomCode) {
   mantik.clear(roomCode);
   daktilo.clear(roomCode);
   xox.clear(roomCode);
+  dorttas.clear(roomCode);
   kartGames.clear(roomCode);
   sweepMutes(roomCode); // bu kökenli susturmalar odanın canlı durumuyla gider (yenileme payındakiler dönene kadar kalır)
   rooms.delete(roomCode);
@@ -1791,6 +1794,7 @@ io.on('connection', (socket) => {
     if (!lobby?.players.includes(name)) return;
     if (kartGames.KEYS.includes(game) && name === lobby.host) return (kartGames.lobbyOpts(lobby, game, { rounds, target }), sendLobbies(room));
     if (game === 'mantik') mantik.lobbyOpts(lobby, name, { level });
+    if (game === 'dorttas' && name === lobby.host && dorttas.LEVELS.includes(level)) lobby.opts.level = level;
     if (game === 'daktilo' && name === lobby.host && daktilo.DURATIONS.includes(secs)) lobby.opts.secs = secs;
     if (game === 'race' && name === lobby.host && RACE_ROUNDS.includes(rounds)) lobby.opts.rounds = rounds;
     if (game === 'hedef' && name === lobby.host && hedef.ROUNDS.includes(rounds)) lobby.opts.rounds = rounds;
@@ -1899,6 +1903,8 @@ io.on('connection', (socket) => {
   mantik.bind(socket, () => code);
   daktilo.bind(socket, () => code); // Daktilo düellosu (games/daktilo.js)
   xox.bind(socket, () => code); // İttirmeli XOX (games/xox.js)
+  dorttas.bind(socket, () => code); // Dört Taş (games/dorttas.js)
+  besharf.bind(socket, () => code); // Beş Harf (games/besharf.js)
   kartGames.bind(socket, () => code); // Kağıt oyunları (games/kart.js)
 
   // ---------- Radyo ----------
@@ -2232,6 +2238,7 @@ function gameRunning(room, game) {
   if (game === 'mantik') return mantik.running(room);
   if (game === 'daktilo') return daktilo.running(room);
   if (game === 'xox') return xox.running(room);
+  if (game === 'dorttas') return dorttas.running(room);
   if (kartGames.KEYS.includes(game)) return kartGames.running(room, game);
   return Boolean(room.kelime && room.kelime.phase !== 'done');
 }
@@ -2248,6 +2255,7 @@ function lastPlayers(room, game) {
       : game === 'mantik' ? room.mantik?.players
       : game === 'daktilo' ? room.daktilo?.players
       : game === 'xox' ? room.xox?.players
+      : game === 'dorttas' ? room.dorttas?.players
       : kartGames.KEYS.includes(game) ? kartGames.players(room, game)
         : room.kelime?.players.map((p) => p.name);
   const here = lobbyHere(room);
@@ -2285,6 +2293,7 @@ const LOBBY_GAMES = {
   mantik: { label: 'Mantık tablosu', min: 1, max: MAX_USERS + 1, opts: { level: 'kolay' }, start: (room, by, players, opts) => mantik.start(room, by, players, opts) },
   daktilo: { label: 'daktilo düellosu', min: 1, max: MAX_USERS + 1, opts: { secs: 60 }, start: (room, by, players, opts) => daktilo.start(room, by, players, opts) },
   xox: { label: 'İttirmeli XOX', min: 1, max: 2, opts: {}, start: (room, by, players) => xox.start(room, by, players) },
+  dorttas: { label: 'Dört Taş', min: 1, max: 2, opts: { level: 'orta' }, start: (room, by, players, opts) => dorttas.start(room, by, players, opts) },
   kelime: { label: 'kelime', min: 2, max: KELIME_PLAYERS, opts: { narrator: null }, start: (room, by, players, opts) => startKelime(room, by, players, opts.narrator) },
 };
 
@@ -3226,6 +3235,10 @@ const kural = require('./games/kural')({ io, rooms, getRoom, postSystem, rand, p
 const daktilo = require('./games/daktilo').create({ io, rooms, getRoom, postSystem, rand, pick, BOT, store, SHARED, JOINED });
 // İttirmeli XOX: games/xox.js
 const xox = require('./games/xox').create({ io, rooms, getRoom, postSystem, rand, BOT });
+// Dört Taş: games/dorttas.js
+const dorttas = require('./games/dorttas').create({ io, rooms, getRoom, postSystem, rand, BOT });
+// Beş Harf (günlük kelime): games/besharf.js
+const besharf = require('./games/besharf').create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED });
 // Kağıt oyunları (Blackjack, Arasında, Texas Hold'em, Pişti, Batak, Kemal): games/kart.js
 const kartGames = require('./games/kart').create({ io, rooms, getRoom, postSystem, rand, BOT });
 Object.assign(LOBBY_GAMES, kartGames.lobbyGames(MAX_USERS + 1));
@@ -3543,6 +3556,7 @@ async function loadSaved() {
       if (kind === 'klotskiboard' && Array.isArray(data)) shared.klotskiLog.push(...data);
       if (kind === 'timingboard' && Array.isArray(data)) shared.timingLog.push(...data);
       if (kind === 'daktiloboard') daktilo.loadBoard(data);
+      if (kind === 'besharfboard') besharf.loadBoard(data);
       if (kind === 'hedefboard') hedef.loadBoard(data);
       if (kind === 'oneriler') mergeOneriler(data);
       if (kind === 'dinoboard') Object.assign(shared.dinoBoard, data);
