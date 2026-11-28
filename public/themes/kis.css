@@ -2,7 +2,7 @@
    vurgu; pencere ışığı kehribarı (--accent-2: yalnız skor, taç, "senin sıran"), çam yeşili (--live), kızılcık (--danger).
    Köşeler biraz daha yumuşak (kar yığını), gölgeler soğuk. Yavaş bir kar yağışı var:
    oda sayfasında içeriğin üstünden soluk geçer, videonun ve oyunların üstünden geçmez. Dosyanın sonunda kış süsleri:
-   boyalı kardan adam ve bulutlar, buz sarkıtları, kar yığınları; boş oynatıcıda kartopu atışan iki chibi.
+   boyalı bulutlar, buz sarkıtları, kar yığınları; boş oynatıcıda kartopu atışan iki chibi.
    Bir tema dosyası değişken sözleşmesinin hepsini tanımlar (sözleşme ve yedek değerler: css/base.css).
    Kontrast (WCAG): --muted, --accent, --live, --danger, --accent-2 her yüzeyde (--surface-3 dahil) en az 4,5:1;
    --accent-contrast / --danger-contrast dolu zeminlerinde en az 4,5:1. */
@@ -129,20 +129,18 @@ body::after {
   body::after { animation: none; }
 }
 
-/* Kış süsleri. Boyalı çizimler (kardan adam, bulut, kar taneleri) ve kartopu sahnesi themes/kis/ altındadır; buz
-   sarkıtları ile kar yığınları bu dosyada gömülü SVG'dir. Dosyalar yalnız tema seçilince iner. Hepsi zemin resmi ya da
+/* Kış süsleri. Boyalı çizimler (kardan adam, bulut, kar taneleri), buz sarkıtları ve kartopu sahnesi themes/kis/
+   altındadır; kar yığınları bu dosyada gömülü SVG'dir. Dosyalar yalnız tema seçilince iner. Hepsi zemin resmi ya da
    tıklamayı tutmayan sahte öğedir, yerleşimi değiştirmez.
-   - Kardan adam: sohbetin sağ alt köşesinde, mesajların arkasında durur (liste kayınca yerinde kalır).
-   - Buz sarkıtları: üst çubuğun altından ve sohbet sekmelerinin altından sarkar.
+   - Buz sarkıtları (themes/kis/sarkit.svg, üretici test/tools/kis-scene.js): üst çubuğun ve sohbet sekmelerinin
+     altından sarkar.
    - Kar yığını: çalan şarkı ve odadakiler panellerinin, hızlı emoji satırının üstünde birikir.
    - Boş oynatıcı: kartopu sahnesi (aşağıda). */
 .side .chat-list,
 .side .chat-empty {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 22'%3E %3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='rgb(234,243,250)'/%3E%3Cstop offset='1' stop-color='rgb(143,214,245)' stop-opacity='.55'/%3E%3C/linearGradient%3E%3C/defs%3E %3Cpath d='M0 0 H120 V3 Q117 3 115 12 Q113 3 108 3 Q104 3 101 20 Q98 3 93 3 Q89 3 87 9 Q85 3 80 3 Q75 3 72 16 Q69 3 63 3 Q59 3 57 7 Q55 3 50 3 Q45 3 42 21 Q39 3 33 3 Q29 3 27 11 Q25 3 20 3 Q16 3 14 8 Q12 3 8 3 Q5 3 3 14 Q1 3 0 3z' fill='url(%23g)'/%3E %3C/svg%3E") left top / 120px 22px repeat-x,
-    url('kis/kardan-adam.webp') right 14px bottom 2px / 106px 120px no-repeat;
+  background: url('kis/sarkit.svg') left top / 288px 24px repeat-x;
 }
-.side .chat-list { padding-top: calc(var(--space-4) + 14px); }
+.side .chat-list { padding-top: calc(var(--space-4) + 18px); }
 .quick-emojis,
 .panel.now,
 .people { position: relative; }
@@ -165,9 +163,9 @@ body::after {
   left: 26px;
   right: 26px;
   top: 100%;
-  height: 22px;
+  height: 24px;
   pointer-events: none;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 22'%3E %3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='rgb(234,243,250)'/%3E%3Cstop offset='1' stop-color='rgb(143,214,245)' stop-opacity='.55'/%3E%3C/linearGradient%3E%3C/defs%3E %3Cpath d='M0 0 H120 V3 Q117 3 115 12 Q113 3 108 3 Q104 3 101 20 Q98 3 93 3 Q89 3 87 9 Q85 3 80 3 Q75 3 72 16 Q69 3 63 3 Q59 3 57 7 Q55 3 50 3 Q45 3 42 21 Q39 3 33 3 Q29 3 27 11 Q25 3 20 3 Q16 3 14 8 Q12 3 8 3 Q5 3 3 14 Q1 3 0 3z' fill='url(%23g)'/%3E %3C/svg%3E") left top / 120px 22px repeat-x;
+  background: url('kis/sarkit.svg') left top / 288px 24px repeat-x;
 }
 /* Boş oynatıcı: karlı tepelerde iki chibi çocuk boyalı kardan adamın üstünden birbirine kartopu atar, üstte bulutlar
    yavaşça kayar. Sahne (themes/kis/kartopu.svg, üretici test/tools/kis-scene.js) kendi içinde oynar; hareketi azalt

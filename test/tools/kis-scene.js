@@ -6,6 +6,7 @@
 // Çıktı:
 //   public/themes/kis/kartopu.svg         canlı sahne (CSS animasyonu SVG'nin içinde; zemin resmi olarak da oynar)
 //   public/themes/kis/kartopu-durgun.svg  aynı sahne hareketsiz (hareketi azalt ayarı)
+//   public/themes/kis/sarkit.svg          buz sarkıtları şeridi (yatayda kendini tekrarlar; üst çubuk ve sohbet sekmeleri)
 // Zemin (karlı tepeler), boyalı kardan adam ve bulutlar kis.css'te ayrı katmandır; bu sahne şeffaf zeminlidir.
 //
 // Kullanım: node test/tools/kis-scene.js
@@ -174,7 +175,58 @@ ${still ? '' : b1.el + b2.el}
 `;
 }
 
+// Buz sarkıtları: üstte kabarık kar şeridi, altında boyu, kalınlığı ve eğimi farklı yarı saydam sarkıtlar; uzun
+// olanların ucunda damla. Şerit SW genişliğinde kendini tekrarlar (kar şeridinin dalgaları SW'yi tam böler, hiçbir
+// sarkıt kenara taşmaz). Rastgelelik sabit tohumlu: her üretimde aynı çıktı.
+function icicles() {
+  const SW = 360;
+  const SH = 30;
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const cap = [];
+  for (let x = 0; x <= SW; x += 4) {
+    const y = 4.2 + 1.1 * Math.sin((x / SW) * Math.PI * 2 * 9) + 0.7 * Math.sin((x / SW) * Math.PI * 2 * 23 + 1);
+    cap.push(`${x} ${y.toFixed(2)}`);
+  }
+  const capPath = `M0 0 H${SW} V${cap[cap.length - 1].split(' ')[1]} L${cap.slice().reverse().join(' L')} Z`;
+  const parts = [];
+  let x = 4 + rnd() * 6;
+  while (x < SW - 6) {
+    const long = rnd() < 0.22;
+    const len = long ? 15 + rnd() * 11 : 3 + rnd() * 9;
+    const w = Math.min(long ? 4.5 + rnd() * 3.5 : 2.5 + rnd() * 3, 2 * Math.min(x, SW - x) - 1);
+    const lean = (rnd() - 0.5) * (long ? 3 : 1.5);
+    const top = 4;
+    const l = x - w / 2;
+    const r = x + w / 2;
+    const tx = x + lean;
+    const ty = top + len;
+    parts.push(`<path d="M${l.toFixed(1)} ${top} C${(l + w * 0.1).toFixed(1)} ${(top + len * 0.45).toFixed(1)} ${(tx - 0.6).toFixed(1)} ${(ty - len * 0.25).toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)} C${(tx + 0.6).toFixed(1)} ${(ty - len * 0.25).toFixed(1)} ${(r - w * 0.1).toFixed(1)} ${(top + len * 0.45).toFixed(1)} ${r.toFixed(1)} ${top} Z" fill="url(#ice)"/>`);
+    parts.push(`<path d="M${(l + w * 0.28).toFixed(1)} ${top + 1} Q${(l + w * 0.3).toFixed(1)} ${(top + len * 0.5).toFixed(1)} ${(tx - 0.2).toFixed(1)} ${(ty - 1.2).toFixed(1)}" stroke="#FFFFFF" stroke-opacity=".75" stroke-width="${(w * 0.16).toFixed(2)}" stroke-linecap="round" fill="none"/>`);
+    if (long && rnd() < 0.6) parts.push(`<ellipse cx="${tx.toFixed(1)}" cy="${(ty + 1.3).toFixed(1)}" rx=".9" ry="1.2" fill="#D9F0FC" fill-opacity=".8"/>`);
+    x += (long ? 9 : 5) + rnd() * 12;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SW} ${SH}" width="${SW}" height="${SH}">
+<!-- Kış Odası buz sarkıtları. Üretici: test/tools/kis-scene.js (elle değiştirme). -->
+<defs>
+  <linearGradient id="ice" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#EEF7FD" stop-opacity=".95"/>
+    <stop offset=".45" stop-color="#BFE3F7" stop-opacity=".7"/>
+    <stop offset="1" stop-color="#8FD6F5" stop-opacity=".3"/>
+  </linearGradient>
+  <linearGradient id="snow" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FFFFFF"/>
+    <stop offset="1" stop-color="#DCEAF5"/>
+  </linearGradient>
+</defs>
+${parts.join('\n')}
+<path d="${capPath}" fill="url(#snow)"/>
+</svg>
+`;
+}
+
 fs.mkdirSync(OUT, { recursive: true });
+fs.writeFileSync(path.join(OUT, 'sarkit.svg'), icicles());
 fs.writeFileSync(path.join(OUT, 'kartopu.svg'), build(false));
 fs.writeFileSync(path.join(OUT, 'kartopu-durgun.svg'), build(true));
-console.log('kartopu.svg, kartopu-durgun.svg yazıldı');
+console.log('kartopu.svg, kartopu-durgun.svg, sarkit.svg yazıldı');
