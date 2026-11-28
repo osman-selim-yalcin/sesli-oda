@@ -141,7 +141,7 @@ function act(g, name, a = {}) {
   return true;
 }
 
-const delay = (g) => (g.done ? null : g.phase === 'trickEnd' ? 1300 : g.phase === 'tally' ? 6000 : null);
+const delay = (g) => (g.done ? null : g.phase === 'trickEnd' ? 2000 : g.phase === 'tally' ? 9000 : null);
 
 function step(g) {
   if (g.phase === 'trickEnd') {
