@@ -527,6 +527,7 @@ function renderMantikSolution() {
 function renderMantik() {
   const game = mantik;
   renderLobby('mantik');
+  window.renderMantikRecords?.(); // public/boards.js
   const playing = mantikPlaying();
   const active = mantikActive();
   const solving = mantikSolving();

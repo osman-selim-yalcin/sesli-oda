@@ -126,6 +126,7 @@ function renderOkuma() {
   ex.replaceChildren(head, okEl('p', 'muted small okuma-desc', def.desc), body);
   if (BLOK[okumaEx]) blokView(body, okumaEx);
   else ({ takisto: takistoView, tablo: tabloView })[okumaEx](body);
+  window.okumaRecords?.(ex, okumaEx); // ortak rekor tablosu (public/boards.js)
 }
 
 function okumaBestText(key) {
@@ -262,6 +263,7 @@ function blokView(body, key) {
     const best = okumaGet(key);
     const rec = st.right > 0 && (!best || st.score > best.score);
     if (rec) okumaSet(key, { score: st.score, d: st.best.d, k: st.best.k });
+    if (st.right > 0 && st.score > 0) window.okumaSubmit?.({ d: key, score: st.score });
     idle(`${all ? 'Bütün seviyeleri bitirdin! ' : ''}${st.right} doğru, ${st.wrong} yanlış → ${st.score} puan.${rec ? ' Yeni rekor!' : best ? ` Rekorun: ${best.score} puan.` : ''}`);
     startBtn.textContent = 'Tekrar';
   }
@@ -368,6 +370,7 @@ function takistoView(body) {
     const msg = `${TAKISTO_SET} denemede ${st.right} doğru.`;
     const best = okumaGet('takisto');
     if (passed && (!best || st.level > best.level)) okumaSet('takisto', { level: st.level });
+    if (passed) window.okumaSubmit?.({ d: 'takisto', score: st.level, n: st.count });
     let note = ' Bu seviyede kal ve tekrar dene.';
     if (passed && st.level < TAKISTO_MS.length) {
       st.level++;
@@ -451,6 +454,7 @@ function tabloView(body) {
     const best = okumaGet(`tablo:${st.size}`);
     const rec = !best || ms < best.ms;
     if (rec) okumaSet(`tablo:${st.size}`, { ms: Math.round(ms) });
+    window.okumaSubmit?.({ d: 'tablo', size: st.size, ms: Math.round(ms) });
     info.textContent = `${st.size}×${st.size} tabloyu ${fmt(ms)} sn'de bitirdin.${rec ? ' Yeni rekor!' : ` Rekorun: ${fmt(best.ms)} sn.`}`;
     startBtn.hidden = false;
     startBtn.textContent = 'Tekrar';

@@ -405,7 +405,7 @@ const sameAnswer = (a, b) => Array.isArray(a) && a.length === b.length
 
 // ---------- Oda içindeki oyun ----------
 
-function create({ io, postSystem, getRoom, rooms, BOT }) {
+function create({ io, postSystem, getRoom, rooms, BOT, onDone }) {
   const timers = new Map(); // oda kodu -> bot zamanlayıcısı
   const botMs = () => Number(process.env.MANTIK_BOT_MS) || 0;
 
@@ -505,6 +505,7 @@ function create({ io, postSystem, getRoom, rooms, BOT }) {
     clearTimeout(timers.get(room.code));
     Object.assign(game, { done: true, winners, endedAt: Date.now(), reason: reason || null });
     send(room);
+    onDone?.(game); // çözenler puan tablosuna (games/boards.js)
     const prefix = reason ? `${reason} ` : '';
     const line = (p) => (game.finished[p] ? `${p} ${fmt(game.finished[p].ms)} → ${game.finished[p].points} puan` : `${p} çözemedi`);
     const all = game.players;

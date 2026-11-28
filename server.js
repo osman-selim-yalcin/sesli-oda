@@ -396,7 +396,8 @@ const io = new Server(server, { maxHttpBufferSize: IMAGE_MAX_BYTES + 64 * 1024 }
 // oda kodu -> { users: Map<socketId, {name, muted}>, current, queue, playing, position, updatedAt }
 const rooms = new Map();
 hedef.init({ io, rooms, postSystem, rand, pick, BOT, store, SHARED, JOINED });
-const mantik = require('./games/mantik').create({ io, postSystem, getRoom, rooms, BOT }); // Mantık tablosu
+const boards = require('./games/boards').create({ io, getRoom, BOT, store, SHARED, JOINED }); // Mantık, Hızlı okuma, Dört Taş, Duvar tabloları
+const mantik = require('./games/mantik').create({ io, postSystem, getRoom, rooms, BOT, onDone: boards.mantikDone }); // Mantık tablosu
 
 // Önceden çalanlar, özel efektler ve tier listler oda boşalınca silinmez; Supabase ayarlıysa
 // kalıcıdır (store.js), değilse sunucu yeniden başlayana kadar durur.
@@ -798,7 +799,7 @@ function enterRoom(socket, account, clientId, roomId, home = roomId) {
   if (pendingHome && pendingHome !== home && !rooms.get(pendingHome) && !merge.partnerOf(pendingHome)) sweepMutes(pendingHome);
   roomsChanged();
   const homeReg = (home !== roomCode && roomStore.get(home)) || reg;
-  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, color, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), takimada: room.takimada, yedikapi: kutu.yedikapiView(room.yedikapi, name), yedikapiInventory: true, yorunge: room.yorunge, kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), xox: xox.view(room.xox), dorttas: dorttas.view(room.dorttas), duvar: duvar.view(room.duvar), besharf: besharf.view(name), kart: kartGames.views(room, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
+  return { rejoined, id: socket.id, epoch, room: roomStore.view(reg, account), home: roomStore.view(homeReg, account), modMuted, color, peers, media: mediaState(room), sharer: room.sharer, chat: room.chat, history: room.history, customSfx: customSfxList(room), tierLists: room.tierLists.map(tierListView), timing: timingView(room), dino: room.dino, dinoBoard: room.dinoBoard, bot: room.bot, oneriler: oneriView(), kelimePool: room.kelimePool, kelime: kelimeView(room.kelime, name), memory: memoryView(room.memory), sayi: sayiView(room.sayi, name), hedef: hedef.view(room.hedef, name), hedefBoard: hedef.board(), takimada: room.takimada, yedikapi: kutu.yedikapiView(room.yedikapi, name), yedikapiInventory: true, yorunge: room.yorunge, kural: kural.view(room.kural, name), mantik: mantik.view(room.mantik, name), mantikBoard: boards.mantikBoard(), okumaBoard: boards.okumaBoard(), duelBoards: boards.duelBoards(), daktilo: daktilo.view(room.daktilo), daktiloBoard: daktilo.board(), xox: xox.view(room.xox), dorttas: dorttas.view(room.dorttas), duvar: duvar.view(room.duvar), besharf: besharf.view(name), kart: kartGames.views(room, name), memoryBoard: memoryBoard(room), klotski: { levels: KLOTSKI_LEVELS, board: klotskiBoard(room) }, radio: radioView(room), lobbies: room.lobbies, profiles: accounts.profiles() };
 }
 
 // Soketi bulunduğu odadan çıkarır (soket bağlı kalabilir). grace: sayfa yenilemesi için "ayrıldı"
@@ -1910,6 +1911,7 @@ io.on('connection', (socket) => {
   dorttas.bind(socket, () => code); // Dört Taş (games/dorttas.js)
   duvar.bind(socket, () => code); // Duvar (games/duvar.js)
   besharf.bind(socket, () => code); // Beş Harf (games/besharf.js)
+  boards.bind(socket, () => code); // Hızlı okuma sonuçları (games/boards.js)
   kartGames.bind(socket, () => code); // Kağıt oyunları (games/kart.js)
 
   // ---------- Radyo ----------
@@ -3244,9 +3246,9 @@ const daktilo = require('./games/daktilo').create({ io, rooms, getRoom, postSyst
 // İttirmeli XOX: games/xox.js
 const xox = require('./games/xox').create({ io, rooms, getRoom, postSystem, rand, BOT });
 // Dört Taş: games/dorttas.js
-const dorttas = require('./games/dorttas').create({ io, rooms, getRoom, postSystem, rand, BOT });
+const dorttas = require('./games/dorttas').create({ io, rooms, getRoom, postSystem, rand, BOT, onDone: (game) => boards.duelDone('dorttas', game) });
 // Duvar: games/duvar.js (kurallar public/duvar-core.js)
-const duvar = require('./games/duvar').create({ io, rooms, getRoom, postSystem, rand, BOT });
+const duvar = require('./games/duvar').create({ io, rooms, getRoom, postSystem, rand, BOT, onDone: (game) => boards.duelDone('duvar', game) });
 // Beş Harf (günlük kelime): games/besharf.js
 const besharf = require('./games/besharf').create({ io, getRoom, postSystem, BOT, store, SHARED, JOINED });
 // Kağıt oyunları (Blackjack, Arasında, Texas Hold'em, Pişti, Batak, Kemal): games/kart.js
@@ -3567,6 +3569,7 @@ async function loadSaved() {
       if (kind === 'timingboard' && Array.isArray(data)) shared.timingLog.push(...data);
       if (kind === 'daktiloboard') daktilo.loadBoard(data);
       if (kind === 'besharfboard') besharf.loadBoard(data);
+      if (boards.KINDS.includes(kind)) boards.load(kind, data);
       if (kind === 'hedefboard') hedef.loadBoard(data);
       if (kind === 'oneriler') mergeOneriler(data);
       if (kind === 'dinoboard') Object.assign(shared.dinoBoard, data);
