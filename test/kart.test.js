@@ -250,8 +250,9 @@ test('sunucu: poker lobiden başlar, kendi kartını görür, başkasınınkini 
   // Sırası gelmeyen oynayamaz; sırası gelen çekilince el ilerler
   const turnSock = { Ayse: a, Bora: b };
   // Sıra başta bir insandaysa başlangıç mesajı yeter; değilse bilgisayarlar oynayınca gelir
-  const g = ['Ayse', 'Bora'].includes(ga.turn) ? ga
-    : await until(a, 'kart', (m) => m.key === 'poker' && ['Ayse', 'Bora'].includes(m.game?.turn), 20000).then((m) => m.game);
+  assert.ok(ga.hold > ga.now, 'oyun dağıtım beklemesiyle başlar');
+  // Dağıtım bitince ve sıra bir insana gelince
+  const g = await until(a, 'kart', (m) => m.key === 'poker' && !m.game?.hold && ['Ayse', 'Bora'].includes(m.game?.turn), 25000).then((m) => m.game);
   const mover = g.turn;
   const moved = until(a, 'kart', (m) => m.key === 'poker' && m.game.last[mover] === 'Çekildi');
   turnSock[mover].emit('kart:act', { key: 'poker', id: g.id, a: { type: 'fold' } });
@@ -280,8 +281,11 @@ test('sunucu: blackjack tek başına başlar, listede olmayan ayar alınmaz, bah
   assert.deepEqual(g.players, ['Cem']);
   assert.equal(g.rounds, 5);
   assert.equal(g.turn, 'Cem');
+  // Dağıtım sürerken hamle yok sayılır; bitince bahis geçer
+  a.emit('kart:act', { key: 'blackjack', id: g.id, a: { type: 'bet', amount: 10 } });
+  await until(a, 'kart', (m) => m.key === 'blackjack' && !m.game.hold, 8000);
   const bet = until(a, 'kart', (m) => m.key === 'blackjack' && m.game.phase !== 'bet');
   a.emit('kart:act', { key: 'blackjack', id: g.id, a: { type: 'bet', amount: 50 } });
   const after = (await bet).game;
-  assert.equal(after.chips.Cem, 950);
+  assert.equal(after.chips.Cem, 950, 'dağıtım sırasındaki 10 bahsi alınmadı');
 });

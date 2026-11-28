@@ -251,4 +251,8 @@ function view(g) {
   };
 }
 
-module.exports = { meta, create, view, legal, act, bot, timeout, waiting, delay, step, value, BETS };
+// Dağıtım anı (sunucu bu değişince oyunculara kartlar dağıtılırken bekleme verir)
+const dealKey = (g) => `${g.round}:${g.phase === 'bet' ? 'bet' : 'dealt'}`;
+const dealCount = (g) => (g.phase === 'bet' ? 0 : Object.values(g.hands).flat().reduce((n, h) => n + h.cards.length, 0) + g.dealer.length);
+
+module.exports = { meta, dealKey, dealCount, create, view, legal, act, bot, timeout, waiting, delay, step, value, BETS };

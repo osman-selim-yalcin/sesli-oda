@@ -148,4 +148,8 @@ function view(g) {
   };
 }
 
-module.exports = { meta, create, view, legal, act, bot, timeout, waiting, delay, step };
+// Dağıtım anı: her sırada iki direk açılır
+const dealKey = (g) => `${g.cycle}:${g.turn}`;
+const dealCount = () => 2;
+
+module.exports = { meta, dealKey, dealCount, create, view, legal, act, bot, timeout, waiting, delay, step };

@@ -282,4 +282,8 @@ function view(g, name) {
   };
 }
 
-module.exports = { meta, create, view, legal, act, bot, timeout, waiting, delay, step, equity };
+// Dağıtım anı: elin başı (herkese iki kart), flop (3), turn ve river (1)
+const dealKey = (g) => `${g.handNo}:${g.street}`;
+const dealCount = (g) => (g.street === 'preflop' ? Object.keys(g.hole || {}).length * 2 : g.street === 'flop' ? 3 : g.street === 'showdown' ? 0 : 1);
+
+module.exports = { meta, dealKey, dealCount, create, view, legal, act, bot, timeout, waiting, delay, step, equity };
