@@ -7671,8 +7671,8 @@ addEventListener('DOMContentLoaded', async () => {
 // hue: oyunun tonu, oklch ton açısı (simgenin rengi, kartın ve lobinin simge zemini; açıklığı temadan gelir)
 const GAME_INFO = {
   sayi: { hue: 245, group: 'Zeka', desc: 'Gizli sayıyı +/- ipuçlarıyla bul', players: '1–2 kişi' },
-  takimada: { hue: 80, group: 'Kutu Oyunları', desc: 'Yollar kur, kaynakları takas et ve adaya yerleş', players: '2–4 kişi' },
-  yedikapi: { hue: 320, group: 'Kutu Oyunları', desc: 'Kapıyı aç, canavarları yen ve hazine topla', players: '2–4 kişi' },
+  takimada: { hue: 80, hidden: true, group: 'Kutu Oyunları', desc: 'Yollar kur, kaynakları takas et ve adaya yerleş', players: '2–4 kişi' },
+  yedikapi: { hue: 320, hidden: true, group: 'Kutu Oyunları', desc: 'Kapıyı aç, canavarları yen ve hazine topla', players: '2–4 kişi' },
   yorunge: { hue: 205, group: 'Kutu Oyunları', desc: 'Filonu konuşlandır, rakip komuta gemisini kuşat', players: '2 kişilik' },
   kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
   hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–10 kişi' },
@@ -7701,8 +7701,10 @@ function gameIcon(key, cls) {
 }
 const gameRecentKey = 'gameRecent';
 
+// hidden: true olan oyunlar (GAME_INFO) kartlarda ve son oynananlarda görünmez; kodu ve adresi yerinde kalır.
 const gameTabs = () => [...document.querySelectorAll('.games-panel > .tabs > .tab[id^="game-tab-"]')]
-  .map((btn) => ({ btn, key: btn.id.slice('game-tab-'.length), name: btn.textContent.trim() }));
+  .map((btn) => ({ btn, key: btn.id.slice('game-tab-'.length), name: btn.textContent.trim() }))
+  .filter((t) => !GAME_INFO[t.key]?.hidden);
 const gameInfo = (key) => GAME_INFO[key] || { hue: 260, group: 'Diğer', desc: '' };
 const lobbyOpen = (tab) => tab.btn.classList.contains('lobby-open');
 
