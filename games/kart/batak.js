@@ -239,4 +239,8 @@ function view(g, name) {
   };
 }
 
-module.exports = { meta, create, view, legal, act, bot, timeout, waiting, delay, step, playable, trickWinner };
+// Dağıtım anı: her elde herkese 13 kart
+const dealKey = (g) => String(g.handNo);
+const dealCount = () => 52;
+
+module.exports = { meta, dealKey, dealCount, create, view, legal, act, bot, timeout, waiting, delay, step, playable, trickWinner };

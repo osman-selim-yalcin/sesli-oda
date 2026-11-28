@@ -2099,3 +2099,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .kart-area.top { flex-wrap: nowrap; }
 .kart-felt[data-n="6"] .kart-area.top .kart-seat, .kart-felt[data-n="7"] .kart-area.top .kart-seat, .kart-felt[data-n="8"] .kart-area.top .kart-seat { min-width: 0; padding: 6px 8px; }
 @media (max-width: 640px) { .kart-area.top { flex-wrap: wrap; } }
+
+/* Dağıtım sürerken oynanamaz (yer değişmez, yalnız soluklaşır) */
+.kart-play.holding .kart-actions { opacity: .35; pointer-events: none; }
+.kart-play.holding .kc.can { pointer-events: none; }

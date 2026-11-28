@@ -471,7 +471,12 @@ function renderKart(key) {
   $(`${key}-end`).hidden = !g || g.done || !g.humans?.includes(myName);
   $(`${key}-status`).textContent = kartStatus(key, g);
   if (!g) return box.replaceChildren();
-  const snap = kartDrawn[key] === g.id ? KartFx.snapshot(box) : null;
+  // Yeni oyun ekranı açıkken başladıysa bütün kartlar desteden dağıtılır (boş anlık görüntü)
+  const fresh = kartDrawn[key] !== g.id && !$(`game-${key}`).hidden;
+  const snap = fresh ? { on: true, keys: new Map(), slots: new Map() } : kartDrawn[key] === g.id ? KartFx.snapshot(box) : null;
+  const holding = Boolean(g.hold && g.hold > kartNow());
+  box.classList.toggle('holding', holding);
+  if (holding) $(`${key}-status`).textContent = 'Kartlar dağıtılıyor…';
   KartFx.begin();
   const parts = KART_DRAW[key](g);
   // Sabit yükseklik: masa ve düğme çubuğu hep aynı boyda; kayıt ve sonuç masanın içinde açılır kutu olarak durur
@@ -480,7 +485,10 @@ function renderKart(key) {
   if (g.done) felt.append(kartResult(key, g));
   box.replaceChildren(...parts);
   kartDrawn[key] = g.id;
-  return KartFx.animate(box, snap, { collector: kartCollector(key, g, box), shoe: box.querySelector('.kart-shoe') });
+  if (fresh) box.hidden = false; // ölçüm için görünür olmalı
+  // Dağıtım hızı sunucudaki bekleme ile aynı: en çok 130 ms arayla, toplam en çok 4,2 sn
+  const per = g.holdN ? Math.min(130, 4200 / g.holdN) : 75;
+  return KartFx.animate(box, snap, { collector: kartCollector(key, g, box), shoe: box.querySelector('.kart-shoe'), per });
 }
 const kartDrawn = {}; // oyun -> son çizilen oyunun kimliği (yeni oyunda eski kartlar canlanmasın)
 
@@ -493,6 +501,19 @@ function kartCollector(key, g, box) {
   return seat ? () => seat : null;
 }
 
+// Dağıtım duyurusu: oyunun başında oyunun adı, sonra her yeni elde el numarası (masanın ortasında kısa yazı)
+function kartDealBanner(key, g, prev) {
+  const felt = $(`kart-${key}`).querySelector('.kart-felt');
+  if (!felt) return;
+  if (g.holdFirst && !prev) return KartFx.banner(felt, KART_TITLE[key].toLocaleUpperCase('tr'), 'gold', 'Kartlar dağıtılıyor');
+  const label = key === 'blackjack' ? (g.phase === 'bet' ? `El ${g.round}` : null)
+    : key === 'poker' ? (g.street === 'preflop' ? `El ${g.handNo}` : null)
+      : key === 'batak' ? `El ${g.handNo}`
+        : key === 'pisti' ? (g.deal !== prev?.deal ? `El ${g.deal}` : null)
+          : key === 'kemal' ? `Dağıtım ${g.dealNo}` : null;
+  if (label) KartFx.banner(felt, label, 'gold', key === 'blackjack' ? 'Bahisler' : 'Kartlar dağıtılıyor');
+}
+
 // ---------- Anlar: ses, çip uçuşu, büyük yazı, konfeti ----------
 // prev ile yeni durum karşılaştırılır; yalnız oyun ekranı açıkken ve aynı oyun sürerken çalışır.
 function kartEvents(key, prev, g, stats = {}) {
@@ -502,7 +523,7 @@ function kartEvents(key, prev, g, stats = {}) {
   const pot = box.querySelector('.kart-pot') || box.querySelector('.kart-area.center');
   const mine = kartMine(g);
   const fx = KartFx;
-  if (stats.dealt) fx.sound('deal', stats.dealt);
+  if (stats.dealt) fx.sound('deal', stats.dealt, stats.per);
   else if (stats.moved) fx.sound('slide');
   if (stats.flipped) setTimeout(() => fx.sound('flip', stats.flipped), 80);
 
@@ -635,7 +656,10 @@ function applyKart(key, game) {
   KART[key] = game || null;
   if (key === 'kemal' && kartSel.kemal && game?.phase !== 'swap') kartSel.kemal = null;
   const stats = renderKart(key);
-  if (prev && game && prev.id === game.id && !$(`game-${key}`).hidden) kartEvents(key, prev, game, stats);
+  const shown = !$(`game-${key}`).hidden;
+  if (shown && game?.hold && game.hold !== prev?.hold) kartDealBanner(key, game, prev?.id === game.id ? prev : null);
+  if (prev && game && prev.id === game.id && shown) kartEvents(key, prev, game, stats);
+  else if (shown && stats?.dealt) KartFx.sound('deal', stats.dealt, stats.per);
 }
 socket.on('kart', ({ key, game } = {}) => KART_KEYS.includes(key) && applyKart(key, game));
 

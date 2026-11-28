@@ -185,4 +185,8 @@ function view(g, name) {
   };
 }
 
-module.exports = { meta, create, view, legal, act, bot, timeout, waiting, delay, step, quad, SIGNALS };
+// Dağıtım anı: herkese 4, ortaya 4
+const dealKey = (g) => String(g.dealNo);
+const dealCount = () => 20;
+
+module.exports = { meta, dealKey, dealCount, create, view, legal, act, bot, timeout, waiting, delay, step, quad, SIGNALS };

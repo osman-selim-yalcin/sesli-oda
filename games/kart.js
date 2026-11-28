@@ -15,7 +15,10 @@ const ENGINES = {
 };
 const KEYS = Object.keys(ENGINES);
 const TURN_MS = { blackjack: 30000, arasinda: 30000, poker: 45000, pisti: 30000, batak: 45000, kemal: 40000 };
-const BOT_DELAY = [900, 1700]; // kart animasyonları bitsin, bilgisayar düşünüyormuş gibi dursun
+const BOT_DELAY = [900, 1700];
+// Dağıtım: kartlar tek tek uçarak gelirken kimse oynayamaz. İstemci (public/kart-fx.js) aynı hızla çizer.
+const INTRO_MS = 1800; // oyunun ilk dağıtımından önce "oyun başlıyor"
+const dealMs = (n) => (n ? 900 + Math.min(n * 130, 4200) : 900); // kart animasyonları bitsin, bilgisayar düşünüyormuş gibi dursun
 
 function create({ io, rooms, getRoom, postSystem, rand, BOT }) {
   const timers = new Map(); // `${oda}|${oyun}` -> { auto, bot, turn }
@@ -33,7 +36,7 @@ function create({ io, rooms, getRoom, postSystem, rand, BOT }) {
 
   function viewFor(g, name) {
     if (!g) return null;
-    return { ...ENGINES[g.key].view(g, name), id: g.id, by: g.by, me: name, deadlines: g.deadlines || {}, pause: g.done ? null : g.pause || null, now: Date.now(), humans: g.humans, reason: g.reason || null };
+    return { ...ENGINES[g.key].view(g, name), id: g.id, by: g.by, me: name, deadlines: g.deadlines || {}, pause: g.done ? null : g.pause || null, hold: g.done ? null : g.hold || null, holdN: g.holdN || 0, holdFirst: Boolean(g.holdFirst), now: Date.now(), humans: g.humans, reason: g.reason || null };
   }
 
   function send(room, key) {
@@ -74,8 +77,29 @@ function create({ io, rooms, getRoom, postSystem, rand, BOT }) {
       }
       return send(room, key);
     }
-    // Süre: bekleyen her insan oyuncunun bekleme başlangıcı
     const now = Date.now();
+    // Yeni dağıtım: bekleme ver; bitince yeniden çağrılır (bilgisayar, süre ve otomatik adımlar ancak o zaman başlar)
+    const dk = engine.dealKey(g);
+    if (dk !== g.dealSeen) {
+      const first = g.dealSeen === undefined;
+      g.dealSeen = dk;
+      g.hold = now + (first ? INTRO_MS : 0) + dealMs(engine.dealCount(g));
+      g.holdN = engine.dealCount(g);
+      g.holdFirst = first;
+    }
+    if (g.hold && g.hold > now) {
+      g.deadlines = {};
+      g.pause = null;
+      send(room, key);
+      timers.set(tkey(room, key), { auto: setTimeout(() => {
+        if (rooms.get(room.code) !== room || room.kart[key] !== g || g.done) return;
+        g.hold = null;
+        changed(room, key);
+      }, g.hold - now) });
+      return;
+    }
+    g.hold = null;
+    // Süre: bekleyen her insan oyuncunun bekleme başlangıcı
     const waitingHumans = engine.waiting(g).filter((p) => !isBotSeat(g, p));
     g.waitSince ||= {};
     for (const p of Object.keys(g.waitSince)) if (!waitingHumans.includes(p)) delete g.waitSince[p];
@@ -135,6 +159,7 @@ function create({ io, rooms, getRoom, postSystem, rand, BOT }) {
     // Ayrılıp geri gelen kendi koltuğunu bilgisayardan geri alır
     if (g.humans.includes(name) && g.bots.includes(name)) g.bots = g.bots.filter((p) => p !== name);
     if (isBotSeat(g, name) || !a || typeof a !== 'object') return;
+    if (g.hold && g.hold > Date.now()) return; // kartlar dağıtılıyor
     if (!ENGINES[key].act(g, name, a)) return;
     if (g.waitSince) delete g.waitSince[name];
     changed(room, key);

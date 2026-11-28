@@ -143,4 +143,8 @@ function view(g, name) {
   };
 }
 
-module.exports = { meta, create, view, legal, act, bot, timeout, waiting, delay, step, cardPoints };
+// Dağıtım anı: yeni el (ortaya 4 + herkese 4) ya da eller bitince yeniden 4'er
+const dealKey = (g) => `${g.deal}:${g.deck.length}`;
+const dealCount = (g) => g.players.length * 4 + (g.deck.length === 52 - 4 - g.players.length * 4 ? 4 : 0);
+
+module.exports = { meta, dealKey, dealCount, create, view, legal, act, bot, timeout, waiting, delay, step, cardPoints };

@@ -112,13 +112,17 @@ const KartFx = (() => {
   }
 
   // collector: (anahtar) => hedef öğe; kaybolan açık kartlar oraya uçar.
-  function animate(box, snap, { collector = null, shoe = null } = {}) {
-    if (!snap?.on || calm() || !visible(box)) return { dealt: 0, flipped: 0, moved: 0 };
-    const stats = { dealt: 0, flipped: 0, moved: 0 };
+  // per: dağıtımda iki kart arası (ms). Yeni kartlar elde sırasına göre (herkese birinci kart, sonra ikinci…) dağılır.
+  function animate(box, snap, { collector = null, shoe = null, per = 75 } = {}) {
+    if (!snap?.on || calm() || !visible(box)) return { dealt: 0, flipped: 0, moved: 0, per };
+    const stats = { dealt: 0, flipped: 0, moved: 0, per };
     const shoeR = shoe ? rectOf(shoe) : null;
     const seen = new Set();
     let stagger = 0;
-    for (const e of box.querySelectorAll('.kc[data-k]')) {
+    const all = [...box.querySelectorAll('.kc[data-k]')];
+    const order = (e) => Number(e.style.getPropertyValue('--i')) || 0;
+    const sorted = all.map((e, n) => [e, n]).sort((a, b) => order(a[0]) - order(b[0]) || a[1] - b[1]).map(([e]) => e);
+    for (const e of sorted) {
       const k = e.dataset.k;
       seen.add(k);
       const was = snap.keys.get(k);
@@ -146,7 +150,7 @@ const KartFx = (() => {
       const seat = e.dataset.from ? box.querySelector(`[data-seat="${CSS.escape(e.dataset.from)}"]`) : null;
       const from = seat ? rectOf(seat) : shoeR;
       if (!from) continue;
-      fly(e, from, Math.min(stagger, 14) * 75, { flip: !e.classList.contains('down'), spin: seat ? 10 : -24 });
+      fly(e, from, stagger * per, { flip: !e.classList.contains('down'), spin: seat ? 10 : -24, dur: 620 });
       stagger++;
       stats.dealt++;
     }
@@ -262,7 +266,7 @@ const KartFx = (() => {
     osc.start(t);
     osc.stop(t + dur + 0.02);
   }
-  function sound(kind, count = 1) {
+  function sound(kind, count = 1, gap = 75) {
     const o = out();
     if (!o) return;
     const now = performance.now();
@@ -270,8 +274,8 @@ const KartFx = (() => {
     lastSound[kind] = now;
     const t0 = o.ctx.currentTime + 0.01;
     if (kind === 'deal' || kind === 'flip' || kind === 'slide') {
-      for (let i = 0; i < Math.min(count, 8); i++) {
-        const t = t0 + i * 0.075;
+      for (let i = 0; i < Math.min(count, 60); i++) {
+        const t = t0 + (i * gap) / 1000 + 0.45;
         const src = noise(o.ctx, kind === 'flip' ? 0.06 : 0.09);
         const hp = o.ctx.createBiquadFilter();
         hp.type = 'bandpass';
