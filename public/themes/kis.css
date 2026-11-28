@@ -126,6 +126,10 @@ body::before {
 }
 body:has(#room-screen[data-page=room]:not([hidden]))::before { z-index: 3; opacity: .5; }
 .player-wrap { z-index: 4; }
+/* Oynatıcı sahne sütununu her zaman tam doldurur (16:9); ekran kısaysa altındakiler için sayfa kayar. Diğer
+   temalarda oynatıcı, denetimler ve kişiler tek ekrana sığsın diye daralır (shell.css .player-wrap). shell.css bu
+   dosyadan sonra yüklenir: seçici :root ile bir basamak özgül. */
+:root .player-wrap:not(.audio-only) { width: 100%; }
 body::after {
   top: -360px;
   opacity: .6;
