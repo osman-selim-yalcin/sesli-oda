@@ -154,15 +154,10 @@ body::after {
 /* Kış süsleri. Boyalı çizimler (kardan adam, bulut, kar taneleri), buz sarkıtları ve kartopu sahnesi themes/kis/
    altındadır; kar yığınları bu dosyada gömülü SVG'dir. Dosyalar yalnız tema seçilince iner. Hepsi zemin resmi ya da
    tıklamayı tutmayan sahte öğedir, yerleşimi değiştirmez.
-   - Buz sarkıtları (themes/kis/sarkit.svg, üretici test/tools/kis-scene.js): üst çubuğun ve sohbet sekmelerinin
-     altından sarkar.
+   - Buz sarkıtları (themes/kis/sarkit.svg, üretici test/tools/kis-scene.js): üst çubuğun altından sarkar.
    - Kar yığını: çalan şarkı ve odadakiler panellerinin, hızlı emoji satırının üstünde birikir.
    - Boş oynatıcı: kartopu sahnesi (aşağıda). */
-.side .chat-list,
-.side .chat-empty {
-  background: url('kis/sarkit.svg') left top / 208px 48px repeat-x;
-}
-.side .chat-list { padding-top: calc(var(--space-4) + 26px); }
+
 .quick-emojis,
 .panel.now,
 .people { position: relative; }
@@ -184,7 +179,7 @@ body::after {
   position: absolute;
   left: 26px;
   right: 26px;
-  top: 100%;
+  top: calc(100% - 3px); /* kar yastığı çubuğun alt kenarına yapışık: arada boşluk kalmaz */
   height: 48px;
   pointer-events: none;
   background: url('kis/sarkit.svg') left top / 208px 48px repeat-x;
@@ -261,3 +256,36 @@ body::after {
 .person:nth-child(even) .person-face::after { background-image: url('kis/hirka-2.svg'); }
 .person-rec, .person-mic, .person-mod { z-index: 2; }
 :root .people-row { padding-top: 24px; } /* berenin taşan üstü kırpılmasın (telefonda satır yatay kayar) */
+
+/* Masaüstünde Odadakiler sağ sütunun tepesinde, sohbetin üstünde durur (sabit yükseklik; kalabalıksa kendi içinde
+   kayar); sohbet onun altından başlar, o kadar kısalır. Video ve denetimler solda tek başına kalır. Panel HTML'de
+   sahnenin içindedir: oda gövdesine göre konumlanır. Oyunlar / Radyo sayfasında sahne ekrandan çıkınca panel de onunla
+   gider, sohbet eski boyuna döner. shell.css bu dosyadan sonra yüklenir: seçiciler :root ile bir basamak özgül. */
+@media (min-width: 1000px) {
+  :root .room-layout { position: relative; }
+  :root .room[data-page=room] .stage > .people {
+    position: absolute;
+    top: var(--space-4);
+    right: var(--space-5);
+    width: var(--panel-w);
+    height: 184px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    grid-template-areas: "head" "row" "note";
+    align-content: start;
+    gap: 0;
+    padding: 30px var(--space-3) var(--space-2); /* üstte çubuğun sarkıtlarına yer */
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  :root .room[data-page=room] .stage > .people::before { display: none; } /* üstteki kar yığını: sarkıtlarla çakışır */
+  :root .room[data-page=room] .stage > .people .people-head { flex-direction: row; align-items: center; padding-top: 0; }
+  :root .room[data-page=room] .stage > .people .people-row { padding-top: 22px; gap: var(--space-1); }
+  :root .room[data-page=room] .stage > .people button.person { width: 72px; }
+  :root .room[data-page=room] .side {
+    margin-top: calc(184px + var(--space-4));
+    height: calc(100dvh - var(--topbar-h) - var(--space-4) - var(--space-5) - 184px - var(--space-4));
+    min-height: 320px;
+  }
+}

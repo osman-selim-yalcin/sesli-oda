@@ -30,7 +30,7 @@ window.Theme = (() => {
 
   // Tema dosyaları tarayıcıda ve CDN'de saatlerce önbellekte kalır: bir tema dosyası değişince bu sürüm (ve index.html'deki
   // theme.js?v=…) değiştirilir, yoksa eski görünüm kalır. Varsayılan temanın index.html'deki bağlantısı sürümsüzdür.
-  const CSS_VERSION = 'kis8';
+  const CSS_VERSION = 'kis9';
   const href = (id) => `/themes/${id}.css?v=${CSS_VERSION}`;
 
   // İkon seti: temanın seti gömülü olandan farklıysa dosyayı alır ve bir "uygula" işlevi döndürür.

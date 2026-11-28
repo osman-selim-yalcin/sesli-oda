@@ -163,8 +163,9 @@ test('Kış Odası: kayıt, koyu tema, Lucide ikonları; kar yağışı içeriğ
   assert.match(snow, /pointer-events: none;/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\s*body::before,\s*body::after \{ animation: none; \}/);
   // Kış süsleri: sarkıtlar, boyalı çizimler ve kartopu sahnesi yalnız themes/kis/ altından, hepsi sunulur;
-  // sohbetin köşesinde kardan adam yok (yalnız sarkıtlar)
-  assert.match(css, /\.side \.chat-list,\s*\.side \.chat-empty \{\s*background: url\('kis\/sarkit\.svg'\)[^,}]*;\s*\}/);
+  // sarkıtlar yalnız üst çubuğun altında (sohbette yok)
+  assert.match(css, /\.room-topbar \.topbar-inner::after \{[^}]*url\('kis\/sarkit\.svg'\)/);
+  assert.ok(!/\.chat-list[^{]*\{[^}]*sarkit/.test(css), 'sohbette sarkıt olmamalı');
   const files = [...css.matchAll(/url\((?!"data:|%23)'?([^')]+)'?\)/g)].map((m) => m[1]);
   assert.ok(files.length > 0);
   for (const f of new Set(files)) {
