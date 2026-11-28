@@ -322,8 +322,9 @@ button.topbar-settings:active:not(:disabled) { transform: none; background: var(
 .room-layout > .side { grid-column: 2; grid-row: 1; }
 .room .radio { height: calc(100dvh - var(--topbar-h) - var(--space-4) - var(--space-5)); }
 
-/* Sahne. Masaüstünde oynatıcı, denetimler ve kişi sırası tek ekrana sığsın: oynatıcının yüksekliği
-   --stage-rest (denetim paneli + kişi sırası + aralıklar) kadar kısılır, video kutunun içinde ortalanır. */
+/* Sahne. Masaüstünde oynatıcı, denetimler ve kişi sırası tek ekrana sığsın: ekranda yer yoksa oynatıcı
+   --stage-rest (denetim paneli + kişi sırası + aralıklar) kadar kısa kalacak biçimde daralır ve ortalanır.
+   Oynatıcı her düzende ve her temada 16:9'dur (yükseklik değil genişlik kısılır). */
 .stage { --stage-rest: 290px; display: grid; gap: var(--space-3); min-width: 0; }
 /* Sahne görünmezken ekrandan çıkar ama çalmaya devam eder; görünmez denetimler klavye sırasından da çıkar */
 .media.away { position: absolute; left: -10000px; top: 0; width: 800px; visibility: hidden; }
@@ -331,8 +332,8 @@ button.topbar-settings:active:not(:disabled) { transform: none; background: var(
 .player-wrap {
   position: relative;
   aspect-ratio: 16 / 9;
-  width: 100%;
-  max-height: max(240px, calc(100dvh - var(--topbar-h) - var(--space-4) - var(--space-5) - var(--stage-rest)));
+  width: min(100%, max(240px, 100dvh - var(--topbar-h) - var(--space-4) - var(--space-5) - var(--stage-rest)) * 16 / 9);
+  margin-inline: auto;
   background: var(--bg);
   border-radius: var(--radius-m);
   overflow: hidden;
@@ -363,7 +364,7 @@ button.topbar-settings:active:not(:disabled) { transform: none; background: var(
 /* Sadece ses: oynatıcı görünmez ama çalmaya devam eder. Tarayıcı oynatmayı engellediyse
    başlatma düğmesi için kapak yine görünür. */
 .player-wrap.audio-only:not(:has(#poster:not([hidden]))) { height: 0; border: 0; }
-.player-wrap.audio-only { aspect-ratio: auto; height: 160px; }
+.player-wrap.audio-only { aspect-ratio: auto; width: 100%; height: 160px; }
 .player-empty {
   position: absolute;
   inset: 0;
