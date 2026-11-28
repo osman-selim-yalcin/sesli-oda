@@ -23,8 +23,8 @@ iki oda birleşince 20 kişi (her odadan 10). Site yöneticisi bu sayıya girmez
 - Ekran paylaşımı (Chrome/Edge'de sekme sesiyle birlikte)
 - Oyunlar (üst çubuktaki sekme; oyundayken müzik ve sesli sohbet sürer): tier list (ortak tahtada
   yazılı/resimli kartlar), süre tahmini ve süre yarışı, dinozor koşusu, kelime, eşini bul, sayı bulmaca,
-  hedef sayı, gizli kural, mantık tablosu, İttirmeli XOX, Dört Taş, Beş Harf (günlük kelime), daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
-  "Oda kur" lobisinden başlar (lobide odadaki herkes ve bot; kelime 6, dinozor 7, sayı bulmaca, İttirmeli XOX ve Dört Taş 2 kişiyle
+  hedef sayı, gizli kural, mantık tablosu, İttirmeli XOX, Dört Taş, Duvar, Beş Harf (günlük kelime, Türkçe ve İngilizce), daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
+  "Oda kur" lobisinden başlar (lobide odadaki herkes ve bot; kelime 6, dinozor 7, sayı bulmaca, İttirmeli XOX, Dört Taş ve Duvar 2 kişiyle
   sınırlı). Skor tabloları bütün odalarda ortaktır.
 - **Kutu Oyunları** bölümünde Yörünge Kuşatması, Takımada ve Yedi Kapı bulunur. Yörünge’de her filoda
   birer Yankı, Dalış ve Çekici vardır. Bunlar Hive’ın Mosquito, Ladybug ve Pillbug genişletmelerinin

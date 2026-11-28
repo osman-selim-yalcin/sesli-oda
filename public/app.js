@@ -1559,8 +1559,8 @@ $('now-pop-room').onclick = () => {
 // / oda listesi, /uyeler (listede, yönetici); odanın içinde /oda/<id> sıra, /oda/<id>/gecmis, /oda/<id>/radyo,
 // /oda/<id>/oyunlar (oyun kartları), /oda/<id>/oyunlar/tier/<liste no>, /oda/<id>/oyunlar/kelime ...
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'xox', 'dorttas', 'besharf', 'blackjack', 'arasinda', 'poker', 'pisti', 'batak', 'kemal', 'daktilo', 'okuma', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', xox: 'ittirmeli-xox', dorttas: 'dort-tas', besharf: 'bes-harf', blackjack: 'blackjack', arasinda: 'arasinda', poker: 'poker', pisti: 'pisti', batak: 'batak', kemal: 'kemal', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'xox', 'dorttas', 'duvar', 'besharf', 'blackjack', 'arasinda', 'poker', 'pisti', 'batak', 'kemal', 'daktilo', 'okuma', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', xox: 'ittirmeli-xox', dorttas: 'dort-tas', duvar: 'duvar', besharf: 'bes-harf', blackjack: 'blackjack', arasinda: 'arasinda', poker: 'poker', pisti: 'pisti', batak: 'batak', kemal: 'kemal', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   const base = `/oda/${view.room}`;
@@ -2097,6 +2097,7 @@ function openGame(name) {
   if (name === 'daktilo') renderDaktilo(); // public/daktilo.js
   if (name === 'xox') window.renderXox?.(); // public/xox.js
   if (name === 'dorttas') window.renderDorttas?.(); // public/dorttas.js
+  if (name === 'duvar') window.renderDuvar?.(); // public/duvar.js
   if (name === 'besharf') window.renderBesharf?.(); // public/besharf.js
   if (['blackjack', 'arasinda', 'poker', 'pisti', 'batak', 'kemal'].includes(name)) window.renderKart?.(name); // public/kart.js
   if (name === 'okuma') renderOkuma(); // public/okuma.js
@@ -7060,6 +7061,7 @@ function applyJoin(res) {
   setDaktiloBoard(res.daktiloBoard);
   window.setXox?.(res.xox); // public/xox.js (yüklenemediyse giriş bozulmasın)
   window.setDorttas?.(res.dorttas); // public/dorttas.js
+  window.setDuvar?.(res.duvar); // public/duvar.js
   window.setBesharf?.(res.besharf); // public/besharf.js
   window.setKart?.(res.kart); // public/kart.js
   setRadio(res.radio);
@@ -7748,6 +7750,7 @@ const GAME_INFO = {
   kemal: { hue: 300, group: 'Kağıt Oyunları', desc: 'Dörtlüyü topla, ortağına gizlice işaret ver', players: '2\'ye 2' },
   besharf: { hue: 120, group: 'Günlük Oyun', desc: 'Günün 5 harfli kelimesini 6 tahminde bul', players: 'Günlük' },
   dorttas: { hue: 55, group: 'Zeka', desc: 'Sütuna taş bırak, dördünü yan yana getir', players: '2 kişilik' },
+  duvar: { hue: 28, group: 'Zeka', desc: 'Piyonunu karşıya ulaştır, rakibin yoluna duvar ör', players: '2 kişilik' },
   xox: { hue: 170, group: 'Zeka', desc: 'Taş koy ya da kenardan it, üçünü yan yana getir', players: '2 kişilik' },
   klotski: { hue: 150, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
   memory: { hue: 65, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–10 kişi' },
