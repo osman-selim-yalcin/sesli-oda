@@ -385,6 +385,7 @@ I18N.add({
   "Aydınlık Oda": "Bright Room",
   "Piksel Oda": "Pixel Room",
   "Kış Odası": "Winter Room",
+  "Neon Oda": "Neon Room",
   "Tema dosyası yüklenemedi ({0}), önceki tema kalıyor.": "Theme file could not load ({0}), keeping the previous theme.",
 
   // ---- Oyunlar sayfası ----

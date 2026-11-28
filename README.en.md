@@ -133,9 +133,15 @@ All colors, fonts, corners, and shadows of the look are variables. The variable 
 `public/css/base.css`. Rules do not contain fixed colors. The room owner chooses the theme in the room
 settings and presses "Apply". It changes for everyone in the room without a page refresh. The room list and the sign-in screen
 are always in the default theme (Night Room). The themes are: Night Room (`gece`, dark, the default), Bright Room
-(`aydinlik`, light), Pixel Room (`piksel`, retro game: its own pixel fonts and pixel icon set), and Winter Room
+(`aydinlik`, light), Pixel Room (`piksel`, retro game: its own pixel fonts and pixel icon set), Winter Room
 (`kis`, a cold blue night; snowfall and winter decorations: a snowman, icicles, snow piles, all made with the rules at the end of the theme
-file and an embedded SVG; the quick emoji row also follows the winter theme, `app.js` `THEME_QUICK_EMOJIS`).
+file and an embedded SVG; the quick emoji row also follows the winter theme, `app.js` `THEME_QUICK_EMOJIS`), and Neon Room
+(`neon`, a dark indigo background with pink → violet → cyan neon edges; on desktop the stage is laid out like a game
+console: a people column on the left, the volume dial, tools, cross-shaped seek buttons and a big play button on both
+sides of the player, the time bar and round page buttons below it; all of it in the theme file's
+`@media (min-width: 1000px)` block, with `display: contents` and grid areas, without touching the HTML. The volume
+dial reads its percentage from the `data-val` value of the `.vol` box, written by `app.js` `paintRange`. The phone
+layout is shared).
 
 Adding a new theme (example id `yeni`):
 

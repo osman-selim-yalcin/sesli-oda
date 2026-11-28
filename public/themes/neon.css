@@ -1,0 +1,446 @@
+/* Tema: Neon Oda. Koyu çivit gece zemini, panellerin ve yuvarlak düğmelerin kenarında pembe → mor → camgöbeği
+   neon degrade, oynat düğmesinde ve seçili sayfada yumuşak parıltı. Bir tema dosyası değişken sözleşmesinin
+   hepsini tanımlar (sözleşme ve yedek değerler: css/base.css).
+   Masaüstünde (>= 1000 px) odanın sahnesi bir oyun konsolu gibi dizilir (dosyanın sonundaki kurallar):
+   solda kişiler sütunu, ortada oynatıcı ve iki yanında denetim sütunları (solda ses kadranı ve araçlar, sağda
+   artı biçimli sarma tuşları ve büyük oynat düğmesi), altında zaman çubuğu ve sayfa düğmeleri.
+   Telefon ve tablette düzen diğer temalarla aynıdır; renkler ve neon kenarlar bu temanın.
+   Kontrast (WCAG): --muted, --accent her yüzeyde (--surface-3 dahil) en az 4,5:1. */
+:root {
+  color-scheme: dark;
+
+  --bg: #0F0E22;
+  --surface: #16152E;
+  --surface-2: #1E1C3A;
+  --surface-3: #282647;
+  --surface-raised: #282647;
+  --surface-dock: #1E1C3A;
+  --emphasis: #EEEBFA;
+  --emphasis-text: #0F0E22;
+  --border: #2C2A4E;
+  --border-strong: #423F6C;
+  --text: #EEEBFA;
+  --muted: #A6A2CC; /* --surface-3 üstünde 5,4:1 */
+  --accent: #D27CF2;
+  --accent-contrast: #0F0E22;
+  --accent-soft: rgba(210, 124, 242, .16);
+  --accent-2: #FFD23F;
+  --live: #4ADE80;
+  --live-soft: rgba(74, 222, 128, .14);
+  --danger: #F7848A;
+  --danger-soft: rgba(247, 132, 138, .14);
+  --danger-contrast: #0F0E22;
+  --overlay: rgba(6, 5, 16, .74);
+  --avatar-text: #FFFFFF;
+  --on-media: #EEEBFA;
+  --on-media-accent: #D27CF2;
+  --ink-mix: 0%;
+  --selection: initial;
+  --game-tint: 80% .13;
+  --game-soft: 37% .075;
+  --game-tile: 25% .05;
+  --game-cap: round;
+  --game-join: round;
+  --game-corner: 1;
+
+  --font-display: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Nunito', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-control: initial;
+  --font-label: initial;
+  --font-name: initial;
+
+  --radius-s: 10px;
+  --radius-m: 16px;
+  --radius-l: 24px;
+  --radius-pill: 999px;
+  --radius-round: 50%;
+  --border-w: 1px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .5);
+  --shadow-2: 0 18px 44px rgba(0, 0, 0, .55), 0 0 0 1px rgba(210, 124, 242, .12);
+  --btn-shadow: none;
+  --press: scale(.97);
+  --press-flat: scale(.96);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --ease: cubic-bezier(.2, 0, 0, 1);
+
+  --focus-ring: 0 0 0 3px rgba(210, 124, 242, .45);
+
+}
+
+/* shell.css bu dosyadan sonra yüklenir: aynı özgüllükteki kural onu ezemez, bu yüzden seçiciler :root ile
+   bir basamak özgül. */
+
+/* Her boyutta: paneller ve yuvarlak düğmeler neon kenarlı */
+:root .panel,
+:root .people,
+:root .side.room-panel,
+:root .seek-row-neon {
+  border-color: transparent;
+  background: linear-gradient(#15142C, #15142C) padding-box, linear-gradient(135deg, rgba(240, 107, 216, .7), rgba(155, 108, 255, .55) 50%, rgba(76, 201, 240, .7)) border-box;
+}
+:root .side.room-panel { border-width: 1.5px; box-shadow: 0 0 24px rgba(76, 201, 240, .08); }
+:root .panel-tabs .tab.active { color: var(--text); }
+:root .panel-tabs .tab.active .ic { color: #F06BD8; }
+:root .panel-tabs { border-bottom-color: var(--border); }
+:root .chat-form { border-radius: var(--radius-pill); }
+:root button.ctl-play,
+:root #now-pop-play {
+  border: 2px solid transparent;
+  background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(135deg, #9B6CFF, #4CC9F0) border-box;
+  color: #F06BD8;
+  box-shadow: 0 0 18px rgba(155, 108, 255, .35), 0 0 32px rgba(76, 201, 240, .14);
+}
+:root button.ctl-play:hover:where(:not(:disabled)),
+:root #now-pop-play:hover:where(:not(:disabled)) {
+  background: linear-gradient(var(--surface-2), var(--surface-2)) padding-box, linear-gradient(135deg, #9B6CFF, #4CC9F0) border-box;
+  color: #F06BD8;
+}
+:root button.ctl-play:active:where(:not(:disabled)),
+:root #now-pop-play:active:where(:not(:disabled)) { color: #F06BD8; }
+:root .player-empty .ic {
+  border: 1.5px solid transparent;
+  background: linear-gradient(var(--surface), var(--surface)) padding-box, linear-gradient(135deg, #F06BD8, #9B6CFF 50%, #4CC9F0) border-box;
+  color: #F06BD8;
+}
+:root .player-empty {
+  background: radial-gradient(ellipse at 50% 45%, rgba(155, 108, 255, .09), transparent 65%), #121128;
+}
+:root input.range::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, #F06BD8, #9B6CFF var(--pct), var(--border-strong) var(--pct));
+}
+:root input.range::-moz-range-progress { background: linear-gradient(to right, #F06BD8, #9B6CFF); }
+:root input.range::-webkit-slider-thumb { background: #FFFFFF; box-shadow: 0 0 10px rgba(240, 107, 216, .55); }
+:root button.mic-btn.off { background: var(--danger); }
+
+/* ---------- Masaüstü: neon düzeni ---------- */
+@media (min-width: 1000px) {
+  /* Üst çubuk: çerçevesiz; sayfa sekmeleri aşağıya, sahnenin altına iner */
+  :root .room-topbar .topbar-inner {
+    background: transparent;
+    border-color: transparent;
+    box-shadow: none;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  :root .nav-rooms-text { display: none; }
+  :root button.nav-rooms { width: 40px; padding: 0; justify-content: center; }
+  :root .room-topbar .topbar-brand { border-left: none; padding-left: var(--space-1); }
+  :root .topbar-emblem .room-emblem { width: 34px; height: 34px; border-radius: var(--radius-s); }
+  :root .mic-group,
+  :root button.topbar-settings { background: var(--surface); }
+
+  /* Sayfa düğmeleri (Oda, Oyunlar, Radyo): ekranın altında, sahne sütununun ortasında yuvarlak ikonlar.
+     Ortası: çerçevenin sol kenarı + dolgu + sahne sütununun yarısı (sahne = çerçeve - 2 dolgu - panel - aralık). */
+  :root .room-topbar .top-tabs {
+    position: fixed;
+    z-index: 5;
+    bottom: var(--space-4);
+    left: calc(max(0px, (100vw - var(--frame-w)) / 2) + var(--space-5) + (min(100vw, var(--frame-w)) - 2 * var(--space-5) - var(--panel-w) - var(--space-5)) / 2);
+    translate: calc(-50% + 17px) 0; /* oynatıcı sütununun ortası (kişiler sütunu solda) */
+    gap: var(--space-4);
+    padding: 0;
+    background: transparent;
+    border: none;
+  }
+  /* Oyunlar ve Radyo sayfasında içeriğin üstünde yüzer */
+  :root .room-topbar .top-tab { box-shadow: 0 10px 28px rgba(4, 3, 12, .55); }
+  :root .room-topbar .top-tab {
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    justify-content: center;
+    border: 1.5px solid transparent;
+    border-radius: var(--radius-round);
+    background: linear-gradient(#15142C, #15142C) padding-box, linear-gradient(135deg, rgba(240, 107, 216, .7), rgba(155, 108, 255, .55) 50%, rgba(76, 201, 240, .7)) border-box;
+    color: var(--text);
+    font-size: 0;
+    gap: 0;
+  }
+  :root .room-topbar .top-tab .ic { width: 20px; height: 20px; }
+  :root .room-topbar .top-tab:hover:where(:not(.active)) { background: linear-gradient(var(--surface-2), var(--surface-2)) padding-box, linear-gradient(135deg, #F06BD8, #9B6CFF 50%, #4CC9F0) border-box; color: var(--text); }
+  :root .room-topbar .top-tab.active {
+    background: linear-gradient(var(--surface-2), var(--surface-2)) padding-box, linear-gradient(135deg, #F06BD8, #9B6CFF) border-box;
+    color: var(--text);
+    box-shadow: 0 0 16px rgba(240, 107, 216, .32);
+  }
+  :root .room-topbar .top-tab.active .ic { color: #F06BD8; }
+  /* Sayfa düğmeleri için altta boşluk: sahne ekranı doldurur, konsolun esnek satırı kalan yüksekliği alır */
+  :root .room-layout > .games { padding-bottom: 88px; }
+  :root .room .radio { height: calc(100dvh - var(--topbar-h) - var(--space-4) - var(--space-5) - 88px); }
+
+  /* Sahne ızgarası. Sütunlar: kişiler | sol denetim (2 dar) | oynatıcı | sağ denetim (3 dar).
+     Satırlar: ekran paylaşımı | konsol (6 satır) | zaman çubuğu | şarkı başlığı + tepkiler | uyarılar.
+     Kutuların çoğu (çalan şarkı paneli, denetim ve araç satırları, kişiler) display: contents ile açılır, içlerindeki
+     düğmeler bu ızgaraya tek tek yerleşir; konsolun ve kişiler sütununun zemini sahnenin ::before / ::after'ı. */
+  :root .stage {
+    /* kişiler 84 px; denetim sütunlarında 50 px'lik dar sütunlar */
+    grid-template-columns: 84px 50px 50px minmax(0, 1fr) 50px 50px 50px;
+    grid-template-rows: auto 50px 50px 50px minmax(0, 1fr) auto auto auto auto auto;
+    grid-template-areas:
+      "rail  .     .     screen .     .     .    "
+      "rail  vol   vol   video  .     dup   .    "
+      "rail  vol   vol   video  dleft .     dright"
+      "rail  vol   vol   video  .     ddown .    "
+      "rail  extra extra video  play  play  play "
+      "rail  scr   scr   video  .     .     .    "
+      "rail  sfx   rec   video  .     .     loop "
+      "rail  .     .     seek   .     .     .    "
+      "rail  .     .     meta   meta  meta  meta "
+      "rail  note  note  note   note  note  note ";
+    column-gap: var(--space-3);
+    row-gap: var(--space-2);
+    align-items: center;
+    justify-items: center;
+    position: relative;
+    isolation: isolate;
+  }
+  /* Konsolun zemini (sol denetim → sağ denetim, 6 satır) */
+  :root .stage::before {
+    content: '';
+    grid-column: 2 / 8;
+    grid-row: 2 / 8;
+    align-self: stretch;
+    justify-self: stretch;
+    margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1);
+    z-index: -1;
+    border: 2px solid transparent;
+    border-radius: 30px;
+    background: linear-gradient(#15142C, #15142C) padding-box,
+      linear-gradient(100deg, #9B6CFF, #F06BD8 30%, #9B6CFF 60%, #4CC9F0) border-box;
+    box-shadow: 0 0 28px rgba(155, 108, 255, .18), 0 24px 60px rgba(0, 0, 0, .45);
+  }
+  /* Kişiler sütununun zemini */
+  :root .stage::after {
+    content: '';
+    grid-area: rail;
+    align-self: stretch;
+    justify-self: stretch;
+    margin: 0 var(--space-4) -80px 0; /* sahnenin altından sohbet paneliyle aynı hizaya iner */
+    z-index: -1;
+    border: 1.5px solid transparent;
+    border-radius: var(--radius-l);
+    background: linear-gradient(#15142C, #15142C) padding-box,
+      linear-gradient(180deg, #9B6CFF, #4CC9F0) border-box;
+    box-shadow: 0 0 20px rgba(76, 201, 240, .1);
+  }
+  :root .stage { padding: var(--space-4) 0 0; min-height: calc(100dvh - var(--topbar-h) - var(--space-4) - 104px); }
+  :root .stage > .screen-wrap { grid-area: screen; justify-self: stretch; margin-bottom: var(--space-5); }
+
+  /* Oynatıcı: konsolun ortasında, iki yanında ince ayırıcı çizgiler */
+  :root .player-wrap {
+    grid-area: video;
+    justify-self: stretch;
+    align-self: stretch;
+    aspect-ratio: auto;
+    width: auto;
+    min-height: 260px;
+    height: auto;
+    max-height: none;
+    margin: calc(var(--space-4) * -1 + 2px) var(--space-3);
+    border-radius: 0;
+    border: none;
+    border-left: var(--border-w) solid var(--border);
+    border-right: var(--border-w) solid var(--border);
+    background: #121128;
+    box-shadow: none;
+  }
+  :root .player-wrap.audio-only { height: 220px; }
+  :root .player-wrap.audio-only:not(:has(#poster:not([hidden]))) { height: 220px; border-left: var(--border-w) solid var(--border); border-right: var(--border-w) solid var(--border); }
+  :root .player-wrap.audio-only:not(:has(#poster:not([hidden]))) > :not(.player-empty) { visibility: hidden; }
+
+  /* Çalan şarkı paneli açılır */
+  :root .panel.now,
+  :root .controls,
+  :root .tool-row,
+  :root .tools,
+  :root .people { display: contents; }
+  :root .panel.now::before { content: none; }
+
+  /* Sağ sütun: artı biçimli sarma tuşları, büyük oynat, döngü */
+  :root button.ctl:not(.ctl-play),
+  :root button.tool {
+    width: 46px;
+    height: 46px;
+    border: 1.5px solid transparent;
+    background: linear-gradient(#15142C, #15142C) padding-box, linear-gradient(135deg, rgba(240, 107, 216, .7), rgba(155, 108, 255, .55) 50%, rgba(76, 201, 240, .7)) border-box;
+    color: var(--text);
+  }
+  :root button.ctl:not(.ctl-play):hover:where(:not(:disabled)),
+  :root button.tool:hover:where(:not(:disabled)) {
+    border: 1.5px solid transparent;
+    background: linear-gradient(var(--surface-2), var(--surface-2)) padding-box, linear-gradient(135deg, #F06BD8, #9B6CFF 50%, #4CC9F0) border-box;
+    color: var(--text);
+    box-shadow: 0 0 16px rgba(240, 107, 216, .32);
+  }
+  :root button.ctl:not(.ctl-play):active:where(:not(:disabled)),
+  :root button.tool:active:where(:not(:disabled)) { background: linear-gradient(var(--surface-3), var(--surface-3)) padding-box, linear-gradient(135deg, #F06BD8, #9B6CFF 50%, #4CC9F0) border-box; }
+  :root button.ctl[aria-pressed="true"],
+  :root button.ctl[aria-pressed="true"]:hover:where(:not(:disabled)) {
+    background: linear-gradient(var(--surface-2), var(--surface-2)) padding-box, linear-gradient(135deg, #F06BD8, #9B6CFF 50%, #4CC9F0) border-box;
+    color: #F06BD8;
+    box-shadow: 0 0 16px rgba(240, 107, 216, .32);
+  }
+  :root button.ctl .ic, :root button.tool .ic { width: 20px; height: 20px; }
+  :root #back5 .ic, :root #fwd5 .ic { width: 22px; height: 22px; }
+  :root #next { grid-area: dup; }
+  :root #back5 { grid-area: dleft; }
+  :root #fwd5 { grid-area: dright; }
+  :root #loop { grid-area: ddown; }
+  :root button.ctl-play {
+    grid-area: play;
+    width: 78px;
+    height: 78px;
+    margin: 0;
+    border-width: 2px;
+  }
+  :root .ctl-play .ic { width: 28px; height: 28px; }
+
+  /* Sol sütun: ses kadranı (yüzdesiyle), altta araçlar */
+  :root .stage .vol {
+    grid-area: vol;
+    position: relative;
+    display: grid;
+    justify-items: center;
+    align-self: start;
+    gap: 6px;
+    margin: 0;
+    color: var(--text);
+  }
+  :root .stage .vol input.range {
+    width: 88px;
+    height: 88px;
+    border-radius: var(--radius-round);
+    background:
+      radial-gradient(circle, #15142C 0 39px, transparent 39.5px),
+      conic-gradient(from 200deg, #F06BD8, #9B6CFF calc(var(--pct) * .6), #4CC9F0 var(--pct), var(--border) var(--pct));
+    box-shadow: 0 0 22px rgba(155, 108, 255, .28);
+    cursor: ew-resize;
+  }
+  :root .stage .vol input.range::-webkit-slider-runnable-track { height: 88px; background: transparent; }
+  :root .stage .vol input.range::-webkit-slider-thumb { width: 1px; height: 88px; margin: 0; opacity: 0; box-shadow: none; }
+  :root .stage .vol input.range::-moz-range-track { background: transparent; }
+  :root .stage .vol input.range::-moz-range-progress { background: transparent; }
+  :root .stage .vol input.range::-moz-range-thumb { width: 1px; height: 88px; opacity: 0; }
+  :root .stage .vol input.range:focus-visible { outline-offset: 2px; border-radius: var(--radius-round); }
+  :root .stage .vol > .ic {
+    position: absolute;
+    top: 30px;
+    left: 50%;
+    translate: -50% 0;
+    width: 28px;
+    height: 28px;
+    pointer-events: none;
+  }
+  :root .stage .vol { grid-template-rows: 88px auto; }
+  :root .stage .vol > .ic { grid-row: 1; }
+  :root .stage .vol input.range { grid-row: 1; }
+  :root .stage .vol::after {
+    content: '%' attr(data-val);
+    grid-row: 2;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  :root:lang(en) .stage .vol::after { content: attr(data-val) '%'; }
+
+  :root button.tool.on,
+  :root button.tool.on:hover:where(:not(:disabled)) {
+    background: linear-gradient(var(--accent), var(--accent)) padding-box, linear-gradient(135deg, #F06BD8, #9B6CFF 50%, #4CC9F0) border-box;
+    color: var(--accent-contrast);
+    box-shadow: 0 0 18px rgba(155, 108, 255, .35), 0 0 32px rgba(76, 201, 240, .14);
+  }
+  :root button.tool.rec,
+  :root button.tool.rec:hover:where(:not(:disabled)) { background: var(--danger); color: var(--danger-contrast); border-color: var(--danger); }
+  :root button.tool.rec { width: auto; padding: 0 8px; font-size: 11px; }
+  :root #screen-toggle { grid-area: scr; }
+  :root #sfx-open { grid-area: sfx; }
+  :root #rec-btn { grid-area: rec; }
+  :root #esek-btn { grid-area: extra; align-self: end; }
+  :root #tools-more { display: none; }
+
+  /* Zaman çubuğu: konsolun altında ayrı bir hap */
+  :root .seek-row {
+    grid-area: seek;
+    justify-self: stretch;
+    margin: var(--space-5) 8% 0;
+    height: 48px;
+    padding: 0 var(--space-5);
+    gap: var(--space-4);
+    border: 1.5px solid transparent;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(#15142C, #15142C) padding-box,
+      linear-gradient(90deg, #F06BD8, #9B6CFF 50%, #F06BD8) border-box;
+  }
+  :root .seek-row .time { font-family: var(--font-mono); font-size: 12px; }
+
+  /* Şarkı başlığı ve tepkiler zaman çubuğunun altında, ortada */
+  :root .now-head {
+    grid-area: meta;
+    justify-self: stretch;
+    display: flex;
+    justify-content: center;
+    text-align: center;
+    margin-top: var(--space-1);
+    padding-right: 186px; /* sağ denetim sütunu kadar: başlık oynatıcının ortasında */
+  }
+  :root .now-title { font-size: 14px; -webkit-line-clamp: 1; }
+  :root .now-head:has(.now-title.muted) { display: none; }
+  :root .tool-row .reactions { grid-area: meta; justify-self: end; flex: none; }
+
+  /* Kişiler sütunu: avatarlar alt alta, altta kişi sayısı */
+  :root .people-row {
+    grid-area: rail;
+    align-self: start;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--space-1);
+    width: 68px;
+    margin-right: var(--space-4);
+    max-height: calc(100dvh - var(--topbar-h) - 200px);
+    padding: var(--space-3) 0;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+  :root button.person { width: 64px; padding: 6px 2px; gap: 4px; }
+  :root .person .avatar { width: 44px; height: 44px; font-size: 17px; outline: 1.5px solid rgba(240, 107, 216, .55); outline-offset: 2px; }
+  :root .person-label { max-width: 60px; font-size: 11px; }
+  :root .person-you { display: none; }
+  :root .people-head {
+    grid-area: rail;
+    align-self: end;
+    width: 68px;
+    margin: 0 var(--space-4) -68px 0;
+    flex-direction: column;
+    align-items: center;
+    padding: 0;
+  }
+  :root button.people-btn { margin: 0; padding: 0 var(--space-2); flex-direction: column; gap: 2px; min-height: 0; font-size: 12px; }
+  :root button.people-btn > span:first-of-type { display: none; }
+  :root .people-count::before { content: none; }
+  :root .rec-banner { max-width: 72px; padding: 0 var(--space-2); font-size: 10px; }
+  :root .mic-note { grid-area: note; justify-self: center; margin: var(--space-3) 0 0; }
+}
+
+/* Ara genişlik: denetim sütunları biraz daralır */
+@media (max-width: 1279px) and (min-width: 1000px) {
+  :root .stage { grid-template-columns: 76px 40px 40px minmax(0, 1fr) 40px 40px 40px; grid-template-rows: auto 40px 40px 40px minmax(0, 1fr) auto auto auto auto auto; column-gap: var(--space-2); }
+  :root .people-row, :root .people-head { width: 60px; }
+  :root .now-head { padding-right: 144px; }
+  :root button.ctl:not(.ctl-play), :root button.tool { width: 40px; height: 40px; }
+  :root button.ctl-play { width: 66px; height: 66px; }
+  :root .stage .vol input.range { width: 76px; height: 76px; background: radial-gradient(circle, #15142C 0 33px, transparent 33.5px), conic-gradient(from 200deg, #F06BD8, #9B6CFF calc(var(--pct) * .6), #4CC9F0 var(--pct), var(--border) var(--pct)); }
+  :root .stage .vol { grid-template-rows: 76px auto; }
+  :root .stage .vol > .ic { top: 24px; }
+}

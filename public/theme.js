@@ -7,12 +7,12 @@
 // çıkmaz; test sunucusu (test/preload.js) yalnız denemelik bir temayı adı ve önizleme renkleriyle buradan ekler.
 // Liste değişince document'a 'themelist' olayı gelir (seçiciler ve oda kartları yeniden çizilir).
 window.Theme = (() => {
-  const LIST = ['gece', 'aydinlik', 'piksel', 'kis'];
+  const LIST = ['gece', 'aydinlik', 'piksel', 'kis', 'neon'];
   const DEFAULT = 'gece';
-  const NAMES = { gece: 'Gece Odası', aydinlik: 'Aydınlık Oda', piksel: 'Piksel Oda', kis: 'Kış Odası' };
+  const NAMES = { gece: 'Gece Odası', aydinlik: 'Aydınlık Oda', piksel: 'Piksel Oda', kis: 'Kış Odası', neon: 'Neon Oda' };
   // Temanın ikon seti: public/icons/ui/<set>.svg, hepsi aynı adları (i-play, i-mic…) taşır.
   // Varsayılan set index.html'de <svg id="ui-icons" data-set="lucide"> olarak gömülüdür (ilk boyamada ikon olsun diye).
-  const ICON_SETS = { gece: 'lucide', aydinlik: 'lucide', piksel: 'piksel', kis: 'lucide' };
+  const ICON_SETS = { gece: 'lucide', aydinlik: 'lucide', piksel: 'piksel', kis: 'lucide', neon: 'lucide' };
   // Oda kartındaki önizleme şeridinin ve tema seçici kutucuğunun renkleri (zemin, panel, metin, vurgu). Kart ve
   // seçici başka temaları da gösterdiği için bu renkler o anki temanın değişkenlerinden değil, bu tablodan gelir
   // (tema CSS'i yüklenmeden); sabit renkler yalnız burada durur, kurallar onları yerel değişkenlerle kullanır.
@@ -21,6 +21,7 @@ window.Theme = (() => {
     aydinlik: { bg: '#F6F4EF', surface: '#FFFFFF', text: '#171A22', accent: '#4553C4' },
     piksel: { bg: '#13152F', surface: '#232753', text: '#EEEAF8', accent: '#5AD8F0' },
     kis: { bg: '#0B1622', surface: '#19293B', text: '#EAF3FA', accent: '#8FD6F5' },
+    neon: { bg: '#0A0A0F', surface: '#14141C', text: '#ECEBF5', accent: '#8E7CFF' },
   };
   const root = document.documentElement;
   let current = root.dataset.theme || DEFAULT;
@@ -29,7 +30,7 @@ window.Theme = (() => {
 
   // Tema dosyaları tarayıcıda ve CDN'de saatlerce önbellekte kalır: bir tema dosyası değişince bu sürüm (ve index.html'deki
   // theme.js?v=…) değiştirilir, yoksa eski görünüm kalır. Varsayılan temanın index.html'deki bağlantısı sürümsüzdür.
-  const CSS_VERSION = 'kis3';
+  const CSS_VERSION = 'neon1';
   const href = (id) => `/themes/${id}.css?v=${CSS_VERSION}`;
 
   // İkon seti: temanın seti gömülü olandan farklıysa dosyayı alır ve bir "uygula" işlevi döndürür.
