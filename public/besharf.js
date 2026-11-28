@@ -407,8 +407,10 @@ if (bhLang === 'en') bhLoadEn();
 
 function setBesharf(state, keepTyped = false) {
   if (!state) return;
+  // Dil bilmeyen (eski) sunucu yanıtında lang yoktur: seçici gizlenir, gelen (Türkçe) oyun gösterilir
+  $('besharf-lang').hidden = !state.lang;
   // Giriş yanıtı her zaman Türkçe oyunu taşır; başka dildeysek o dilin oyununu iste
-  if ((state.lang || 'tr') !== bhLang) return besharf ? undefined : besharfRefresh();
+  if (state.lang && state.lang !== bhLang) return besharf ? undefined : besharfRefresh();
   const newDay = besharf && besharf.day !== state.day;
   besharf = { ...state, skew: state.now - Date.now() };
   if (newDay || !keepTyped) {
