@@ -8,7 +8,7 @@
 (() => {
   const KEY = 'lang';
   const LANGS = ['tr', 'en'];
-  const FILES = ['/lang/en-ui.js?v=2', '/lang/en-games.js?v=kart2', '/lang/en-server.js?v=kart1'];
+  const FILES = ['/lang/en-ui.js?v=2', '/lang/en-games.js?v=kart3', '/lang/en-server.js?v=kart1'];
   const ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
 
   function initial() {

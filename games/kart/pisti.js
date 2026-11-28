@@ -95,7 +95,7 @@ function endDeal(g) {
   log(g, `El bitti: ${g.players.map((p) => `${p} +${g.dealScores[p].points}`).join(', ')}.`);
 }
 
-const delay = (g) => (g.done ? null : g.phase === 'tally' ? 5500 : null);
+const delay = (g) => (g.done ? null : g.phase === 'tally' ? 8000 : null);
 function step(g) {
   if (g.phase !== 'tally') return;
   const best = Math.max(...Object.values(g.scores));

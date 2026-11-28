@@ -117,7 +117,7 @@ function act(g, name, a = {}) {
   return false;
 }
 
-const delay = (g) => (g.done ? null : g.phase === 'reveal' ? 5000 : g.phase === 'swap' ? 2600 : null);
+const delay = (g) => (g.done ? null : g.phase === 'reveal' ? 8000 : g.phase === 'swap' ? 2600 : null);
 function step(g) {
   if (g.phase === 'reveal') {
     if (Math.max(...g.teams) >= g.target) {

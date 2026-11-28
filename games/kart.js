@@ -15,7 +15,7 @@ const ENGINES = {
 };
 const KEYS = Object.keys(ENGINES);
 const TURN_MS = { blackjack: 30000, arasinda: 30000, poker: 45000, pisti: 30000, batak: 45000, kemal: 40000 };
-const BOT_DELAY = [650, 1300];
+const BOT_DELAY = [900, 1700]; // kart animasyonları bitsin, bilgisayar düşünüyormuş gibi dursun
 
 function create({ io, rooms, getRoom, postSystem, rand, BOT }) {
   const timers = new Map(); // `${oda}|${oyun}` -> { auto, bot, turn }
@@ -33,7 +33,7 @@ function create({ io, rooms, getRoom, postSystem, rand, BOT }) {
 
   function viewFor(g, name) {
     if (!g) return null;
-    return { ...ENGINES[g.key].view(g, name), id: g.id, by: g.by, me: name, deadlines: g.deadlines || {}, now: Date.now(), humans: g.humans };
+    return { ...ENGINES[g.key].view(g, name), id: g.id, by: g.by, me: name, deadlines: g.deadlines || {}, pause: g.done ? null : g.pause || null, now: Date.now(), humans: g.humans, reason: g.reason || null };
   }
 
   function send(room, key) {
@@ -81,11 +81,13 @@ function create({ io, rooms, getRoom, postSystem, rand, BOT }) {
     for (const p of Object.keys(g.waitSince)) if (!waitingHumans.includes(p)) delete g.waitSince[p];
     for (const p of waitingHumans) g.waitSince[p] ||= now;
     g.deadlines = Object.fromEntries(Object.entries(g.waitSince).map(([p, t]) => [p, t + TURN_MS[key]]));
+    const d = engine.delay(g);
+    // Ara (el sonu, sonuç): kimse oynayamazken bir sonraki adıma kalan süre; istemci geri sayım çubuğu çizer
+    g.pause = d != null && d >= 2500 && !engine.waiting(g).length ? { until: now + d, ms: d } : null;
     send(room, key);
 
     const t = {};
     const alive = () => rooms.get(room.code) === room && room.kart[key] === g && !g.done;
-    const d = engine.delay(g);
     if (d != null) t.auto = setTimeout(() => {
       if (!alive()) return;
       engine.step(g);

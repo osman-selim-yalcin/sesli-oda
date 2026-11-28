@@ -113,7 +113,7 @@ function act(g, name, a = {}) {
   return true;
 }
 
-const delay = (g) => (g.done ? null : g.phase === 'reveal' ? (g.outcome === 'nospace' ? 2200 : 2800) : null);
+const delay = (g) => (g.done ? null : g.phase === 'reveal' ? (g.outcome === 'nospace' ? 3000 : 4500) : null);
 function step(g) {
   if (g.phase === 'reveal') next(g);
 }

@@ -11,10 +11,6 @@ const KART = {}; // oyun -> sunucudan gelen görünüm
 let kartClock = 0; // sunucu saati - yerel saat
 const kartSel = { kemal: null }; // kemal: seçili kart { from: 'hand'|'table', i }
 const kartRaise = {}; // poker/arasında: kaydırıcıdaki değer (oyun|el anahtarıyla)
-// Yalnız yeni gelen kart canlansın: önceki çizimde görünen kartlar (oyun başına) hatırlanır.
-const kartSeen = {};
-let kartPrev = null;
-let kartCur = null;
 
 const KART_SUIT = { S: '♠', H: '♥', D: '♦', C: '♣' };
 const KART_SUIT_NAME = { S: 'Maça', H: 'Kupa', D: 'Karo', C: 'Sinek' };
@@ -47,30 +43,15 @@ const kartEl = (tag, cls, text) => {
 };
 const kartFmt = (n) => Number(n || 0).toLocaleString('tr-TR');
 
-// Kart: null ise arka yüz. small: koltuklardaki küçük kart.
-function kartCard(c, cls = '') {
-  const el = kartEl('div', 'kc ' + cls);
-  if (!c) {
-    el.classList.add('back');
-    return el;
-  }
-  const red = c.s === 'H' || c.s === 'D';
-  el.classList.add(red ? 'red' : 'black');
-  const id = `${c.r}${c.s}`;
-  if (kartCur) {
-    kartCur.add(id);
-    if (kartPrev && !kartPrev.has(id)) el.classList.add('new');
-  }
-  const rank = KART_RANK[c.r] || String(c.r);
-  el.setAttribute('translate', 'no');
-  el.append(kartEl('span', 'kc-corner', `${rank}${KART_SUIT[c.s]}`), kartEl('span', 'kc-pip', KART_SUIT[c.s]), kartEl('span', 'kc-corner br', `${rank}${KART_SUIT[c.s]}`));
-  el.title = `${KART_SUIT_NAME[c.s]} ${rank}`;
-  return el;
-}
-const kartCards = (cards, cls = '', each) => {
+// Kart ve kart sırası (public/kart-fx.js). slot: masadaki yer adı; kapalı kartların ve açılan kartın canlanması için.
+const kartCard = (c, cls = '', slot = null, from = null) => KartFx.card(c, cls, slot, from);
+const kartCards = (cards, cls = '', each, slot = null) => {
   const row = kartEl('div', 'kc-row ' + cls);
-  (cards || []).forEach((c, i) => {
-    const el = kartCard(c);
+  const list = cards || [];
+  row.style.setProperty('--n', list.length);
+  list.forEach((c, i) => {
+    const el = kartCard(c, '', slot ? `${slot}:${i}` : null);
+    el.style.setProperty('--i', i);
     each?.(el, c, i);
     row.append(el);
   });
@@ -93,6 +74,7 @@ function kartSeats(g) {
 // Koltuk kutusu: avatar, ad, alt satır (çip/puan), etiket (sıra, son hamle), süre çubuğu.
 function kartSeat(g, name, { sub, tag, cards, cls = '' } = {}) {
   const box = kartEl('div', 'kart-seat ' + cls);
+  box.dataset.seat = name;
   if (name === myName) box.classList.add('me');
   if (g.bots?.includes(name) && name !== BOT_NAME && !name.startsWith('Bilgisayar')) box.classList.add('away');
   const head = kartEl('div', 'kart-seat-head');
@@ -127,8 +109,25 @@ function kartFelt(g, center, seatFor) {
   }
   const mid = kartEl('div', 'kart-area center');
   mid.append(center);
-  felt.append(areas.top, areas.left, mid, areas.right, areas.me);
+  if (g.pause) mid.append(kartPause(g));
+  // Deste: yeni kartlar buradan uçar
+  const shoe = kartEl('div', 'kart-shoe');
+  for (let i = 0; i < 4; i++) shoe.append(KartFx.card(null, 'shoe-card'));
+  felt.append(shoe, areas.top, areas.left, mid, areas.right, areas.me);
   return felt;
+}
+
+// Ara: el sonu ya da sonuç gösterilirken sonraki adıma kalan süre çubuğu
+const KART_PAUSE = { blackjack: 'Yeni el', arasinda: 'Sıradaki oyuncu', poker: 'Yeni el', pisti: 'Yeni el', batak: 'Yeni el', kemal: 'Yeni dağıtım' };
+function kartPause(g) {
+  const left = Math.max(0, g.pause.until - kartNow());
+  const box = kartEl('div', 'kart-pause kart-pop');
+  box.append(kartEl('span', '', KART_PAUSE[g.key] || 'Devam'));
+  const bar = kartEl('i', '');
+  bar.style.setProperty('--left', `${left}ms`);
+  bar.style.setProperty('--from', String(Math.min(1, left / g.pause.ms)));
+  box.append(bar);
+  return box;
 }
 
 function kartLog(g) {
@@ -177,17 +176,19 @@ const BJ_RESULT = { win: 'Kazandı', bj: 'Blackjack!', push: 'Berabere', lose: '
 
 function drawBlackjack(g) {
   const center = kartEl('div', 'bj-dealer');
-  center.append(kartEl('span', 'kart-label', 'Kurpiyer' + (g.dealerTotal != null ? ` · ${g.dealerTotal}` : '')), kartCards(g.dealer, 'deal'));
+  center.append(kartEl('span', 'kart-label', 'Kurpiyer' + (g.dealerTotal != null ? ` · ${g.dealerTotal}` : '')), kartCards(g.dealer, 'surface dealer', null, 'dealer'));
   center.append(kartEl('span', 'muted small', `El ${g.round}/${g.rounds} · kurpiyer 17'de durur · blackjack 3:2`));
   const felt = kartFelt(g, center, ({ name }) => {
     const hands = g.hands[name] || [];
     const wrap = kartEl('div', 'bj-hands');
     hands.forEach((h, k) => {
       const one = kartEl('div', 'bj-hand' + (g.phase === 'play' && g.turn === name && g.hand === k ? ' active' : ''));
-      one.append(kartCards(h.cards, name === myName ? '' : 'small'));
+      one.append(kartCards(h.cards, name === myName ? 'mine' : 'small', null, `bj:${name}:${k}`));
       const total = g.totals[name]?.[k];
       const res = h.result && g.phase === 'settle' ? ` · ${BJ_RESULT[h.result]}` : '';
-      one.append(kartEl('span', 'bj-hand-info' + (h.result ? ` ${h.result}` : ''), `${total ?? ''}${total ? ' · ' : ''}🪙 ${h.bet}${res}`));
+      const info = kartEl('span', 'bj-hand-info' + (h.result ? ` ${h.result}` : ''));
+      info.append(KartFx.chips(h.bet), `${total ?? ''}${total ? ' · ' : ''}🪙 ${h.bet}${res}`);
+      one.append(info);
       wrap.append(one);
     });
     const net = g.results?.[name];
@@ -213,10 +214,10 @@ function drawBlackjack(g) {
 // ---------- Arasında ----------
 function drawArasinda(g) {
   const center = kartEl('div', 'ar-center');
-  center.append(kartEl('div', 'kart-pot', `Pot 🪙 ${kartFmt(g.pot)}`));
-  const row = kartEl('div', 'ar-posts');
+  center.append(kartPot(g.pot));
+  const row = kartEl('div', 'ar-posts surface');
   const [a, b] = g.posts || [];
-  row.append(kartCard(a, 'post'), kartCard(g.third, 'third' + (g.third ? ' in ' + (g.outcome || '') : ' slot')), kartCard(b, 'post'));
+  row.append(kartCard(a, 'post', 'post0'), g.third ? kartCard(g.third, 'third ' + (g.outcome || ''), 'third') : kartEl('div', 'kc slot third'), kartCard(b, 'post', 'post1'));
   center.append(row);
   const OUT = { win: 'Arasına düştü!', lose: 'Dışarı düştü', post: 'Direğe çarptı! (2 kat)', pass: 'Pas', nospace: 'Arası yok, sıra geçti' };
   center.append(kartEl('span', 'ar-outcome ' + (g.outcome || ''), g.outcome ? OUT[g.outcome] + (g.bet ? ` · 🪙 ${g.bet}` : '') : g.turn === myName ? 'Sıra sende: bahis yap ya da pas de' : `${kartShown(g.turn || '')} düşünüyor…`));
@@ -227,6 +228,13 @@ function drawArasinda(g) {
     ['En düşük', g.min], ['Potun ¼', Math.round(g.pot / 4)], ['Yarısı', Math.round(g.pot / 2)], ['Pot', g.max],
   ]), kartButton('Pas', 'ghost', () => kartAct('arasinda', { type: 'pass' })));
   return [felt, bar];
+}
+
+// Pot: çip yığını ve tutar
+function kartPot(amount) {
+  const pot = kartEl('div', 'kart-pot');
+  pot.append(KartFx.chips(amount, 'big'), kartEl('span', '', `Pot 🪙 ${kartFmt(amount)}`));
+  return pot;
 }
 
 // Tutar seçici: kaydırıcı + hızlı tutarlar + onay düğmesi
@@ -262,19 +270,21 @@ function kartAmount(key, g, min, max, verb, send, quick) {
 const PK_STREET = { preflop: 'Kartlar dağıtıldı', flop: 'Flop', turn: 'Turn', river: 'River', showdown: 'Kartlar açıldı' };
 function drawPoker(g) {
   const center = kartEl('div', 'pk-center');
-  const board = kartEl('div', 'kc-row board');
+  const board = kartEl('div', 'kc-row board surface');
   for (let i = 0; i < 5; i++) board.append(g.board[i] ? kartCard(g.board[i]) : kartEl('div', 'kc slot'));
-  center.append(kartEl('div', 'kart-pot', `Pot 🪙 ${kartFmt(g.pot)}`), board);
+  center.append(kartPot(g.pot), board);
   const winners = g.winners?.map((w) => `${kartShown(w.name)} +${w.amount}${w.hand ? ` (${w.hand})` : ''}`).join(' · ');
   center.append(kartEl('span', 'muted small', winners || `${PK_STREET[g.street] || ''} · El ${g.handNo} · kör ${g.sb}/${g.sb * 2}`));
   const felt = kartFelt(g, center, ({ name }) => {
     const folded = !g.inHand.includes(name) && g.hole[name];
-    const cards = kartCards(g.hole[name] || [], name === myName ? '' : 'small');
-    const bits = [];
-    if (g.button === name) bits.push('🔘');
-    if (g.bets[name]) bits.push(`🪙 ${g.bets[name]}`);
+    const cards = kartCards(g.hole[name] || [], name === myName ? 'mine' : 'small', null, `hole:${name}`);
     const tag = [g.last?.[name], g.handNames?.[name]].filter(Boolean).join(' · ');
-    const seat = kartSeat(g, name, { sub: `${kartFmt(g.chips[name])} çip ${bits.join(' ')}`, tag, cards, cls: (folded ? 'folded' : '') + (!g.hole[name] ? ' out' : '') });
+    const seat = kartSeat(g, name, { sub: `${kartFmt(g.chips[name])} çip${g.button === name ? ' 🔘' : ''}`, tag, cards, cls: (folded ? 'folded' : '') + (!g.hole[name] ? ' out' : '') });
+    if (g.bets[name]) {
+      const bet = kartEl('span', 'kart-bet');
+      bet.append(KartFx.chips(g.bets[name]), kartEl('b', '', kartFmt(g.bets[name])));
+      seat.append(bet);
+    }
     if (g.winners?.some((w) => w.name === name)) seat.classList.add('won');
     return seat;
   });
@@ -299,15 +309,14 @@ function drawPoker(g) {
 // ---------- Pişti ----------
 function drawPisti(g) {
   const center = kartEl('div', 'ps-center');
-  const pile = kartEl('div', 'ps-pile');
+  const pile = kartEl('div', 'ps-pile surface');
   if (g.pileUnder) pile.append(kartCard(null, 'under'));
-  pile.append(g.pile[0] ? kartCard(g.pile[0], 'top') : kartEl('div', 'kc slot'));
+  pile.append(g.pile[0] ? kartCard(g.pile[0], 'top', null, g.lastPlay?.by || null) : kartEl('div', 'kc slot'));
   if (g.pileCount) pile.append(kartEl('span', 'ps-count', String(g.pileCount)));
   center.append(pile);
-  if (g.flash && (g.flash.type === 'pisti' || g.flash.type === 'jpisti')) center.append(kartEl('div', 'ps-flash', g.flash.type === 'jpisti' ? 'PİŞTİ! ×2' : 'PİŞTİ!'));
   center.append(kartEl('span', 'muted small', `Destede ${g.deckCount} · hedef ${g.target}`));
   if (g.phase === 'tally' && g.dealScores) {
-    const t = kartEl('div', 'kart-tally');
+    const t = kartEl('div', 'kart-tally kart-pop');
     for (const p of g.players) {
       const s = g.dealScores[p];
       t.append(kartEl('div', '', `${kartShown(p)}: +${s.points} (${s.cards} kart, ${s.pistis} pişti)`));
@@ -325,7 +334,7 @@ function drawPisti(g) {
         el.onclick = () => kartAct('pisti', { type: 'play', i });
         el.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), el.click());
       })
-      : kartCards(g.hands[name], 'small fan');
+      : kartCards(g.hands[name], 'small fan', null, `ps:${name}`);
     const pis = g.pistis[name] ? ` · ${g.pistis[name]} pişti` : '';
     return kartSeat(g, name, { sub: `${g.scores[name]} puan · ${g.taken[name]} kart${pis}`, cards });
   });
@@ -337,12 +346,12 @@ function drawPisti(g) {
 // ---------- Batak ----------
 function drawBatak(g) {
   const center = kartEl('div', 'bt-center');
-  const trick = kartEl('div', 'bt-trick');
+  const trick = kartEl('div', 'bt-trick surface');
   const seats = kartSeats(g);
   const shown = g.trick;
   for (const t of shown) {
     const s = seats.find((x) => x.name === t.by);
-    const el = kartCard(t.card, 'pos-' + s.pos);
+    const el = kartCard(t.card, 'pos-' + s.pos, null, t.by);
     trick.append(el);
   }
   center.append(trick);
@@ -350,7 +359,7 @@ function drawBatak(g) {
   center.append(kartEl('span', 'bt-info' + (g.trump === 'H' || g.trump === 'D' ? ' red' : ''), info));
   center.append(kartEl('span', 'muted small', `El ${g.handNo}/${g.rounds}`));
   if (g.phase === 'tally' && g.handScores) {
-    const t = kartEl('div', 'kart-tally');
+    const t = kartEl('div', 'kart-tally kart-pop');
     for (const p of g.players) t.append(kartEl('div', '', `${kartShown(p)}: ${g.tricks[p]} el → ${g.handScores[p] > 0 ? '+' : ''}${g.handScores[p]}`));
     center.append(t);
   }
@@ -368,7 +377,7 @@ function drawBatak(g) {
         el.onclick = () => kartAct('batak', { type: 'play', i });
         el.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), el.click());
       })
-      : kartCards(g.hands[name], 'small fan');
+      : kartCards(g.hands[name], 'small fan', null, `bt:${name}`);
     return kartSeat(g, name, { sub: `${g.scores[name]} puan · ${g.tricks[name]} el`, tag, cards });
   });
   const bar = kartEl('div', 'kart-actions');
@@ -408,17 +417,17 @@ function drawKemal(g) {
     el.onkeydown = (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), el.click());
   };
   const center = kartEl('div', 'km-center');
-  center.append(kartEl('span', 'kart-label', 'Ortadaki kartlar'), kartCards(g.table, 'table', clickable('table')));
+  center.append(kartEl('span', 'kart-label', 'Ortadaki kartlar'), kartCards(g.table, 'table surface', clickable('table')));
   center.append(kartEl('span', 'muted small', `${g.ready.length}/4 hazır · destede ${g.deckCount} · hedef ${g.target}`));
   if (g.result) {
     const r = g.result;
     const text = r.kind === 'kemal' ? (r.ok ? `${kartShown(r.by)}: KEMAL! ✔` : `${kartShown(r.by)}: Kemal dedi, tutmadı ✘`) : (r.ok ? `${kartShown(r.by)}: KES! ${kartShown(r.holder)} yakalandı ✔` : `${kartShown(r.by)}: Kes dedi, tutmadı ✘`);
-    center.append(kartEl('div', 'km-result ' + (r.ok ? 'ok' : 'bad'), text));
+    center.append(kartEl('div', 'km-result kart-pop ' + (r.ok ? 'ok' : 'bad'), text));
   }
   const recent = (g.signals || []).filter((s) => kartNow() - s.at < 2600);
   const felt = kartFelt(g, center, ({ name }) => {
     const mine = name === myName;
-    const cards = kartCards(g.hands[name], mine ? 'hand' : 'small', mine ? clickable('hand') : null);
+    const cards = kartCards(g.hands[name], mine ? 'hand' : 'small', mine ? clickable('hand') : null, `km:${name}`);
     const team = g.teamOf[name];
     const tag = [g.ready.includes(name) ? 'Hazır' : '', name === g.partner ? 'Ortağın' : ''].filter(Boolean).join(' · ');
     const seat = kartSeat(g, name, { sub: `Takım ${team + 1} · ${g.teams[team]} puan`, tag, cards, cls: `team-${team}` });
@@ -428,7 +437,12 @@ function drawKemal(g) {
   });
   const bar = kartEl('div', 'kart-actions km-actions');
   if (seated) {
-    if (g.mySecret) bar.append(kartEl('span', 'kart-actions-label', `Senin işaretin ${g.mySecret} · ortağın ${kartShown(g.partner)}: ${g.mateSecret}`));
+    if (g.mySecret) {
+      const sec = kartEl('span', 'km-secret');
+      sec.append(kartEl('div', '', `İşaretin ${g.mySecret}`), kartEl('div', '', `${kartShown(g.partner)}: ${g.mateSecret}`));
+      sec.title = 'Gizli işaretler: seninkini ve ortağınınkini yalnız siz görürsünüz';
+      felt.append(sec);
+    }
     const sigs = kartEl('div', 'km-signals');
     for (const e of g.signalList) sigs.append(kartButton(e, 'sm ghost', () => kartAct('kemal', { type: 'signal', e })));
     bar.append(sigs);
@@ -457,13 +471,155 @@ function renderKart(key) {
   $(`${key}-end`).hidden = !g || g.done || !g.humans?.includes(myName);
   $(`${key}-status`).textContent = kartStatus(key, g);
   if (!g) return box.replaceChildren();
-  const seen = kartSeen[key]?.id === g.id ? kartSeen[key].cards : null;
-  kartPrev = seen;
-  kartCur = new Set();
+  const snap = kartDrawn[key] === g.id ? KartFx.snapshot(box) : null;
+  KartFx.begin();
   const parts = KART_DRAW[key](g);
-  kartSeen[key] = { id: g.id, cards: kartCur };
-  kartPrev = kartCur = null;
-  box.replaceChildren(...(g.done ? [kartResult(key, g)] : []), ...parts, kartLog(g));
+  // Sabit yükseklik: masa ve düğme çubuğu hep aynı boyda; kayıt ve sonuç masanın içinde açılır kutu olarak durur
+  const felt = parts[0];
+  felt.append(kartLog(g));
+  if (g.done) felt.append(kartResult(key, g));
+  box.replaceChildren(...parts);
+  kartDrawn[key] = g.id;
+  return KartFx.animate(box, snap, { collector: kartCollector(key, g, box), shoe: box.querySelector('.kart-shoe') });
+}
+const kartDrawn = {}; // oyun -> son çizilen oyunun kimliği (yeni oyunda eski kartlar canlanmasın)
+
+// Kaybolan kartlar nereye uçar: piştide yığını alana, batakta eli alana.
+function kartCollector(key, g, box) {
+  let who = null;
+  if (key === 'pisti' && g.flash && ['take', 'pisti', 'jpisti'].includes(g.flash.type)) who = g.flash.by;
+  if (key === 'batak' && !g.trick.length && g.lastTrick) who = g.lastTrick.winner;
+  const seat = who && box.querySelector(`[data-seat="${CSS.escape(who)}"]`);
+  return seat ? () => seat : null;
+}
+
+// ---------- Anlar: ses, çip uçuşu, büyük yazı, konfeti ----------
+// prev ile yeni durum karşılaştırılır; yalnız oyun ekranı açıkken ve aynı oyun sürerken çalışır.
+function kartEvents(key, prev, g, stats = {}) {
+  const box = $(`kart-${key}`);
+  const felt = box.querySelector('.kart-felt');
+  const seat = (name) => box.querySelector(`[data-seat="${CSS.escape(name)}"]`);
+  const pot = box.querySelector('.kart-pot') || box.querySelector('.kart-area.center');
+  const mine = kartMine(g);
+  const fx = KartFx;
+  if (stats.dealt) fx.sound('deal', stats.dealt);
+  else if (stats.moved) fx.sound('slide');
+  if (stats.flipped) setTimeout(() => fx.sound('flip', stats.flipped), 80);
+
+  // Sıra bana geldi
+  const myTurn = (x) => x.turn === myName || (x.legal || []).length > 0;
+  if (mine && !g.done && myTurn(g) && !myTurn(prev)) fx.sound('turn');
+
+  // Çipler: azalan koltuktan pota, artan pottan koltuğa
+  if (g.chips && prev.chips) {
+    let clink = 0;
+    for (const p of g.players) {
+      const d = (g.chips[p] ?? 0) - (prev.chips[p] ?? 0);
+      if (!d) continue;
+      const color = Math.abs(d) >= 500 ? 'c500' : Math.abs(d) >= 100 ? 'c100' : Math.abs(d) >= 25 ? 'c25' : 'c5';
+      const n = Math.min(6, 2 + Math.floor(Math.log10(Math.abs(d))));
+      if (d < 0) fx.chipFly(seat(p), pot, n, color);
+      else setTimeout(() => fx.chipFly(pot, seat(p), n, color), 250);
+      clink += n;
+    }
+    if (clink) fx.sound('chip', clink);
+  }
+
+  const big = (text, kind = 'gold', sub = '', party = false) => {
+    fx.banner(felt, text, kind, sub);
+    if (party) {
+      fx.confetti(felt, 90);
+      fx.sound('big');
+    } else fx.sound(kind === 'bad' ? 'bad' : 'win');
+  };
+
+  if (key === 'blackjack') {
+    const myHands = g.hands?.[myName] || [];
+    const prevHands = prev.hands?.[myName] || [];
+    myHands.forEach((h, k) => {
+      const t = g.totals?.[myName]?.[k];
+      const pt = prev.totals?.[myName]?.[k];
+      if (t > 21 && !(pt > 21) && prevHands[k]) {
+        big('YANDIN', 'bad', String(t));
+        fx.shake(felt);
+      }
+    });
+    if (g.phase === 'settle' && prev.phase !== 'settle') {
+      if (g.dealerTotal > 21) setTimeout(() => fx.banner(felt, 'KURPİYER YANDI!', 'good'), 50);
+      const net = g.results?.[myName];
+      const bj = myHands.some((h) => h.result === 'bj');
+      if (bj) big('BLACKJACK!', 'gold', `+${net}`, true);
+      else if (net > 0) big('KAZANDIN', 'good', `+${net}`);
+      else if (net < 0 && !(g.dealerTotal > 21)) big('KURPİYER ALDI', 'bad', String(net));
+      else if (net === 0) fx.banner(felt, 'BERABERE', 'gold');
+    }
+  }
+
+  if (key === 'arasinda' && g.outcome && !prev.outcome && g.outcome !== 'nospace' && g.outcome !== 'pass') {
+    const me = g.turn === myName;
+    if (g.outcome === 'win') big('ARASINDA!', 'good', `+${g.bet}`, me);
+    else if (g.outcome === 'post') {
+      big('DİREĞE ÇARPTI!', 'bad', `−${g.bet * 2}`);
+      fx.shake(felt);
+    } else big('DIŞARIDA', 'bad', `−${g.bet}`);
+  }
+
+  if (key === 'poker') {
+    if (g.winners && !prev.winners) {
+      const w = g.winners.find((x) => x.name === myName);
+      if (w) big('KAZANDIN!', 'gold', `+${w.amount}${w.hand ? ` · ${w.hand}` : ''}`, true);
+      else {
+        const top = g.winners[0];
+        fx.banner(felt, `${kartShown(top.name)} +${top.amount}`, 'gold', top.hand || '');
+        fx.sound('win');
+      }
+    }
+    for (const p of g.players) {
+      if (/^All-in/.test(g.last?.[p] || '') && !/^All-in/.test(prev.last?.[p] || '')) {
+        fx.banner(felt, 'ALL-IN!', 'bad', kartShown(p));
+        fx.shake(felt);
+        fx.sound('chip', 5);
+      }
+    }
+  }
+
+  if (key === 'pisti' && g.flash && (g.flash.type === 'pisti' || g.flash.type === 'jpisti') && JSON.stringify(g.flash) !== JSON.stringify(prev.flash)) {
+    big(g.flash.type === 'jpisti' ? 'PİŞTİ! ×2' : 'PİŞTİ!', 'gold', kartShown(g.flash.by), g.flash.by === myName);
+    fx.shake(felt);
+  }
+
+  if (key === 'batak') {
+    if (g.lastTrick && !g.trick.length && prev.trick?.length) {
+      if (g.lastTrick.winner === myName) fx.sound('win');
+    }
+    if (g.phase === 'tally' && prev.phase !== 'tally' && g.bidder) {
+      const made = g.tricks[g.bidder] >= g.high;
+      big(made ? 'TUTTU!' : 'BATTI!', made ? 'good' : 'bad', `${kartShown(g.bidder)} · ${g.tricks[g.bidder]}/${g.high}`, made && g.bidder === myName);
+      if (!made) fx.shake(felt);
+    }
+    if (g.trump && !prev.trump) fx.banner(felt, `KOZ ${KART_SUIT[g.trump]}`, g.trump === 'H' || g.trump === 'D' ? 'bad' : 'gold', KART_SUIT_NAME[g.trump]);
+  }
+
+  if (key === 'kemal') {
+    if (g.result && !prev.result) {
+      const r = g.result;
+      const ours = mine && r.team === g.teamOf[myName];
+      big(r.kind === 'kemal' ? 'KEMAL!' : 'KES!', r.ok ? 'good' : 'bad', r.ok ? `${kartShown(r.holder)} dörtlüyü topladı` : 'Tutmadı', ours);
+      if (!r.ok) fx.shake(felt);
+    }
+    const fresh = (g.signals || []).filter((x) => !(prev.signals || []).some((y) => y.at === x.at && y.by === x.by));
+    if (fresh.length) fx.sound('flip');
+  }
+
+  // Oyun bitti
+  if (g.done && !prev.done) {
+    const top = g.standings?.[0];
+    const won = top && (top.name === myName || top.name.split(' & ').includes(myName));
+    if (won) {
+      fx.confetti(box.querySelector('.kart-result') || felt, 160);
+      fx.sound('big');
+    }
+  }
 }
 
 function setKart(all) {
@@ -475,9 +631,11 @@ function applyKart(key, game) {
     kartSel[key] = null;
     kartRaise.slot = null;
   }
+  const prev = KART[key];
   KART[key] = game || null;
   if (key === 'kemal' && kartSel.kemal && game?.phase !== 'swap') kartSel.kemal = null;
-  renderKart(key);
+  const stats = renderKart(key);
+  if (prev && game && prev.id === game.id && !$(`game-${key}`).hidden) kartEvents(key, prev, game, stats);
 }
 socket.on('kart', ({ key, game } = {}) => KART_KEYS.includes(key) && applyKart(key, game));
 
@@ -491,7 +649,8 @@ for (const key of KART_KEYS) {
   confirmButton($(`${key}-end`), 'Emin misin? Tekrar bas', () => socket.emit('kart:end', { key }));
   const spec = KART_OPTS[key];
   LOBBY[key] = {
-    title: KART_TITLE[key], tab: key, running: () => Boolean(KART[key] && !KART[key].done), last: () => KART[key],
+    // Biten oyunun sonucu masada dururken lobi gizli kalır (sayfa oynamasın); Kapat'a basınca lobi gelir.
+    title: KART_TITLE[key], tab: key, running: () => Boolean(KART[key]), last: () => KART[key],
     hint: KART_HINT[key],
     opts: spec && ((lobby, host) => {
       const row = document.createElement('div');

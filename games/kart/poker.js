@@ -200,8 +200,8 @@ function act(g, name, a = {}) {
 
 function delay(g) {
   if (g.done) return null;
-  if (g.phase === 'runout') return 1100;
-  if (g.phase === 'showdown') return g.shown ? 5000 : 2800;
+  if (g.phase === 'runout') return 1500;
+  if (g.phase === 'showdown') return g.shown ? 8000 : 4000; // açılan eller okunsun
   return null;
 }
 function step(g) {

@@ -154,8 +154,8 @@ function act(g, name, a = {}) {
 // Otomatik adımlar: kurpiyer kart açar/çeker, sonra hesaplanır, sonra yeni el.
 function delay(g) {
   if (g.done) return null;
-  if (g.phase === 'dealer') return 750;
-  if (g.phase === 'settle') return 3800;
+  if (g.phase === 'dealer') return 1000;
+  if (g.phase === 'settle') return 6500; // sonuçlar görülsün, sonra yeni el
   return null;
 }
 
@@ -243,7 +243,7 @@ function view(g) {
   const hidden = g.phase === 'play' || (g.phase === 'dealer' && !g.dealerOpen);
   return {
     key: g.key, players: g.players, bots: g.bots, chips: g.chips, round: g.round, rounds: g.rounds, phase: g.phase,
-    turn: g.players[g.turn] ?? null, hand: g.hand, hands: g.hands, results: g.results, log: g.log, done: g.done,
+    turn: g.phase === 'bet' || g.phase === 'play' ? g.players[g.turn] ?? null : null, hand: g.hand, hands: g.hands, results: g.results, log: g.log, done: g.done,
     standings: g.standings || null,
     dealer: g.dealer.map((c, i) => (hidden && i === 1 ? null : c)),
     dealerTotal: hidden ? (g.dealer[0] ? value([g.dealer[0]]).total : null) : g.dealer.length ? value(g.dealer).total : null,
