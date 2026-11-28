@@ -1505,8 +1505,8 @@ $('now-pop-room').onclick = () => {
 // / oda listesi, /uyeler (listede, yönetici); odanın içinde /oda/<id> sıra, /oda/<id>/gecmis, /oda/<id>/radyo,
 // /oda/<id>/oyunlar (oyun kartları), /oda/<id>/oyunlar/tier/<liste no>, /oda/<id>/oyunlar/kelime ...
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'xox', 'daktilo', 'okuma', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', xox: 'ittirmeli-xox', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'xox', 'blackjack', 'arasinda', 'poker', 'pisti', 'batak', 'kemal', 'daktilo', 'okuma', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', xox: 'ittirmeli-xox', blackjack: 'blackjack', arasinda: 'arasinda', poker: 'poker', pisti: 'pisti', batak: 'batak', kemal: 'kemal', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   const base = `/oda/${view.room}`;
@@ -2042,6 +2042,7 @@ function openGame(name) {
   if (name === 'mantik') renderMantik(); // public/mantik.js
   if (name === 'daktilo') renderDaktilo(); // public/daktilo.js
   if (name === 'xox') window.renderXox?.(); // public/xox.js
+  if (['blackjack', 'arasinda', 'poker', 'pisti', 'batak', 'kemal'].includes(name)) window.renderKart?.(name); // public/kart.js
   if (name === 'okuma') renderOkuma(); // public/okuma.js
   else if (typeof okumaStop === 'function') okumaStop(); // açık alıştırmanın sayacı dursun; geri gelince alıştırma baştan çizilir
   if (name === 'dino') dinoKick();
@@ -7002,6 +7003,7 @@ function applyJoin(res) {
   setDaktilo(res.daktilo); // public/daktilo.js
   setDaktiloBoard(res.daktiloBoard);
   window.setXox?.(res.xox); // public/xox.js (yüklenemediyse giriş bozulmasın)
+  window.setKart?.(res.kart); // public/kart.js
   setRadio(res.radio);
   lobbies = res.lobbies || {};
   renderLobbies();
@@ -7155,6 +7157,7 @@ function resetRoomState() {
   window.setKural?.(null);
   setMantik(null);
   setDaktilo(null);
+  window.setKart?.(null);
   setDino(null);
   Chip.stop();
   setRadio(null);
@@ -7677,6 +7680,12 @@ const GAME_INFO = {
   kural: { hue: 290, group: 'Zeka', desc: 'Dizileri dene, gizli kuralı yakala', players: '1–10 kişi' },
   hedef: { hue: 25, group: 'Zeka', desc: '6 sayı, 4 işlem, hedefe ulaş', players: '1–10 kişi' },
   mantik: { hue: 345, group: 'Zeka', desc: 'İpuçlarından kim kimdir tablosu', players: '1–10 kişi' },
+  blackjack: { hue: 140, group: 'Kağıt Oyunları', desc: 'Kurpiyere karşı 21\'e en yakın eli yap', players: '1–7 kişi' },
+  poker: { hue: 0, group: 'Kağıt Oyunları', desc: 'Texas Hold\'em: çiplerle blöf ve en iyi el', players: '1–8 kişi' },
+  arasinda: { hue: 45, group: 'Kağıt Oyunları', desc: 'Üçüncü kart iki kartın arasına düşer mi?', players: '1–8 kişi' },
+  pisti: { hue: 195, group: 'Kağıt Oyunları', desc: 'Aynı kartı ya da Valeyi at, yığını topla', players: '1–4 kişi' },
+  batak: { hue: 230, group: 'Kağıt Oyunları', desc: 'İhaleyi al, kozu seç, sözünü tut', players: '4 kişilik' },
+  kemal: { hue: 300, group: 'Kağıt Oyunları', desc: 'Dörtlüyü topla, ortağına gizlice işaret ver', players: '2\'ye 2' },
   xox: { hue: 170, group: 'Zeka', desc: 'Taş koy ya da kenardan it, üçünü yan yana getir', players: '2 kişilik' },
   klotski: { hue: 150, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
   memory: { hue: 65, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–10 kişi' },
@@ -7689,7 +7698,7 @@ const GAME_INFO = {
   tier: { hue: 35, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },
   oner: { hue: 90, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
 };
-const GAME_GROUPS = ['Kutu Oyunları', 'Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
+const GAME_GROUPS = ['Kağıt Oyunları', 'Kutu Oyunları', 'Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
 // Oyun simgeleri: index.html'deki gömülü <svg id="game-icons"> (kaynağı icons/games.svg, test/tools/game-icons.js).
 // Sembolü olmayan (yeni eklenmiş) oyunda arayüz setinin oyun kolu ikonu görünür.
 function gameIcon(key, cls) {
