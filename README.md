@@ -23,8 +23,8 @@ iki oda birleşince 20 kişi (her odadan 10). Site yöneticisi bu sayıya girmez
 - Ekran paylaşımı (Chrome/Edge'de sekme sesiyle birlikte)
 - Oyunlar (üst çubuktaki sekme; oyundayken müzik ve sesli sohbet sürer): tier list (ortak tahtada
   yazılı/resimli kartlar), süre tahmini ve süre yarışı, dinozor koşusu, kelime, eşini bul, sayı bulmaca,
-  hedef sayı, gizli kural, mantık tablosu, İttirmeli XOX, Dört Taş, Beş Harf (günlük kelime), daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
-  "Oda kur" lobisinden başlar (lobide odadaki herkes ve bot; kelime 6, dinozor 7, sayı bulmaca, İttirmeli XOX ve Dört Taş 2 kişiyle
+  hedef sayı, gizli kural, mantık tablosu, İttirmeli XOX, Dört Taş, Duvar, Beş Harf (günlük kelime, Türkçe ve İngilizce), daktilo düellosu, kaydırmaca, hızlı okuma. Çok kişili oyunlar
+  "Oda kur" lobisinden başlar (lobide odadaki herkes ve bot; kelime 6, dinozor 7, sayı bulmaca, İttirmeli XOX, Dört Taş ve Duvar 2 kişiyle
   sınırlı). Skor tabloları bütün odalarda ortaktır.
 - **Kutu Oyunları** bölümünde Yörünge Kuşatması, Takımada ve Yedi Kapı bulunur. Yörünge’de her filoda
   birer Yankı, Dalış ve Çekici vardır. Bunlar Hive’ın Mosquito, Ladybug ve Pillbug genişletmelerinin
@@ -139,9 +139,10 @@ her zaman varsayılan temadadır (Gece Odası). Temalar: Gece Odası (`gece`, ko
 `public/themes/kis/` altında, buz sarkıtları ile kar yığınları tema dosyasında gömülü SVG; boş oynatıcıda iki chibi
 kartopu atışır, sahne `test/tools/kis-scene.js` ile üretilir; hızlı emoji satırı da kışa göre, `app.js`
 `THEME_QUICK_EMOJIS`)) ve Neon Oda
-(`neon`, koyu çivit zemin, pembe → mor → camgöbeği neon kenarlar; masaüstünde sahne bir oyun konsolu gibi dizilir:
-solda kişiler sütunu, oynatıcının iki yanında ses kadranı, araçlar, artı biçimli sarma tuşları ve büyük oynat
-düğmesi, altında zaman çubuğu ve yuvarlak sayfa düğmeleri; hepsi tema dosyasının `@media (min-width: 1000px)`
+(`neon`, koyu mor-lacivert zemin, kutularda ve düğmelerde "uzay simi" kenarlar: renkli degrade üstünde sim noktaları;
+masaüstünde sahne üç bölmeli bir oyun konsolu gibi dizilir: solda ince kişiler sütunu, sol kanatta ses kadranı ve
+üçgen dizili araçlar, ortada 16:9 oynatıcı, sağ kanatta artı biçimli tuşlar ve büyük oynat düğmesi; altında zaman
+çubuğu ve hemen altında yuvarlak sayfa düğmeleri (CSS anchor positioning ile çubuğa bağlı); hepsi tema dosyasının `@media (min-width: 1000px)`
 bloğunda, HTML'e dokunmadan `display: contents` ve ızgara alanlarıyla. Ses kadranının yüzdesi `.vol`
 kabının `data-val` değerinden okunur, `app.js` `paintRange` yazar. Telefonda düzen ortak).
 

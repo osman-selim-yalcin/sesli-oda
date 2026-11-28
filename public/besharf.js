@@ -4,6 +4,8 @@
 // app.js'ten sonra yüklenir; $, socket, myName oradan, BESHARF_WORDS besharf-words.js'ten gelir. Her gün herkese aynı
 // 5 harfli kelime, 6 tahmin. Tahmin sunucuda denetlenir ve boyanır (games/besharf.js); kelime istemciye ancak oyun
 // bitince gelir. Ekran klavyesi ya da bilgisayar klavyesiyle yazılır.
+// İki dil: Türkçe (tr) ve İngilizce (en); her gün ikisinde ayrı kelime. Seçim tarayıcıda saklanır (ilk açılışta arayüzün
+// dili). İngilizce tahmin listesi (besharf-words-en.js) İngilizce mod ilk açılınca yüklenir.
 
 let besharf = null; // sunucudan: { no, rows: [{ w, m }], done, won, answer, nextAt, stats, board, ... }
 let bhTyped = '';
@@ -13,13 +15,47 @@ let bhTimer = null;
 let bhClock = null;
 const BH_LEN = 5;
 const BH_MAX = 6;
-const BH_VALID = new Set(typeof BESHARF_WORDS !== 'undefined' ? BESHARF_WORDS : []);
-const BH_KEYS = [[...'ertyuıopğü'], [...'asdfghjklşi'], ['enter', ...'zcvbnmöç', 'back']];
-const BH_LETTERS = new Set(BH_KEYS.flat().filter((k) => k.length === 1));
+const BH_LANG_KEY = 'besharfLang';
+const BH = {
+  tr: {
+    keys: [[...'ertyuıopğü'], [...'asdfghjklşi'], ['enter', ...'zcvbnmöç', 'back']],
+    lower: (s) => s.replace(/I/g, 'ı').replace(/İ/g, 'i').toLocaleLowerCase('tr'),
+    upper: (s) => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toLocaleUpperCase('tr'),
+    valid: new Set(typeof BESHARF_WORDS !== 'undefined' ? BESHARF_WORDS : []),
+  },
+  en: {
+    keys: [[...'qwertyuiop'], [...'asdfghjkl'], ['enter', ...'zxcvbnm', 'back']],
+    lower: (s) => s.toLowerCase(),
+    upper: (s) => s.toUpperCase(),
+    valid: new Set(), // besharf-words-en.js yüklenince dolar
+  },
+};
+for (const L of Object.values(BH)) L.letters = new Set(L.keys.flat().filter((k) => k.length === 1));
+let bhLang = (() => {
+  try {
+    const saved = localStorage.getItem(BH_LANG_KEY);
+    if (saved === 'tr' || saved === 'en') return saved;
+  } catch {}
+  return typeof I18N !== 'undefined' && I18N.lang === 'en' ? 'en' : 'tr';
+})();
+const bhL = () => BH[bhLang];
 const BH_RANK = { x: 1, y: 2, g: 3 };
 const BH_FLIP = 260; // ms, harf başına
-const bhLower = (s) => s.replace(/I/g, 'ı').replace(/İ/g, 'i').toLocaleLowerCase('tr');
-const bhUpper = (s) => s.replace(/i/g, 'İ').replace(/ı/g, 'I').toLocaleUpperCase('tr');
+const bhLower = (s) => bhL().lower(s);
+const bhUpper = (s) => bhL().upper(s);
+let bhEnWords = null;
+function bhLoadEn() {
+  bhEnWords ||= new Promise((resolve) => {
+    const s = Object.assign(document.createElement('script'), { src: '/besharf-words-en.js?v=1' });
+    s.onload = () => {
+      if (typeof BESHARF_WORDS_EN !== 'undefined') BESHARF_WORDS_EN.forEach((w) => BH.en.valid.add(w));
+      resolve();
+    };
+    s.onerror = () => { bhEnWords = null; resolve(); }; // sunucu yine denetler
+    document.head.append(s);
+  });
+  return bhEnWords;
+}
 const bhShown = () => !$('game-besharf').hidden;
 
 function bhSound(kind, i = 0) {
@@ -106,7 +142,7 @@ function renderBhGrid() {
         }
       } else if (letters[i]) {
         tile.classList.add('filled');
-        if (typing && i === bhTyped.length - 1) tile.classList.add('pop');
+        if (typing && i === bhTyped.length - 1) tile.classList.add('bh-typed'); // 'pop' değil: o ad açılır pencerelerin genel sınıfı (base.css .pop)
       }
       tile.append(inner);
       row.append(tile);
@@ -120,7 +156,7 @@ function renderBhKeys() {
   const marks = bhLetterMarks();
   // Açılan satır bitene kadar klavye renkleri bir önceki hâliyle kalsın (sürpriz bozulmasın)
   const hold = bhReveal >= 0 ? bhRowsMarks(bhReveal) : null;
-  $('besharf-keys').replaceChildren(...BH_KEYS.map((line) => {
+  $('besharf-keys').replaceChildren(...bhL().keys.map((line) => {
     const row = document.createElement('div');
     row.className = 'bh-krow';
     for (const k of line) {
@@ -261,7 +297,7 @@ function bhKey(k) {
     return renderBhGrid();
   }
   if (k === 'enter') return bhSubmit();
-  if (!BH_LETTERS.has(k) || [...bhTyped].length >= BH_LEN) return;
+  if (!bhL().letters.has(k) || [...bhTyped].length >= BH_LEN) return;
   bhTyped += k;
   bhSound('key');
   renderBhGrid();
@@ -273,7 +309,7 @@ function bhSubmit() {
     bhShake();
     return bhToast('Kelime 5 harf olmalı');
   }
-  if (BH_VALID.size && !BH_VALID.has(word)) {
+  if (bhL().valid.size && !bhL().valid.has(word)) {
     bhShake();
     return bhToast('Bu kelime listede yok');
   }
@@ -282,8 +318,10 @@ function bhSubmit() {
     return bhToast('Bunu zaten denedin');
   }
   bhBusy = true;
-  socket.emit('besharf:guess', { word }, (res) => {
+  const lang = bhLang;
+  socket.emit('besharf:guess', { word, lang }, (res) => {
     bhBusy = false;
+    if (lang !== bhLang) return; // bu arada dil değişti
     if (!res?.ok) {
       bhShake();
       bhToast(res?.error || 'Gönderilemedi');
@@ -320,7 +358,7 @@ addEventListener('keydown', (e) => {
     return bhKey('back');
   }
   const k = e.key.length === 1 ? bhLower(e.key) : '';
-  if (BH_LETTERS.has(k)) {
+  if (bhL().letters.has(k)) {
     e.preventDefault();
     bhKey(k);
   }
@@ -342,11 +380,37 @@ function bhSchedule() {
   tick();
 }
 function besharfRefresh() {
-  socket.emit('besharf:get', null, (state) => state && setBesharf(state));
+  socket.emit('besharf:get', { lang: bhLang }, (state) => state && setBesharf(state));
 }
+
+// Dil seçici (TR / EN): yazılan silinir, o dilin bugünkü oyunu sunucudan gelir
+function renderBhLang() {
+  for (const b of document.querySelectorAll('#besharf-lang [data-lang]')) {
+    b.setAttribute('aria-pressed', String(b.dataset.lang === bhLang));
+  }
+}
+function bhSetLang(lang) {
+  if (!BH[lang] || lang === bhLang) return;
+  bhLang = lang;
+  try { localStorage.setItem(BH_LANG_KEY, lang); } catch {}
+  bhTyped = '';
+  bhReveal = -1;
+  besharf = null;
+  renderBhLang();
+  bhRenderAll();
+  if (lang === 'en') bhLoadEn();
+  besharfRefresh();
+}
+for (const b of document.querySelectorAll('#besharf-lang [data-lang]')) b.onclick = () => bhSetLang(b.dataset.lang);
+renderBhLang();
+if (bhLang === 'en') bhLoadEn();
 
 function setBesharf(state, keepTyped = false) {
   if (!state) return;
+  // Dil bilmeyen (eski) sunucu yanıtında lang yoktur: seçici gizlenir, gelen (Türkçe) oyun gösterilir
+  $('besharf-lang').hidden = !state.lang;
+  // Giriş yanıtı her zaman Türkçe oyunu taşır; başka dildeysek o dilin oyununu iste
+  if (state.lang && state.lang !== bhLang) return besharf ? undefined : besharfRefresh();
   const newDay = besharf && besharf.day !== state.day;
   besharf = { ...state, skew: state.now - Date.now() };
   if (newDay || !keepTyped) {
@@ -355,8 +419,8 @@ function setBesharf(state, keepTyped = false) {
   bhRenderAll();
   bhSchedule();
 }
-socket.on('besharf:board', ({ day, board } = {}) => {
-  if (!besharf || besharf.day !== day) return;
+socket.on('besharf:board', ({ day, lang = 'tr', board } = {}) => {
+  if (!besharf || besharf.day !== day || lang !== bhLang) return;
   besharf.board = board || [];
   renderBhSide();
 });

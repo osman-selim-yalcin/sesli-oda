@@ -6,6 +6,9 @@
 // Çıktı:
 //   public/themes/kis/kartopu.svg         canlı sahne (CSS animasyonu SVG'nin içinde; zemin resmi olarak da oynar)
 //   public/themes/kis/kartopu-durgun.svg  aynı sahne hareketsiz (hareketi azalt ayarı)
+//   public/themes/kis/sarkit.svg          buz sarkıtları şeridi (yatayda kendini tekrarlar; üst çubuk ve sohbet sekmeleri)
+//   public/themes/kis/bere-1.svg, bere-2.svg    odadakilerin avatarına örgü bere (iki renk takımı)
+//   public/themes/kis/hirka-1.svg, hirka-2.svg  avatarın altına V yakalı düğmeli hırka (iki renk takımı)
 // Zemin (karlı tepeler), boyalı kardan adam ve bulutlar kis.css'te ayrı katmandır; bu sahne şeffaf zeminlidir.
 //
 // Kullanım: node test/tools/kis-scene.js
@@ -174,7 +177,149 @@ ${still ? '' : b1.el + b2.el}
 `;
 }
 
+// Buz sarkıtları: üstte kalın, yuvarlak kenarlı kar yastığı (alt kenarı dalgalı, ortasında açık bir dikiş), altında
+// boğum boğum, yarı saydam buz sarkıtları: koyu kenar çizgisi, içinde beyaz parlak lekeler ve gri-mavi gölge
+// lekeleri, ucu damla gibi yuvarlak. Şerit SW genişliğinde kendini tekrarlar (dalgalar SW'yi tam böler, sarkıtlar
+// kenara taşmaz). Rastgelelik sabit tohumlu: her üretimde aynı çıktı.
+function icicles() {
+  const SW = 520;
+  const SH = 120;
+  const CAP = 28; // kar yastığının alt kenarının ortalama yüksekliği
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const f = (n) => n.toFixed(1);
+  const wave = (x, a, k, ph) => a * Math.sin((x / SW) * Math.PI * 2 * k + ph);
+  // Kar yastığı: üst kenar düz (çubuğun altına yapışık), alt kenar dalgalı
+  const bottom = [];
+  for (let x = -6; x <= SW + 6; x += 6) bottom.push([x, CAP + wave(x, 2.6, 4, 0.4) + wave(x, 1.4, 11, 2)]); // kenarların 6 birim dışına taşar: karolar dikişsiz birleşir
+  const capPath = `M-6 0 H${SW + 6} V${f(bottom[bottom.length - 1][1])} ${bottom.slice().reverse().map(([x, y]) => `L${x} ${f(y)}`).join(' ')} Z`;
+  const seam = bottom.map(([x, y], k) => `${k ? 'L' : 'M'}${x} ${f(y - 8 + wave(x, 2, 7, 1))}`).join(' ');
+  const shade = bottom.map(([x, y], k) => `${k ? 'L' : 'M'}${x} ${f(y - 1.2)}`).join(' ');
+
+  const ice = [];
+  let x = 14 + rnd() * 10;
+  while (x < SW - 14) {
+    const long = rnd();
+    const len = long > 0.72 ? 70 + rnd() * 22 : long > 0.35 ? 44 + rnd() * 20 : 22 + rnd() * 14;
+    const w0 = Math.min(len > 65 ? 30 + rnd() * 8 : len > 40 ? 22 + rnd() * 7 : 14 + rnd() * 6, 2 * Math.min(x, SW - x) - 2);
+    const lean = (rnd() - 0.5) * 6;
+    const top = CAP - 3;
+    const bulge = 3 + Math.floor(rnd() * 3);
+    const ph = rnd() * 6;
+    const N = 28;
+    const left = [];
+    const right = [];
+    for (let k = 0; k <= N; k++) {
+      const t = k / N;
+      const cx = x + lean * t * t + Math.sin(t * 7 + ph) * 0.8;
+      const half = (w0 / 2) * Math.pow(1 - t, 0.75) * (1 + 0.3 * Math.sin(t * Math.PI * bulge * 1.6 + ph)) * (k < 2 ? 0.9 : 1) + (k === N ? 0 : 0.8);
+      const y = top + len * t;
+      left.push([cx - half, y]);
+      right.push([cx + half, y]);
+    }
+    const tip = left[N];
+    const pts = [...left, ...right.slice(0, N).reverse()];
+    const d = `M${pts.map(([a, b]) => `${f(a)} ${f(b)}`).join(' L')} Z`;
+    ice.push(`<path d="${d}" fill="url(#ice)" stroke="#5E7286" stroke-opacity=".75" stroke-width="1.1" stroke-linejoin="round"/>`);
+    // iç lekeler: beyaz parlak ve gri-mavi gölge, sarkığın içinde kalacak boyda
+    for (let k = 1; k < N - 2; k += 1 + Math.floor(rnd() * 2)) {
+      const cx = (left[k][0] + right[k][0]) / 2;
+      const half = (right[k][0] - left[k][0]) / 2;
+      if (half < 3) continue;
+      // yatay, düzensiz parlak leke (iki üst üste elips) ve altında ince gri-mavi gölge kavsi
+      const rx = half * (0.3 + rnd() * 0.35);
+      const ry = Math.max(1.2, rx * (0.35 + rnd() * 0.25));
+      const ox = (rnd() - 0.5) * (half - rx) * 1.4;
+      const cy = left[k][1] + (rnd() - 0.5) * 2;
+      const op = (0.3 + rnd() * 0.35).toFixed(2);
+      ice.push(`<g fill="#FFFFFF" fill-opacity="${op}" transform="rotate(${f((rnd() - 0.5) * 24)} ${f(cx + ox)} ${f(cy)})"><ellipse cx="${f(cx + ox)}" cy="${f(cy)}" rx="${f(rx)}" ry="${f(ry)}"/><ellipse cx="${f(cx + ox + rx * 0.5)}" cy="${f(cy + ry * 0.4)}" rx="${f(rx * 0.6)}" ry="${f(ry * 0.8)}"/></g>`);
+      if (rnd() < 0.6) ice.push(`<path d="M${f(cx + ox - rx)} ${f(cy + ry + 0.8)} q${f(rx)} ${f(ry * 1.2)} ${f(rx * 2)} 0" stroke="#4C6074" stroke-opacity=".4" stroke-width="1.2" fill="none" stroke-linecap="round"/>`);
+    }
+    // sol kenarın içinde kısa parlama (üst yarıda)
+    const hl = left.slice(1, Math.round(N * 0.45)).map(([a, b], k2) => {
+      const k3 = k2 + 1;
+      return `${k2 ? 'L' : 'M'}${f(a + (right[k3][0] - a) * 0.22)} ${f(b)}`;
+    }).join(' ');
+    ice.push(`<path d="${hl}" stroke="#FFFFFF" stroke-opacity=".55" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
+    ice.push(`<ellipse cx="${f(tip[0])}" cy="${f(tip[1] - 0.6)}" rx="1.5" ry="2" fill="#E9F2F8" fill-opacity=".85" stroke="#5E7286" stroke-opacity=".6" stroke-width=".7"/>`);
+    x += w0 / 2 + 8 + rnd() * 18;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SW} ${SH}" width="${SW}" height="${SH}">
+<!-- Kış Odası buz sarkıtları. Üretici: test/tools/kis-scene.js (elle değiştirme). -->
+<defs>
+  <linearGradient id="ice" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#9FB3C4" stop-opacity=".55"/>
+    <stop offset=".35" stop-color="#E4EEF5" stop-opacity=".42"/>
+    <stop offset=".7" stop-color="#C8D7E3" stop-opacity=".38"/>
+    <stop offset="1" stop-color="#8296A8" stop-opacity=".55"/>
+  </linearGradient>
+  <linearGradient id="snow" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#FFFFFF"/>
+    <stop offset=".75" stop-color="#EEF3F7"/>
+    <stop offset="1" stop-color="#C9D5DF"/>
+  </linearGradient>
+</defs>
+${ice.join('\n')}
+<path d="${capPath}" fill="url(#snow)"/>
+<path d="${shade}" stroke="#AAB9C6" stroke-width="2" fill="none" stroke-opacity=".8"/>
+<path d="${seam}" stroke="#FFFFFF" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-opacity=".9"/>
+</svg>
+`;
+}
+
+// Odadakilerin kış kıyafeti: örgü bere (ponpon, desenli şerit, kıvrık ağız) ve V yakalı düğmeli hırka. İki renk takımı
+// (kartopu sahnesindeki çocuklarla aynı): 1 kırmızı bere + camgöbeği hırka, 2 hardal bere + lila hırka.
+const OUTFITS = [
+  { hat: '#C8404F', hatDark: '#9E2E3C', band: '#F1E3D3', coat: '#4E97A8', coatDark: '#3A7584', trim: '#F1E3D3' },
+  { hat: '#E2A43A', hatDark: '#B9802A', band: '#F7EEDF', coat: '#A68BCB', coatDark: '#8169A6', trim: '#F7EEDF' },
+];
+function hat(o) {
+  const ribs = [26, 38, 50, 60, 70, 82, 94].map((x) => `<path d="M${x} ${x < 60 ? 26 + (60 - x) * 0.35 : 26 + (x - 60) * 0.35} Q${x + (x - 60) * 0.12} 46 ${x + (x - 60) * 0.18} 60" stroke="${o.hatDark}" stroke-opacity=".45" stroke-width="2" fill="none" stroke-linecap="round"/>`).join('');
+  const diamonds = [30, 44, 58, 72, 86].map((x) => `<path d="M${x + 2} 40 l4 -4 l4 4 l-4 4z" fill="${o.hat}"/>`).join('');
+  const cuffRibs = Array.from({ length: 17 }, (_, k) => `<path d="M${14 + k * 6} 60 v15" stroke="${o.hatDark}" stroke-opacity=".5" stroke-width="2" stroke-linecap="round"/>`).join('');
+  const fluff = [[60, 13, 12], [51, 16, 7], [69, 16, 7], [55, 7, 7], [65, 7, 7], [60, 20, 7]].map(([cx, cy, r]) => `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${o.band}"/>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 84" width="120" height="84">
+<!-- Kış Odası avatar beresi. Üretici: test/tools/kis-scene.js (elle değiştirme). -->
+<path d="M14 64 Q12 22 60 21 Q108 22 106 64 Z" fill="${o.hat}"/>
+<path d="M14 64 Q12 22 60 21 Q40 26 30 64 Z" fill="${o.hatDark}" opacity=".35"/>
+${ribs}
+<path d="M17 36 Q60 28 103 36 L105 46 Q60 38 15 46 Z" fill="${o.band}"/>
+${diamonds}
+<rect x="8" y="57" width="104" height="22" rx="11" fill="${o.hatDark}"/>
+<rect x="8" y="57" width="104" height="9" rx="4.5" fill="${o.hat}" opacity=".55"/>
+${cuffRibs}
+<g>${fluff}<circle cx="56" cy="9" r="3.5" fill="#FFFFFF" opacity=".7"/></g>
+</svg>
+`;
+}
+function cardigan(o) {
+  const stitches = [];
+  for (let y = 30; y < 64; y += 7) for (let x = (y / 7) % 2 ? 10 : 14; x < 142; x += 8) {
+    if (Math.abs(x - 75) < 10 + (64 - y) * 0.2 && y < 46) continue;
+    stitches.push(`<path d="M${x} ${y} l3 3 l3 -3" stroke="${o.coatDark}" stroke-opacity=".5" stroke-width="1.2" fill="none" stroke-linecap="round"/>`);
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 64" width="150" height="64">
+<!-- Kış Odası avatar hırkası. Üretici: test/tools/kis-scene.js (elle değiştirme). -->
+<path d="M50 6 Q75 52 100 6 L100 64 L50 64 Z" fill="#2A3E50"/>
+<path d="M0 64 C2 30 20 14 48 6 C56 22 65 36 75 46 C85 36 94 22 102 6 C130 14 148 30 150 64 Z" fill="${o.coat}"/>
+<path d="M0 64 C2 30 20 14 48 6 C38 24 32 44 30 64 Z" fill="${o.coatDark}" opacity=".35"/>
+<path d="M120 64 C118 44 112 24 102 6 C130 14 148 30 150 64 Z" fill="${o.coatDark}" opacity=".25"/>
+${stitches.join('')}
+<path d="M48 6 C56 22 65 36 75 46 C85 36 94 22 102 6" stroke="${o.trim}" stroke-width="7" fill="none" stroke-linejoin="round"/>
+<path d="M48 6 C56 22 65 36 75 46 C85 36 94 22 102 6" stroke="${o.coatDark}" stroke-opacity=".35" stroke-width="7" stroke-dasharray="1.5 2.5" fill="none"/>
+<path d="M75 46 V64" stroke="${o.trim}" stroke-width="6"/>
+<circle cx="75" cy="53" r="3.2" fill="${o.coatDark}"/><circle cx="75" cy="62" r="3.2" fill="${o.coatDark}"/>
+<circle cx="74" cy="52" r="1" fill="#FFFFFF" opacity=".6"/><circle cx="74" cy="61" r="1" fill="#FFFFFF" opacity=".6"/>
+</svg>
+`;
+}
+
 fs.mkdirSync(OUT, { recursive: true });
+OUTFITS.forEach((o, k) => {
+  fs.writeFileSync(path.join(OUT, `bere-${k + 1}.svg`), hat(o));
+  fs.writeFileSync(path.join(OUT, `hirka-${k + 1}.svg`), cardigan(o));
+});
+fs.writeFileSync(path.join(OUT, 'sarkit.svg'), icicles());
 fs.writeFileSync(path.join(OUT, 'kartopu.svg'), build(false));
 fs.writeFileSync(path.join(OUT, 'kartopu-durgun.svg'), build(true));
-console.log('kartopu.svg, kartopu-durgun.svg yazıldı');
+console.log('kartopu.svg, kartopu-durgun.svg, sarkit.svg, bere-*.svg, hirka-*.svg yazıldı');

@@ -414,6 +414,7 @@ I18N.add({
   "Gizli sayıyı +/- ipuçlarıyla bul": "Find the secret number with +/- clues",
   "1–2 kişi": "1–2 players",
   "Kutu Oyunları": "Board Games",
+  "Günlük Oyun": "Daily Game",
   "Yollar kur, kaynakları takas et ve adaya yerleş": "Build routes, trade goods and settle the island",
   "2–4 kişi": "2–4 players",
   "Kapıyı aç, canavarları yen ve hazine topla": "Open the door, beat monsters and collect treasure",

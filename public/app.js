@@ -1472,8 +1472,60 @@ function paintRange(el) {
   const pct = max > min ? ((Number(el.value) - min) / (max - min)) * 100 : 0;
   el.style.setProperty('--pct', `${Math.max(0, Math.min(100, pct))}%`);
   // Ses kaydırıcısının yüzdesi kabında da durur: bir tema onu yazı olarak gösterebilir (Neon Oda'nın ses kadranı).
-  if (el.parentElement?.classList.contains('vol')) el.parentElement.dataset.val = Math.round(pct);
+  if (el.parentElement?.classList.contains('vol')) {
+    el.parentElement.dataset.val = Math.round(pct);
+    const knob = el.parentElement.querySelector('.vol-knob');
+    if (knob) knob.style.rotate = `${Math.max(0, Math.min(100, pct)) * 3.6}deg`;
+  }
 }
+
+// Yuvarlak ses kadranı: bir tema ses kaydırıcısını halka olarak çizerse (Neon Oda masaüstü) .vol-knob görünür ve
+// kadranın üstünü kaplar. Halkada tutup çevirerek ayarlanır: değer, imlecin kadranın merkezine göre açısıdır (tepe 0,
+// saat yönünde 100). Sürüklerken tepeden geçince 100'den 0'a sıçramaz, uçta kalır. Tekerlek 5'er adım değiştirir;
+// klavye kaydırıcının kendisinde çalışır. Diğer temalarda .vol-knob gizlidir (shell.css), kaydırıcı düz çalışır.
+function setupVolDial(input) {
+  const knob = Object.assign(document.createElement('span'), { className: 'vol-knob' });
+  knob.setAttribute('aria-hidden', 'true');
+  input.after(knob);
+  const min = () => Number(input.min) || 0;
+  const max = () => Number(input.max) || 100;
+  const emit = (type) => input.dispatchEvent(new Event(type, { bubbles: true }));
+  let dragging = false;
+  const setFrom = (e) => {
+    const r = input.getBoundingClientRect();
+    const a = (Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2))) * 180 / Math.PI + 360) % 360;
+    let v = Math.round(min() + (a / 360) * (max() - min()));
+    const prev = Number(input.value);
+    if (dragging && Math.abs(v - prev) > (max() - min()) / 2) v = prev > (min() + max()) / 2 ? max() : min();
+    if (v !== prev) {
+      input.value = v;
+      emit('input');
+    }
+  };
+  knob.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    knob.setPointerCapture(e.pointerId);
+    dragging = false;
+    setFrom(e);
+    dragging = true;
+  });
+  knob.addEventListener('pointermove', (e) => { if (dragging) setFrom(e); });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    emit('change');
+  };
+  knob.addEventListener('pointerup', end);
+  knob.addEventListener('pointercancel', end);
+  knob.addEventListener('click', (e) => e.preventDefault()); // etiket tıklaması kaydırıcıya geçmesin
+  knob.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    input.value = Math.max(min(), Math.min(max(), Number(input.value) + (e.deltaY < 0 ? 5 : -5)));
+    emit('input');
+    emit('change');
+  }, { passive: false });
+}
+document.querySelectorAll('.vol > input.range').forEach(setupVolDial);
 document.addEventListener('input', (e) => e.target.matches?.('input.range') && paintRange(e.target));
 const paintRanges = () => document.querySelectorAll('input.range').forEach(paintRange);
 // Üst çubuktaki şarkıya basınca kumanda açılır (odaya dönmez); kumanda odadaki düğmeleri kullanır.
@@ -1507,8 +1559,8 @@ $('now-pop-room').onclick = () => {
 // / oda listesi, /uyeler (listede, yönetici); odanın içinde /oda/<id> sıra, /oda/<id>/gecmis, /oda/<id>/radyo,
 // /oda/<id>/oyunlar (oyun kartları), /oda/<id>/oyunlar/tier/<liste no>, /oda/<id>/oyunlar/kelime ...
 
-const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'xox', 'dorttas', 'besharf', 'blackjack', 'arasinda', 'poker', 'pisti', 'batak', 'kemal', 'daktilo', 'okuma', 'peacock', 'oner'];
-const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', xox: 'ittirmeli-xox', dorttas: 'dort-tas', besharf: 'bes-harf', blackjack: 'blackjack', arasinda: 'arasinda', poker: 'poker', pisti: 'pisti', batak: 'batak', kemal: 'kemal', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
+const GAMES = ['tier', 'timing', 'dino', 'kelime', 'memory', 'klotski', 'sayi', 'takimada', 'yedikapi', 'yorunge', 'kural', 'hedef', 'mantik', 'xox', 'dorttas', 'duvar', 'besharf', 'blackjack', 'arasinda', 'poker', 'pisti', 'batak', 'kemal', 'daktilo', 'okuma', 'peacock', 'oner'];
+const GAME_PATHS = { tier: 'tier', timing: 'sure', dino: 'dinozor', kelime: 'kelime', memory: 'esini-bul', klotski: 'kaydirmaca', sayi: 'sayi-bulmaca', takimada: 'takimada', yedikapi: 'yedi-kapi', yorunge: 'yorunge-kusatmasi', kural: 'gizli-kural', hedef: 'hedef-sayi', mantik: 'mantik-tablosu', xox: 'ittirmeli-xox', dorttas: 'dort-tas', duvar: 'duvar', besharf: 'bes-harf', blackjack: 'blackjack', arasinda: 'arasinda', poker: 'poker', pisti: 'pisti', batak: 'batak', kemal: 'kemal', daktilo: 'daktilo', okuma: 'hizli-okuma', peacock: 'tavus', oner: 'oner' };
 
 function viewPath(view) {
   const base = `/oda/${view.room}`;
@@ -2045,6 +2097,7 @@ function openGame(name) {
   if (name === 'daktilo') renderDaktilo(); // public/daktilo.js
   if (name === 'xox') window.renderXox?.(); // public/xox.js
   if (name === 'dorttas') window.renderDorttas?.(); // public/dorttas.js
+  if (name === 'duvar') window.renderDuvar?.(); // public/duvar.js
   if (name === 'besharf') window.renderBesharf?.(); // public/besharf.js
   if (['blackjack', 'arasinda', 'poker', 'pisti', 'batak', 'kemal'].includes(name)) window.renderKart?.(name); // public/kart.js
   if (name === 'okuma') renderOkuma(); // public/okuma.js
@@ -7008,6 +7061,7 @@ function applyJoin(res) {
   setDaktiloBoard(res.daktiloBoard);
   window.setXox?.(res.xox); // public/xox.js (yüklenemediyse giriş bozulmasın)
   window.setDorttas?.(res.dorttas); // public/dorttas.js
+  window.setDuvar?.(res.duvar); // public/duvar.js
   window.setBesharf?.(res.besharf); // public/besharf.js
   window.setKart?.(res.kart); // public/kart.js
   setRadio(res.radio);
@@ -7694,8 +7748,9 @@ const GAME_INFO = {
   pisti: { hue: 195, group: 'Kağıt Oyunları', desc: 'Aynı kartı ya da Valeyi at, yığını topla', players: '1–4 kişi' },
   batak: { hue: 230, group: 'Kağıt Oyunları', desc: 'İhaleyi al, kozu seç, sözünü tut', players: '4 kişilik' },
   kemal: { hue: 300, group: 'Kağıt Oyunları', desc: 'Dörtlüyü topla, ortağına gizlice işaret ver', players: '2\'ye 2' },
-  besharf: { hue: 120, group: 'Zeka', desc: 'Günün 5 harfli kelimesini 6 tahminde bul', players: 'Günlük' },
+  besharf: { hue: 120, group: 'Günlük Oyun', desc: 'Günün 5 harfli kelimesini 6 tahminde bul', players: 'Günlük' },
   dorttas: { hue: 55, group: 'Zeka', desc: 'Sütuna taş bırak, dördünü yan yana getir', players: '2 kişilik' },
+  duvar: { hue: 28, group: 'Zeka', desc: 'Piyonunu karşıya ulaştır, rakibin yoluna duvar ör', players: '2 kişilik' },
   xox: { hue: 170, group: 'Zeka', desc: 'Taş koy ya da kenardan it, üçünü yan yana getir', players: '2 kişilik' },
   klotski: { hue: 150, group: 'Zeka', desc: 'Büyük kareyi kaydırarak çıkar', players: 'Tek kişi' },
   memory: { hue: 65, group: 'Zeka', desc: 'Eşleri bul, en çok çifti topla', players: '1–10 kişi' },
@@ -7708,7 +7763,7 @@ const GAME_INFO = {
   tier: { hue: 35, group: 'Birlikte', desc: 'Birlikte sıralama listeleri', players: 'Herkes' },
   oner: { hue: 90, group: 'Diğer', desc: 'Eklenmesini istediğin oyunu anlat' },
 };
-const GAME_GROUPS = ['Kağıt Oyunları', 'Kutu Oyunları', 'Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
+const GAME_GROUPS = ['Günlük Oyun', 'Kağıt Oyunları', 'Kutu Oyunları', 'Zeka', 'Hız ve refleks', 'Birlikte', 'Diğer'];
 // Oyun simgeleri: index.html'deki gömülü <svg id="game-icons"> (kaynağı icons/games.svg, test/tools/game-icons.js).
 // Sembolü olmayan (yeni eklenmiş) oyunda arayüz setinin oyun kolu ikonu görünür.
 function gameIcon(key, cls) {

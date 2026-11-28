@@ -356,6 +356,10 @@ I18N.add({
   "bilgisayara karşı ({0})": "against the computer ({0})",
   "{0}Dört Taş berabere bitti.": "{0}Four Stones ended in a draw.",
   "{0}Dört Taş: 🏆 {1} kazandı{2}, {3} hamle.": "{0}Four Stones: 🏆 {1} won{2}, {3} moves.",
+  "{0} Duvar başlattı: {1}. {2} başlıyor.": "{0} started Walls: {1}. {2} goes first.",
+  "{0}Duvar: 🏆 {1} kazandı{2}, {3} hamle.": "{0}Walls: 🏆 {1} won{2}, {3} moves.",
   "{0} Beş Harf #{1} kelimesini {2}/{3} tahminde buldu: {4}": "{0} solved Five Letters #{1} in {2}/{3}: {4}",
   "{0} Beş Harf #{1} kelimesini bulamadı (X/{2}): {3}": "{0} missed Five Letters #{1} (X/{2}): {3}",
+  "{0} Beş Harf (EN) #{1} kelimesini {2}/{3} tahminde buldu: {4}": "{0} solved Five Letters (EN) #{1} in {2}/{3}: {4}",
+  "{0} Beş Harf (EN) #{1} kelimesini bulamadı (X/{2}): {3}": "{0} missed Five Letters (EN) #{1} (X/{2}): {3}",
 });

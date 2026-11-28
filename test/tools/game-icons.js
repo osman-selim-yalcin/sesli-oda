@@ -130,6 +130,13 @@ const ICONS = {
     <circle p="T" cx="24" cy="21" r="3.5"/>
     <circle p="T" cx="33" cy="21" r="3.5"/>
     <circle p="tf" cx="24" cy="5.5" r="3.5"/>`,
+  // Duvar: kare ızgaranın üstünde piyon, önünde bir duvar
+  duvar: `
+    <rect p="if" x="6" y="6" width="36" height="36" rx="5"/>
+    <path d="M18 6v36M30 6v36M6 18h36M6 30h36" stroke-opacity=".45"/>
+    <path p="t" d="M12 24h17" stroke-width="5"/>
+    <circle p="T" cx="24" cy="36" r="3.6"/>
+    <circle cx="24" cy="12" r="3.6"/>`,
   // Beş Harf: harf kutuları, biri doğru biri yerinde değil
   besharf: `
     <rect p="F" x="4" y="9" width="12" height="12" rx="2.5"/>

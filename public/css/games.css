@@ -2108,8 +2108,12 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
    Dik tahta hafif geriye yatık (3B); taşlar sütunun tepesinden zıplayarak düşer. Sonuç tahtanın üstünde pop-up,
    yerleşim kaymaz. Kırmızı (R) ilk oyuncu, sarı (Y) ikinci. */
 .dorttas { --dt-r: oklch(63% .2 25); --dt-r-dark: oklch(40% .16 25); --dt-y: oklch(85% .16 90); --dt-y-dark: oklch(58% .14 75); --dt-board: oklch(42% .12 255); --dt-board-dark: oklch(28% .1 258); }
-.xox-player .dt-disc { position: static; width: 26px; height: 26px; flex: none; }
-.dt-stage { position: relative; width: min(500px, 100%); perspective: 1100px; }
+/* Oyuncu satırındaki taş akışta durur ama konumlu kalır: yoksa iç halkası (::after) en yakın konumlu büyük kaba göre
+   boyutlanıp tahtanın ve sohbetin üstüne dev bir halka çiziyordu. */
+.xox-player .dt-disc { position: relative; inset: auto; width: 26px; height: 26px; flex: none; }
+/* Tahta ekrana sığar: genişliği ekran yüksekliğinden de sınırlanır (tahta yaklaşık 7:6; üstünde başlık, durum ve
+   oyuncular ~270 px) */
+.dt-stage { position: relative; width: min(500px, 100%, max(260px, (100dvh - 290px) * 7 / 6)); perspective: 1100px; }
 .dt-board {
   --g: clamp(4px, 1.4vw, 9px);
   display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--g); padding: clamp(8px, 2.4vw, 16px) clamp(8px, 2.4vw, 16px) clamp(12px, 3vw, 20px);
@@ -2167,16 +2171,119 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
   .dt-disc.win { box-shadow: 0 0 0 3px #fff; }
 }
 
+/* ---------- Duvar (public/duvar.js) ----------
+   Kayrak bir tahta: 9 × 9 kabartma kare, aralarında oluklar; duvarlar oluklara oturan kehribar çubuklar. 1. oyuncu
+   mavi, 2. oyuncu mercan; her oyuncunun hedef sırası kendi renginde. Sonuç tahtanın üstünde pop-up. */
+.duvar { --dv-p0: oklch(72% .14 235); --dv-p0-dark: oklch(46% .13 245); --dv-p1: oklch(70% .17 30); --dv-p1-dark: oklch(46% .15 28); --dv-wall: oklch(80% .13 75); --dv-wall-dark: oklch(58% .12 60); }
+.duvar, .duvar .xox-play { grid-template-columns: minmax(0, 1fr); }
+.duvar #duvar-status { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.duvar .memory-head { flex-wrap: nowrap; }
+.duvar .memory-head > button { flex: none; }
+.duvar .xox-players { flex-wrap: nowrap; overflow: hidden; justify-content: safe center; }
+.duvar .xox-player { flex: 0 1 auto; max-width: calc(50% - 5px); }
+@media (max-width: 480px) { .duvar .xox-player-tag { display: none; } }
+/* konumlu kalır: yoksa iç halkası (::after) büyük kaba göre boyutlanıp dev bir elips çizer (Dört Taş'taki hata) */
+.dv-player .dv-pawn { position: relative; width: 22px; height: 22px; flex: none; }
+.dv-left { display: inline-flex; gap: 2px; flex: none; }
+.dv-left i { width: 3px; height: 12px; border-radius: 2px; background: var(--border); }
+.dv-left i.on { background: var(--dv-wall); }
+@media (max-width: 560px) { .dv-left { display: none; } }
+
+.dv-tools { display: inline-flex; gap: 4px; padding: 3px; border-radius: var(--radius-pill); background: var(--surface-2); border: var(--border-w) solid var(--border); }
+.dv-tools[hidden] { display: none; }
+.dv-tools button { min-height: 0; height: 30px; padding: 0 14px; border: none; border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-weight: 700; font-size: 13px; }
+.dv-tools button:hover:where(:not(:disabled)) { background: var(--surface-3); color: var(--text); border: none; }
+.dv-tools button[aria-pressed="true"], .dv-tools button[aria-pressed="true"]:hover { background: var(--accent); color: var(--accent-contrast); }
+.dv-tools .dv-rotate { color: var(--text); background: var(--surface-3); }
+.dv-tools.waiting { opacity: .55; }
+
+/* Tahta ekrana sığar: kare, genişliği ekran yüksekliğinden de sınırlanır (üstünde başlık, oyuncular, araçlar ~330 px) */
+.dv-stage { position: relative; width: min(520px, 100%, max(280px, 100dvh - 330px)); }
+.dv-board {
+  --g: clamp(5px, 1.5vw, 10px);
+  display: grid; aspect-ratio: 1; padding: clamp(8px, 2.2vw, 14px);
+  grid-template-columns: repeat(8, minmax(0, 1fr) var(--g)) minmax(0, 1fr);
+  grid-template-rows: repeat(8, minmax(0, 1fr) var(--g)) minmax(0, 1fr);
+  border-radius: calc(var(--radius-l) * var(--game-corner, 1));
+  background: radial-gradient(120% 80% at 30% 0%, color-mix(in srgb, #fff 10%, transparent), transparent 60%), linear-gradient(165deg, oklch(33% .025 255), oklch(22% .025 262));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, .45), inset 0 2px 0 color-mix(in srgb, #fff 14%, transparent), inset 0 -5px 0 rgba(0, 0, 0, .3);
+  user-select: none; -webkit-user-select: none; touch-action: manipulation;
+}
+.dv-cell {
+  position: relative; display: grid; place-items: center; min-width: 0; min-height: 0;
+  border-radius: calc(18% * var(--game-corner, 1));
+  background: linear-gradient(160deg, oklch(47% .025 255), oklch(40% .025 258));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 16%, transparent), 0 2px 0 rgba(0, 0, 0, .35);
+}
+.dv-cell.goal0 { background: linear-gradient(160deg, color-mix(in srgb, var(--dv-p0) 50%, oklch(47% .025 255)), color-mix(in srgb, var(--dv-p0) 40%, oklch(40% .025 258))); }
+.dv-cell.goal1 { background: linear-gradient(160deg, color-mix(in srgb, var(--dv-p1) 50%, oklch(47% .025 255)), color-mix(in srgb, var(--dv-p1) 40%, oklch(40% .025 258))); }
+.dv-cell.can { cursor: pointer; outline: none; }
+.dv-cell.can::after { content: ''; width: 30%; aspect-ratio: 1; border-radius: var(--radius-round); background: var(--dv-me, #fff); opacity: .5; transition: opacity var(--dur-fast) var(--ease), scale var(--dur-fast) var(--ease); }
+.dv-board[data-me="0"] { --dv-me: var(--dv-p0); }
+.dv-board[data-me="1"] { --dv-me: var(--dv-p1); }
+.dv-cell.can:focus-visible { box-shadow: 0 0 0 2px var(--accent-2); }
+@media (hover: hover) { .dv-cell.can:hover::after { opacity: .9; scale: 1.25; } }
+.dv-pawn {
+  position: relative; z-index: 1; width: 72%; aspect-ratio: 1; border-radius: var(--radius-round);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, .5), inset 0 0 0 3px color-mix(in srgb, #000 14%, transparent), inset -3px -5px 8px rgba(0, 0, 0, .3);
+}
+.dv-pawn::after { content: ''; position: absolute; inset: 26%; border-radius: inherit; box-shadow: inset 0 2px 3px rgba(0, 0, 0, .25), 0 1px 0 color-mix(in srgb, #fff 35%, transparent); }
+.dv-pawn.p0 { background: radial-gradient(circle at 34% 28%, color-mix(in oklch, var(--dv-p0) 50%, #fff) 0 10%, var(--dv-p0) 48%, var(--dv-p0-dark) 100%); }
+.dv-pawn.p1 { background: radial-gradient(circle at 34% 28%, color-mix(in oklch, var(--dv-p1) 50%, #fff) 0 10%, var(--dv-p1) 48%, var(--dv-p1-dark) 100%); }
+.dv-pawn.hop { animation: dv-hop .32s cubic-bezier(.3, 1.5, .5, 1); }
+@keyframes dv-hop { 0% { scale: .7; translate: 0 -18%; } 60% { scale: 1.08; } }
+.dv-wall {
+  position: relative; z-index: 2; margin: -1px; border-radius: 999px; pointer-events: none;
+  background: linear-gradient(var(--dv-wall), var(--dv-wall-dark));
+  box-shadow: 0 3px 6px rgba(0, 0, 0, .45), inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent);
+}
+.dv-wall.v { background: linear-gradient(90deg, var(--dv-wall), var(--dv-wall-dark)); }
+.dv-wall.by0::after, .dv-wall.by1::after { content: ''; position: absolute; inset: 35%; border-radius: inherit; opacity: .9; }
+.dv-wall.by0::after { background: var(--dv-p0-dark); }
+.dv-wall.by1::after { background: var(--dv-p1-dark); }
+.dv-wall.drop { animation: dv-drop .35s cubic-bezier(.2, 1.4, .4, 1); }
+@keyframes dv-drop { from { opacity: 0; scale: 1.35; } }
+.dv-wall.ghost { opacity: .75; box-shadow: none; }
+.dv-wall.ghost.ok { background: color-mix(in srgb, var(--live) 80%, transparent); }
+.dv-wall.ghost.bad { background: color-mix(in srgb, var(--danger) 70%, transparent); }
+.dv-wall.ghost.picked { animation: dv-pick 1s ease-in-out infinite; }
+@keyframes dv-pick { 50% { opacity: .4; } }
+.dv-board.wall-mode { cursor: crosshair; }
+.dv-board.done .dv-pawn { transition: filter .6s; }
+.dv-stage .xox-result {
+  position: absolute; z-index: 5; left: 50%; top: 45%; translate: -50% -50%; margin: 0; width: max-content; max-width: 90%;
+  padding: 16px 22px; border-radius: var(--radius-l); background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: var(--border-w) solid var(--border-strong); box-shadow: var(--shadow-2), 0 20px 50px rgba(0, 0, 0, .5);
+  backdrop-filter: blur(6px); animation: dt-pop .45s cubic-bezier(.2, 1.4, .4, 1) .4s both;
+}
+.dv-stage .xox-result[hidden] { display: none; }
+.dv-result-title.p0 { color: var(--dv-p0); }
+.dv-result-title.p1 { color: var(--dv-p1); }
+@media (prefers-reduced-motion: reduce) {
+  .dv-pawn.hop, .dv-wall.drop, .dv-wall.ghost.picked, .dv-stage .xox-result { animation: none; }
+}
+
 /* ---------- Beş Harf (public/besharf.js) ----------
    Sol: 6×5 harf kutuları ve ekran klavyesi, sabit yükseklik; sağ (dar ekranda alt): istatistik ve bugün oynayanlar.
    Kutular X ekseninde dönerek açılır; uyarılar ve sonuç kutuların üstünde pop-up. */
-.besharf { display: grid; gap: 12px; --bh-g: oklch(62% .15 150); --bh-y: oklch(76% .15 85); --bh-x: color-mix(in srgb, var(--muted) 45%, var(--surface-3)); }
+.besharf { container-type: inline-size; display: grid; gap: 12px; --bh-g: oklch(62% .15 150); --bh-y: oklch(76% .15 85); --bh-x: color-mix(in srgb, var(--muted) 45%, var(--surface-3)); }
 .besharf #besharf-status { flex: 1; min-width: 0; }
+/* Dil seçici (TR / EN): küçük iki parçalı hap */
+.bh-lang[hidden] { display: none; }
+.bh-lang { display: inline-flex; flex: none; padding: 2px; gap: 2px; border-radius: var(--radius-pill); background: var(--surface-2); border: var(--border-w) solid var(--border); }
+.bh-lang button { min-height: 0; height: 26px; padding: 0 10px; border: none; border-radius: var(--radius-pill); background: transparent; color: var(--muted); font: 700 12px/1 var(--font-display); letter-spacing: .04em; }
+.bh-lang button:hover:where(:not(:disabled)) { background: var(--surface-3); color: var(--text); border: none; }
+.bh-lang button[aria-pressed="true"],
+.bh-lang button[aria-pressed="true"]:hover { background: var(--accent); color: var(--accent-contrast); }
 .bh-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 16px; align-items: start; }
-.bh-stage { position: relative; display: grid; justify-items: center; align-content: start; gap: 14px; height: 536px; padding-top: 4px; }
-.bh-grid { display: grid; grid-template-rows: repeat(6, 1fr); gap: 6px; width: min(296px, 100%); perspective: 900px; }
-.bh-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
-.bh-tile { aspect-ratio: 1; position: relative; }
+/* Sahne ve yan panel aynı sabit yükseklikte (yazarken kaymaz); kısa ekranda ekran yüksekliğine iner, kutular
+   küçülür (kutuların payı: yükseklik - klavye ve aralıklar ~190 px, 6 satır × 5 sütun) */
+.bh-stage { position: relative; display: grid; justify-items: center; align-content: start; gap: 14px; height: clamp(400px, 100dvh - 250px, 536px); padding-top: 4px; }
+/* Sütunlar minmax(0, 1fr), satırlar auto: kutuların en-boy oranı ile 1fr satırlar birbirini besleyip ızgarayı şişirmesin
+   (ilk tahminden sonra kutular 320 px'e çıkıyordu) */
+.bh-grid { display: grid; grid-template-rows: repeat(6, auto); gap: 6px; width: min(296px, 100%, (clamp(400px, 100dvh - 250px, 536px) - 190px) * 5 / 6); perspective: 900px; }
+.bh-row { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.bh-tile { aspect-ratio: 1; position: relative; min-width: 0; }
 .bh-in { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .1s; }
 .bh-face {
   position: absolute; inset: 0; display: grid; place-items: center; backface-visibility: hidden;
@@ -2185,7 +2292,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 }
 .bh-front { border: 2px solid var(--border); background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
 .bh-tile.filled .bh-front { border-color: var(--border-strong); background: var(--surface-2); }
-.bh-tile.pop .bh-in { animation: bh-pop .12s ease-out; }
+.bh-tile.bh-typed .bh-in { animation: bh-pop .12s ease-out; }
 @keyframes bh-pop { 50% { scale: 1.12; } }
 .bh-back { transform: rotateX(180deg); color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .18), 0 3px 8px rgba(0, 0, 0, .3); }
 .bh-back.g { background: linear-gradient(160deg, color-mix(in oklch, var(--bh-g) 80%, #fff), var(--bh-g)); }
@@ -2226,7 +2333,7 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .bh-result-title { font: 800 26px/1.1 var(--font-display); }
 .bh-result-word { font: 800 34px/1 var(--font-display); letter-spacing: .18em; color: var(--bh-g); }
 
-.bh-side { display: grid; gap: 12px; height: 536px; grid-template-rows: auto minmax(0, 1fr); }
+.bh-side { display: grid; gap: 12px; height: clamp(400px, 100dvh - 250px, 536px); grid-template-rows: auto minmax(0, 1fr); }
 .bh-card { border: var(--border-w) solid var(--border); background: var(--surface); border-radius: var(--radius-l); padding: 12px; display: grid; gap: 10px; min-height: 0; }
 .bh-card-title { font-weight: 700; }
 .bh-nums { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; }
@@ -2249,15 +2356,18 @@ button.radio-tool:hover:where(:not(:disabled)) { background: var(--surface-2); b
 .bh-mini i.y { background: var(--bh-y); }
 .bh-pinfo { display: grid; min-width: 0; }
 .bh-pinfo strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@media (max-width: 760px) {
-  .bh-wrap { grid-template-columns: 1fr; }
-  .bh-stage { height: 500px; }
-  .bh-grid { width: min(270px, 100%); }
+/* Dar yerde (telefon, ya da masaüstünde sohbet paneli yanındaki dar oyun sütunu) istatistikler klavyenin altına iner */
+@container (max-width: 640px) {
+  .bh-wrap { grid-template-columns: minmax(0, 1fr); }
   .bh-side { height: 380px; }
+}
+@media (max-width: 760px) {
+  .bh-stage { height: clamp(380px, 100dvh - 290px, 500px); }
+  .bh-grid { width: min(270px, 100%, (clamp(380px, 100dvh - 290px, 500px) - 180px) * 5 / 6); }
   .bh-key { height: 46px; font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .bh-tile.flip .bh-in, .bh-tile.won, .bh-row.shake, .bh-tile.pop .bh-in, .bh-result { animation: none; }
+  .bh-tile.flip .bh-in, .bh-tile.won, .bh-row.shake, .bh-tile.bh-typed .bh-in, .bh-result { animation: none; }
 }
 /* Sabit yükseklik: durum yazısı tek satır, oyuncu rozetleri alt satıra düşmez */
 .dorttas #dorttas-status, .besharf #besharf-status { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
