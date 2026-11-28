@@ -618,6 +618,7 @@ button.people-btn:hover:where(:not(:disabled)) { background: var(--surface-2); b
 @keyframes blink { 50% { opacity: .25; } }
 .mic-note { align-items: center; padding: 6px var(--space-2); font-size: 12px; }
 .mic-note > .btn { flex-shrink: 0; }
+#mic-note-code { opacity: .7; }
 .people-row { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-1); min-width: 0; }
 /* Masaüstünde başlık solda, avatarlar sağda (10 kişide iki, birleşik odada 20 kişide üç satıra iner) */
 @media (min-width: 1000px) {
